@@ -1,8 +1,8 @@
 # Themes
 
-hippocamp's web pages take their look from one stylesheet, which is the web theme contract. The registry site and this documentation both use it. A theme changes the look by setting the contract's custom properties, such as `--hp-page-bg` and `--hp-text`. The full list of properties, class names and rules is in [`docs/themes.md`](https://github.com/VanitasCaesar1/hippocamp/blob/main/docs/themes.md) in the repository. This page does not repeat it.
+hippo's web pages take their look from one stylesheet, which is the web theme contract. The registry site and this documentation both use it. A theme changes the look by setting the contract's custom properties, such as `--hp-page-bg` and `--hp-text`. The full list of properties, class names and rules is in [`docs/themes.md`](https://github.com/VanitasCaesar1/hippo/blob/main/docs/themes.md) in the repository. This page does not repeat it.
 
-The stylesheet and its checks are in the `hippocamp-theme` crate. No site that lets a reader pick a theme is running: the feed, which would do that, is not deployed ([Limits](limits.md)).
+The stylesheet and its checks are in the `hippo-theme` crate. No site that lets a reader pick a theme is running: the feed, which would do that, is not deployed ([Limits](limits.md)).
 
 ## Personal CSS
 
@@ -33,7 +33,7 @@ What `theme.css` may hold:
 - values from a closed grammar for each property: `#rgb` or `#rrggbb` colours, system font names, and sizes and widths in a range;
 - no `url(`, no `@import` and no `@font-face`, so a theme loads no image or font.
 
-`theme.json` may hold only the format's keys and value types, with no URL or file path. hippocamp applies the same hidden-character rules to it as to every pack file.
+`theme.json` may hold only the format's keys and value types, with no URL or file path. hippo applies the same hidden-character rules to it as to every pack file.
 
 A theme must also keep the contrast floors in every colour scheme it sets: 4.5:1 for text pairs and 3:1 for controls and focus outlines. A property it leaves out keeps the `default` theme's value.
 
@@ -41,20 +41,20 @@ To check a file from Rust, with the crate:
 
 ```rust
 let css = std::fs::read_to_string("theme.css")?;
-hippocamp_theme::check_theme_pack_css(&css)?; // an error reads `theme.css:<line>: <what>`
+hippo_theme::check_theme_pack_css(&css)?; // an error reads `theme.css:<line>: <what>`
 ```
 
-`hippocamp add` applies these rules before it writes anything, and the registry applies them again. A pack review judges what no rule can: whether a theme imitates another product's branding, or does not do what its README says.
+`hippo add` applies these rules before it writes anything, and the registry applies them again. A pack review judges what no rule can: whether a theme imitates another product's branding, or does not do what its README says.
 
 ## Install one
 
 ```sh
-hippocamp add ./packs/paper
+hippo add ./packs/paper
 ```
 
-or, from a built index, `hippocamp add paper --registry registry/out/index.json` ([The registry](registry.md)). hippocamp copies the files into `.hippocamp/packs/paper/`, as for any pack. Adding a theme pack changes no page by itself.
+or, from a built index, `hippo add paper --registry registry/out/index.json` ([The registry](registry.md)). hippo copies the files into `.hippo/packs/paper/`, as for any pack. Adding a theme pack changes no page by itself.
 
-Hippocamp.app lists the desktop themes of the workspace's installed packs in its theme picker (⌘⇧T), beside the built-in themes and your own theme files. The web themes are not used by anything running yet: the feed, which would offer a theme pack to a signed-in member, is not deployed.
+Hippo.app lists the desktop themes of the workspace's installed packs in its theme picker (⌘⇧T), beside the built-in themes and your own theme files. The web themes are not used by anything running yet: the feed, which would offer a theme pack to a signed-in member, is not deployed.
 
 ## The three first-party theme packs
 
@@ -70,9 +70,9 @@ Three theme packs are built. All three are listed in [the registry](registry.md)
 
 ## Desktop themes
 
-Hippocamp.app takes its colours, font and size from a theme. Two are built in, Hippocamp Light and Hippocamp Dark, and **System** follows macOS's appearance. You can add your own as JSON files directly in `$HIPPOCAMP_HOME/themes/` (`~/.hippocamp/themes/`), and a theme pack can carry one as `theme.json`. Themes are data: no code, includes or URLs.
+Hippo.app takes its colours, font and size from a theme. Two are built in, Hippo Light and Hippo Dark, and **System** follows macOS's appearance. You can add your own as JSON files directly in `$HIPPO_HOME/themes/` (`~/.hippo/themes/`), and a theme pack can carry one as `theme.json`. Themes are data: no code, includes or URLs.
 
-A theme file is a theme family in the JSON format of the Zed editor's themes, version 0.2.0, with one optional `hippocamp` object in each theme for `font_family`, `font_size` (10 to 24, default 13) and, in your own files only, a `background` image with an `opacity`. Your own files are read leniently, so a Zed theme family works as it is; a theme pack's `theme.json` is checked strictly, by `hippocamp add` and again by the app. A colour is `#rrggbb` or `#rrggbbaa`.
+A theme file is a theme family in the JSON format of the Zed editor's themes, version 0.2.0, with one optional `hippo` object in each theme for `font_family`, `font_size` (10 to 24, default 13) and, in your own files only, a `background` image with an `opacity`. Your own files are read leniently, so a Zed theme family works as it is; a theme pack's `theme.json` is checked strictly, by `hippo add` and again by the app. A colour is `#rrggbb` or `#rrggbbaa`.
 
 The app reads these 31 style keys and ignores every other key. Semicolons separate the colours of one row; commas separate the keys tried for one colour, in order. When none is present, the colour comes from the built-in theme of the same appearance, with a warning in the picker.
 
@@ -99,4 +99,4 @@ The built-in themes meet WCAG AA, which a test checks. A theme you add is not ch
 
 ## See your page in a theme
 
-Build the registry site (`cargo run -p hippocamp-registry -- build --out registry/out`), open `registry/out/packs.html`, and open the page at 360 pixels wide. Look for anything that scrolls sideways or is hard to read.
+Build the registry site (`cargo run -p hippo-registry -- build --out registry/out`), open `registry/out/packs.html`, and open the page at 360 pixels wide. Look for anything that scrolls sideways or is hard to read.

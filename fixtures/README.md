@@ -7,14 +7,14 @@ Everything here is synthetic: invented for these tests, and copied from no real 
 | Path | What it is | Used by |
 |---|---|---|
 | `notes/` | A small notes directory: frontmatter variants, links that resolve and dangle, an overdue note, a CRLF note | `notes.rs` tests |
-| `records/` | The seven `HIPPOCAMP_V1` records | `records.rs` tests |
+| `records/` | The seven `HIPPO_V1` records | `records.rs` tests |
 | `redaction/` | `leaks.txt`, `expected.txt` and `code.txt` | `redact.rs` tests, the transcript fixtures |
 | `claude-code/` | Claude Code transcripts: session `stub-1` and one nested sub-agent transcript | adapter and ingest tests |
 | `codex/` | One Codex rollout | adapter and ingest tests |
-| `eval/` | A synthetic eval set: notes, transcripts and the questions and answers of `set.toml` | `hippocamp eval`, `crates/hippocamp/tests/eval.rs` |
-| `feed/` | The feed's registry fixtures: two index files and the raw `theme.css` files (see below) | `hippocamp-feed`'s `registry.rs` tests and, later, `tests/registry.rs` |
-| `feed/api/` | Golden files of the read-only API: `posts.json` (the front list) and `post.json` (the post of `glossary-terms`), written from the actual output with `HIPPOCAMP_UPDATE_GOLDEN=1` and checked by hand; the server's address is written `https://feed.example` | `hippocamp-feed`'s `tests/api.rs` |
-| `stub-model/` | `model.sh`, a stand-in model and reviewer that print canned replies | `crates/hippocamp/tests/dream_stub_model.rs` |
+| `eval/` | A synthetic eval set: notes, transcripts and the questions and answers of `set.toml` | `hippo eval`, `crates/hippo/tests/eval.rs` |
+| `feed/` | The feed's registry fixtures: two index files and the raw `theme.css` files (see below) | `hippo-feed`'s `registry.rs` tests and, later, `tests/registry.rs` |
+| `feed/api/` | Golden files of the read-only API: `posts.json` (the front list) and `post.json` (the post of `glossary-terms`), written from the actual output with `HIPPO_UPDATE_GOLDEN=1` and checked by hand; the server's address is written `https://feed.example` | `hippo-feed`'s `tests/api.rs` |
+| `stub-model/` | `model.sh`, a stand-in model and reviewer that print canned replies | `crates/hippo/tests/dream_stub_model.rs` |
 
 ## Transcripts
 
@@ -49,13 +49,13 @@ The Codex adapter follows a mapping of Codex's rollout format. The field names w
 
 ## Stub model
 
-`stub-model/model.sh` stands in for `model_command` in the dreaming test. It reads the prompt on stdin, ignores its arguments, and prints a JSON object whose `result` is the reply, as `claude -p --output-format json` does. With `HIPPOCAMP_STUB_REVIEW` set it is a reviewer and replies `{"verdict": …, "notes": "stub"}` with `HIPPOCAMP_STUB_VERDICT`. Otherwise it replies with the proposal of `HIPPOCAMP_STUB_SCENARIO`:
+`stub-model/model.sh` stands in for `model_command` in the dreaming test. It reads the prompt on stdin, ignores its arguments, and prints a JSON object whose `result` is the reply, as `claude -p --output-format json` does. With `HIPPO_STUB_REVIEW` set it is a reviewer and replies `{"verdict": …, "notes": "stub"}` with `HIPPO_STUB_VERDICT`. Otherwise it replies with the proposal of `HIPPO_STUB_SCENARIO`:
 
 - `replace` changes `other notes link to` in `notes/Topic A.md` to the text of turn `stub-1` 1;
 - `outside` names `../etc/passwd`;
 - `dup` replaces `notes`, which occurs twice in that note;
 - `unparsable` replies `not json`;
-- `eval` is for `hippocamp eval --with-model` (as the pass model, not the reviewer). It reads the prompt and, when the prompt lists `notes/Backups.md`, replies with one `replace` of that note's planted error ("Nightly backups are kept for 14 days." becomes "Backups are now kept for 30 days after the retention change."), quoting turn 7 of session `eval-01` in `eval/transcripts`. For every other note it replies `[]`;
+- `eval` is for `hippo eval --with-model` (as the pass model, not the reviewer). It reads the prompt and, when the prompt lists `notes/Backups.md`, replies with one `replace` of that note's planted error ("Nightly backups are kept for 14 days." becomes "Backups are now kept for 30 days after the retention change."), quoting turn 7 of session `eval-01` in `eval/transcripts`. For every other note it replies `[]`;
 - `demo` and `lessons` are for `app/scripts/demo-home.sh`: the demo's dreaming runs and its lessons pass (drafter and reviewer), each reading the prompt to choose a reply.
 
 Every proposal but `eval`'s cites turn `stub-1` 1, the assistant line "I'll ask a sub-agent where the sender sleeps between retries." The file must stay executable.
@@ -64,7 +64,7 @@ Every proposal but `eval`'s cites turn `stub-1` 1, the assistant line "I'll ask 
 
 All synthetic: invented owners, repositories, commits and hashes.
 
-- `feed/registry-index.json` is a registry index (`HIPPOCAMP_V1`) of fifteen entries, with extra fields (`generated`, `counts`, `review.verdict`, the passes' `per_note`, `desktop_theme_format`) that the feed ignores. Ten pass the entry rules and are listed: `glossary-terms` and `decision-log` (owner `ada`, id 1001); `review-dates` (owner `grace`, id 1002, maintainers `grace` and `linus`); `stale-links` and `handoff-check` (first-party owner `hippocamp-demo`, id 9001); and five theme packs by `grace`: `night-ink` (its web theme passes), `desk-only` (a desktop theme only), `future-theme` (`theme_contract` 2), `bad-hash` (its `theme.css` does not match the index's `sha256`) and `bad-rules` (its `theme.css` has a selector other than `:root`). Five fail: `copyleft-notes` (licence `GPL-3.0-only`), `-oops` (a name starting with a hyphen), `short-hash` (a 63-digit `pack_hash`), and two entries named `twin`, which both fail.
+- `feed/registry-index.json` is a registry index (`HIPPO_V1`) of fifteen entries, with extra fields (`generated`, `counts`, `review.verdict`, the passes' `per_note`, `desktop_theme_format`) that the feed ignores. Ten pass the entry rules and are listed: `glossary-terms` and `decision-log` (owner `ada`, id 1001); `review-dates` (owner `grace`, id 1002, maintainers `grace` and `linus`); `stale-links` and `handoff-check` (first-party owner `hippo-demo`, id 9001); and five theme packs by `grace`: `night-ink` (its web theme passes), `desk-only` (a desktop theme only), `future-theme` (`theme_contract` 2), `bad-hash` (its `theme.css` does not match the index's `sha256`) and `bad-rules` (its `theme.css` has a selector other than `:root`). Five fail: `copyleft-notes` (licence `GPL-3.0-only`), `-oops` (a name starting with a hyphen), `short-hash` (a 63-digit `pack_hash`), and two entries named `twin`, which both fail.
 - `feed/registry-index-2.json` is the same index with `night-ink` at version 1.1.0, a new commit and `pack_hash`, whose `theme.css` hashes correctly but fails the theme rules (text and background contrast).
 - `feed/raw/<owner>/<repository>/<commit>/<path>/theme.css` are the stylesheets at the paths `FEED_RAW_URL` uses, for `night-ink` (1.0.0 and 1.1.0), `bad-hash` and `bad-rules`. `desk-only` and `future-theme` have none, because the feed never fetches them.
 

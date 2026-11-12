@@ -1,7 +1,7 @@
 target/
 **/*.rs.bk
 .DS_Store
-.hippocamp/
+.hippo/
 *.sqlite
 *.sqlite-*
 registry/out/

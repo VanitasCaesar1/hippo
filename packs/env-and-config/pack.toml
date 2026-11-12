@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 name = "env-and-config"
 version = "1.0.0"
 description = "Appends the variables, flags and settings sessions introduced, renamed or removed, by name and never by value, to an environment note."

@@ -1,9 +1,9 @@
 {
-  "protocol": "HIPPOCAMP_V1",
+  "protocol": "HIPPO_V1",
   "id": "01M7724KNWGHBX4HET525NHR7B",
   "pack": "api-drift",
   "version": "1.0.0",
-  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/api-drift",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/api-drift",
   "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
   "repo_id": 1454849249,
   "pack_hash": "39c6a9e17a943143167d65d9002171deeff0c3a829564d561b796921f780ac4c",

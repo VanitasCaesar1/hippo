@@ -6,7 +6,7 @@ Keeps a TODO or backlog note honest: it adds a `Done:` line for each listed task
 
 For each TODO, tasks or backlog note that a session touched or cited, it adds one line per listed task the session completed, under a final `## Done` section: `Done:`, the date and the task's text as the note words it. A task counts only when the turns show it finished and working. It never invents a task, and never rewrites the list.
 
-It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippocamp's reviewer checks every entry against the evidence in a fresh context before anything is written.
+It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippo's reviewer checks every entry against the evidence in a fresh context before anything is written.
 
 ## Notes it works on
 
@@ -16,7 +16,7 @@ It proposes `append` changes only. Each entry cites the transcript turns it come
 
 ## How it gets work
 
-The pack acts when sessions touch or cite the notes above: a note named with `hippocamp session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[TODO]]` is enough to bring the note in.
+The pack acts when sessions touch or cite the notes above: a note named with `hippo session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[TODO]]` is enough to bring the note in.
 
 ## What it writes
 

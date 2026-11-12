@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 pass = "schema-notes"
 about = "A renamed column and an added column are appended, and a note the filter leaves out is not read"
 

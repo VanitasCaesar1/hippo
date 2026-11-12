@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "PATH=\"$PATH:$HOME/.local/bin:$HOME/.cargo/bin\"; command -v hippocamp >/dev/null 2>&1 && hippocamp hook session-start --plugin 2>/dev/null; exit 0",
+            "command": "PATH=\"$PATH:$HOME/.local/bin:$HOME/.cargo/bin\"; command -v hippo >/dev/null 2>&1 && hippo hook session-start --plugin 2>/dev/null; exit 0",
             "timeout": 10
           }
         ]

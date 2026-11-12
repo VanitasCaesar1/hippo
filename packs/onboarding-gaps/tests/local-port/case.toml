@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 pass = "onboarding-gaps"
 about = "A setup fact a session had to discover is appended by name, and a note the filter leaves out is not read"
 

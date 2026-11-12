@@ -1,6 +1,6 @@
 name: app
 
-# Hippocamp.app lives in its own Cargo workspace, app/. It builds on macOS only and
+# Hippo.app lives in its own Cargo workspace, app/. It builds on macOS only and
 # is checked here, apart from the engine's ci.yml, so engine pull requests do
 # not wait for a macOS build of GPUI.
 on:

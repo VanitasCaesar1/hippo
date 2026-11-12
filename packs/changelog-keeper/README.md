@@ -6,7 +6,7 @@ Keeps a changelog current: it adds the changes that coding sessions shipped to t
 
 For each changelog note that a session touched or cited, it adds one bullet per change a user of the software would notice, under a final `## Pending` section: a new command, a changed default, a fixed bug, a removed option. Internal refactors, tests and plans that were not carried out are left out.
 
-It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippocamp's reviewer checks every entry against the evidence in a fresh context before anything is written. 
+It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippo's reviewer checks every entry against the evidence in a fresh context before anything is written. 
 
 ## Notes it works on
 
@@ -16,7 +16,7 @@ It proposes `append` changes only. Each entry cites the transcript turns it come
 
 ## How it gets work
 
-The pack acts when sessions touch or cite the notes above: a note named with `hippocamp session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[CHANGELOG]]` (or the note's own title) is enough to bring the note in.
+The pack acts when sessions touch or cite the notes above: a note named with `hippo session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[CHANGELOG]]` (or the note's own title) is enough to bring the note in.
 
 ## What it writes
 

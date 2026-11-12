@@ -11,4 +11,4 @@ labels: bug
 **How to reproduce**
 
 **Environment**
-hippocamp version, OS, which agent and version produced the transcripts
+hippo version, OS, which agent and version produced the transcripts

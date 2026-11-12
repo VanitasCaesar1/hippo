@@ -1,9 +1,9 @@
 {
-  "protocol": "HIPPOCAMP_V1",
+  "protocol": "HIPPO_V1",
   "id": "01M77265XKAZ379GYECYZ02KG0",
   "pack": "deploy-log",
   "version": "1.0.1",
-  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/deploy-log",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/deploy-log",
   "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
   "repo_id": 1454849249,
   "pack_hash": "2d403b8d531fdb4a771f5c0087b9da35547adfa6283503d5413ed589a87c8927",

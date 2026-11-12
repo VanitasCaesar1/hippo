@@ -1,9 +1,9 @@
 {
-  "protocol": "HIPPOCAMP_V1",
+  "protocol": "HIPPO_V1",
   "id": "01M772DCT0KR5HZJ7GB4N2VMFS",
   "pack": "related-links",
   "version": "1.0.0",
-  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/related-links",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/related-links",
   "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
   "repo_id": 1454849249,
   "pack_hash": "ebbc2b7fe29fc592a50a1066d27acb47dfba3c3c31e8c298571f33bcf8b69a10",

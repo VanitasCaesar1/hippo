@@ -1,13 +1,13 @@
 #!/bin/sh
-# Build a synthetic, self-contained hippocamp home and workspace for trying
-# Hippocamp.app and for taking screenshots.
+# Build a synthetic, self-contained hippo home and workspace for trying
+# Hippo.app and for taking screenshots.
 #
 #   app/scripts/demo-home.sh <dir>
-#   HIPPOCAMP_HOME=<dir>/home hippocamp ...        # or open Hippocamp.app with the same env
+#   HIPPO_HOME=<dir>/home hippo ...        # or open Hippo.app with the same env
 #
 # Layout under <dir> (which must not exist or must be empty):
-#   home/         HIPPOCAMP_HOME: config.toml only (hippocamp's machine state)
-#   ws/           the workspace: notes/ and .hippocamp/ (sessions, proposals,
+#   home/         HIPPO_HOME: config.toml only (hippo's machine state)
+#   ws/           the workspace: notes/ and .hippo/ (sessions, proposals,
 #                 receipts, reports, snapshots)
 #   transcripts/  the only transcript root the config names
 #   t3/           a synthetic T3 Code state database (statev2.sqlite)
@@ -40,11 +40,11 @@
 #              policy" (running, its transcript written now). Each child is
 #              a session of its own; the synthetic T3 state in
 #              t3/statev2.sqlite links them (the script exports
-#              HIPPOCAMP_T3_STATE, so ~/.t3 is never read). The "now" sessions
+#              HIPPO_T3_STATE, so ~/.t3 is never read). The "now" sessions
 #              are timed from when the script runs: open the app soon after.
 #              Also Runbooks/ (3 notes with no frontmatter), 2 notes past
 #              their review date and a 260 KB generated Operations log.
-#   Lessons    four in the Inbox from a `hippocamp lessons scan` with the stub:
+#   Lessons    four in the Inbox from a `hippo lessons scan` with the stub:
 #              a correction seen twice in two profiles (previews use the
 #              staging database), one seen once (the export button in the
 #              toolbar; a new note), and a zsh
@@ -64,18 +64,18 @@
 #              (bundle), earlier work another session's title names
 #              (the album export manifest), the agent's message it answers
 #              (with an image link), and nothing to go on.
-#   Dreaming   two `hippocamp dream --pass verify` runs today: one failed (the
+#   Dreaming   two `hippo dream --pass verify` runs today: one failed (the
 #              stub's reply is not JSON), then one with 7 proposals: 5
 #              confirmed and applied (one of them then reverted with
-#              `hippocamp revert`), 2 rejected with the reviewer's notes, 1 more
+#              `hippo revert`), 2 rejected with the reviewer's notes, 1 more
 #              failing validation. The other 4 changes can be reverted from
 #              the app.
 #
-# Not produced: sessions on more than one UTC day through `hippocamp session`
+# Not produced: sessions on more than one UTC day through `hippo session`
 # alone (the CLI stamps "now").
 # The multi-day sessions are the fixture records, copied verbatim.
 #
-# HIPPOCAMP_BIN names the hippocamp binary (default: hippocamp on PATH).
+# HIPPO_BIN names the hippo binary (default: hippo on PATH).
 set -eu
 
 usage() {
@@ -84,9 +84,9 @@ usage() {
 }
 
 [ $# -eq 1 ] || usage
-HIPPOCAMP_BIN=${HIPPOCAMP_BIN:-hippocamp}
-command -v "$HIPPOCAMP_BIN" >/dev/null 2>&1 || {
-  echo "demo-home.sh: hippocamp binary not found (set HIPPOCAMP_BIN)" >&2
+HIPPO_BIN=${HIPPO_BIN:-hippo}
+command -v "$HIPPO_BIN" >/dev/null 2>&1 || {
+  echo "demo-home.sh: hippo binary not found (set HIPPO_BIN)" >&2
   exit 2
 }
 
@@ -134,15 +134,15 @@ done
 } >"$ws/notes/Operations log.md"
 cp -R "$fixtures/eval/transcripts/." "$transcripts/"
 
-HIPPOCAMP_HOME=$home
-export HIPPOCAMP_HOME
+HIPPO_HOME=$home
+export HIPPO_HOME
 # The T3 Code state the engine reads for delegated tasks is the synthetic one
 # below, never ~/.t3.
-HIPPOCAMP_T3_STATE=$dir/t3/statev2.sqlite
-export HIPPOCAMP_T3_STATE
-hippocamp() { command "$HIPPOCAMP_BIN" "$@"; }
+HIPPO_T3_STATE=$dir/t3/statev2.sqlite
+export HIPPO_T3_STATE
+hippo() { command "$HIPPO_BIN" "$@"; }
 
-hippocamp init --workspace "$ws" --notes-dir notes --entry-note "notes/START HERE.md" >/dev/null
+hippo init --workspace "$ws" --notes-dir notes --entry-note "notes/START HERE.md" >/dev/null
 
 # init writes a default config.toml; replace it with one that points the
 # transcript root inside <dir> and uses the stub as model and reviewer.
@@ -150,21 +150,21 @@ cat >"$home/config.toml" <<CFG
 workspace = "$ws"
 transcript_roots = ["$transcripts"]
 model_command = ["$model", "--system-prompt", "{system_prompt}"]
-reviewer_command_override = ["env", "HIPPOCAMP_STUB_REVIEW=1", "$model", "--system-prompt", "{system_prompt}"]
+reviewer_command_override = ["env", "HIPPO_STUB_REVIEW=1", "$model", "--system-prompt", "{system_prompt}"]
 CFG
 
 # Eight declared sessions over 1 to 7 November 2026 (fixture records; their
 # notes_touched make the verify pass take the notes the stub corrects).
-mkdir -p "$ws/.hippocamp/sessions"
-cp "$fixtures"/eval/sessions/*.json "$ws/.hippocamp/sessions/"
+mkdir -p "$ws/.hippo/sessions"
+cp "$fixtures"/eval/sessions/*.json "$ws/.hippo/sessions/"
 
 # One session through the CLI, with a handoff, so the Sessions panel also
 # has a live record.
-hippocamp session start --tool claude-code --session demo-live >/dev/null
+hippo session start --tool claude-code --session demo-live >/dev/null
 printf '%s\n' \
   'Reviewed [[Backups]] and [[Release process]] for the demo.' \
   'Nothing to change; see [[On-call]] for the pager rota.' |
-  hippocamp session end --session demo-live --handoff - \
+  hippo session end --session demo-live --handoff - \
     --note "notes/Style guide.md" >/dev/null
 
 # Synthetic Claude Code transcripts in the shapes real homes have: a session named by a client's
@@ -322,13 +322,13 @@ printf '{"numStartups":3,"cachedUsageUtilization":{"fetchedAtMs":%s,"utilization
 mkdir -p "$dir/profiles/.claude-typo/projects"
 
 # The context x-ray: six sessions in the
-# workspace from the last hour and a half, each with hippocamp's hook output as
+# workspace from the last hour and a half, each with hippo's hook output as
 # the client records it. The first reads one required note, searches the
 # notes for the signing key in vain and asks, finds it in On-call, edits
 # and tests, merges and claims a deploy it shows no command for; the others
 # never open the Style guide, which is required, so the fleet's tune tip
 # offers to make it relevant-only; one claims a typecheck it never ran.
-sed -i '' -e 's|^required_notes = .*|required_notes = ["notes/START HERE.md", "notes/On-call.md", "notes/Style guide.md"]|' "$ws/.hippocamp/hippocamp.toml"
+sed -i '' -e 's|^required_notes = .*|required_notes = ["notes/START HERE.md", "notes/On-call.md", "notes/Style guide.md"]|' "$ws/.hippo/hippo.toml"
 xproj=$dir/profiles/.claude/projects/$(printf '%s' "$ws" | tr -c 'A-Za-z0-9\n' '-')
 mkdir -p "$xproj" "$ws/src"
 printf 'export const sign = () => null\n' >"$ws/src/release.ts"
@@ -340,13 +340,13 @@ xray_session() {
   prompt='relevant:\n- Release process: Releases go out from main after the checks pass.\n\nlinter: overdue=2 dangling=0\n'
   meta=$(printf '"sessionId":"%s","cwd":"%s","entrypoint":"cli"' "$id" "$ws")
   {
-    printf '{"type":"attachment",%s,"timestamp":"%s","attachment":{"type":"hook_success","hookEvent":"SessionStart","command":"hippocamp hook session-start","stdout":"%s"}}\n' "$meta" "$(ago "$m")" "$start"
+    printf '{"type":"attachment",%s,"timestamp":"%s","attachment":{"type":"hook_success","hookEvent":"SessionStart","command":"hippo hook session-start","stdout":"%s"}}\n' "$meta" "$(ago "$m")" "$start"
     k=0
     while IFS='|' read -r kind body; do
       t=$(ago $((m - k * gap)))
       case $kind in
         user) printf '{"type":"user",%s,"timestamp":"%s","message":{"role":"user","content":%s}}\n' "$meta" "$t" "$body" ;;
-        hook) printf '{"type":"attachment",%s,"timestamp":"%s","attachment":{"type":"hook_success","hookEvent":"UserPromptSubmit","command":"hippocamp hook prompt","stdout":"%s"}}\n' "$meta" "$t" "$prompt" ;;
+        hook) printf '{"type":"attachment",%s,"timestamp":"%s","attachment":{"type":"hook_success","hookEvent":"UserPromptSubmit","command":"hippo hook prompt","stdout":"%s"}}\n' "$meta" "$t" "$prompt" ;;
         say) printf '{"type":"assistant",%s,"timestamp":"%s","message":{"role":"assistant","content":[{"type":"text","text":%s}]}}\n' "$meta" "$t" "$body" ;;
         call) printf '{"type":"assistant",%s,"timestamp":"%s","message":{"role":"assistant","content":[%s]}}\n' "$meta" "$t" "$body" ;;
         result) printf '{"type":"user",%s,"timestamp":"%s","message":{"role":"user","content":[%s]}}\n' "$meta" "$t" "$body" ;;
@@ -414,7 +414,7 @@ xray_session demo-i2 110 <<XRAY
 user|"Add the cache cap test."
 hook|
 call|{"type":"tool_use","id":"i2a","name":"Bash","input":{"command":"cd $ws && ./app/scripts/bundle.sh"}}
-result|{"type":"tool_result","tool_use_id":"i2a","content":"Bundled Hippocamp.app"}
+result|{"type":"tool_result","tool_use_id":"i2a","content":"Bundled Hippo.app"}
 user|"no, never bundle the app mid-work, I said that before"
 XRAY
 # A correction about earlier work, and one answering the agent's
@@ -697,7 +697,7 @@ T3_RUN2='{\"taskId\":\"node:delegated-task:demo-2\",\"childThreadId\":\"thread:d
   rcall 25 w3 Edit '{"file_path":"@CWD@/src/export/queue.rs","old_string":"        self.jobs.push_back(job);","new_string":"        self.jobs.push_back(job.with_policy(Policy::retry()));"}'
 } | fill "$proj/demo-t3-child2.jsonl"
 mkdir -p "$dir/t3"
-sqlite3 "$HIPPOCAMP_T3_STATE" "CREATE TABLE orchestration_v2_projection_provider_threads(provider_thread_id TEXT PRIMARY KEY, thread_id TEXT, updated_at TEXT NOT NULL, payload_json TEXT NOT NULL);
+sqlite3 "$HIPPO_T3_STATE" "CREATE TABLE orchestration_v2_projection_provider_threads(provider_thread_id TEXT PRIMARY KEY, thread_id TEXT, updated_at TEXT NOT NULL, payload_json TEXT NOT NULL);
 INSERT INTO orchestration_v2_projection_provider_threads VALUES
  ('demo-p1', 'thread:delegated-task:demo-1', '$(agos 1500)', '{\"nativeThreadRef\":{\"nativeId\":\"demo-t3-child1\"}}'),
  ('demo-p2', 'thread:delegated-task:demo-2', '$(agos 25)', '{\"nativeThreadRef\":{\"nativeId\":\"demo-t3-child2\"}}');"
@@ -816,26 +816,26 @@ proj=$dir/profiles/.claude-work/projects/-tern-web
 proj=$demo_proj
 TS=ts8
 
-hippocamp ingest
-HIPPOCAMP_STUB_SCENARIO=lessons hippocamp lessons scan
+hippo ingest
+HIPPO_STUB_SCENARIO=lessons hippo lessons scan
 
 # Open the dreaming window before the 1 November sessions.
-printf '{"protocol":"HIPPOCAMP_V1","last_success":"2026-10-31T00:00:00Z"}\n' \
-  >"$ws/.hippocamp/dream-state.json"
+printf '{"protocol":"HIPPO_V1","last_success":"2026-10-31T00:00:00Z"}\n' \
+  >"$ws/.hippo/dream-state.json"
 
 # Dreaming as real homes see it: a run that fails (the model's reply is
 # not JSON), then a run whose stub proposes one change per eval note. The
 # reviewer confirms five, rejects two (Auth sessions, Search index) and
 # Sharing links' change fails validation. Then one applied change is
 # reverted, as a person would.
-HIPPOCAMP_STUB_SCENARIO=unparsable hippocamp dream --pass verify >/dev/null 2>&1 || true
-HIPPOCAMP_STUB_SCENARIO=demo hippocamp dream --pass verify
-proposal=$(grep -l '"notes/Database migrations.md"' "$ws"/.hippocamp/proposals/*.json | head -n 1)
+HIPPO_STUB_SCENARIO=unparsable hippo dream --pass verify >/dev/null 2>&1 || true
+HIPPO_STUB_SCENARIO=demo hippo dream --pass verify
+proposal=$(grep -l '"notes/Database migrations.md"' "$ws"/.hippo/proposals/*.json | head -n 1)
 proposal=$(basename "$proposal" .json)
-receipt=$(grep -l "\"$proposal\"" "$ws"/.hippocamp/receipts/*.json | head -n 1)
-hippocamp revert "$(basename "$receipt" .json)"
+receipt=$(grep -l "\"$proposal\"" "$ws"/.hippo/receipts/*.json | head -n 1)
+hippo revert "$(basename "$receipt" .json)"
 
 echo
 echo "seeded $dir"
-echo "  HIPPOCAMP_HOME=$home"
+echo "  HIPPO_HOME=$home"
 echo "  workspace=$ws"

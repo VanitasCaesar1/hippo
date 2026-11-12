@@ -6,7 +6,7 @@ Keeps a testing or build note current: it adds the build, test and lint commands
 
 For each matching note that a session touched or cited, it adds one entry per build, test or lint command a session ran successfully that the note does not list, under a final `## Logged commands` section: the date, the command exactly as the session ran it and what it checks. A command that failed, or that the note already lists, is left out.
 
-It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippocamp's reviewer checks every entry against the evidence in a fresh context before anything is written. 
+It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippo's reviewer checks every entry against the evidence in a fresh context before anything is written. 
 
 ## Notes it works on
 
@@ -16,7 +16,7 @@ It proposes `append` changes only. Each entry cites the transcript turns it come
 
 ## How it gets work
 
-The pack acts when sessions touch or cite the notes above: a note named with `hippocamp session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[Testing]]` is enough to bring the note in.
+The pack acts when sessions touch or cite the notes above: a note named with `hippo session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[Testing]]` is enough to bring the note in.
 
 ## What it writes
 

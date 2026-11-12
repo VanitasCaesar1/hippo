@@ -1,9 +1,9 @@
 {
-  "protocol": "HIPPOCAMP_V1",
+  "protocol": "HIPPO_V1",
   "id": "01M772DZXYC5N5J1MTY7N5X58H",
   "pack": "runbook-check",
   "version": "1.0.1",
-  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/runbook-check",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/runbook-check",
   "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
   "repo_id": 1454849249,
   "pack_hash": "447294e1a2e34a0b4b858d298ab44bae62303178b189e187a6ae63f47d3d7a13",

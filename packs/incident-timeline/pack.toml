@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 name = "incident-timeline"
 version = "1.0.1"
 description = "Appends timeline entries from sessions that worked on an incident."

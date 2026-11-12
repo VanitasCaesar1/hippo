@@ -1,6 +1,6 @@
 #!/bin/sh
 # Publishes the built site (docs/site/out, from docs/site/build.sh) to the
-# gh-pages branch of the remote, for https://vanitascaesar1.github.io/hippocamp/.
+# gh-pages branch of the remote, for https://vanitascaesar1.github.io/hippo/.
 # It commits the folder as the whole branch, adds
 # .nojekyll so GitHub serves it as is, and pushes that branch only. Nothing
 # else in the repository changes.
@@ -23,7 +23,7 @@ cd "$root"
 }
 commit=$(git rev-parse --short HEAD)
 
-work=$(mktemp -d "${TMPDIR:-/tmp}/hippocamp-pages.XXXXXX")
+work=$(mktemp -d "${TMPDIR:-/tmp}/hippo-pages.XXXXXX")
 trap 'git worktree remove --force "$work" 2>/dev/null; rm -rf "$work"' EXIT INT TERM
 git worktree add --detach "$work" >/dev/null
 (

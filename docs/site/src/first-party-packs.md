@@ -1,6 +1,6 @@
 # First-party packs
 
-The repository's `packs/` directory holds the packs this project ships: 23 pass packs, and three theme packs described [at the end](#theme-packs). Each is a complete pack: a manifest, a README, a pass, a prompt, a persona and one fixture test, and all but `related-links` carry a note template. Each passes `hippocamp packs check` with no warning and `hippocamp packs test`. To use one, run `hippocamp add ./packs/<name>` from a checkout ([Using a pack](packs.md#using-a-pack)).
+The repository's `packs/` directory holds the packs this project ships: 23 pass packs, and three theme packs described [at the end](#theme-packs). Each is a complete pack: a manifest, a README, a pass, a prompt, a persona and one fixture test, and all but `related-links` carry a note template. Each passes `hippo packs check` with no warning and `hippo packs test`. To use one, run `hippo add ./packs/<name>` from a checkout ([Using a pack](packs.md#using-a-pack)).
 
 Version, author and licence are the same for all 23: 1.0.0, Vanitas Caesar, MIT. Each proposes `append` changes only, and each entry cites the transcript turns it comes from.
 
@@ -32,7 +32,7 @@ Version, author and licence are the same for all 23: 1.0.0, Vanitas Caesar, MIT.
 
 ## How they run
 
-Every pack has one pass, named like the pack, with an input budget of 200,000 bytes. `adr-status` also reads `human_confirmed`: text a person restored with `hippocamp revert`, which it treats as settled.
+Every pack has one pass, named like the pack, with an input budget of 200,000 bytes. `adr-status` also reads `human_confirmed`: text a person restored with `hippo revert`, which it treats as settled.
 
 | Pack | Reads | Calls |
 |---|---|---|

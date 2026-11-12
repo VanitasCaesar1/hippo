@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 name = "test-commands"
 version = "1.0.1"
 description = "Appends the build, test and lint commands sessions ran successfully, which the note lacks, to a testing or build note."

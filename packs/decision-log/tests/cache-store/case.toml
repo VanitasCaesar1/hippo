@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 pass = "decision-log"
 about = "A decision with its reason and rejected options is appended, and a note the filter leaves out is not read"
 

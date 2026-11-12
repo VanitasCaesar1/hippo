@@ -1,24 +1,24 @@
 #!/bin/sh
-# A two-to-three-minute demo of hippocamp on synthetic data. See demo.md.
+# A two-to-three-minute demo of hippo on synthetic data. See demo.md.
 #
-#   HIPPOCAMP_BIN    the hippocamp binary (default: hippocamp on PATH)
+#   HIPPO_BIN    the hippo binary (default: hippo on PATH)
 #   DEMO_PAUSE   whole seconds, the unit of the waits: 3 after each comment line,
 #                7 after each output (default 1, about two minutes in all; 0 for none)
 #
-# Works in /tmp/hippocamp-demo, removed at the start and at the end. Offline, no
+# Works in /tmp/hippo-demo, removed at the start and at the end. Offline, no
 # account, no real model: dreaming and the pack review use the stub model.
 set -eu
 
-HIPPOCAMP_BIN=${HIPPOCAMP_BIN:-hippocamp}
+HIPPO_BIN=${HIPPO_BIN:-hippo}
 DEMO_PAUSE=${DEMO_PAUSE:-1}
-case $HIPPOCAMP_BIN in */*) HIPPOCAMP_BIN=$(cd "$(dirname "$HIPPOCAMP_BIN")" && pwd)/$(basename "$HIPPOCAMP_BIN") ;; esac
-if ! command -v "$HIPPOCAMP_BIN" >/dev/null 2>&1; then
-  echo "demo.sh: no hippocamp binary: set HIPPOCAMP_BIN" >&2
+case $HIPPO_BIN in */*) HIPPO_BIN=$(cd "$(dirname "$HIPPO_BIN")" && pwd)/$(basename "$HIPPO_BIN") ;; esac
+if ! command -v "$HIPPO_BIN" >/dev/null 2>&1; then
+  echo "demo.sh: no hippo binary: set HIPPO_BIN" >&2
   exit 2
 fi
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 
-D=/tmp/hippocamp-demo
+D=/tmp/hippo-demo
 rm -rf "$D"
 trap 'rm -rf "$D"' EXIT
 
@@ -39,9 +39,9 @@ for f in "$D"/transcripts/*/*.jsonl "$D"/sessions/*.json; do
 done
 
 export HOME="$D/home"
-export HIPPOCAMP_HOME="$D/home/.hippocamp-home"
-export HIPPOCAMP_STUB_SCENARIO=eval
-export HIPPOCAMP_STUB_VERDICT=confirm
+export HIPPO_HOME="$D/home/.hippo-home"
+export HIPPO_STUB_SCENARIO=eval
+export HIPPO_STUB_VERDICT=confirm
 export RUST_LOG=
 cd "$D/work"
 
@@ -50,21 +50,21 @@ wait_units() { [ "$DEMO_PAUSE" = 0 ] || sleep $(($1 * DEMO_PAUSE)); }
 pause() { wait_units 7; }
 say() { printf '\n# %s\n' "$1"; wait_units 3; }
 
-# run [-n LINES] ARGS...: echo the command, run hippocamp, show the first LINES
-# lines of output, and stop the demo if hippocamp fails.
+# run [-n LINES] ARGS...: echo the command, run hippo, show the first LINES
+# lines of output, and stop the demo if hippo fails.
 run() {
   lines=1000
   if [ "$1" = -n ]; then lines=$2; shift 2; fi
-  printf '$ hippocamp'
+  printf '$ hippo'
   for a in "$@"; do
     case $a in *' '*) printf ' "%s"' "$a" ;; *) printf ' %s' "$a" ;; esac
   done
   printf '\n'
-  if "$HIPPOCAMP_BIN" "$@" >"$D/out" 2>&1; then rc=0; else rc=$?; fi
+  if "$HIPPO_BIN" "$@" >"$D/out" 2>&1; then rc=0; else rc=$?; fi
   head -n "$lines" "$D/out"
   if [ "$(wc -l <"$D/out")" -gt "$lines" ]; then echo "..."; fi
   if [ "$rc" -ne 0 ]; then
-    echo "demo.sh: hippocamp $* exited $rc" >&2
+    echo "demo.sh: hippo $* exited $rc" >&2
     exit 1
   fi
   pause
@@ -72,15 +72,15 @@ run() {
 
 say "A workspace with 16 notes about an imaginary photo library, and eight agent sessions."
 run init --workspace "$D/work" --notes-dir notes --entry-note "notes/START HERE.md"
-cat >"$HIPPOCAMP_HOME/config.toml" <<CFG
+cat >"$HIPPO_HOME/config.toml" <<CFG
 workspace = "$D/work"
 transcript_roots = ["$D/transcripts"]
 model_command = ["$D/model.sh", "--system-prompt", "{system_prompt}"]
-reviewer_command_override = ["env", "HIPPOCAMP_STUB_REVIEW=1", "HIPPOCAMP_STUB_VERDICT=confirm", "$D/model.sh", "--system-prompt", "{system_prompt}"]
+reviewer_command_override = ["env", "HIPPO_STUB_REVIEW=1", "HIPPO_STUB_VERDICT=confirm", "$D/model.sh", "--system-prompt", "{system_prompt}"]
 CFG
-mkdir -p "$D/work/.hippocamp/sessions"
+mkdir -p "$D/work/.hippo/sessions"
 for s in 1 2 3 4 5 6 7 8; do
-  cp "$D/sessions/eval-0$s.json" "$D/work/.hippocamp/sessions/eval-0$s.json"
+  cp "$D/sessions/eval-0$s.json" "$D/work/.hippo/sessions/eval-0$s.json"
 done
 
 say "Ingest: every turn of every session becomes searchable. Secrets are redacted on the way in."
@@ -101,14 +101,14 @@ say "Dreaming: the note says backups are kept 14 days. A later session says 30."
 printf '$ grep "kept for" notes/Backups.md\n'
 grep "kept for" notes/Backups.md
 pause
-printf '{"protocol":"HIPPOCAMP_V1","last_success":"%sT00:00:00Z"}\n' "$YESTERDAY" >.hippocamp/dream-state.json
+printf '{"protocol":"HIPPO_V1","last_success":"%sT00:00:00Z"}\n' "$YESTERDAY" >.hippo/dream-state.json
 run -n 40 dream
 
 say "The change has a receipt. The note now:"
 printf '$ grep "kept for" notes/Backups.md\n'
 grep "kept for" notes/Backups.md
 pause
-RECEIPT=$(grep -l '"verdict": "confirm"' .hippocamp/receipts/*.json | head -n 1 | sed 's#.*/##; s#\.json$##')
+RECEIPT=$(grep -l '"verdict": "confirm"' .hippo/receipts/*.json | head -n 1 | sed 's#.*/##; s#\.json$##')
 say "Revert it from the snapshot:"
 run revert "$RECEIPT"
 printf '$ grep "kept for" notes/Backups.md\n'
@@ -118,11 +118,11 @@ pause
 say "Doctor: the setup checks in one table. No schedule is installed in the demo, so launchd is flagged."
 # No schedule is installed in the demo, so the launchd row reports a problem
 # and doctor exits 1. That row alone is expected; any other problem fails.
-printf '$ hippocamp doctor\n'
-if "$HIPPOCAMP_BIN" doctor >"$D/out" 2>&1; then rc=0; else rc=$?; fi
+printf '$ hippo doctor\n'
+if "$HIPPO_BIN" doctor >"$D/out" 2>&1; then rc=0; else rc=$?; fi
 cat "$D/out"
 if [ "$rc" -gt 1 ] || grep '| problem |' "$D/out" | grep -v '^launchd |' | grep -q .; then
-  echo "demo.sh: hippocamp doctor reported a problem besides launchd" >&2
+  echo "demo.sh: hippo doctor reported a problem besides launchd" >&2
   exit 1
 fi
 pause

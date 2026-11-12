@@ -1,6 +1,6 @@
-# Running the hippocamp feed locally
+# Running the hippo feed locally
 
-This page shows how to run `hippocamp-feed` on one machine with a mock sign-in, a fixture registry and demo data. The feed is not deployed, and there is no production procedure yet.
+This page shows how to run `hippo-feed` on one machine with a mock sign-in, a fixture registry and demo data. The feed is not deployed, and there is no production procedure yet.
 
 **Status, stated once.** The feed is built and tested locally. Nothing is deployed. Everything here runs on `127.0.0.1`, with no real GitHub account and no real secret. Dev mode (`FEED_DEV=1`) refuses a base URL that is not `http` on `127.0.0.1` or `localhost`, and a bind address that is not loopback.
 
@@ -13,8 +13,8 @@ Put these in a file such as `feed-dev.env`, outside the repository or ignored, a
 ```sh
 FEED_DEV=1
 FEED_BASE_URL=http://127.0.0.1:8080
-FEED_DB=/tmp/hippocamp-feed-dev.db
-FEED_GITHUB_CLIENT_ID=hippocamp-feed-dev
+FEED_DB=/tmp/hippo-feed-dev.db
+FEED_GITHUB_CLIENT_ID=hippo-feed-dev
 FEED_GITHUB_CLIENT_SECRET=dev-secret-not-real
 FEED_OAUTH_AUTHORIZE_URL=http://127.0.0.1:9100/login/oauth/authorize
 FEED_OAUTH_TOKEN_URL=http://127.0.0.1:9100/login/oauth/access_token
@@ -38,7 +38,7 @@ Use four terminals, or run the first two servers in the background.
 1. Mock sign-in provider, on port 9100:
 
    ```sh
-   cargo run -p hippocamp-feed -- mock-oauth
+   cargo run -p hippo-feed -- mock-oauth
    ```
 
 2. Raw file server for theme CSS, on port 9200:
@@ -50,9 +50,9 @@ Use four terminals, or run the first two servers in the background.
 3. Create the database, read the registry index and add the demo data:
 
    ```sh
-   cargo run -p hippocamp-feed -- migrate
-   cargo run -p hippocamp-feed -- sync-registry
-   cargo run -p hippocamp-feed -- seed-demo
+   cargo run -p hippo-feed -- migrate
+   cargo run -p hippo-feed -- sync-registry
+   cargo run -p hippo-feed -- seed-demo
    ```
 
    `seed-demo` refuses to run unless packs are listed, so `sync-registry` comes first. It also refuses to run twice. It adds eight demo members (`demo-1` to `demo-8`), 12 discussions whose titles hold `[demo] `, 40 comments, 150 votes, and measurements of `glossary-terms` (three), `decision-log` (three) and, when the index lists it, `review-dates` (one).
@@ -60,7 +60,7 @@ Use four terminals, or run the first two servers in the background.
 4. Start the server:
 
    ```sh
-   cargo run -p hippocamp-feed -- serve
+   cargo run -p hippo-feed -- serve
    ```
 
 Open <http://127.0.0.1:8080/>. Stop the servers with Ctrl-C when you finish.
@@ -117,8 +117,8 @@ curl -i http://127.0.0.1:8080/api/v1/posts/999999
 The fixture lists 15 invented packs. To seed from this repository's first-party packs instead, build the index offline from the registry. It then holds the 26 first-party packs: 23 pass packs and the 3 theme packs `high-contrast`, `large-type` and `paper`.
 
 ```sh
-cargo run -p hippocamp-registry -- build --offline --out /tmp/hippocamp-registry
-export FEED_REGISTRY_INDEX=/tmp/hippocamp-registry/index.json
+cargo run -p hippo-registry -- build --offline --out /tmp/hippo-registry
+export FEED_REGISTRY_INDEX=/tmp/hippo-registry/index.json
 ```
 
 `seed-demo` measures `glossary-terms` and `decision-log`, and `review-dates` only when the index lists it. Only the fixture lists `review-dates`, so this variant has two measured packs.
@@ -126,9 +126,9 @@ export FEED_REGISTRY_INDEX=/tmp/hippocamp-registry/index.json
 The feed fetches each theme pack's `theme.css` from `<FEED_RAW_URL>/<owner>/<repo>/<commit>/<path>/theme.css`. Fill a directory with those files from git, then serve it on port 9200 in place of `fixtures/feed/raw`:
 
 ```sh
-raw=/tmp/hippocamp-raw
+raw=/tmp/hippo-raw
 jq -r '.packs[] | select(.kind == "theme") | [.repo, .commit, .path] | @tsv' \
-  /tmp/hippocamp-registry/index.json |
+  /tmp/hippo-registry/index.json |
 while IFS="$(printf '\t')" read -r repo commit path; do
   slug=${repo#https://github.com/}
   mkdir -p "$raw/$slug/$commit/$path"

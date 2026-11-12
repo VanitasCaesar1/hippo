@@ -1,9 +1,9 @@
 {
-  "protocol": "HIPPOCAMP_V1",
+  "protocol": "HIPPO_V1",
   "id": "01M7725TBJM4QZXSKKKFXMWP19",
   "pack": "dependency-changes",
   "version": "1.0.0",
-  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/dependency-changes",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/dependency-changes",
   "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
   "repo_id": 1454849249,
   "pack_hash": "7a1c822a0c95e8360ad724183a404c6e18b7a2514f3f3777ad756a080277da8c",

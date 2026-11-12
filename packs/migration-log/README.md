@@ -6,7 +6,7 @@ Keeps a migrations note current: it adds the database migrations that coding ses
 
 For each matching note that a session touched or cited, it adds one entry per database migration a session ran, under a final `## Logged migrations` section: the date, the migration, the environment it ran in, the command as the session ran it, and the outcome. A migration the note already records for that environment is skipped.
 
-It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippocamp's reviewer checks every entry against the evidence in a fresh context before anything is written. 
+It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippo's reviewer checks every entry against the evidence in a fresh context before anything is written. 
 
 ## Notes it works on
 
@@ -15,7 +15,7 @@ It proposes `append` changes only. Each entry cites the transcript turns it come
 
 ## How it gets work
 
-The pack acts when sessions touch or cite the notes above: a note named with `hippocamp session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[Migrations]]` is enough to bring the note in.
+The pack acts when sessions touch or cite the notes above: a note named with `hippo session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[Migrations]]` is enough to bring the note in.
 
 ## What it writes
 

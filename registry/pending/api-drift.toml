@@ -1,0 +1,8 @@
+protocol = "HIPPO_V1"
+name = "api-drift"
+repo = "https://github.com/VanitasCaesar1/hippo"
+repo_id = 1454849249
+owner_id = 94681960
+path = "packs/api-drift"
+commit = "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942"
+maintainers = ["VanitasCaesar1"]

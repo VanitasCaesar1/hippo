@@ -6,7 +6,7 @@ Keeps a FAQ note growing from real questions: it adds the questions users asked 
 
 For each FAQ note that a session touched or cited, it adds one entry per question a person asked and the session answered, under a final `## Asked in sessions` section: the question, the answer the turns established and the date. Questions left open, answers that are guesses and questions about one person's private setup are skipped. A question the note already answers is not repeated.
 
-It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippocamp's reviewer checks every entry against the evidence in a fresh context before anything is written.
+It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippo's reviewer checks every entry against the evidence in a fresh context before anything is written.
 
 ## Notes it works on
 
@@ -14,7 +14,7 @@ It proposes `append` changes only. Each entry cites the transcript turns it come
 
 ## How it gets work
 
-The pack acts when sessions touch or cite the notes above: a note named with `hippocamp session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[FAQ]]` is enough to bring the note in.
+The pack acts when sessions touch or cite the notes above: a note named with `hippo session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[FAQ]]` is enough to bring the note in.
 
 ## What it writes
 

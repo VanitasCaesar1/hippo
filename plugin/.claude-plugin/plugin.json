@@ -1,13 +1,13 @@
 {
-  "name": "hippocamp",
+  "name": "hippo",
   "version": "0.1.0",
-  "description": "One brain for all your coding agents. Gives a session hippocamp's start block when hippocamp is set up with a notes folder, and adds /hippocamp:setup, /hippocamp:ask and /hippocamp:day.",
+  "description": "One brain for all your coding agents. Gives a session hippo's start block when hippo is set up with a notes folder, and adds /hippo:setup, /hippo:ask and /hippo:day.",
   "author": {
     "name": "VanitasCaesar1",
     "url": "https://github.com/VanitasCaesar1"
   },
-  "homepage": "https://github.com/VanitasCaesar1/hippocamp",
-  "repository": "https://github.com/VanitasCaesar1/hippocamp",
+  "homepage": "https://github.com/VanitasCaesar1/hippo",
+  "repository": "https://github.com/VanitasCaesar1/hippo",
   "license": "MIT",
   "keywords": ["memory", "context", "notes", "transcripts", "history"]
 }

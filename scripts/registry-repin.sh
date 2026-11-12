@@ -1,6 +1,6 @@
 #!/bin/sh
 # Re-pins every entry in registry/pending/ to one repository and commit, and
-# moves the entries into registry/packs/, where `hippocamp-registry check`
+# moves the entries into registry/packs/, where `hippo-registry check`
 # and `build` read them. Each still needs a review before it is listed
 # (registry/pending/README.md says how).
 #
@@ -48,4 +48,4 @@ for f in "$pending"/*.toml; do
   moved=$((moved + 1))
 done
 echo "re-pinned $moved entries to $repo at $commit (repository $repo_id, owner $owner_id) in registry/packs/"
-echo "next: review each entry (registry/pending/README.md), then cargo run -p hippocamp-registry -- check"
+echo "next: review each entry (registry/pending/README.md), then cargo run -p hippo-registry -- check"

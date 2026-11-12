@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 name = "deploy-log"
 version = "1.0.1"
 description = "Appends the deploys sessions ran or watched, with what, where, when and outcome, to a deploy log note."

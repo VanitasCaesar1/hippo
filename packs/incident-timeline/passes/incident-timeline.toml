@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 prompt = "prompts/incident-timeline.md"
 reads = ["sessions", "notes", "turns"]
 reviewer = "personas/incident-timeline-reviewer.md"

@@ -1,0 +1,31 @@
+[package]
+name = "hippo"
+description = "One brain for all your coding agents. hippo reads everything they did, keeps your notes true, and briefs every new session."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "hippo"
+path = "src/main.rs"
+
+[dependencies]
+hippo-core.workspace = true
+hippo-view.workspace = true
+clap.workspace = true
+anyhow.workspace = true
+serde_json.workspace = true
+tracing-subscriber.workspace = true
+ulid.workspace = true
+time.workspace = true
+tiny-skia.workspace = true
+flate2.workspace = true
+crc32fast.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+time.workspace = true
+hippo-theme.workspace = true

@@ -1,9 +1,9 @@
 {
-  "protocol": "HIPPOCAMP_V1",
+  "protocol": "HIPPO_V1",
   "id": "01M7726Z9W26SM3E71YQHDS5TV",
   "pack": "error-catalogue",
   "version": "1.0.0",
-  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/error-catalogue",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/error-catalogue",
   "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
   "repo_id": 1454849249,
   "pack_hash": "b9bc299d06ce7cbd1ebd7a2cef0a077c74e57428783a2867941667e4bed8b34a",

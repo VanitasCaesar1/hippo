@@ -1,9 +1,9 @@
 {
-  "protocol": "HIPPOCAMP_V1",
+  "protocol": "HIPPO_V1",
   "id": "01M7727CAR2SQP657W658VRA1T",
   "pack": "faq",
   "version": "1.0.0",
-  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/faq",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/faq",
   "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
   "repo_id": 1454849249,
   "pack_hash": "757a88367ad56815301f1bfa9f02f99802941719cc03e031dbcdafca6dc05a4f",

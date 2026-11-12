@@ -1,9 +1,9 @@
 {
-  "protocol": "HIPPOCAMP_V1",
+  "protocol": "HIPPO_V1",
   "id": "01M779ZFA02JCXG8W73XCA7SJ5",
   "pack": "incident-timeline",
   "version": "1.0.1",
-  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/incident-timeline",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/incident-timeline",
   "commit": "dd642d6c88ccac9492062aeed6abca27fdba17f9",
   "repo_id": 1454849249,
   "pack_hash": "6492bd88705b460993279ccd49030832c629ecc2004cb518cc821ff33ee85209",

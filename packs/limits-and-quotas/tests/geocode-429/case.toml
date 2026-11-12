@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 pass = "limits-and-quotas"
 about = "A rate limit hit with its quoted error is appended, and a note the filter leaves out is not read"
 

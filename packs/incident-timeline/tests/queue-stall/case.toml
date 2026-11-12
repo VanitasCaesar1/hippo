@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 pass = "incident-timeline"
 about = "Each moment of the incident is appended to the timeline as its own entry, and a note the filter leaves out is not read"
 

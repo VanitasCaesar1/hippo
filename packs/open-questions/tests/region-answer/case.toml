@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 pass = "open-questions"
 about = "An answer to a listed question is appended, and a note the filter leaves out is not read"
 

@@ -1,8 +1,0 @@
-protocol = "HIPPOCAMP_V1"
-name = "incident-timeline"
-repo = "https://github.com/VanitasCaesar1/hippocamp"
-repo_id = 1454849249
-owner_id = 94681960
-path = "packs/incident-timeline"
-commit = "dd642d6c88ccac9492062aeed6abca27fdba17f9"
-maintainers = ["VanitasCaesar1"]

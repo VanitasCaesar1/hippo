@@ -6,7 +6,7 @@ Keeps API notes honest: it flags endpoints, fields and status codes that the not
 
 For each API note that a session touched or cited, it adds one entry per documented endpoint, field or status code that a session's turns contradict, under a final `## Drift` section: what the note says, what the turn shows instead, and the turn quoted in a few words. It does not rewrite the documented text; the workspace maintainer decides which side is right.
 
-It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippocamp's reviewer checks every entry against the evidence in a fresh context before anything is written.
+It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippo's reviewer checks every entry against the evidence in a fresh context before anything is written.
 
 ## Notes it works on
 
@@ -16,7 +16,7 @@ It proposes `append` changes only. Each entry cites the transcript turns it come
 
 ## How it gets work
 
-The pack acts when sessions touch or cite the notes above: a note named with `hippocamp session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[API]]` is enough to bring the note in.
+The pack acts when sessions touch or cite the notes above: a note named with `hippo session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[API]]` is enough to bring the note in.
 
 ## What it writes
 

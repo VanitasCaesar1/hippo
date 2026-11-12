@@ -6,7 +6,7 @@ Keeps an environment or configuration note current: it adds the settings that co
 
 For each matching note that a session touched or cited, it adds one entry per variable, flag or setting a session introduced, renamed or removed, under a final `## Logged settings` section: the date, the name, what changed and what it controls. It records names only. A value, a default that looks like a secret or a connection string is never written. A setting the note already records is skipped.
 
-It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippocamp's reviewer checks every entry against the evidence in a fresh context before anything is written. 
+It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippo's reviewer checks every entry against the evidence in a fresh context before anything is written. 
 
 ## Notes it works on
 
@@ -16,7 +16,7 @@ It proposes `append` changes only. Each entry cites the transcript turns it come
 
 ## How it gets work
 
-The pack acts when sessions touch or cite the notes above: a note named with `hippocamp session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[Environment]]` is enough to bring the note in.
+The pack acts when sessions touch or cite the notes above: a note named with `hippo session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[Environment]]` is enough to bring the note in.
 
 ## What it writes
 

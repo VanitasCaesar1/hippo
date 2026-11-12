@@ -6,7 +6,7 @@ Keeps onboarding notes complete: it adds the setup facts that coding sessions ha
 
 For each onboarding note that a session touched or cited, it adds one entry per setup fact a session had to discover, under a final `## Discovered setup` section: a command, an environment variable name, a port, or an account or role the setup needs. Variable names are recorded, never their values.
 
-It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippocamp's reviewer checks every entry against the evidence in a fresh context before anything is written.
+It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippo's reviewer checks every entry against the evidence in a fresh context before anything is written.
 
 ## Notes it works on
 
@@ -16,7 +16,7 @@ It proposes `append` changes only. Each entry cites the transcript turns it come
 
 ## How it gets work
 
-The pack acts when sessions touch or cite the notes above: a note named with `hippocamp session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[Onboarding]]` is enough to bring the note in.
+The pack acts when sessions touch or cite the notes above: a note named with `hippo session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[Onboarding]]` is enough to bring the note in.
 
 ## What it writes
 

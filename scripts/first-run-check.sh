@@ -5,14 +5,14 @@
 # a doctor that fails a healthy new setup, a model error with no way out,
 # an empty result that says nothing, a session prefix one command refuses.
 #
-#   scripts/first-run-check.sh [path/to/hippocamp]
+#   scripts/first-run-check.sh [path/to/hippo]
 #   CAPTURE_DIR=<dir> scripts/first-run-check.sh   # also keep each screen
 #
-# Every run uses a scratch HOME and HIPPOCAMP_HOME under a temporary directory
-# and a PATH that holds only the hippocamp under test and the system tools, so
+# Every run uses a scratch HOME and HIPPO_HOME under a temporary directory
+# and a PATH that holds only the hippo under test and the system tools, so
 # no model CLI is found and nothing is sent anywhere. Nothing outside the
-# temporary directory is read or written (it never runs `hippocamp schedule`
-# or `hippocamp hooks`, which would touch launchd or an agent's settings).
+# temporary directory is read or written (it never runs `hippo schedule`
+# or `hippo hooks`, which would touch launchd or an agent's settings).
 #
 # The synthetic history comes from `app/scripts/demo-home.sh` on macOS
 # (sessions from today, sub-agents, corrections, several profiles), and
@@ -21,17 +21,17 @@
 set -eu
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-bin=${1:-$root/target/debug/hippocamp}
+bin=${1:-$root/target/debug/hippo}
 case $bin in /*) ;; *) bin=$(pwd)/$bin ;; esac
 [ -x "$bin" ] || {
-  echo "first-run-check: no hippocamp binary at $bin (cargo build -p hippocamp, or pass its path)" >&2
+  echo "first-run-check: no hippo binary at $bin (cargo build -p hippo, or pass its path)" >&2
   exit 2
 }
 
-tmp=$(mktemp -d "${TMPDIR:-/tmp}/hippocamp-first-run.XXXXXX")
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/hippo-first-run.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT INT TERM
 mkdir -p "$tmp/bin"
-ln -s "$bin" "$tmp/bin/hippocamp"
+ln -s "$bin" "$tmp/bin/hippo"
 captures=${CAPTURE_DIR:-}
 [ -z "$captures" ] || mkdir -p "$captures"
 
@@ -41,20 +41,20 @@ fail() {
   failures=$((failures + 1))
 }
 
-# run <home> <name> <expected exit> <args…>: runs hippocamp, keeps its output
+# run <home> <name> <expected exit> <args…>: runs hippo, keeps its output
 # in $out, and checks the exit code.
 run() {
   home=$1 name=$2 want=$3
   shift 3
   set +e
-  out=$(cd "$home" && env -i HOME="$home" HIPPOCAMP_HOME="$home/.hippocamp" \
-    PATH="$tmp/bin:/usr/bin:/bin" LANG=C.UTF-8 hippocamp "$@" </dev/null 2>&1)
+  out=$(cd "$home" && env -i HOME="$home" HIPPO_HOME="$home/.hippo" \
+    PATH="$tmp/bin:/usr/bin:/bin" LANG=C.UTF-8 hippo "$@" </dev/null 2>&1)
   code=$?
   set -e
   if [ -n "$captures" ]; then
-    printf '$ hippocamp %s\n%s\n[exit %s]\n' "$*" "$out" "$code" >"$captures/$name.txt"
+    printf '$ hippo %s\n%s\n[exit %s]\n' "$*" "$out" "$code" >"$captures/$name.txt"
   fi
-  [ "$code" = "$want" ] || fail "hippocamp $* exited $code, not $want:
+  [ "$code" = "$want" ] || fail "hippo $* exited $code, not $want:
 $out"
 }
 
@@ -88,7 +88,7 @@ mkdir -p "$home/.claude/projects/-work-tern" "$home/.codex/sessions"
 if [ "$(uname)" = Darwin ]; then
   demo=$tmp/demo
   mkdir -p "$demo" "$tmp/demo-user"
-  HOME=$tmp/demo-user HIPPOCAMP_BIN=$bin sh "$root/app/scripts/demo-home.sh" "$demo" >/dev/null
+  HOME=$tmp/demo-user HIPPO_BIN=$bin sh "$root/app/scripts/demo-home.sh" "$demo" >/dev/null
   cp -R "$demo/profiles/.claude/." "$home/.claude/"
   cp -R "$demo/profiles/.claude-work" "$home/.claude-work"
   cp -R "$demo/transcripts/claude-code/." "$home/.claude/projects/-work-tern/"
@@ -101,12 +101,12 @@ else
 fi
 
 # Before setup: one command, and every other command says how to start.
-run "$home" 02-hippocamp-before-setup 0
-has "Looking for agent history" "nothing is sent anywhere" "hippocamp start --yes"
-[ ! -e "$home/.hippocamp/config.toml" ] || fail "hippocamp alone wrote config.toml without a yes"
+run "$home" 02-hippo-before-setup 0
+has "Looking for agent history" "nothing is sent anywhere" "hippo start --yes"
+[ ! -e "$home/.hippo/config.toml" ] || fail "hippo alone wrote config.toml without a yes"
 
 run "$home" 03-help 0 --help
-has "Start here:" "Every day:" "Run by hippocamp itself"
+has "Start here:" "Every day:" "Run by hippo itself"
 
 for cmd in recall ingest fleet incidents doctor; do
   case $cmd in
@@ -115,23 +115,23 @@ for cmd in recall ingest fleet incidents doctor; do
   esac
   # shellcheck disable=SC2086
   run "$home" "04-before-setup-$cmd" 1 $args
-  has "hippocamp is not set up yet" "run hippocamp"
+  has "hippo is not set up yet" "run hippo"
 done
 
 # The one-command start, timed.
 started=$(date +%s)
 run "$home" 05-start 0 start --yes
 elapsed=$(($(date +%s) - started))
-has "wrote " "Try next" "hippocamp ask --sources-only" "Every command: hippocamp --help"
+has "wrote " "Try next" "hippo ask --sources-only" "Every command: hippo --help"
 lacks "nverified"
-[ "$elapsed" -le 10 ] || fail "hippocamp start --yes took ${elapsed}s, over 10"
-echo "hippocamp start --yes: ${elapsed}s"
+[ "$elapsed" -le 10 ] || fail "hippo start --yes took ${elapsed}s, over 10"
+echo "hippo start --yes: ${elapsed}s"
 
-# Set up: hippocamp alone is the overview.
-run "$home" 06-hippocamp-after-setup 0
+# Set up: hippo alone is the overview.
+run "$home" 06-hippo-after-setup 0
 has "Busiest sessions" "Try next"
 lacks "nverified"
-id=$(printf '%s\n' "$out" | sed -n 's/^  hippocamp xray \([^ ]*\) .*/\1/p' | head -n 1)
+id=$(printf '%s\n' "$out" | sed -n 's/^  hippo xray \([^ ]*\) .*/\1/p' | head -n 1)
 [ -n "$id" ] || fail "the overview names no session to x-ray"
 
 # A healthy new setup passes doctor and sends nothing.
@@ -140,10 +140,10 @@ lacks "| problem |"
 
 # The card: numbers and a date, a PNG.
 run "$home" 07-card 0 card --out "$tmp/card.png"
-has "My agents did " "of work" "hippocamp · one brain for all your coding agents" "(1200 x 675)"
+has "My agents did " "of work" "hippo · one brain for all your coding agents" "(1200 x 675)"
 lacks "tern"
 lacks "Tern"
-[ "$(head -c 8 "$tmp/card.png" | od -An -tx1 | tr -d ' \n')" = 89504e470d0a1a0a ] || fail "hippocamp card wrote no PNG"
+[ "$(head -c 8 "$tmp/card.png" | od -An -tx1 | tr -d ' \n')" = 89504e470d0a1a0a ] || fail "hippo card wrote no PNG"
 [ "$(head -c 24 "$tmp/card.png" | tail -c 8 | od -An -tx1 | tr -d ' \n')" = 000004b0000002a3 ] || fail "the card is not 1200 x 675"
 
 # The same session prefix works everywhere.
@@ -156,11 +156,11 @@ has "no indexed session zzzz-no-such"
 
 # Empty results name the next step.
 run "$home" 09-recall-empty 0 recall "zebra quantum harmonica"
-has "no turn matches" "hippocamp ask --sources-only"
+has "no turn matches" "hippo ask --sources-only"
 
 # No model CLI: the sources still print, and the error names the way out.
 run "$home" 10-ask-no-model 0 ask "export queue retry"
-has "is not on PATH" "install Claude Code" "hippocamp config set model_command"
+has "is not on PATH" "install Claude Code" "hippo config set model_command"
 run "$home" 11-config-model-command 0 config set model_command "mymodel --json"
 has "model_command = [\"mymodel\", \"--json\"]"
 
@@ -168,7 +168,7 @@ has "model_command = [\"mymodel\", \"--json\"]"
 ws=$home/tern
 mkdir -p "$ws"
 run "$home" 12-init-notes 0 init --workspace "$ws" --notes-dir notes --entry-note "notes/START HERE.md"
-has "(it did not exist)" "a starter entry note" "hippocamp ingest --full"
+has "(it did not exist)" "a starter entry note" "hippo ingest --full"
 [ -f "$ws/notes/START HERE.md" ] || fail "init wrote no starter entry note"
 run "$home" 13-doctor-with-notes 0 doctor
 lacks "| problem |"

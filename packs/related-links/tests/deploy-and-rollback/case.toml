@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 pass = "related-links"
 about = "A handoff that connects two notes gets a Related line, and a note no session touched is not read"
 

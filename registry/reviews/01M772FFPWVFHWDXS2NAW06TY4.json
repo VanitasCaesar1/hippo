@@ -1,9 +1,9 @@
 {
-  "protocol": "HIPPOCAMP_V1",
+  "protocol": "HIPPO_V1",
   "id": "01M772FFPWVFHWDXS2NAW06TY4",
   "pack": "test-commands",
   "version": "1.0.1",
-  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/test-commands",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/test-commands",
   "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
   "repo_id": 1454849249,
   "pack_hash": "31cb77246591a1c8045195583b8b2c389da6bde351aed4f1551c4234743d0150",

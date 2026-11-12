@@ -1,9 +1,9 @@
 {
-  "protocol": "HIPPOCAMP_V1",
+  "protocol": "HIPPO_V1",
   "id": "01M7727VJ05PQEPVA0J568NKSK",
   "pack": "glossary-terms",
   "version": "1.0.0",
-  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/glossary-terms",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/glossary-terms",
   "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
   "repo_id": 1454849249,
   "pack_hash": "6fff2f9576166c5d22cdeac8daafad6a8ad6e7abc3edfeff1ee525b868622197",

@@ -5,8 +5,8 @@ on:
     paths:
       - "registry/**"
       - "packs/**"
-      - "crates/hippocamp-registry/**"
-      - "crates/hippocamp-core/**"
+      - "crates/hippo-registry/**"
+      - "crates/hippo-core/**"
       - "Cargo.lock"
       - "brand/**"
   schedule:
@@ -54,11 +54,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           status=0
-          cargo run -p hippocamp-registry --locked -- check > check.txt || status=$?
+          cargo run -p hippo-registry --locked -- check > check.txt || status=$?
           cat check.txt
           { echo '```'; cat check.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
       - name: Build the index
         env:
           GH_TOKEN: ${{ github.token }}
-        run: cargo run -p hippocamp-registry --locked -- build --out registry/out
+        run: cargo run -p hippo-registry --locked -- build --out registry/out

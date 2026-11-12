@@ -1,6 +1,6 @@
 # Security
 
-hippocamp reads agent transcripts and writes to files agents load at session start. Both are sensitive, so security reports are taken seriously.
+hippo reads agent transcripts and writes to files agents load at session start. Both are sensitive, so security reports are taken seriously.
 
 ## Reporting
 

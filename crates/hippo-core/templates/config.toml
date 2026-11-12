@@ -1,0 +1,21 @@
+# hippo machine configuration, written by `hippo init`.
+# The keys are described at https://vanitascaesar1.github.io/hippo/docs/configuration.html
+# `~` is expanded in `workspace` and `transcript_roots`.
+
+# `workspace` (path; left out until a notes folder is chosen, which history alone does not need)
+workspace = "{{workspace}}"
+
+# `transcript_roots` (default `["~/.claude*/projects", "~/.codex/sessions"]`)
+transcript_roots = ["~/.claude*/projects", "~/.codex/sessions"]
+
+# `model_command` (array of strings; default in Model invocation)
+model_command = [
+  "claude", "-p", "--no-session-persistence", "--setting-sources", "", "--tools", "",
+  "--strict-mcp-config", "--system-prompt", "{system_prompt}", "--output-format", "json",
+]
+
+# `ingest_interval_minutes` (10)
+ingest_interval_minutes = 10
+
+# `dream_at` (`"03:30"`)
+dream_at = "03:30"

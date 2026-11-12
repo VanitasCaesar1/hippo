@@ -6,7 +6,7 @@ Keeps a benchmarks or measurements note current: it adds the new measured values
 
 For each benchmarks, measurements, performance or metrics note that a session touched or cited, it adds one entry per new measured value under a final `## Recorded measurements` section: what was measured, the value with its unit, the date and the conditions the session states. Values come from tool output, and the pack may quote numbers from it; it never copies a command or a link out of tool output. A value the note already records under the same conditions is skipped.
 
-It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippocamp's reviewer checks every entry against the evidence in a fresh context before anything is written.
+It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippo's reviewer checks every entry against the evidence in a fresh context before anything is written.
 
 ## Notes it works on
 
@@ -17,7 +17,7 @@ It proposes `append` changes only. Each entry cites the transcript turns it come
 
 ## How it gets work
 
-The pack acts when sessions touch or cite the notes above: a note named with `hippocamp session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[Measurements]]` is enough to bring the note in.
+The pack acts when sessions touch or cite the notes above: a note named with `hippo session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[Measurements]]` is enough to bring the note in.
 
 ## What it writes
 

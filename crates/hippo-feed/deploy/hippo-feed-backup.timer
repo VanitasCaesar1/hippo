@@ -1,0 +1,14 @@
+# hippo-feed-backup.timer: runs hippo-feed-backup.service every night at
+# 02:30 UTC. Install at /etc/systemd/system/hippo-feed-backup.timer and
+# enable the timer, not the service: systemctl enable --now hippo-feed-backup.timer
+
+[Unit]
+Description=Nightly hippo feed backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 UTC
+# If the machine was off at 02:30, run once when it is next up.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

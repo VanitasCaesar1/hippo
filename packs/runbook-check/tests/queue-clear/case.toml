@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 pass = "runbook-check"
 about = "A runbook step that needed another command is appended with the command from the session's tool call, and a note the filter leaves out is not read"
 

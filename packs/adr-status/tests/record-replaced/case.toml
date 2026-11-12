@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 pass = "adr-status"
 about = "A reversed decision gets a status update appended, and a note of another type is not read"
 

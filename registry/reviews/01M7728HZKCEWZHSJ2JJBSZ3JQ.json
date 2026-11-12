@@ -1,9 +1,9 @@
 {
-  "protocol": "HIPPOCAMP_V1",
+  "protocol": "HIPPO_V1",
   "id": "01M7728HZKCEWZHSJ2JJBSZ3JQ",
   "pack": "high-contrast",
   "version": "1.0.0",
-  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/high-contrast",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/high-contrast",
   "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
   "repo_id": 1454849249,
   "pack_hash": "d5382644c333da0094c8120788f5a9afb313ddeb5b5e7665d45b6e1b5f2fe1bd",

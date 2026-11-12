@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 name = "runbook-check"
 version = "1.0.1"
 description = "Appends runbook steps that failed, were skipped or needed another command when a session followed the runbook."

@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 name = "changelog-keeper"
 version = "1.0.0"
 description = "Appends the user-visible changes sessions shipped to a changelog note, under a final Pending section."

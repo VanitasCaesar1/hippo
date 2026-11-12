@@ -1,0 +1,25 @@
+[package]
+name = "hippo-registry"
+description = "hippo-registry: checks the pack registry's entries, reviews a pack and builds the registry index"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+publish = false
+
+[[bin]]
+name = "hippo-registry"
+path = "src/main.rs"
+
+[dependencies]
+hippo-core.workspace = true
+hippo-theme.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+time.workspace = true
+anyhow.workspace = true
+tempfile.workspace = true
+sha2.workspace = true

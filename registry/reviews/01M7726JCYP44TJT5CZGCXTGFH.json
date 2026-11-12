@@ -1,9 +1,9 @@
 {
-  "protocol": "HIPPOCAMP_V1",
+  "protocol": "HIPPO_V1",
   "id": "01M7726JCYP44TJT5CZGCXTGFH",
   "pack": "env-and-config",
   "version": "1.0.0",
-  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/env-and-config",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/env-and-config",
   "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
   "repo_id": 1454849249,
   "pack_hash": "fac06d949d6346eb12c8a9f5e65974c82074f576e84541f3a87beb9f50e97f56",

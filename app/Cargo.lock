@@ -2089,14 +2089,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
-name = "hippocamp-app"
+name = "hippo-app"
 version = "0.1.0"
 dependencies = [
  "futures",
  "gpui",
  "gpui_platform",
- "hippocamp-core",
- "hippocamp-view",
+ "hippo-core",
+ "hippo-view",
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
@@ -2110,12 +2110,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "hippocamp-core"
+name = "hippo-core"
 version = "0.1.0"
 dependencies = [
  "aho-corasick",
  "glob",
- "hippocamp-theme",
+ "hippo-theme",
  "home",
  "libc",
  "regex",
@@ -2135,14 +2135,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "hippocamp-theme"
+name = "hippo-theme"
 version = "0.1.0"
 
 [[package]]
-name = "hippocamp-view"
+name = "hippo-view"
 version = "0.1.0"
 dependencies = [
- "hippocamp-core",
+ "hippo-core",
  "serde",
  "serde_json",
  "time",

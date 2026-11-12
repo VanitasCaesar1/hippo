@@ -1,6 +1,6 @@
 # Writing a web theme
 
-hippocamp's web pages (the feed and the registry site) share one stylesheet from the `hippocamp-theme` crate. A theme changes the look by setting the contract's custom properties. The contract is below: every property, every class name, the layer order and the rules for themes. The stylesheet itself is `crates/hippocamp-theme/css/base.css`.
+hippo's web pages (the feed and the registry site) share one stylesheet from the `hippo-theme` crate. A theme changes the look by setting the contract's custom properties. The contract is below: every property, every class name, the layer order and the rules for themes. The stylesheet itself is `crates/hippo-theme/css/base.css`.
 
 The feed is not deployed, so nothing serves these pages yet; the registry site and the documentation site use the contract today.
 
@@ -29,10 +29,10 @@ Check a file with the crate:
 
 ```rust
 let css = std::fs::read_to_string("theme.css")?;
-hippocamp_theme::check_theme_pack_css(&css)?; // an error reads `theme.css:<line>: <what>`
+hippo_theme::check_theme_pack_css(&css)?; // an error reads `theme.css:<line>: <what>`
 ```
 
-`hippocamp_theme::contrast("#767676", "#f4f4ee")` gives the ratio of two colours.
+`hippo_theme::contrast("#767676", "#f4f4ee")` gives the ratio of two colours.
 
 The pack's manifest and review are described in [Packs](site/src/packs.md) and [The registry](site/src/registry.md).
 
@@ -106,7 +106,7 @@ Each class sits on the element named and holds what is described; markup outside
 | `hp-skip` | `a` | the skip link to `main` |
 | `hp-content` | `div` | the centred block holding the top bar, `main` and the footer |
 | `hp-topbar` | `header` | the top bar |
-| `hp-home`, `hp-mark`, `hp-name` | `a`, `svg`, `span` | the link home, holding the mark (inline SVG drawn in `currentColor`, so it takes the top bar's text colour) and the name "hippocamp" |
+| `hp-home`, `hp-mark`, `hp-name` | `a`, `svg`, `span` | the link home, holding the mark (inline SVG drawn in `currentColor`, so it takes the top bar's text colour) and the name "hippo" |
 | `hp-nav`, `hp-nav-current`, `hp-sep` | `nav`, `a`, `span` | the navigation, the current page's link, and the ` \| ` separators, which are text |
 | `hp-account`, `hp-karma` | `div`, `span` | the right end of the top bar: the member's name and karma and the sign-out button, or the sign-in link |
 | `hp-main`, `hp-footer` | `main`, `footer` | the page's content and footer |
@@ -152,13 +152,13 @@ The `<name>` of `hp-page-<name>`, listed in the crate's `PAGES` (not in `CLASSES
 
 ### Every page
 
-Every page is `<!doctype html>` with `<html lang="en">`, `<meta charset="utf-8">`, `<meta name="viewport" content="width=device-width, initial-scale=1">`, a `<title>` of the page's name followed by ` | hippocamp`, and hippocamp's app icon (`brand/hippocamp-icon.svg`, the mark on ink blue) as its icon. The viewport line is what makes the 360-pixel layout hold on phones. The mark in the top bar sits beside the visible name "hippocamp", so it is hidden from screen readers.
+Every page is `<!doctype html>` with `<html lang="en">`, `<meta charset="utf-8">`, `<meta name="viewport" content="width=device-width, initial-scale=1">`, a `<title>` of the page's name followed by ` | hippo`, and hippo's app icon (`brand/hippo-icon.svg`, the mark on ink blue) as its icon. The viewport line is what makes the 360-pixel layout hold on phones. The mark in the top bar sits beside the visible name "hippo", so it is hidden from screen readers.
 
 ### Versioning
 
-The base stylesheet begins `/* hippocamp web theme contract 1 */`. Adding a property, a class or a page name keeps the version. Removing or renaming one, moving a class to another element, or changing the layer order raises it, and is a change to this page. A theme pack declares the version it targets.
+The base stylesheet begins `/* hippo web theme contract 1 */`. Adding a property, a class or a page name keeps the version. Removing or renaming one, moving a class to another element, or changing the layer order raises it, and is a change to this page. A theme pack declares the version it targets.
 
-An additive change must not break a published theme: a theme that sets only some properties relies on the defaults of the rest, so a new property's default must keep every listed theme within the [shared theme rules](#shared-theme-rules). The registry re-checks every listed theme when it takes a new `hippocamp-theme`. Raising the version is a design change, and the design states its migration.
+An additive change must not break a published theme: a theme that sets only some properties relies on the defaults of the rest, so a new property's default must keep every listed theme within the [shared theme rules](#shared-theme-rules). The registry re-checks every listed theme when it takes a new `hippo-theme`. Raising the version is a design change, and the design states its migration.
 
 ## Shared theme rules
 

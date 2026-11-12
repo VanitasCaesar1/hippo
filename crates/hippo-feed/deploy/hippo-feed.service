@@ -1,0 +1,35 @@
+# hippo-feed: the web server. Install at /etc/systemd/system/hippo-feed.service.
+# It listens on loopback only; Caddy (see Caddyfile) is the public side.
+# It does not run `hippo-feed migrate`: the operator does that by hand, after
+# a backup.
+
+[Unit]
+Description=hippo feed (web server)
+After=network-online.target
+Wants=network-online.target
+# Five failed starts within five minutes stop the retries. This is what
+# happens when the database needs `hippo-feed migrate`: after fixing it, run
+# `systemctl reset-failed hippo-feed` and start the service again.
+# These two settings belong in [Unit], not [Service].
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+User=hippo-feed
+Group=hippo-feed
+# Every setting is an environment variable; see env.example.
+EnvironmentFile=/etc/hippo-feed/env
+ExecStart=/usr/local/bin/hippo-feed serve
+Restart=on-failure
+RestartSec=5
+# Creates /var/lib/hippo-feed owned by the service user. With
+# ProtectSystem=strict it is also the one place the service can write.
+StateDirectory=hippo-feed
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

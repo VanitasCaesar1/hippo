@@ -1,0 +1,21 @@
+# hippo workspace settings, written by `hippo init`.
+# The keys are described at https://vanitascaesar1.github.io/hippo/docs/configuration.html
+# Paths are relative to the workspace.
+
+# `notes_dir` (required)
+notes_dir = "{{notes_dir}}"
+
+# `entry_note` (required)
+entry_note = "{{entry_note}}"
+
+# `required_notes` (`[]`)
+required_notes = []
+
+# `budget_bytes` (25600)
+budget_bytes = 25600
+
+# `log_path` (`"<notes_dir>/Session log.md"`)
+log_path = "{{notes_dir}}/Session log.md"
+
+# `sample_tasks` (`[]`)
+sample_tasks = []

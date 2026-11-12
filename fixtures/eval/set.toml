@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 entry_note = "notes/START HERE.md"
 
 [[context]]

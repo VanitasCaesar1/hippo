@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 name = "gotchas"
 version = "1.0.0"
 description = "Appends surprising behaviour that cost a session time and is not an error to a gotchas or pitfalls note."

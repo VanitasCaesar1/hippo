@@ -6,7 +6,7 @@ Keeps a runbook usable: it records the steps that failed, were skipped or needed
 
 For each runbook note that a session touched or cited, it adds one entry per step a session found broken, under a final `## Run findings` section: the step, what happened (failed, skipped or needed another command), and the command the session actually ran when its own tool calls show one. It does not edit the steps themselves.
 
-It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippocamp's reviewer checks every entry against the evidence in a fresh context before anything is written.
+It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippo's reviewer checks every entry against the evidence in a fresh context before anything is written.
 
 ## Notes it works on
 
@@ -16,7 +16,7 @@ It proposes `append` changes only. Each entry cites the transcript turns it come
 
 ## How it gets work
 
-The pack acts when sessions touch or cite the notes above: a note named with `hippocamp session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[Runbook]]` is enough to bring the note in.
+The pack acts when sessions touch or cite the notes above: a note named with `hippo session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[Runbook]]` is enough to bring the note in.
 
 ## What it writes
 

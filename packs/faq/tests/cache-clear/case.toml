@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 pass = "faq"
 about = "A user question and its established answer are appended, and a note the filter leaves out is not read"
 

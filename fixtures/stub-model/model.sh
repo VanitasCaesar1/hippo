@@ -1,18 +1,18 @@
 #!/bin/sh
-# A synthetic model for crates/hippocamp/tests/dream_stub_model.rs, standing in
+# A synthetic model for crates/hippo/tests/dream_stub_model.rs, standing in
 # for model_command. It reads the prompt on stdin, ignores its arguments,
 # and prints a canned reply the way `claude -p --output-format json` does:
 # a JSON object whose `result` is the reply text.
 #
-#   HIPPOCAMP_STUB_REVIEW set   a reviewer verdict, HIPPOCAMP_STUB_VERDICT (confirm
+#   HIPPO_STUB_REVIEW set   a reviewer verdict, HIPPO_STUB_VERDICT (confirm
 #                           or reject)
-#   otherwise               the proposal of HIPPOCAMP_STUB_SCENARIO: replace,
+#   otherwise               the proposal of HIPPO_STUB_SCENARIO: replace,
 #                           outside, dup, unparsable, eval or demo
 #
 # Every proposal but `eval` targets notes/Topic A.md and quotes, as `new`,
 # the text of turn stub-1 1 of fixtures/claude-code/synthetic.jsonl.
 #
-# The `eval` scenario is for `hippocamp eval --with-model`. It reads the prompt:
+# The `eval` scenario is for `hippo eval --with-model`. It reads the prompt:
 # when the prompt lists notes/Backups.md it replies with one correction of
 # that note's planted error, quoting turn 7 of session eval-01 in
 # fixtures/eval/transcripts; for any other note it replies `[]`.
@@ -29,9 +29,9 @@ change() {
   # note kind old new session ordinal reason
   printf '[{"note":"notes/%s.md","kind":"%s","old":"%s","new":"%s","evidence":[{"session":"%s","ordinal":%s}],"reason":"%s"}]' "$@"
 }
-if [ "$HIPPOCAMP_STUB_SCENARIO" = demo ]; then
+if [ "$HIPPO_STUB_SCENARIO" = demo ]; then
   prompt=$(cat)
-  if [ -n "$HIPPOCAMP_STUB_REVIEW" ]; then
+  if [ -n "$HIPPO_STUB_REVIEW" ]; then
     case "$prompt" in
       *'24 hours'*)
         reply '{"verdict":"reject","notes":"The turn is the assistant saying it changed a config value mid-session; nothing in the evidence shows the 24 hour lifetime was deployed, and the note describes production. Keep 7 days until a release confirms it."}' ;;
@@ -69,9 +69,9 @@ fi
 # lesson for the rest; the failure batch gets a zsh glob rule and a BSD
 # sed rule, by the error each item names. As the
 # reviewer it confirms, with notes a person can read.
-if [ "$HIPPOCAMP_STUB_SCENARIO" = lessons ]; then
+if [ "$HIPPO_STUB_SCENARIO" = lessons ]; then
   prompt=$(cat)
-  if [ -n "$HIPPOCAMP_STUB_REVIEW" ]; then
+  if [ -n "$HIPPO_STUB_REVIEW" ]; then
     reply '{"verdict":"confirm","notes":"The person corrected the same thing in more than one session, right after the agent did it, and the rule says what to do instead."}'
     exit 0
   fi
@@ -108,7 +108,7 @@ EOF_LINES
   esac
   exit 0
 fi
-if [ "$HIPPOCAMP_STUB_SCENARIO" = eval ] && [ -z "$HIPPOCAMP_STUB_REVIEW" ]; then
+if [ "$HIPPO_STUB_SCENARIO" = eval ] && [ -z "$HIPPO_STUB_REVIEW" ]; then
   prompt=$(cat)
   case "$prompt" in
     *'{"note":"notes/Backups.md"'*)
@@ -119,12 +119,12 @@ if [ "$HIPPOCAMP_STUB_SCENARIO" = eval ] && [ -z "$HIPPOCAMP_STUB_REVIEW" ]; the
   exit 0
 fi
 cat > /dev/null
-if [ -n "$HIPPOCAMP_STUB_REVIEW" ]; then
-  printf '{"result":"{\\"verdict\\":\\"%s\\",\\"notes\\":\\"stub\\"}"}\n' "$HIPPOCAMP_STUB_VERDICT"
+if [ -n "$HIPPO_STUB_REVIEW" ]; then
+  printf '{"result":"{\\"verdict\\":\\"%s\\",\\"notes\\":\\"stub\\"}"}\n' "$HIPPO_STUB_VERDICT"
   exit 0
 fi
 new="I'll ask a sub-agent where the sender sleeps between retries."
-case "$HIPPOCAMP_STUB_SCENARIO" in
+case "$HIPPO_STUB_SCENARIO" in
   replace) note='notes/Topic A.md'; old='other notes link to' ;;
   outside) note='../etc/passwd'; old='root' ;;
   dup) note='notes/Topic A.md'; old='notes' ;;
@@ -133,7 +133,7 @@ case "$HIPPOCAMP_STUB_SCENARIO" in
     exit 0
     ;;
   *)
-    echo "unknown HIPPOCAMP_STUB_SCENARIO: $HIPPOCAMP_STUB_SCENARIO" >&2
+    echo "unknown HIPPO_STUB_SCENARIO: $HIPPO_STUB_SCENARIO" >&2
     exit 1
     ;;
 esac

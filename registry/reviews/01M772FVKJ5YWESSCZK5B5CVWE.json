@@ -1,9 +1,9 @@
 {
-  "protocol": "HIPPOCAMP_V1",
+  "protocol": "HIPPO_V1",
   "id": "01M772FVKJ5YWESSCZK5B5CVWE",
   "pack": "todo-done",
   "version": "1.0.0",
-  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/todo-done",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/todo-done",
   "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
   "repo_id": 1454849249,
   "pack_hash": "4420a1711af69e40d539dcc59095c9f66bf731333a8a05b9fb9a6fafbe980713",

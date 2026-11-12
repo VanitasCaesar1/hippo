@@ -1,6 +1,6 @@
 # Writing a pack
 
-A pack is a directory of text files. This page lists the layout, every rule `hippocamp packs check` enforces, the files' keys, the conventions the [first-party packs](first-party-packs.md) follow, and how to test a pack. Read [Packs](packs.md) first for what a pass does with its notes.
+A pack is a directory of text files. This page lists the layout, every rule `hippo packs check` enforces, the files' keys, the conventions the [first-party packs](first-party-packs.md) follow, and how to test a pack. Read [Packs](packs.md) first for what a pass does with its notes.
 
 ## Layout
 
@@ -32,7 +32,7 @@ Only these paths are allowed. Anything else, such as `extra.txt`, is an error: `
 | `tests/<case>/notes/**/*.md` | The notes the case starts with. |
 | `tests/<case>/transcripts/<name>.jsonl` | The case's transcripts. |
 
-Entries whose name starts with `.` (such as `.git`) and an `origin.json` at the top are skipped, not checked. `hippocamp packs check` prints each as `skipped <path>`.
+Entries whose name starts with `.` (such as `.git`) and an `origin.json` at the top are skipped, not checked. `hippo packs check` prints each as `skipped <path>`.
 
 ## The rules
 
@@ -49,7 +49,7 @@ Entries whose name starts with `.` (such as `.git`) and an `origin.json` at the 
 | The whole pack | 524,288 bytes |
 | Files in the pack | 100 |
 
-**Redaction.** hippocamp redacts secrets in transcripts as it indexes them. A file under `tests/` that redaction would change is an error, because it would not mean the same thing once indexed: `tests/.../x.jsonl: redaction would change it (<kind>)`. In any other file it is a [warning](#warnings).
+**Redaction.** hippo redacts secrets in transcripts as it indexes them. A file under `tests/` that redaction would change is an error, because it would not mean the same thing once indexed: `tests/.../x.jsonl: redaction would change it (<kind>)`. In any other file it is a [warning](#warnings).
 
 ## The manifest
 
@@ -57,15 +57,15 @@ Entries whose name starts with `.` (such as `.git`) and an `origin.json` at the 
 
 | Key | Rule |
 |---|---|
-| `protocol` | `HIPPOCAMP_V1`. |
-| `name` | Lowercase letters, digits and single dashes, starting with a letter; 2 to 40 bytes. The names `core`, `hippocamp`, `builtin`, `local`, `registry`, `official`, `test` and `tests` are reserved. |
+| `protocol` | `HIPPO_V1`. |
+| `name` | Lowercase letters, digits and single dashes, starting with a letter; 2 to 40 bytes. The names `core`, `hippo`, `builtin`, `local`, `registry`, `official`, `test` and `tests` are reserved. |
 | `version` | `MAJOR.MINOR.PATCH`, each a number of at most four digits with no leading zero. |
 | `description` | One line, 1 to 160 characters, no space at either end. |
 | `authors` | One to five names, each one line of 1 to 80 characters. |
 | `license` | An SPDX-style identifier: 1 to 64 of letters, digits, `.`, `+` and `-`. |
 
 ```toml
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 name = "decision-log"
 version = "1.0.0"
 description = "Appends the decisions sessions made, with the reason and the rejected options, to a decision log note."
@@ -79,7 +79,7 @@ The keys are those of the [core pack's passes](concepts.md#the-core-pack), plus 
 
 | Key | Required | Rule |
 |---|---|---|
-| `protocol` | yes | `HIPPOCAMP_V1`. |
+| `protocol` | yes | `HIPPO_V1`. |
 | `prompt` | yes | A file under `prompts/` in this pack. Its `{{...}}` placeholders must be `sessions`, `notes`, `turns` or `human_confirmed`, and each must be in `reads`. |
 | `reads` | yes | Any of `sessions`, `notes`, `turns`, `human_confirmed`. |
 | `reviewer` | yes | A file under `personas/` in this pack. |
@@ -91,7 +91,7 @@ The keys are those of the [core pack's passes](concepts.md#the-core-pack), plus 
 A pass's name is its file name. `verify` and `consolidate` are reserved for core.
 
 ```toml
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 prompt = "prompts/decision-log.md"
 reads = ["sessions", "notes", "turns"]
 reviewer = "personas/decision-log-reviewer.md"
@@ -104,7 +104,7 @@ Choose `per_note = true` when the pass edits one note at a time and wants that n
 
 ## Prompts
 
-A prompt is a Markdown file the model receives, with each `{{input}}` replaced by that input's data. Hippocamp wraps every input between a `<<<UNTRUSTED name>>>` line and a `<<<END name>>>` line. If the prompt does not end with the closing instruction, hippocamp adds it. The first-party prompts all follow one shape, and a new pack should too:
+A prompt is a Markdown file the model receives, with each `{{input}}` replaced by that input's data. Hippo wraps every input between a `<<<UNTRUSTED name>>>` line and a `<<<END name>>>` line. If the prompt does not end with the closing instruction, hippo adds it. The first-party prompts all follow one shape, and a new pack should too:
 
 1. A title, then one sentence on the job and what the model receives.
 2. One section for each input, with its placeholder: `## Note`, `## Sessions`, `## Turns`.
@@ -117,7 +117,7 @@ A prompt is a Markdown file the model receives, with each `{{input}}` replaced b
 
 ## Personas
 
-For a pass outside core, the persona is a list of reasons to reject, given to hippocamp's own reviewer ([Packs](packs.md#what-changes-for-a-pass-outside-core)). It cannot loosen anything. The first-party personas share one shape, which `hippocamp packs check` looks for:
+For a pass outside core, the persona is a list of reasons to reject, given to hippo's own reviewer ([Packs](packs.md#what-changes-for-a-pass-outside-core)). It cannot loosen anything. The first-party personas share one shape, which `hippo packs check` looks for:
 
 - `## Role`: a reviewer with no conversation history, who knows only what it receives.
 - `## What you receive`: the note, the change, the evidence and the sessions' records.
@@ -126,7 +126,7 @@ For a pass outside core, the persona is a list of reasons to reject, given to hi
 
 ## Warnings
 
-Warnings do not fail a pack: `hippocamp packs check` still exits 0. They are for whoever decides whether to trust the pack, and each one has a cause you can remove.
+Warnings do not fail a pack: `hippo packs check` still exits 0. They are for whoever decides whether to trust the pack, and each one has a cause you can remove.
 
 | Warning | Why, and what to do |
 |---|---|
@@ -169,7 +169,7 @@ Every `timestamp` must be RFC 3339, at least one record must have one, and all o
 ### case.toml
 
 ```toml
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 pass = "decision-log"
 about = "A decision with its reason and rejected options is appended, and a note the filter leaves out is not read"
 
@@ -228,7 +228,7 @@ An absent key is not checked.
 
 ### How a test runs
 
-`hippocamp packs test` makes a temporary hippocamp home and workspace, and removes them afterwards. It installs only your pack, with the core pack removed and `tests/` left out. It writes the case's notes and transcripts, declares each session with its notes and handoff, then runs `hippocamp dream` for the one pass, over a window that holds the transcripts. The model and the reviewer are a stand-in command built into hippocamp (`hippocamp packs stub-model`, hidden from `--help`) that returns your `reply` or your `verdict`.
+`hippo packs test` makes a temporary hippo home and workspace, and removes them afterwards. It installs only your pack, with the core pack removed and `tests/` left out. It writes the case's notes and transcripts, declares each session with its notes and handoff, then runs `hippo dream` for the one pass, over a window that holds the transcripts. The model and the reviewer are a stand-in command built into hippo (`hippo packs stub-model`, hidden from `--help`) that returns your `reply` or your `verdict`.
 
 ### What a test does not prove
 
@@ -239,10 +239,10 @@ An absent key is not checked.
 
 What a test does show is the part you control: the files load, the filters pick the notes you meant, the prompt carries the right text, and a reply is accepted or refused for the reasons you expect. A case with `reject` and `applied = 0` shows a bad change is not written; a case with a reply that cites another session and `validation_failures = 1` shows the evidence rule.
 
-## hippocamp packs check
+## hippo packs check
 
 ```text
-hippocamp packs check <dir>
+hippo packs check <dir>
 ```
 
 Reads only `<dir>`: no configuration, no workspace, no model. Prints `skipped <path>`, then `error <text>` lines, then `warning <text>` lines, then `ok <name> <version>` if there is no error. Exits 1 if there is any error, and 0 otherwise.
@@ -250,14 +250,14 @@ Reads only `<dir>`: no configuration, no workspace, no model. Prints `skipped <p
 For a good pack:
 
 ```text
-$ hippocamp packs check packs/decision-log
+$ hippo packs check packs/decision-log
 ok decision-log 1.0.0
 ```
 
 For a broken one, a copy of that pack with an unknown manifest key, an unknown pass key, an unknown note type, a transcript whose first line is not the marker, a URL and `curl` in the prompt, an injection-shaped phrase, and a persona cut down to one section (with a `.git` folder added):
 
 ```text
-$ hippocamp packs check broken
+$ hippo packs check broken
 skipped .git
 error pack.toml: unknown field `homepage`, expected one of `name`, `version`, `description`, `authors`, `license`
 error passes/decision-log.toml: unknown key note_type
@@ -277,16 +277,16 @@ $ echo $?
 
 A directory that cannot be read prints one line, for example `error nowhere: No such file or directory (os error 2)`, and exits 1.
 
-## hippocamp packs test
+## hippo packs test
 
 ```text
-hippocamp packs test <dir> [--case <name>]
+hippo packs test <dir> [--case <name>]
 ```
 
 Validates the pack first. If there is an error it prints the `error` lines, runs nothing and exits 1. Warnings are not printed. Otherwise it runs each case, or only `--case <name>`, and prints one line for each:
 
 ```text
-$ hippocamp packs test packs/decision-log
+$ hippo packs test packs/decision-log
 ok decision-log/cache-store
 ```
 

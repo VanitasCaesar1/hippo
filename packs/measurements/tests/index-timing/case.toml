@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 pass = "measurements"
 about = "A measured value from a tool result is appended with its date and conditions, and a note the filter leaves out is not read"
 

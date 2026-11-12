@@ -1,9 +1,9 @@
 {
-  "protocol": "HIPPOCAMP_V1",
+  "protocol": "HIPPO_V1",
   "id": "01M772C9Y5DEWRW0XKQQ6YP8CN",
   "pack": "open-questions",
   "version": "1.0.0",
-  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/open-questions",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/open-questions",
   "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
   "repo_id": 1454849249,
   "pack_hash": "0e5f378d8168e550bffbe67b0f5325a67f2871e87e2945a6185a7a47c294a66b",

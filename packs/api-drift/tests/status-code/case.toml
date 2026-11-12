@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 pass = "api-drift"
 about = "A documented status code that a turn contradicts is appended as drift, and a note the filter leaves out is not read"
 

@@ -1,6 +1,6 @@
 # Eval set
 
-This set is invented for hippocamp's eval and copied from nothing real: no real project, transcript, note, person, company or key. The subject is "Tern", an imaginary self-hosted photo library. Keep it that way.
+This set is invented for hippo's eval and copied from nothing real: no real project, transcript, note, person, company or key. The subject is "Tern", an imaginary self-hosted photo library. Keep it that way.
 
 ## Layout
 
@@ -15,7 +15,7 @@ Every `.jsonl` file begins with `{"synthetic": true}`.
 ## Authoring rules
 
 - Invent everything. Never take text from a real workspace, transcript or person, even redacted.
-- Write a question's answer before running hippocamp on it, by reading the notes as a person would, never from hippocamp's matching rules. Never change an answer to match hippocamp's output. If you change an answer, give the reason in the pull request.
+- Write a question's answer before running hippo on it, by reading the notes as a person would, never from hippo's matching rules. Never change an answer to match hippo's output. If you change an answer, give the reason in the pull request.
 - Prefer adding questions to editing them. An edit changes what the numbers mean, so the pull request says so and the pinned numbers change with it.
 - Put nothing into the set that redaction would change; eval refuses a set with such text.
 - Make each note the answer key names a candidate in exactly one chunk of the dreaming window: touch it from one session, and keep that session's turns inside one chunk.

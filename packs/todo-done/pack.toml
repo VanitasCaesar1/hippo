@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 name = "todo-done"
 version = "1.0.0"
 description = "Appends Done lines for listed tasks that sessions completed to a TODO, tasks or backlog note, and never adds tasks."

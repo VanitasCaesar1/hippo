@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 name = "measurements"
 version = "1.0.0"
 description = "Appends new measured values from tool output, with the date and conditions, to a benchmarks or measurements note."

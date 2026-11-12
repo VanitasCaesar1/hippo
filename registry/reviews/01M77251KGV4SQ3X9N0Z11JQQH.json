@@ -1,9 +1,9 @@
 {
-  "protocol": "HIPPOCAMP_V1",
+  "protocol": "HIPPO_V1",
   "id": "01M77251KGV4SQ3X9N0Z11JQQH",
   "pack": "changelog-keeper",
   "version": "1.0.0",
-  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/changelog-keeper",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/changelog-keeper",
   "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
   "repo_id": 1454849249,
   "pack_hash": "14633b96d8f0deba0bfc940da84a6291c5965ddbcc877ce89b3ad60cafef13f5",

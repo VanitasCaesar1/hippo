@@ -1,22 +1,22 @@
 #!/bin/sh
-# Installs hippocamp from the latest GitHub release:
+# Installs hippo from the latest GitHub release:
 #
-#   curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippocamp/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippo/main/install.sh | sh
 #
 # It picks the binary for this machine, checks its sha256, and copies it to
-# $HIPPOCAMP_INSTALL_DIR (default ~/.local/bin). No sudo.
+# $HIPPO_INSTALL_DIR (default ~/.local/bin). No sudo.
 #
-#   HIPPOCAMP_VERSION       a version to install instead of the latest (0.1.0)
-#   HIPPOCAMP_INSTALL_DIR   where the binary goes
-#   HIPPOCAMP_BASE_URL      a folder holding the release files, such as
-#                           file:///path/to/dist (then give HIPPOCAMP_VERSION)
-#   HIPPOCAMP_INSTALL_OS, HIPPOCAMP_INSTALL_ARCH
+#   HIPPO_VERSION       a version to install instead of the latest (0.1.0)
+#   HIPPO_INSTALL_DIR   where the binary goes
+#   HIPPO_BASE_URL      a folder holding the release files, such as
+#                           file:///path/to/dist (then give HIPPO_VERSION)
+#   HIPPO_INSTALL_OS, HIPPO_INSTALL_ARCH
 #                           stand in for uname -s and uname -m, for testing
 
 set -eu
 
-repo=https://github.com/VanitasCaesar1/hippocamp
-dir=${HIPPOCAMP_INSTALL_DIR:-$HOME/.local/bin}
+repo=https://github.com/VanitasCaesar1/hippo
+dir=${HIPPO_INSTALL_DIR:-$HOME/.local/bin}
 
 say() {
   printf '%s\n' "$*"
@@ -28,19 +28,19 @@ die() {
 }
 
 unsupported() {
-  die "there is no prebuilt hippocamp for $1 $2. With Rust installed, build it:
-  cargo install --locked --git $repo hippocamp"
+  die "there is no prebuilt hippo for $1 $2. With Rust installed, build it:
+  cargo install --locked --git $repo hippo"
 }
 
-os=${HIPPOCAMP_INSTALL_OS:-$(uname -s)}
-arch=${HIPPOCAMP_INSTALL_ARCH:-$(uname -m)}
+os=${HIPPO_INSTALL_OS:-$(uname -s)}
+arch=${HIPPO_INSTALL_ARCH:-$(uname -m)}
 case $os in
   Darwin)
     case $arch in
       arm64 | aarch64) target=aarch64-apple-darwin ;;
       x86_64)
         # An x86_64 shell under Rosetta on Apple silicon still gets the native binary.
-        if [ -z "${HIPPOCAMP_INSTALL_ARCH:-}" ] && [ "$(sysctl -n hw.optional.arm64 2>/dev/null || true)" = 1 ]; then
+        if [ -z "${HIPPO_INSTALL_ARCH:-}" ] && [ "$(sysctl -n hw.optional.arm64 2>/dev/null || true)" = 1 ]; then
           target=aarch64-apple-darwin
         else
           target=x86_64-apple-darwin
@@ -93,19 +93,19 @@ latest() {
   printf '%s\n' "${tag#v}"
 }
 
-version=${HIPPOCAMP_VERSION:-}
+version=${HIPPO_VERSION:-}
 if [ -z "$version" ]; then
-  [ -z "${HIPPOCAMP_BASE_URL:-}" ] || die "HIPPOCAMP_BASE_URL needs HIPPOCAMP_VERSION too"
+  [ -z "${HIPPO_BASE_URL:-}" ] || die "HIPPO_BASE_URL needs HIPPO_VERSION too"
   version=$(latest) || die "found no release at $repo/releases"
 fi
-base=${HIPPOCAMP_BASE_URL:-$repo/releases/download/v$version}
+base=${HIPPO_BASE_URL:-$repo/releases/download/v$version}
 base=${base%/}
-asset=hippocamp-$version-$target.tar.gz
+asset=hippo-$version-$target.tar.gz
 
-tmp=$(mktemp -d "${TMPDIR:-/tmp}/hippocamp-install.XXXXXX")
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/hippo-install.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT INT TERM
 
-say "Downloading hippocamp $version for $target"
+say "Downloading hippo $version for $target"
 fetch "$base/$asset" "$tmp/$asset" || die "could not download $base/$asset"
 fetch "$base/$asset.sha256" "$tmp/$asset.sha256" || die "could not download $base/$asset.sha256"
 
@@ -120,20 +120,20 @@ fi
 [ -n "$want" ] && [ "$want" = "$have" ] || die "the checksum of $asset does not match (expected $want, got $have); nothing was installed"
 
 (cd "$tmp" && tar -xzf "$asset")
-bin=$tmp/hippocamp-$version-$target/hippocamp
-[ -f "$bin" ] || die "$asset holds no hippocamp binary"
+bin=$tmp/hippo-$version-$target/hippo
+[ -f "$bin" ] || die "$asset holds no hippo binary"
 
 mkdir -p "$dir"
-cp "$bin" "$dir/.hippocamp.new.$$"
-chmod 755 "$dir/.hippocamp.new.$$"
-mv -f "$dir/.hippocamp.new.$$" "$dir/hippocamp"
-say "Installed hippocamp $version to $dir/hippocamp"
+cp "$bin" "$dir/.hippo.new.$$"
+chmod 755 "$dir/.hippo.new.$$"
+mv -f "$dir/.hippo.new.$$" "$dir/hippo"
+say "Installed hippo $version to $dir/hippo"
 
-next=hippocamp
+next=hippo
 case ":$PATH:" in
   *":$dir:"*) ;;
   *)
-    next=$dir/hippocamp
+    next=$dir/hippo
     say ""
     say "$dir is not on your PATH. To add it, run:"
     case ${SHELL:-} in

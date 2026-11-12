@@ -1,9 +1,9 @@
 {
-  "protocol": "HIPPOCAMP_V1",
+  "protocol": "HIPPO_V1",
   "id": "01M772F2PZQ853H28NEKZZ4XPA",
   "pack": "security-log",
   "version": "1.0.0",
-  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/security-log",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/security-log",
   "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
   "repo_id": 1454849249,
   "pack_hash": "6543167b8297b2acf71f56df213491ac1d07c985e961d45d7d1dc799d2e1301e",

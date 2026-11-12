@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 prompt = "prompts/todo-done.md"
 reads = ["sessions", "notes", "turns"]
 reviewer = "personas/todo-done-reviewer.md"

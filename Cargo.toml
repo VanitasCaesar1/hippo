@@ -1,20 +1,20 @@
 [workspace]
 resolver = "2"
-members = ["crates/hippocamp-core", "crates/hippocamp", "crates/hippocamp-registry", "crates/hippocamp-theme", "crates/hippocamp-view", "crates/hippocamp-feed"]
+members = ["crates/hippo-core", "crates/hippo", "crates/hippo-registry", "crates/hippo-theme", "crates/hippo-view", "crates/hippo-feed"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/VanitasCaesar1/hippocamp"
-homepage = "https://github.com/VanitasCaesar1/hippocamp"
+repository = "https://github.com/VanitasCaesar1/hippo"
+homepage = "https://github.com/VanitasCaesar1/hippo"
 # 1.89 stabilised std::fs::File::try_lock, which ingest uses for its lock.
 rust-version = "1.89"
 
 [workspace.dependencies]
-hippocamp-core = { path = "crates/hippocamp-core" }
-hippocamp-theme = { path = "crates/hippocamp-theme" }
-hippocamp-view = { path = "crates/hippocamp-view" }
+hippo-core = { path = "crates/hippo-core" }
+hippo-theme = { path = "crates/hippo-theme" }
+hippo-view = { path = "crates/hippo-view" }
 aho-corasick = "1.1"
 # FTS5 is compiled in by `bundled`.
 rusqlite = { version = "0.41.1", features = ["bundled"] }
@@ -48,7 +48,7 @@ getrandom = "0.4.3"
 base64 = { version = "0.23.1", default-features = false, features = ["std"] }
 pulldown-cmark = { version = "0.13.6", default-features = false, features = ["html"] }
 # The card: anti-aliased fills, and the PNG's zlib
-# stream and checksums. The fonts are read by crates/hippocamp/src/card/font.rs.
+# stream and checksums. The fonts are read by crates/hippo/src/card/font.rs.
 tiny-skia = { version = "0.11.4", default-features = false, features = ["std", "simd"] }
 flate2 = "1.1.11"
 crc32fast = "1.5.4"

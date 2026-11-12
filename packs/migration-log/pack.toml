@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 name = "migration-log"
 version = "1.0.1"
 description = "Appends each database migration a session ran, with its environment and outcome, to a migrations note."

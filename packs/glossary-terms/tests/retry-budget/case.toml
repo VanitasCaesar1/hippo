@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 pass = "glossary-terms"
 about = "A term defined in a session is appended to the glossary, and a note the filter leaves out is not read"
 

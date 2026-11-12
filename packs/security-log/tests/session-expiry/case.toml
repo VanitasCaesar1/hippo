@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 pass = "security-log"
 about = "A security change is appended without any secret, and a note the filter leaves out is not read"
 

@@ -556,16 +556,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
-name = "hippocamp"
+name = "hippo"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
  "crc32fast",
  "flate2",
- "hippocamp-core",
- "hippocamp-theme",
- "hippocamp-view",
+ "hippo-core",
+ "hippo-theme",
+ "hippo-view",
  "serde_json",
  "tempfile",
  "time",
@@ -575,12 +575,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "hippocamp-core"
+name = "hippo-core"
 version = "0.1.0"
 dependencies = [
  "aho-corasick",
  "glob",
- "hippocamp-theme",
+ "hippo-theme",
  "home",
  "libc",
  "regex",
@@ -600,7 +600,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "hippocamp-feed"
+name = "hippo-feed"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -609,7 +609,7 @@ dependencies = [
  "clap",
  "getrandom 0.4.3",
  "governor",
- "hippocamp-theme",
+ "hippo-theme",
  "maud",
  "pulldown-cmark",
  "regex",
@@ -629,13 +629,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "hippocamp-registry"
+name = "hippo-registry"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "hippocamp-core",
- "hippocamp-theme",
+ "hippo-core",
+ "hippo-theme",
  "serde",
  "serde_json",
  "sha2",
@@ -644,14 +644,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "hippocamp-theme"
+name = "hippo-theme"
 version = "0.1.0"
 
 [[package]]
-name = "hippocamp-view"
+name = "hippo-view"
 version = "0.1.0"
 dependencies = [
- "hippocamp-core",
+ "hippo-core",
  "serde",
  "serde_json",
  "tempfile",

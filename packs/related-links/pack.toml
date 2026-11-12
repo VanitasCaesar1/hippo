@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 name = "related-links"
 version = "1.0.0"
 description = "Appends Related lines linking notes that a session's handoff connects but that do not link each other."

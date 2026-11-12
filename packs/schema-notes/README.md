@@ -6,7 +6,7 @@ Keeps a schema or data-model note current: it adds the tables, columns and field
 
 For each schema, data-model or database note that a session touched or cited, it adds one entry per change under a final `## Schema changes` section: the date, whether it was added, renamed or dropped, the table or record, the column or field, its type and the reason when the session states them. Only changes the turns show made are recorded, never designs. It writes names and types, never data. A change the note already describes is skipped.
 
-It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippocamp's reviewer checks every entry against the evidence in a fresh context before anything is written.
+It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippo's reviewer checks every entry against the evidence in a fresh context before anything is written.
 
 ## Notes it works on
 
@@ -16,7 +16,7 @@ It proposes `append` changes only. Each entry cites the transcript turns it come
 
 ## How it gets work
 
-The pack acts when sessions touch or cite the notes above: a note named with `hippocamp session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[Schema]]` is enough to bring the note in.
+The pack acts when sessions touch or cite the notes above: a note named with `hippo session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[Schema]]` is enough to bring the note in.
 
 ## What it writes
 

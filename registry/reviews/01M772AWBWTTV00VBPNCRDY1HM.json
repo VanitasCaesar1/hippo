@@ -1,9 +1,9 @@
 {
-  "protocol": "HIPPOCAMP_V1",
+  "protocol": "HIPPO_V1",
   "id": "01M772AWBWTTV00VBPNCRDY1HM",
   "pack": "measurements",
   "version": "1.0.0",
-  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/measurements",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/measurements",
   "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
   "repo_id": 1454849249,
   "pack_hash": "0a900b574c14f3b199de76f6d4f04048cb529ceac64287456fe3ed2a18c301f0",

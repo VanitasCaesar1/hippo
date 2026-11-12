@@ -1,17 +1,17 @@
 #!/bin/sh
 # Builds the whole static site into docs/site/out (gitignored), for GitHub
-# Pages at https://vanitascaesar1.github.io/hippocamp/:
+# Pages at https://vanitascaesar1.github.io/hippo/:
 #
 #   index.html               the landing page (docs/site/landing.html)
 #   packs.html, themes.html  the registry's lists; packs/<name>.html, index.json
-#   hippocamp.css, registry.css, icon.svg
+#   hippo.css, registry.css, icon.svg
 #   assets/                  docs/assets/ (the card image)
 #   docs/                    the docs (mdBook)
 #
 #   CARGO_TARGET_DIR=<dir> docs/site/build.sh
 #
 # Needs cargo and mdbook. Every link is relative, so the site works under the
-# /hippocamp/ prefix and from a folder on disk. Builds nothing that runs
+# /hippo/ prefix and from a folder on disk. Builds nothing that runs
 # JavaScript, loads a font or calls another host, and fails if any page says
 # otherwise or links a file of the site that does not exist.
 set -eu
@@ -21,10 +21,10 @@ out="$root/docs/site/out"
 cd "$root"
 
 rm -rf "$out"
-cargo run -p hippocamp-registry --locked -j 4 -- build --out "$out" --offline \
+cargo run -p hippo-registry --locked -j 4 -- build --out "$out" --offline \
   --landing "$root/docs/site/landing.html"
 
-for f in index.html packs.html hippocamp.css icon.svg; do
+for f in index.html packs.html hippo.css icon.svg; do
   if [ ! -f "$out/$f" ]; then
     echo "error: the registry build did not write $f" >&2
     exit 1

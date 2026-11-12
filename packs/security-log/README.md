@@ -6,7 +6,7 @@ Keeps a security note current: it adds the security-relevant changes that coding
 
 For each security note that a session touched or cited, it adds one entry per security-relevant change under a final `## Logged changes` section: the date, the area, what changed and the reason when the session states it. It records names and kinds, never values: no password, token, key, connection string or personal data goes into an entry, even when a transcript contained one. An unfixed risk is logged only as an observation that says so. A change the note already logs is skipped.
 
-It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippocamp's reviewer checks every entry against the evidence in a fresh context before anything is written.
+It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippo's reviewer checks every entry against the evidence in a fresh context before anything is written.
 
 ## Notes it works on
 
@@ -14,7 +14,7 @@ It proposes `append` changes only. Each entry cites the transcript turns it come
 
 ## How it gets work
 
-The pack acts when sessions touch or cite the notes above: a note named with `hippocamp session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[Security log]]` is enough to bring the note in.
+The pack acts when sessions touch or cite the notes above: a note named with `hippo session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[Security log]]` is enough to bring the note in.
 
 ## What it writes
 

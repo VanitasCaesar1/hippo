@@ -1,4 +1,4 @@
-protocol = "HIPPOCAMP_V1"
+protocol = "HIPPO_V1"
 name = "onboarding-gaps"
 version = "1.0.0"
 description = "Appends setup facts sessions had to discover: commands, variable names, ports and accounts."

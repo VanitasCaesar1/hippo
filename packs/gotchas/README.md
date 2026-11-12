@@ -6,7 +6,7 @@ Keeps a gotchas or pitfalls note current: it adds the surprising behaviour that 
 
 For each matching note that a session touched or cited, it adds one entry per piece of surprising behaviour that cost a session time, under a final `## Logged gotchas` section: the date, what happens, what a reader would expect instead and how to avoid the trap. An error message with a fix belongs in an errors note, not here. A gotcha the note already records is skipped.
 
-It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippocamp's reviewer checks every entry against the evidence in a fresh context before anything is written. 
+It proposes `append` changes only. Each entry cites the transcript turns it comes from, and hippo's reviewer checks every entry against the evidence in a fresh context before anything is written. 
 
 ## Notes it works on
 
@@ -15,7 +15,7 @@ It proposes `append` changes only. Each entry cites the transcript turns it come
 
 ## How it gets work
 
-The pack acts when sessions touch or cite the notes above: a note named with `hippocamp session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[Gotchas]]` is enough to bring the note in.
+The pack acts when sessions touch or cite the notes above: a note named with `hippo session end --note`, or linked as `[[...]]` in a session's handoff. A handoff that links `[[Gotchas]]` is enough to bring the note in.
 
 ## What it writes
 

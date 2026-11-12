@@ -21,12 +21,12 @@ jobs:
           targets: aarch64-apple-darwin, x86_64-apple-darwin
       - name: Build
         env:
-          HIPPOCAMP_DIST_DIR: ${{ runner.temp }}/dist
+          HIPPO_DIST_DIR: ${{ runner.temp }}/dist
         run: scripts/release.sh "${GITHUB_REF_NAME#v}" aarch64-apple-darwin x86_64-apple-darwin
       - uses: actions/upload-artifact@v4
         with:
           name: dist-macos
-          path: ${{ runner.temp }}/dist/hippocamp-*
+          path: ${{ runner.temp }}/dist/hippo-*
 
   linux:
     runs-on: ubuntu-latest
@@ -42,12 +42,12 @@ jobs:
       - run: cargo install --locked cargo-zigbuild --version 0.24.1
       - name: Build
         env:
-          HIPPOCAMP_DIST_DIR: ${{ runner.temp }}/dist
+          HIPPO_DIST_DIR: ${{ runner.temp }}/dist
         run: scripts/release.sh "${GITHUB_REF_NAME#v}" x86_64-unknown-linux-musl aarch64-unknown-linux-musl
       - uses: actions/upload-artifact@v4
         with:
           name: dist-linux
-          path: ${{ runner.temp }}/dist/hippocamp-*
+          path: ${{ runner.temp }}/dist/hippo-*
 
   publish:
     needs: [macos, linux]
@@ -63,7 +63,7 @@ jobs:
           path: ${{ runner.temp }}/dist
       - name: Fill the formula
         env:
-          HIPPOCAMP_DIST_DIR: ${{ runner.temp }}/dist
+          HIPPO_DIST_DIR: ${{ runner.temp }}/dist
         run: scripts/release.sh "${GITHUB_REF_NAME#v}" --no-build
       - name: Attach to the release
         env:
@@ -74,5 +74,5 @@ jobs:
             gh release upload "$GITHUB_REF_NAME" "$DIST"/* --clobber
           else
             gh release create "$GITHUB_REF_NAME" "$DIST"/* --verify-tag \
-              --title "hippocamp ${GITHUB_REF_NAME#v}" --notes "See CHANGELOG.md for what this release holds."
+              --title "hippo ${GITHUB_REF_NAME#v}" --notes "See CHANGELOG.md for what this release holds."
           fi

@@ -30,7 +30,7 @@ exceptions = [
 [advisories]
 version = 2
 ignore = [
-  { id = "RUSTSEC-2024-0449", reason = "unsafe-libyaml via serde_yaml_ng (hippocamp-core); parser replacement is an open question" },
+  { id = "RUSTSEC-2024-0449", reason = "unsafe-libyaml via serde_yaml_ng (hippo-core); parser replacement is an open question" },
   # paste is unmaintained; GPUI's macro stack pulls it in
   # and the app cannot replace it.
   { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained; pulled in by GPUI" },

@@ -38,7 +38,7 @@
         "error": "#8b0000",
         "warning": "#6b3f00"
       },
-      "hippocamp": {
+      "hippo": {
         "font_size": 14
       }
     },
@@ -78,7 +78,7 @@
         "error": "#ff9999",
         "warning": "#ffcc66"
       },
-      "hippocamp": {
+      "hippo": {
         "font_size": 14
       }
     }
