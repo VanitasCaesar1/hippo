@@ -556,6 +556,17 @@ fn a_drain_follows_the_window_and_says_when_it_runs_dry() {
     // 60 points over 58 minutes.
     assert!((cx.burn - 0.6 / (58.0 / 60.0)).abs() < 1e-9);
     assert!(cx.empty_at.is_some_and(|e| e < t + 100 * m));
+    // A meter with no message in its window: flat at its figure.
+    snap.claude_meters.insert(
+        "quiet".into(),
+        client(t - 60, (35.0, Some(t + 60 * m)), (5.0, None)),
+    );
+    snap.profiles.push(profile("quiet", false));
+    let rooms = headroom(&snap, now);
+    let quiet = rooms.iter().find(|r| r.profile == "quiet").unwrap();
+    let flat = drain(&snap, quiet, now).unwrap();
+    assert!((flat.used - 0.35).abs() < 1e-9 && flat.burn == 0.0 && flat.empty_at.is_none());
+    assert!(flat.samples.iter().all(|s| (*s - 0.35).abs() < 1e-9));
     // A profile with no limit learned and no meter has no drain.
     snap.limits.clear();
     let rooms = headroom(&snap, now);

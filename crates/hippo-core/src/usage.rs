@@ -1253,7 +1253,8 @@ pub fn drain(snap: &Snapshot, room: &Headroom, now: OffsetDateTime) -> Option<Dr
     if matches!(room.window, WindowState::Limited { .. }) || room.weekly_until.is_some() {
         return None;
     }
-    let msgs = snap.messages.get(&room.profile)?;
+    let empty = Vec::new();
+    let msgs = snap.messages.get(&room.profile).unwrap_or(&empty);
     let five = room.five?;
     let (start, end) = match (five.source, five.resets_at, room.window) {
         (Source::Meter, Some(r), _) => (r - w, r),
@@ -1263,7 +1264,12 @@ pub fn drain(snap: &Snapshot, room: &Headroom, now: OffsetDateTime) -> Option<Dr
     let counted = used_between(msgs, start, now);
     let scale = match five.source {
         Source::Meter if counted > 0.0 => (1.0 - five.frac) / counted,
-        Source::Meter => 0.0,
+        // The meter says what is used but no message in the window shows
+        // when: flat at its figure, burning nothing.
+        Source::Meter => {
+            let samples = vec![1.0 - five.frac; steps(start).len()];
+            return Some(finish(start, end, samples, 0.0));
+        }
         Source::Estimate => 1.0 / room.limit.filter(|l| *l > 0.0)?,
     };
     let samples: Vec<f64> = steps(start)
