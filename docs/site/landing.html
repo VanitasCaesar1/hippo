@@ -3,6 +3,9 @@
      it is. Its own stylesheet is landing.css. No script, no web font, nothing
      loaded from another host. -->
 <!-- The landing page, a whole page that hippo-registry build --landing copies as
+     it is. Its own stylesheet is landing.css. No script, no web font, nothing
+     loaded from another host. -->
+<!-- The landing page, a whole page that hippo-registry build --landing copies as
      it is. Its own stylesheet is style.css. No script, no web font, nothing
      loaded from another host. -->
 <!-- hippo landing page. No script, no web font, no inline style, nothing
@@ -313,6 +316,48 @@ required: notes/START HERE.md
     </li>
 
   </ol>
+</section>
+
+<!-- ============ the Mac app ============ -->
+<section class="wrap app" id="app">
+  <h2>The Mac app</h2>
+  <div class="tabs" role="group" aria-label="Mac app views">
+    <input type="radio" name="appview" id="v-home" checked>
+    <input type="radio" name="appview" id="v-fleet">
+    <input type="radio" name="appview" id="v-incidents">
+    <input type="radio" name="appview" id="v-inbox">
+    <input type="radio" name="appview" id="v-memory">
+    <div class="tablist">
+      <label for="v-home">Home</label>
+      <label for="v-fleet">Fleet</label>
+      <label for="v-incidents">Incidents</label>
+      <label for="v-inbox">Inbox</label>
+      <label for="v-memory">Memory</label>
+    </div>
+    <div class="panes">
+      <figure class="pane p-home">
+        <a href="assets/app-home.png"><img src="assets/app-home.png" width="1600" height="1000" loading="lazy" alt="The hippo Mac app, Home: one agent needs you, overnight note changes confirmed by a fresh reviewer, two corrections and two repeated failures to keep, and usage left per account."></a>
+        <figcaption><b>Home</b> who is waiting on you</figcaption>
+      </figure>
+      <figure class="pane p-fleet">
+        <a href="assets/app-fleet.png"><img src="assets/app-fleet.png" width="1600" height="1000" loading="lazy" alt="The hippo Mac app, Fleet: sessions grouped into needs you, working and to review, each with its project, claims and state."></a>
+        <figcaption><b>Fleet</b> every session, by state</figcaption>
+      </figure>
+      <figure class="pane p-incidents">
+        <a href="assets/app-incidents.png"><img src="assets/app-incidents.png" width="1600" height="1000" loading="lazy" alt="The hippo Mac app, Incidents: quoted corrections, destructive commands and a collision, each with its session, cause and outcome."></a>
+        <figcaption><b>Incidents</b> what went wrong, quoted</figcaption>
+      </figure>
+      <figure class="pane p-inbox">
+        <a href="assets/app-inbox.png"><img src="assets/app-inbox.png" width="1600" height="1000" loading="lazy" alt="The hippo Mac app, Inbox: two corrections and two repeated failures proposed as rules, four note changes, and the recent dreaming runs."></a>
+        <figcaption><b>Inbox</b> rules waiting for you</figcaption>
+      </figure>
+      <figure class="pane p-memory">
+        <a href="assets/app-memory.png"><img src="assets/app-memory.png" width="1600" height="1000" loading="lazy" alt="The hippo Mac app, Memory: a map of the notes, each tile sized by the sessions that read it, beside the selected note."></a>
+        <figcaption><b>Memory</b> notes, by sessions that read them</figcaption>
+      </figure>
+    </div>
+  </div>
+  <p class="app-note">Hippo.app on the same demo data. Open a screenshot for full size.</p>
 </section>
 
 <!-- ============ the CLI ============ -->
