@@ -71,7 +71,7 @@ Everything else, including `hippocamp`, `start`, `card`, `recall`, `ask --source
 
 - **Claude Code and Codex only.** OpenCode and Cursor folders are detected, not read. Only Claude Code gets the notes at session start through hooks; a Codex session is indexed and searchable, and can run `hippocamp brief` itself if your instructions ask it to.
 - **Scheduling** is launchd on macOS. Elsewhere `hippocamp schedule install` prints cron and systemd lines for you to install.
-- **Linux is not tested yet.** This release publishes macOS binaries only; on Linux, `cargo install` builds it, and the tests have not run on Linux for this version. It is used and tested on macOS on Apple silicon (the Intel build is built, not run).
+- **Linux is not tested yet.** This release publishes macOS binaries only; on Linux, `cargo install` builds it, and the tests have not run on Linux for this version. It is used and tested on macOS on Apple silicon (the Intel build passes the first-run check under Rosetta).
 - **The desktop app**, Hippocamp.app in [`app/`](app/README.md), is macOS only, built from source, and early: checked on synthetic data, not in daily use.
 - **Whether dreaming makes an agent's work better is not measured.** `hippocamp eval` measures a small, invented question set, not your notes.
 - **No pack by another author exists.** The 26 first-party packs in [`packs/`](packs/) await their registry review against this repository.

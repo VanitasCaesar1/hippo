@@ -12,7 +12,7 @@ hippocamp is early software at version 0.1.0. This page lists what you should ex
 - **Hooks only for Claude Code.** Codex sessions are always derived records: no task, no declared notes. Nothing should depend on a Codex session being declared.
 - **Scheduling is installed only on macOS** (launchd). Elsewhere `hippocamp schedule install` prints cron and systemd lines for you to install; hippocamp cannot see whether they run.
 - **Not on crates.io.** Install with the install script, the Claude Code plugin's setup, or `cargo install --git` ([Install](install.md)).
-- **Linux is not tested yet.** This release publishes macOS binaries only; on Linux, `cargo install` builds it, and the tests have not run on Linux for this version. It is used and tested on macOS on Apple silicon (the Intel build is built, not run).
+- **Linux is not tested yet.** This release publishes macOS binaries only; on Linux, `cargo install` builds it, and the tests have not run on Linux for this version. It is used and tested on macOS on Apple silicon (the Intel build passes the first-run check under Rosetta).
 
 ## Search
 
