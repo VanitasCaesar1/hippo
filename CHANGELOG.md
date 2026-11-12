@@ -4,6 +4,14 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Added
+
+- **A DeepSeek Harness (`dsh`) plugin**, `plugins/dsh/` (`dsh-plugin-hippo`). A new dsh session in hippo's workspace starts with the same start block a Claude Code session gets, and the model can call `hippo_ask` (`hippo ask --sources-only`, with each source's session id) and `hippo_day` (`hippo show day`). It only runs the `hippo` binary. Install it with `dsh plugin --profile <profile> add "github:VanitasCaesar1/hippo#<commit>&path:/plugins/dsh"`; it is not on npm. See the [design](docs/designs/dsh-plugin.md) and [README](plugins/dsh/README.md).
+
+### Fixed
+
+- `hippo ask` leaves the dsh plugin's `hippo_ask` calls and their results out of its sources, as it does for `hippo ask` run in a shell, and the x-ray lists them as searches.
+
 ## [0.2.0] - 2026-11-12
 
 ### Added

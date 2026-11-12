@@ -244,12 +244,16 @@ struct Group {
     last: String,
 }
 
-/// The session that can be resumed: a Claude Code sub-agent's parent.
-static HIPPO_CALL: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\bhippo\s+(ask|recall|context)\b").expect("valid regex"));
+/// A tool call that runs hippo's own search or context. `hippo_ask` is the
+/// dsh plugin's tool (`plugins/dsh/`), which the dsh
+/// adapter stores as `hippo_ask {"question": …}`.
+static HIPPO_CALL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\bhippo(\s+(ask|recall|context)\b|_ask\b)").expect("valid regex")
+});
 
 /// Whether `t` is a tool call that runs `hippo ask`, `hippo recall` or
-/// `hippo context`, or a tool result of one: a result whose nearest earlier
+/// `hippo context` (or the dsh plugin's `hippo_ask`), or a tool result of
+/// one: a result whose nearest earlier
 /// tool calls (those before it with only calls and results between) hold
 /// such a call.
 pub fn hippo_output(index: &Index, t: &SessionTurn) -> Result<bool> {

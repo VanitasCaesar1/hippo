@@ -13,6 +13,7 @@ The text lives in `ROADMAP.md` at the root of the repository, and the docs site 
 - `hippo eval` with a synthetic question set.
 - Packs: `hippo add` and `hippo packs`, the registry tool and its static site, and 26 first-party packs (23 pass packs and 3 theme packs), all reviewed and listed in the registry.
 - A Claude Code plugin, an install script, release binaries for macOS and Linux, and a Homebrew formula attached to the release.
+- A DeepSeek Harness (`dsh`) plugin, installed from GitHub: the start block in each new session, and `hippo_ask` and `hippo_day` as tools ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/dsh-plugin.md)).
 - The desktop app, Hippo.app: macOS only, built from source, early, and checked on synthetic data.
 - The community feed server (`crates/hippo-feed`): built and tested locally, not deployed. See [`docs/feed-local.md`](https://github.com/VanitasCaesar1/hippo/blob/main/docs/feed-local.md).
 

@@ -1,1 +1,2 @@
 fixtures/notes/CRLF.md -text
+plugins/dsh/lib/** linguist-generated

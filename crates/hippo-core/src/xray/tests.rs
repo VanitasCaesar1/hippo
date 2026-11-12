@@ -515,6 +515,23 @@ fn a_miss_says_what_followed() {
 }
 
 #[test]
+fn the_dsh_plugins_hippo_ask_is_a_search_of_the_notes() {
+    let roots = vec![PathBuf::from("/work/brain")];
+    let t = T::default()
+        .user("where is the sender id")
+        .call("hippo_ask", json!({"question": "sender id"}))
+        .result(
+            "hippo_ask",
+            "searched 4 sessions and 2 notes for: sender id\nno session or note matched",
+        )
+        .say("Nothing yet.");
+    let s = searches::find(&t.turns, &roots, Some(Path::new("/work")));
+    assert_eq!(s.len(), 1, "{s:#?}");
+    assert_eq!(s[0].tool, "ask");
+    assert_eq!(s[0].query, "sender id");
+}
+
+#[test]
 fn a_miss_then_a_question_was_asked_of_the_person() {
     let roots = vec![PathBuf::from("/work/brain")];
     let t = T::default()

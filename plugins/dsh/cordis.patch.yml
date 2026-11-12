@@ -1,0 +1,12 @@
+# dsh-plugin-hippo: the layer a profile applies when it lists this bundle.
+# To change a setting, override the row by its id in your profile's
+# cordis.patch.yml; an override replaces the whole config, so restate all
+# three. `tools: false` keeps the start block and drops hippo_ask and
+# hippo_day, whose results reach the session's model provider.
+- insert:
+    - id: hippo
+      name: dsh-plugin-hippo
+      config:
+        command: hippo
+        timeoutMs: 10000
+        tools: true

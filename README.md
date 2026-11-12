@@ -34,6 +34,8 @@ Inside Claude Code, as a plugin (then run `/hippo:setup`):
 
 With Rust 1.89 or later: `cargo install --locked --git https://github.com/VanitasCaesar1/hippo hippo`.
 
+Inside DeepSeek Harness (`dsh`), as a plugin that gives sessions the same start block and lets the model call `hippo ask` and `hippo show day`: `dsh plugin --profile web add "github:VanitasCaesar1/hippo#<commit>&path:/plugins/dsh"` ([details](plugins/dsh/README.md)).
+
 ## The first two minutes
 
 ```sh
@@ -69,7 +71,7 @@ Everything else, including `hippo`, `start`, `card`, `recall`, `ask --sources-on
 
 ## What it does not do yet
 
-- **Claude Code, Codex and DeepSeek Harness only.** OpenCode and Cursor folders are detected, not read. Only Claude Code gets the notes at session start through hooks; a Codex or dsh session is indexed and searchable, and can run `hippo brief` itself if your instructions ask it to.
+- **Claude Code, Codex and DeepSeek Harness only.** OpenCode and Cursor folders are detected, not read. Claude Code gets the notes at session start through hooks or its plugin, and a dsh session through [its plugin](plugins/dsh/README.md); a Codex session is indexed and searchable, and can run `hippo brief` itself if your instructions ask it to.
 - **Scheduling** is launchd on macOS. Elsewhere `hippo schedule install` prints cron and systemd lines for you to install.
 - **Linux is tested in CI, not in daily use.** The release has static Linux binaries (x86_64 and arm64) and the test suite passes on Linux in CI, but hippo is used day to day on macOS on Apple silicon (the Intel build passes the first-run check under Rosetta).
 - **The desktop app**, Hippo.app in [`app/`](app/README.md), is macOS only, built from source, and early: checked on synthetic data, not in daily use.

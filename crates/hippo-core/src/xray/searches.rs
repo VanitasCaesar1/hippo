@@ -320,11 +320,17 @@ fn one_producer(commands: &[(shell::Simple, Option<PathBuf>)]) -> bool {
     producers <= 1
 }
 
-/// A `Grep` or `Glob` call.
+/// A `Grep` or `Glob` call, or the dsh plugin's `hippo_ask`.
 fn tool_search(t: &StoredTurn) -> Option<Found> {
     let (name, v) = shell::input(t)?;
     let s = |k: &str| v.get(k).and_then(Value::as_str).map(str::to_owned);
     match name {
+        "hippo_ask" => Some(Found {
+            tool: "ask".to_owned(),
+            query: s("question")?,
+            paths: Vec::new(),
+            anywhere: true,
+        }),
         "Grep" | "Glob" => {
             let pattern = s("pattern")?;
             let mut paths: Vec<PathBuf> = s("path").map(PathBuf::from).into_iter().collect();

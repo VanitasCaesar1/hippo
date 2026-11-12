@@ -252,3 +252,51 @@ fn hippos_own_ask_output_is_not_a_source() {
     assert!(!ids.contains(&"asker".to_owned()), "{ids:?}");
     assert_eq!(ids[0], "s1");
 }
+
+#[test]
+fn the_dsh_plugins_hippo_ask_output_is_not_a_source() {
+    let mut e = env();
+    let p = e._tmp.path().join("dsh-asker.jsonl");
+    std::fs::write(&p, "").unwrap();
+    put(
+        &mut e.index,
+        "dsh-asker",
+        &p,
+        &[
+            turn(
+                0,
+                Role::User,
+                "2026-11-03T10:00:00Z",
+                None,
+                "build the inbox",
+            ),
+            turn(
+                1,
+                Role::Tool,
+                "2026-11-03T10:01:00Z",
+                Some("hippo_ask"),
+                r#"hippo_ask {"question":"deploy staging screenshots"}"#,
+            ),
+            turn(
+                2,
+                Role::Tool,
+                "2026-11-03T10:01:30Z",
+                Some("hippo_ask"),
+                "searched 3 sessions and 0 notes for: deploy staging screenshots\n[1] Deploy staging screenshots",
+            ),
+        ],
+    );
+    let asked = search(
+        &Inputs {
+            index: &e.index,
+            rollup: None,
+            notes: None,
+            limit: 6,
+        },
+        "deploy staging screenshots",
+    )
+    .unwrap();
+    let ids: Vec<_> = asked.sources.iter().filter_map(|s| s.id.clone()).collect();
+    assert!(!ids.contains(&"dsh-asker".to_owned()), "{ids:?}");
+    assert_eq!(ids[0], "s1");
+}

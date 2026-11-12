@@ -1,0 +1,51 @@
+{
+  "name": "dsh-plugin-hippo",
+  "version": "0.2.0",
+  "description": "hippo for DeepSeek Harness (dsh): hippo's start block in each new session, and tools to search past agent sessions and show a day's work.",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "hippo",
+    "memory",
+    "context",
+    "notes"
+  ],
+  "homepage": "https://github.com/VanitasCaesar1/hippo/tree/main/plugins/dsh",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VanitasCaesar1/hippo.git",
+    "directory": "plugins/dsh"
+  },
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/*.js",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.18",
+    "dsh": ">=0.2.0 <0.3.0-0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test test/*.test.ts",
+    "check-lib": "rm -rf lib && npm run build && git status --porcelain -- lib && test -z \"$(git status --porcelain -- lib)\""
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "6.0.3"
+  }
+}
