@@ -4,13 +4,13 @@ hippocamp is one binary. Install it with the script, with Cargo, or build it fro
 
 ## With the install script
 
-On macOS (Apple silicon or Intel) and Linux (x86_64 or aarch64):
+On macOS (Apple silicon or Intel):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippocamp/main/install.sh | sh
 ```
 
-The script picks the binary for your machine from the latest [release](https://github.com/VanitasCaesar1/hippocamp/releases), checks its SHA-256, and copies it to `~/.local/bin`, without `sudo`. If that folder is not on your `PATH`, it prints the line that adds it. Set `HIPPOCAMP_INSTALL_DIR` to install somewhere else, or `HIPPOCAMP_VERSION` to pick a release. The Linux binaries are static (musl), so they need no system libraries.
+The script picks the binary for your machine from the latest [release](https://github.com/VanitasCaesar1/hippocamp/releases), checks its SHA-256, and copies it to `~/.local/bin`, without `sudo`. If that folder is not on your `PATH`, it prints the line that adds it. Set `HIPPOCAMP_INSTALL_DIR` to install somewhere else, or `HIPPOCAMP_VERSION` to pick a release. Prebuilt Linux binaries are not published yet: on Linux, install with Cargo.
 
 ## With Cargo
 

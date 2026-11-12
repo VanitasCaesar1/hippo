@@ -62,6 +62,11 @@ if [ "$build" = yes ]; then
   # Strip symbols from the release binary; nothing else about the profile changes.
   CARGO_PROFILE_RELEASE_STRIP=symbols
   export CARGO_PROFILE_RELEASE_STRIP
+  # Keep the build machine's paths out of the binary (panic messages carry
+  # source paths). With several matches rustc uses the last, so the most
+  # specific prefix comes last. Paths with spaces are not supported here.
+  RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$HOME=/home --remap-path-prefix=${RUSTUP_HOME:-$HOME/.rustup}=/rustup --remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo --remap-path-prefix=$root=/hippocamp"
+  export RUSTFLAGS
   for t in $targets; do
     case " $all " in *" $t "*) ;; *) die "unknown target $t (one of: $all)" ;; esac
     case $t in

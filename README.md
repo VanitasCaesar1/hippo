@@ -19,7 +19,7 @@ Your Claude Code sessions start from the same plain-Markdown notes and write bac
 
 ## Install
 
-macOS or Linux, one line, no `sudo` (installs to `~/.local/bin`):
+macOS (Apple silicon or Intel), one line, no `sudo` (installs to `~/.local/bin`):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippocamp/main/install.sh | sh
@@ -32,7 +32,7 @@ Inside Claude Code, as a plugin (then run `/hippocamp:setup`):
 /plugin install hippocamp@hippocamp
 ```
 
-With Rust 1.89 or later: `cargo install --locked --git https://github.com/VanitasCaesar1/hippocamp hippocamp`.
+On Linux, or anywhere with Rust 1.89 or later: `cargo install --locked --git https://github.com/VanitasCaesar1/hippocamp hippocamp`. Prebuilt Linux binaries are not published yet.
 
 ## The first two minutes
 
@@ -71,7 +71,7 @@ Everything else, including `hippocamp`, `start`, `card`, `recall`, `ask --source
 
 - **Claude Code and Codex only.** OpenCode and Cursor folders are detected, not read. Only Claude Code gets the notes at session start through hooks; a Codex session is indexed and searchable, and can run `hippocamp brief` itself if your instructions ask it to.
 - **Scheduling** is launchd on macOS. Elsewhere `hippocamp schedule install` prints cron and systemd lines for you to install.
-- **Linux is built, not run.** The release script builds static x86_64 and aarch64 Linux binaries; none of this version has been run, and the tests have not run on Linux for it. It is used and tested on macOS on Apple silicon.
+- **Linux is not tested yet.** This release publishes macOS binaries only; on Linux, `cargo install` builds it, and the tests have not run on Linux for this version. It is used and tested on macOS on Apple silicon (the Intel build is built, not run).
 - **The desktop app**, Hippocamp.app in [`app/`](app/README.md), is macOS only, built from source, and early: checked on synthetic data, not in daily use.
 - **Whether dreaming makes an agent's work better is not measured.** `hippocamp eval` measures a small, invented question set, not your notes.
 - **No pack by another author exists.** The 26 first-party packs in [`packs/`](packs/) await their registry review against this repository.
