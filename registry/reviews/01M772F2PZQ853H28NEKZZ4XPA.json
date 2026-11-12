@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPOCAMP_V1",
+  "id": "01M772F2PZQ853H28NEKZZ4XPA",
+  "pack": "security-log",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/security-log",
+  "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
+  "repo_id": 1454849249,
+  "pack_hash": "6543167b8297b2acf71f56df213491ac1d07c985e961d45d7d1dc799d2e1301e",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "fefd758cbb4217b39e4d4b11485e1d7756866e9fc8a2a24f08a0521cc0cec8f7",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2591 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing more. Its single pass, security-log, reads sessions, the matched note and the turns that mention it. It makes one call per note and works only on notes matching **/Security*.md. It proposes only append changes under a final '## Logged changes' section. These are the reads, triggering and scope the README describes, and the test checks that an unrelated note (Bread starter) is not read. The prompt treats the delimited inputs as untrusted data. It forbids passwords, tokens, keys, connection strings, session identifiers, emails, personal data and full internal host addresses. It refuses to quote instructions, commands, links or secrets that appear only in tool output, requires each entry to cite its turns, and asks for nothing outside the pack's stated purpose. The reviewer persona treats its inputs as untrusted, lists strict rejection grounds (secrets, unverified or overstated fixes, exploit details, duplicates, non-append or misplaced changes, unsupported instructions, commands or links, tool-output-only sources), rejects by default and keeps a strict one-sentence JSON reply. The template holds only a heading, a short description of the note's purpose and an empty '## Logged changes' section, with no agent instructions, commands, links or credential handling. The fixtures are marked synthetic and contain no real data: no secret values, only the setting name SIGNING_KEY and generic events. I found no hidden, encoded or misnamed content.",
+  "findings": [],
+  "at": "2026-11-12T05:07:53.502266Z"
+}

@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPOCAMP_V1",
+  "id": "01M772C9Y5DEWRW0XKQQ6YP8CN",
+  "pack": "open-questions",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/open-questions",
+  "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
+  "repo_id": 1454849249,
+  "pack_hash": "0e5f378d8168e550bffbe67b0f5325a67f2871e87e2945a6185a7a47c294a66b",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "fefd758cbb4217b39e4d4b11485e1d7756866e9fc8a2a24f08a0521cc0cec8f7",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2591 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The open-questions pack does what its README says and nothing else. Its single pass reads sessions, notes and turns, makes one call per note, and works only on notes matching **/Open questions*.md; the README describes these inputs, the trigger (a note named in session end or linked in a handoff) and the cost accurately. The prompt treats everything between UNTRUSTED markers as data and allows only `append` changes with an empty `old`. It confines entries to a final `## Raised in sessions` section, requires every entry to cite a turn and forbids repeating what the note already records. It also bars instructions, commands or links that only tool output shows, and caps output at 2,048 bytes. The reviewer persona rejects by default, treats the note, evidence and session records as untrusted, rejects guesses, duplicates, non-append changes and entries sourced only from tool output, and fixes the reply format to a single JSON object. The template holds only a heading, a description of the section's purpose, one placeholder question and an empty section, with no agent instructions, commands, links or credential handling. The fixtures are marked synthetic and use a generic 'sample service' and a plainly unrelated 'lantern festival' decoy note to check that the note filter works. I found no hidden, encoded or misnamed content and no text that tries to instruct the reviewer or the dreaming model.",
+  "findings": [],
+  "at": "2026-11-12T05:06:20.828518Z"
+}

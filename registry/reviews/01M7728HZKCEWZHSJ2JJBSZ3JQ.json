@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPOCAMP_V1",
+  "id": "01M7728HZKCEWZHSJ2JJBSZ3JQ",
+  "pack": "high-contrast",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/high-contrast",
+  "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
+  "repo_id": 1454849249,
+  "pack_hash": "d5382644c333da0094c8120788f5a9afb313ddeb5b5e7665d45b6e1b5f2fe1bd",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "fefd758cbb4217b39e4d4b11485e1d7756866e9fc8a2a24f08a0521cc0cec8f7",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2591 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does only what its README says: it sets colours. theme.css holds two :root blocks, one plain and one under prefers-color-scheme: dark, that set only the --hp-* custom properties. It has no selectors of its own, no imports, no URLs, no fonts and no content, display or position rules, so it cannot hide, move or relabel sources, reviews, warnings or counts. theme.json holds only names, an appearance, colour values and a font_size of 14, as the README states. Spot checks of the claimed 7:1 pairs pass. In light mode, muted #3d3d3d on #eeeeee is about 9.4:1, link #0000cc on #eeeeee about 9.7:1 and error #8b0000 on #eeeeee about 8.6:1. In dark mode, muted #cccccc on #1a1a1a is about 10.8:1, link #99ccff on #1a1a1a about 10.3:1, error #ff9999 on #1a1a1a about 8.5:1 and bar text on #262626 about 15:1. On the desktop, the dark placeholder on #0d0d0d is about 9.3:1 and muted text on the light and dark selection colours is about 8.1:1 and 7.0:1. One small gap: dark muted text on the search-match highlight #665500 is about 4.6:1. That is a highlight colour rather than a drawing surface, so it does not make the README's claim misleading. The pack imitates no brand, has no templates, prompts, personas or passes, contains no instructions aimed at the reviewer or at agents, and its LICENSE is a standard MIT text.",
+  "findings": [],
+  "at": "2026-11-12T05:04:35.548267Z"
+}

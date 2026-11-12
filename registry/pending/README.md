@@ -1,12 +1,15 @@
 # Entries awaiting review
 
-These are the entries for the 26 first-party packs in `packs/` (23 pass packs and 3 theme packs). They are not listed yet: an entry pins a repository id and a commit, and these must pin the public repository, which needs its own id and history. Until then `check` and `build` do not read this folder, so the registry lists no pack.
+An entry here is not listed: `check` and `build` do not read this folder. It waits for a change its fresh-context review asked for.
 
-To list them, from a checkout of `main` in the public repository:
+- `incident-timeline`: its template has an imperative line that an agent reading an unedited copy would take as an instruction, and its test fixture folds three moments into one entry that the pack's own reviewer would reject. Reword the template and fix the fixture, then list it again.
+
+To list an entry once its pack is fixed and the fix is on `main`:
 
 ```sh
 scripts/registry-repin.sh VanitasCaesar1/hippocamp "$(git rev-parse HEAD)"
-for f in registry/packs/*.toml; do cargo run -p hippocamp-registry --locked -- review --entry "$f"; done
+cargo run -p hippocamp-registry --locked -- review --entry registry/packs/<name>.toml
+cargo run -p hippocamp-registry --locked -- check
 ```
 
-The first command writes the repository's id, its owner's id and the commit into every entry here and moves them to `registry/packs/`. The second runs the fresh-context review of each entry and writes it to `registry/reviews/`. Then `cargo run -p hippocamp-registry -- check` passes, and the entries and reviews go in one pull request.
+The first command pins every entry in this folder to that commit and moves it to `registry/packs/`, so run it when only fixed entries are here. The review is written to `registry/reviews/`. The entry and its review go in one pull request.

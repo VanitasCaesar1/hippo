@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPOCAMP_V1",
+  "id": "01M772AGXBZRSXBRF0NMNC6FZ5",
+  "pack": "limits-and-quotas",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/limits-and-quotas",
+  "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
+  "repo_id": 1454849249,
+  "pack_hash": "9a3d27c4a5fb17ce6cff8a6e979f3b2d3302f056b3b72f8e5c78ac3e0f73df8d",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "fefd758cbb4217b39e4d4b11485e1d7756866e9fc8a2a24f08a0521cc0cec8f7",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2591 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing more. Its single pass reads sessions, the matched note and the turns that mention it. It makes one call per note and works only on notes matching **/Limits*.md and **/Quotas*.md, which fits a pack that records rate limits sessions ran into. The README's account of how it gets work (notes named at session end or linked in a handoff), what it reads, what it writes and what it costs matches pack.toml, the pass file and the prompt. The prompt treats the untrusted blocks as data and proposes append-only entries with citations. It keeps the error quote but strips identifiers, accounts, addresses and keys, and it forbids commands, links and agent instructions taken from tool output. It also forbids stating plan limits or reset times from memory. The persona rejects by default, rejects ungrounded numbers, quotes, identifiers, commands and links, and fixes a strict one-sentence JSON reply. The template is a plain heading and a description, with no instructions for agents, commands, links or credential handling. The fixture is plainly synthetic (a '{\"synthetic\": true}' marker, a generic geocoding 429 error and a lichen note as a filter decoy) and does not look like real data. I found no hidden, encoded or misnamed content, and no text addressed to the reviewer or the dreaming model beyond the pack's purpose.",
+  "findings": [],
+  "at": "2026-11-12T05:05:22.655346Z"
+}

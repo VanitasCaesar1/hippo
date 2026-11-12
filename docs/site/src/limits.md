@@ -38,7 +38,7 @@ Redaction is best-effort pattern matching, in both directions: it can miss a sec
 ## Packs
 
 - **Not measured.** None of the 23 first-party packs has been run against real notes with a real model, and the eval set does not cover them. A pack's fixture test uses a stand-in model, so it shows the wiring and nothing about quality.
-- **No hosted index of packs, and no pack listed yet.** The entries for the 26 first-party packs wait in `registry/pending/` to be pinned to this repository and reviewed, and nothing is published. You build the index and the site from a checkout, and `hippocamp add <name> --registry <index.json>` reads a file on your disk ([The registry](registry.md)). Without one, `hippocamp add` takes a path or a git URL.
+- **No hosted index of packs.** 25 of the 26 first-party packs are listed in the registry, and nothing is published. You build the index and the site from a checkout, and `hippocamp add <name> --registry <index.json>` reads a file on your disk ([The registry](registry.md)). Without one, `hippocamp add` takes a path or a git URL.
 - **No pack by another author.** Every pack so far is by the project's author.
 - **A review is a model's review.** A pack is listed only with a fresh-context review. It is a language model's judgement and not a guarantee.
 - **Web themes load nowhere yet.** The three theme packs install with `hippocamp add`, and Hippocamp.app's theme picker lists their desktop themes, but no running site offers their web themes ([Themes](themes.md)).

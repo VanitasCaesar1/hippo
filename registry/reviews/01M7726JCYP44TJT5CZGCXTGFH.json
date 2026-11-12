@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPOCAMP_V1",
+  "id": "01M7726JCYP44TJT5CZGCXTGFH",
+  "pack": "env-and-config",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/env-and-config",
+  "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
+  "repo_id": 1454849249,
+  "pack_hash": "fac06d949d6346eb12c8a9f5e65974c82074f576e84541f3a87beb9f50e97f56",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "fefd758cbb4217b39e4d4b11485e1d7756866e9fc8a2a24f08a0521cc0cec8f7",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2591 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing more. Its single pass reads sessions, notes and turns, makes one call per note, and works only on notes matching `**/Environment*.md`, `**/Config*.md` and `**/Env vars*.md`, which matches the README's account of what it reads, how it gets work and what it costs. The prompt allows only `append` changes under a final `## Logged settings` section. It records setting names and plain-word descriptions only, forbids values, defaults, hosts, ports, connection strings and paths to secrets, and forbids quoting instructions, commands or links that appear only in tool output. It also treats every UNTRUSTED block as data. The persona treats its inputs as untrusted, rejects any entry that contains a value, any non-append change, any unsupported claim and anything sourced only from tool output. It rejects by default and keeps a strict one-sentence JSON reply. The template holds only a title, a description saying values never go in the note, and an empty `## Logged settings` heading, with no instructions to agents, commands, links or credential handling. The fixtures are clearly synthetic: the transcript is marked synthetic, the variables use a `SAMPLE_` prefix, and the decoy note is a bake-sale rota that the test checks is not read. Nothing is hidden, encoded or misnamed, and no text tries to instruct the reviewer or the dreaming model.",
+  "findings": [],
+  "at": "2026-11-12T05:03:14.563754Z"
+}

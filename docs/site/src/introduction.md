@@ -38,7 +38,7 @@ What is built today:
 - the overview, `fleet`, `incidents`, `xray` and `card`, which read your agents' day from the index;
 - `hippocamp eval`, which measures context, recall and dreaming on a synthetic question set;
 - packs: the pack format, note filters, hippocamp's own reviewer for passes outside the core pack, `hippocamp add` with a review, `hippocamp packs check`, `test`, `list`, `diff`, `update` and `remove`, and 23 first-party pass packs ([Packs](packs.md));
-- the registry: entries, a fresh-context review of each listed pack, and the `hippocamp-registry` tool that checks them and builds an index and a static site on your machine. No pack is listed yet: the entries for the 26 first-party packs wait in `registry/pending/` to be pinned to this repository and reviewed ([The registry](registry.md));
+- the registry: entries, a fresh-context review of each listed pack, and the `hippocamp-registry` tool that checks them and builds an index and a static site on your machine. 25 of the 26 first-party packs are listed ([The registry](registry.md));
 - three theme packs and the web theme contract they follow ([Themes](themes.md));
 - the desktop app, Hippocamp.app: macOS only and early, with Home, Fleet, Incidents, Memory, Ask and the Inbox ([`app/README.md`](https://github.com/VanitasCaesar1/hippocamp/blob/main/app/README.md));
 - the foundation of the community feed, `hippocamp-feed`: a server crate, a database schema and deployment files. It is not deployed and nothing is live.

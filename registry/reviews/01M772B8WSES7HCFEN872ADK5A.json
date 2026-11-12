@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPOCAMP_V1",
+  "id": "01M772B8WSES7HCFEN872ADK5A",
+  "pack": "migration-log",
+  "version": "1.0.1",
+  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/migration-log",
+  "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
+  "repo_id": 1454849249,
+  "pack_hash": "a1528422b0b6bc97970d1cd72e48836236b9673c8db3fa8842d94314aeda8587",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "fefd758cbb4217b39e4d4b11485e1d7756866e9fc8a2a24f08a0521cc0cec8f7",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2591 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says. One per-note pass reads sessions, the matching note and the transcript turns that mention it, which its purpose needs. It works only on notes matching `**/Migrations*.md` and `**/Migration log*.md`, and it proposes only `append` entries under a final `## Logged migrations` section. The README describes the triggers (`session end --note` and `[[...]]` links in handoffs), the inputs, the per-note cost and the append-only behaviour accurately. The prompt treats every input as untrusted data. It records a command only exactly as a `tool_use` turn shows it, never from tool output, and the purpose of a migration log needs those commands. It requires secrets such as `PASSWORD=`, `TOKEN=` and `DATABASE_URL=` to be redacted, forbids recording a failed run as applied, and skips duplicates. The reviewer persona rejects by default, keeps a strict JSON reply format and checks the same constraints, including secret redaction and the ban on content sourced only from tool output. It is slightly looser than the prompt in one respect: it accepts a command shown in the user's own message as well as in a `tool_use` turn. That is still evidence-bound, so it is not a problem. The template is a short description with an empty section and holds no instructions, commands, links or credential handling. The test fixtures are marked synthetic, use a sample app and the reserved-looking id `toolu_synthetic_0001`, and include an unrelated note to check that the note filter excludes it. I found no hidden, encoded or misnamed content and nothing in the files that tries to instruct the reviewer or the dreaming model.",
+  "findings": [],
+  "at": "2026-11-12T05:05:50.660993Z"
+}

@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPOCAMP_V1",
+  "id": "01M772DZXYC5N5J1MTY7N5X58H",
+  "pack": "runbook-check",
+  "version": "1.0.1",
+  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/runbook-check",
+  "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
+  "repo_id": 1454849249,
+  "pack_hash": "447294e1a2e34a0b4b858d298ab44bae62303178b189e187a6ae63f47d3d7a13",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "fefd758cbb4217b39e4d4b11485e1d7756866e9fc8a2a24f08a0521cc0cec8f7",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2591 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing more. Its single pass reads sessions, notes and turns, which matches the README's 'What it reads'. It makes one call per note and works only on runbook and playbook paths, which matches the README's 'How it gets work' and its listed patterns. It proposes `append` changes only and never edits existing text. The prompt treats delimited input as untrusted and accepts commands only from the session's own `tool_use` turns, never from tool results or files that were read. It replaces secrets with `<redacted>`, skips findings the note already records, requires a citation for every entry and caps the size of each proposal. Recording the command a session actually ran is the stated purpose of the pack, and the evidence and reviewer rules constrain it. The persona rejects by default, treats its inputs as untrusted, adds checks for kind, empty `old`, secrets, commands taken from tool output and steps the runbook does not contain, and keeps a strict one-sentence JSON reply. The template contains only generic placeholder steps and an empty `## Run findings` heading, with no commands, links, credential handling or text addressed to agents. The test fixture is marked synthetic and refers to a 'sample worker' and an unrelated meeting note, so it does not look like real data. I found no hidden, encoded or misnamed content and no text that tries to instruct the reviewer or the dreaming model. One minor point: the template's placeholder steps ('Stop the worker', 'Clear the queue') are not labelled as an example, although the README tells users to edit the template after copying it.",
+  "findings": [],
+  "at": "2026-11-12T05:07:26.190732Z"
+}

@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPOCAMP_V1",
+  "id": "01M772FFPWVFHWDXS2NAW06TY4",
+  "pack": "test-commands",
+  "version": "1.0.1",
+  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/test-commands",
+  "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
+  "repo_id": 1454849249,
+  "pack_hash": "31cb77246591a1c8045195583b8b2c389da6bde351aed4f1551c4234743d0150",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "fefd758cbb4217b39e4d4b11485e1d7756866e9fc8a2a24f08a0521cc0cec8f7",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2591 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing more. Its single pass reads only sessions, the matching note and the transcript turns that mention it, which is what it needs to find build, test and lint commands and skip ones already listed. It makes one call per note, matching what the README says about how it gets work. It works only on Testing, How to test and Build notes, and proposes only `append` changes under a final `## Logged commands` section. Recording commands in notes is the pack's stated purpose. The prompt limits them to the session's own `tool_use` calls that finished successfully. It excludes commands that deploy, migrate, delete or install, refuses anything that appears only in tool output, and redacts secrets. The persona checks each of these rules independently, treats its inputs as untrusted, rejects by default and keeps a strict one-sentence JSON reply. The template is a plain heading and description with no instructions for agents, no commands, no links and no credential handling. The single fixture is marked synthetic and uses obviously invented content (a sample app, a harvest fete note, a synthetic tool id). No hidden, encoded or misnamed content and no text addressed to the reviewer or the dreaming model were found. The only oddity is a double slash in the source path, which is cosmetic.",
+  "findings": [],
+  "at": "2026-11-12T05:08:05.66245Z"
+}

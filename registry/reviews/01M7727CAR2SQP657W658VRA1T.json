@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPOCAMP_V1",
+  "id": "01M7727CAR2SQP657W658VRA1T",
+  "pack": "faq",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/faq",
+  "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
+  "repo_id": 1454849249,
+  "pack_hash": "757a88367ad56815301f1bfa9f02f99802941719cc03e031dbcdafca6dc05a4f",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "fefd758cbb4217b39e4d4b11485e1d7756866e9fc8a2a24f08a0521cc0cec8f7",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2591 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing more. Its single pass reads sessions, notes and turns, runs once per note, and works only on notes matching **/FAQ*.md, which matches the README's account of its inputs, how it gets work (a note named at session end or linked in a handoff), cost and append-only output. The prompt marks the note, session records and turns as untrusted data. It limits changes to empty-old appends under a final '## Asked in sessions' section and requires cited evidence. It excludes guesses, private-setup questions, secrets and personal details, and it forbids quoting commands or links that only tool output shows. The persona rejects by default, repeats those limits, treats its inputs as untrusted and keeps a strict one-sentence JSON reply. The template is a plain heading and description with no instructions to agents, commands, links or credential handling. The fixture is marked synthetic and uses obviously invented content: a thumbnail-cache question and an orchid note that checks the note filter. I found nothing hidden, encoded or misnamed. There are two small inconsistencies that are not safety problems. The fixture's mocked entry includes a session id and turn range that the prompt's entry format does not ask for. Its reason mentions turn 2 while its evidence cites only turns 0 and 1.",
+  "findings": [],
+  "at": "2026-11-12T05:03:43.510553Z"
+}

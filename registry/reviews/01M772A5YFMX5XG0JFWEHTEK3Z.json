@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPOCAMP_V1",
+  "id": "01M772A5YFMX5XG0JFWEHTEK3Z",
+  "pack": "large-type",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/large-type",
+  "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
+  "repo_id": 1454849249,
+  "pack_hash": "0561b25281d2ff6ce268d5a6efd2aa52053bd6cc3ed33bec522dd9cf9334375d",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "fefd758cbb4217b39e4d4b11485e1d7756866e9fc8a2a24f08a0521cc0cec8f7",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2591 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "large-type 1.0.0 is a web-only theme with no passes, prompts, personas, templates or fixtures. Its theme.css has one :root block and one :root block inside a prefers-color-scheme: dark media query. Together they set only contract custom properties: the three text sizes (1.25rem, 1.125rem and 1rem, which are the 20, 18 and 16 pixels the README states), line height 1.6, content width 90%, comment indent 24px and mark size 28px, plus a dark colour set. The file has no selectors of its own, no imports, no URLs, no fonts, no images and no encoded content. Nothing in it hides, moves or relabels sources, reviews, warnings or counts, and it imitates no other brand. The README describes these changes accurately and says the theme does nothing on the desktop, which matches the absence of a theme.json. pack.toml is consistent with the files. No file contains text addressed to a reviewer or to a model. The README calls the dark values the contract's own defaults; I could not check that from the material given, but hippocamp add's contrast-floor check covers them. The README's '90% on wide screens' is not written as a media condition in the CSS, so it presumably describes how the contract applies the width. Neither point changes the verdict.",
+  "findings": [],
+  "at": "2026-11-12T05:05:10.901763Z"
+}

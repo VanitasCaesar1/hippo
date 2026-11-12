@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPOCAMP_V1",
+  "id": "01M7727VJ05PQEPVA0J568NKSK",
+  "pack": "glossary-terms",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/glossary-terms",
+  "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
+  "repo_id": 1454849249,
+  "pack_hash": "6fff2f9576166c5d22cdeac8daafad6a8ad6e7abc3edfeff1ee525b868622197",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "fefd758cbb4217b39e4d4b11485e1d7756866e9fc8a2a24f08a0521cc0cec8f7",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2591 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing else. It has one per-note pass, scoped to `**/Glossary*.md`, that reads sessions, notes and turns. Each read is justified: the session records find the date and the notes touched, the note itself avoids duplicate entries, and the turns are the cited evidence. The README's account of how the pass gets work (a note named with `session end --note` or linked in a handoff) and of its cost agrees with `per_note = true` and the note filter. The prompt treats every input as untrusted data and allows only `append` changes, placed under a final `## Proposed terms` section. It forbids invented meanings and duplicate terms, forbids quoting commands or links that only tool output shows, and caps the size of each change. Nothing in it asks for agent instructions, credentials or personal data. The persona works in a fresh context, rejects by default, checks the `append` kind and the empty `old`, rejects tool-output-only sources and keeps a strict JSON reply. The template contains only a heading, a short description and one sample definition, with no instructions, commands or links. The fixtures are marked synthetic and describe a generic sample app. The test also checks that a note outside the filter is not read. I found no hidden, encoded or misnamed content and no text addressed to the reviewer or to the dreaming model. One cosmetic point: the test's model reply adds an inline \"(retry-budget, turn 1)\" citation that the prompt's entry format does not call for. This is harmless.",
+  "findings": [],
+  "at": "2026-11-12T05:03:56.475734Z"
+}

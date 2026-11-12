@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPOCAMP_V1",
+  "id": "01M7726Z9W26SM3E71YQHDS5TV",
+  "pack": "error-catalogue",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/error-catalogue",
+  "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
+  "repo_id": 1454849249,
+  "pack_hash": "b9bc299d06ce7cbd1ebd7a2cef0a077c74e57428783a2867941667e4bed8b34a",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "fefd758cbb4217b39e4d4b11485e1d7756866e9fc8a2a24f08a0521cc0cec8f7",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2591 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing more. Its one pass reads sessions, notes and turns, makes one call per note, and works only on notes matching **/Errors*.md and **/Troubleshooting*.md; that scope fits an errors catalogue, and the README describes how it gets work, what it reads and what it costs accurately. The prompt treats delimited content as untrusted data. It allows only `append` changes with an empty `old`, only under a final `## Logged errors` section. It records only errors whose fix the turns show working, and requires each entry to cite its turns. It forbids quoting instructions, commands or links that only tool output shows, and caps `new` at 2,048 bytes. The reviewer persona rejects by default, treats its inputs as untrusted, rejects any change that is not a pure append, and keeps a strict one-sentence JSON reply. The template is a plain heading and description, with no instructions for agents, commands, links or credential handling. The test fixture is labelled synthetic, uses generic sample data, and checks that a note outside the filter (Choir rota) is not read. I found no hidden, encoded or misnamed content, and no text that tries to instruct the reviewer or the dreaming model beyond the pack's purpose. One caveat: neither the prompt nor the persona explicitly tells the model to leave out credentials or personal data that can appear inside quoted error messages, such as connection strings or user paths. Because the prompt does not ask for them, and the error messages are quoted from evidence the purpose needs, this is not grounds to reject.",
+  "findings": [],
+  "at": "2026-11-12T05:03:27.783564Z"
+}

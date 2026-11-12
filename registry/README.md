@@ -10,6 +10,6 @@ This directory lists packs from public GitHub repositories. A pack is text that 
 - **A version found bad** is unlisted by deleting its entry, or re-pinning it to fixed content with a new review, in a reviewed pull request. The next `build` leaves it out.
 - **Nothing is listed without a review.** A rejected review blocks that content until it changes or a maintainer deletes the reject in a pull request.
 
-- **Entries not listed yet** wait in `registry/pending/`, which `check` and `build` do not read. The first-party packs' entries are there until they are pinned to this repository and reviewed; [`pending/README.md`](pending/README.md) gives the two commands, the first of which is `scripts/registry-repin.sh`.
+- **Entries not listed yet** wait in `registry/pending/`, which `check` and `build` do not read. An entry stays there until its review confirms it; [`pending/README.md`](pending/README.md) says how to list one, with `scripts/registry-repin.sh` and a review.
 
 `registry.toml` holds the settings: the licences a pack may use, the owners whose repositories are first-party, the reviewer persona hashes whose reviews count, and the name pairs accepted as not confusable. `cargo run -p hippocamp-registry -- build --out registry/out` writes the index that `hippocamp add <name> --registry <index.json>` reads.

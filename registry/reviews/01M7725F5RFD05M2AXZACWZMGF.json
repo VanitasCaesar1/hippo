@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPOCAMP_V1",
+  "id": "01M7725F5RFD05M2AXZACWZMGF",
+  "pack": "decision-log",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/decision-log",
+  "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
+  "repo_id": 1454849249,
+  "pack_hash": "1b15d22fe97727c8a1b37772e36ab611dcc0e966821c0d40da6dd05560e96f3b",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "fefd758cbb4217b39e4d4b11485e1d7756866e9fc8a2a24f08a0521cc0cec8f7",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2591 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The decision-log pack does what its README says and nothing more. Its single pass reads sessions, notes and turns, makes one call per note, and works only on `**/Decision log*.md` and `**/Decisions.md`. The README describes these inputs, the note patterns, how work arrives (`--note` or a `[[...]]` link in a handoff) and the cost accurately. The prompt treats untrusted blocks as data and allows only `append` changes with an empty `old`, placed under a final `## Logged decisions` section. It requires every entry to cite turns, forbids quoting instructions, commands or links that appear only in tool output, and caps `new` at 2,048 bytes. Nothing in it asks for agent instructions, credentials or personal data. The reviewer persona rejects by default, treats its inputs as untrusted, rejects tool-output-only sources and non-append or altering changes, and keeps a strict one-sentence JSON reply. The template contains only a heading, a short description and the section header, with no instructions, commands or links. The fixtures are clearly synthetic: the transcript is marked `synthetic: true`, and the content is a sample-app cache choice and a lantern-festival decoy note used to test the path filter. Nothing is hidden, encoded or misnamed. A minor point: in the fixture the assistant states the decision after the user simply asks for it to be logged, which only loosely matches the prompt's rule that the user made or agreed to the choice. This is a test of mechanics, not a safety problem.",
+  "findings": [],
+  "at": "2026-11-12T05:02:36.741421Z"
+}

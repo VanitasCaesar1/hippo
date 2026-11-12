@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPOCAMP_V1",
+  "id": "01M772AWBWTTV00VBPNCRDY1HM",
+  "pack": "measurements",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/measurements",
+  "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
+  "repo_id": 1454849249,
+  "pack_hash": "0a900b574c14f3b199de76f6d4f04048cb529ceac64287456fe3ed2a18c301f0",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "fefd758cbb4217b39e4d4b11485e1d7756866e9fc8a2a24f08a0521cc0cec8f7",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2591 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The measurements pack does what its README says and nothing more. Its single pass reads sessions, notes and turns, makes one call per note, and works only on the four patterns the README lists (Benchmarks, Measurements, Performance, Metrics). It gets work from notes that sessions name or link, as the README describes. The prompt marks all inputs as untrusted data. It proposes only empty-old `append` changes under a final `## Recorded measurements` section and records only values that a tool result shows. It forbids copying commands, options or links from tool output, refuses improvement claims unless both sides were measured, and asks for no instructions to agents, credentials or personal data. The persona treats its inputs as untrusted, rejects by default, and keeps a strict JSON reply format. The template is a short description with an empty section and no instructions, commands, links or credential handling. The fixtures are clearly synthetic: a marked transcript, a sample indexer corpus and an unrelated kayak note used to test the filter. The test checks that a filtered-out note stays out of the prompt. I found no hidden, encoded or misnamed content. The `Performance*` and `Metrics*` patterns are broad and could match unrelated notes such as performance reviews, but the README states them openly. The pass only reads a note that a session touched or cited, and the prompt and persona allow only tool-measured values to be appended, so I do not treat this as overreach.",
+  "findings": [],
+  "at": "2026-11-12T05:05:35.470009Z"
+}

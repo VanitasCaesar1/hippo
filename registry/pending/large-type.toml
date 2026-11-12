@@ -1,8 +1,0 @@
-protocol = "HIPPOCAMP_V1"
-name = "large-type"
-repo = "https://github.com/VanitasCaesar1/hippocamp"
-repo_id = 1449612131
-owner_id = 94681960
-path = "packs/large-type"
-commit = "c93561fa3662a8d2ffa38f364e7a952828bb3cc8"
-maintainers = ["VanitasCaesar1"]

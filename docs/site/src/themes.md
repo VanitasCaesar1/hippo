@@ -66,7 +66,7 @@ Each is in `packs/` with a README. All three are by Vanitas Caesar, under the MI
 | `large-type` | Larger text sizes, a line height of 1.6, a wider content block and the contract's dark colours for a device set to dark. | None. |
 | `paper` | A cream page, brown-grey text and a serif font, with a light scheme only. Every text pair is at 5.8:1 or more. | One light theme, Paper. |
 
-Three theme packs are built. In [the registry](registry.md), no pack is listed yet. The entries for the 26 first-party packs (23 pass packs and 3 theme packs) are in `registry/pending/`, waiting to be pinned to this repository and reviewed.
+Three theme packs are built. All three are listed in [the registry](registry.md).
 
 ## Desktop themes
 

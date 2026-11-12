@@ -1,0 +1,20 @@
+{
+  "protocol": "HIPPOCAMP_V1",
+  "id": "01M7725TBJM4QZXSKKKFXMWP19",
+  "pack": "dependency-changes",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/dependency-changes",
+  "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
+  "repo_id": 1454849249,
+  "pack_hash": "7a1c822a0c95e8360ad724183a404c6e18b7a2514f3f3777ad756a080277da8c",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "fefd758cbb4217b39e4d4b11485e1d7756866e9fc8a2a24f08a0521cc0cec8f7",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2591 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing else. It has one per-note pass limited to **/Dependencies*.md. That pass reads sessions, notes and turns, which it needs to find changes, skip duplicates and cite evidence, and it gets work when a session names or links the note, as the README describes. The prompt marks inputs as untrusted and allows only empty-old `append` changes under a final `## Logged changes` section. It forbids inferred versions and reasons, and forbids instructions, commands or links that only tool output shows. The persona rejects by default and keeps a strict JSON reply format. The template is a plain heading and description, with no agent instructions, commands, links or credential handling. The fixtures are marked synthetic and use invented packages and dates, with a decoy note to test the path filter. I found no hidden, encoded or misnamed content.",
+  "findings": [
+    "Minor: the test's prompt_excludes uses lowercase 'pottery class' while the decoy note is titled 'Pottery class'. If the check is case-sensitive, it may not show that the filtered note is left out of the prompt. This is a test-quality issue, not a safety issue."
+  ],
+  "at": "2026-11-12T05:02:48.58304Z"
+}

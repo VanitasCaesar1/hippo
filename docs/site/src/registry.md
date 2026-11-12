@@ -4,7 +4,7 @@ The registry is a list of packs in the repository's `registry/` directory. Each 
 
 Nothing is hosted. There is no public index and no public registry site. You build both from a checkout.
 
-No pack is listed yet. The entries for the 26 first-party packs (23 pass packs and 3 theme packs) are in `registry/pending/`, waiting to be pinned to this repository and reviewed; its README gives the two commands that list them.
+25 of the 26 first-party packs are listed (22 pass packs and 3 theme packs), each with its fresh-context review in `registry/reviews/`. The 26th, `incident-timeline`, waits in `registry/pending/`: its review asked for a change to its template and its test first.
 
 No pack by another author is listed yet. Outside authors are welcome: see [Submit a pack](#submit-a-pack).
 
@@ -15,7 +15,7 @@ No pack by another author is listed yet. Outside authors are welcome: see [Submi
 | `registry.toml` | The settings: the licences a pack may use, the owners whose repositories count as first-party, the reviewer persona hashes whose reviews count, and the name pairs accepted as not confusable. |
 | `packs/<name>.toml` | One entry for each listed pack: its repository and the repository's id, the owner's id, the directory, the pinned commit and the maintainers. |
 | `reviews/*.json` | The fresh-context review of each listed content, written by a maintainer's run of `hippocamp-registry review`. |
-| `pending/<name>.toml` | Entries not listed yet: the first-party packs, waiting to be pinned to this repository and reviewed. `check` and `build` do not read them. |
+| `pending/<name>.toml` | Entries not listed yet, waiting for a change their review asked for. `check` and `build` do not read them. |
 
 The tool is the `hippocamp-registry` crate. It is not installed with `hippocamp`; you run it with `cargo run -p hippocamp-registry --` from a checkout. It has three commands: `check`, `review` and `build`.
 

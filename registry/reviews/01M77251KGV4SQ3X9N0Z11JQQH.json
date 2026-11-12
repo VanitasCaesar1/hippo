@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPOCAMP_V1",
+  "id": "01M77251KGV4SQ3X9N0Z11JQQH",
+  "pack": "changelog-keeper",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippocamp//packs/changelog-keeper",
+  "commit": "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942",
+  "repo_id": 1454849249,
+  "pack_hash": "14633b96d8f0deba0bfc940da84a6291c5965ddbcc877ce89b3ad60cafef13f5",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "fefd758cbb4217b39e4d4b11485e1d7756866e9fc8a2a24f08a0521cc0cec8f7",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2591 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "changelog-keeper 1.0.0 does what its README says. It has one per-note pass that reads sessions, notes and turns, which matches the README's 'What it reads' section, and it works only on notes matching **/CHANGELOG.md, **/Changelog*.md and **/Release notes*.md, which matches 'Notes it works on'. It gets work when a session names or links the note, as the README describes. The prompt treats delimited content as untrusted data and allows only empty-old append changes to the given note, under a final '## Pending' section. It requires every entry to be a user-visible change that the cited turns show as finished, asks it to skip anything already recorded, and forbids quoting instructions, commands or links that only tool output shows. The output format is a strict JSON array. The reviewer persona treats its inputs as untrusted and rejects by default when evidence is thin. It rejects anything that is not an append under Pending, rejects agent instructions, commands or links the turns do not show, and rejects entries whose only source is tool output. Its reply format is a strict one-sentence JSON object. The template is a plain changelog skeleton: its one descriptive sentence about the Pending section is not an instruction to agents, and it holds no commands, links or credential handling. The fixtures are clearly synthetic: a 'sample-cli' tool, a 'Quarterly heron census' decoy note, a transcript marked synthetic, and a test that checks the non-matching note is not read. No hidden, encoded or misnamed content was found, and no text tries to instruct the reviewer or the dreaming model beyond the pack's purpose.",
+  "findings": [],
+  "at": "2026-11-12T05:02:25.294514Z"
+}
