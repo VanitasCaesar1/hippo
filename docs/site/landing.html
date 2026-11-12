@@ -16,7 +16,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>hippo: what your coding agents did, read from their history on this machine</title>
-<meta name="description" content="hippo reads the Claude Code and Codex history already on your machine. It shows which session is waiting on you, quotes each time you corrected one, and keeps those corrections as notes the next session starts from. Open source, MIT, local.">
+<meta name="description" content="hippo reads the Claude Code, Codex and DeepSeek Harness history already on your machine. It shows which session is waiting on you, quotes each time you corrected one, and keeps those corrections as notes the next session starts from. Open source, MIT, local.">
 <meta name="color-scheme" content="dark light">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self' data:">
 <link rel="canonical" href="https://vanitascaesar1.github.io/hippo/">
@@ -25,14 +25,14 @@
 <meta property="og:site_name" content="hippo">
 <meta property="og:url" content="https://vanitascaesar1.github.io/hippo/">
 <meta property="og:title" content="hippo: what your coding agents did, read from their history on this machine">
-<meta property="og:description" content="For people who run a lot of Claude Code and Codex sessions at once. Which one is waiting on you, what went wrong in your own words, and notes the next session starts from. Local, MIT.">
+<meta property="og:description" content="For people who run a lot of Claude Code, Codex and dsh sessions at once. Which one is waiting on you, what went wrong in your own words, and notes the next session starts from. Local, MIT.">
 <meta property="og:image" content="https://vanitascaesar1.github.io/hippo/assets/card-site.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="675">
 <meta property="og:image:alt" content="A hippo card: My agents did 3 hours 18 minutes of work today. 36 threads and 6 sub-agents. I had to correct them 5 times.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="hippo: what your coding agents did, read from their history on this machine">
-<meta name="twitter:description" content="For people who run a lot of Claude Code and Codex sessions at once. Which one is waiting on you, what went wrong in your own words, and notes the next session starts from. Local, MIT.">
+<meta name="twitter:description" content="For people who run a lot of Claude Code, Codex and dsh sessions at once. Which one is waiting on you, what went wrong in your own words, and notes the next session starts from. Local, MIT.">
 <meta name="twitter:image" content="https://vanitascaesar1.github.io/hippo/assets/card-site.png">
 <meta name="twitter:image:alt" content="A hippo card: My agents did 3 hours 18 minutes of work today. 36 threads and 6 sub-agents. I had to correct them 5 times.">
 <link rel="stylesheet" href="landing.css">
@@ -57,7 +57,7 @@
     <a class="opt" href="packs.html">packs</a>
     <a class="opt" href="#limits">limits</a>
     <a href="#install">install</a>
-    <a class="gh" href="https://github.com/VanitasCaesar1/hippo">GitHub <span>v0.1.0</span></a>
+    <a class="gh" href="https://github.com/VanitasCaesar1/hippo">GitHub <span>v0.2.0</span></a>
   </nav>
 </header>
 
@@ -66,7 +66,7 @@
 <!-- ============ hero: the day ============ -->
 <section class="wrap hero">
   <h1>See what your coding agents did</h1>
-  <p class="intro">hippo reads the Claude Code and Codex history already on your machine.</p>
+  <p class="intro">hippo reads the Claude Code, Codex and DeepSeek Harness history already on your machine.</p>
   <div class="hero-get">
     <p class="get-k">install</p>
     <div class="cmd" tabindex="0" aria-label="Install command"><span class="p">$</span><span class="c">curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippo/main/install.sh | sh</span></div>
@@ -413,7 +413,7 @@ Busiest sessions
 <section class="wrap disk">
   <h2>What it touches</h2>
   <div class="io">
-    <p><b>reads</b><code>~/.claude*/projects/</code><code>~/.codex/sessions/</code></p>
+    <p><b>reads</b><code>~/.claude*/projects/</code><code>~/.codex/sessions/</code><code>~/.dsh/sessions/</code></p>
     <p><b>writes</b><code>~/.hippo/index.sqlite</code><code>notes/*.md</code><code>.hippo/receipts/</code><code>.hippo/snapshots/</code></p>
     <p class="out"><b>sends</b><code>claude -p</code><span>your own login, nothing else</span></p>
   </div>
@@ -441,10 +441,10 @@ Busiest sessions
   <aside class="limits" id="limits">
     <h2>Limits</h2>
     <ul>
-      <li>Claude Code and Codex only.</li>
+      <li>Claude Code, Codex and DeepSeek Harness only.</li>
       <li>Used daily on macOS; Linux is tested in CI.</li>
       <li>Not measured whether it makes agents better.</li>
-      <li>Built by one person. v0.1.0, MIT.</li>
+      <li>Built by one person. v0.2.0, MIT.</li>
     </ul>
     <p><a href="docs/limits.html">What it does not do yet</a> · <a href="packs.html">26 reviewed packs</a></p>
   </aside>
@@ -463,7 +463,7 @@ Busiest sessions
     <a href="docs/install.html">install</a>
     <a href="docs/limits.html">limits</a>
     <a href="https://github.com/VanitasCaesar1/hippo">GitHub</a>
-    <span>v0.1.0 · MIT · a Rust CLI and a macOS app</span>
+    <span>v0.2.0 · MIT · a Rust CLI and a macOS app</span>
   </nav>
 </footer>
 
