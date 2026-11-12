@@ -364,8 +364,12 @@ fn ts(s: &str) -> OffsetDateTime {
     parse_ts(s).unwrap_or(OffsetDateTime::UNIX_EPOCH)
 }
 
+/// `t` in UTC, as the index stores turn times: the column is compared as
+/// text, so a time in another offset would compare wrong.
 fn fmt(t: OffsetDateTime) -> String {
-    t.format(&Rfc3339).unwrap_or_default()
+    t.to_offset(time::UtcOffset::UTC)
+        .format(&Rfc3339)
+        .unwrap_or_default()
 }
 
 fn stable_id(parts: &[&str]) -> String {

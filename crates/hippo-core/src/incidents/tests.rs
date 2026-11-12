@@ -95,11 +95,13 @@ fn inject(home: &Path, session: &str, notes: &[(&str, &str)]) {
 fn rebuild_now(home: &Path, index: &Index, ws: Option<&Workspace>) -> Vec<Incident> {
     let mut conn = Connection::open(home.join(crate::rollup::FILE_NAME)).unwrap();
     rebuild(&mut conn, index, ws, home, OffsetDateTime::now_utc()).unwrap();
-    Rollup::open(home)
-        .unwrap()
-        .unwrap()
-        .incidents(OffsetDateTime::now_utc() - Duration::days(1))
-        .unwrap()
+    let rollup = Rollup::open(home).unwrap().unwrap();
+    let since = OffsetDateTime::now_utc() - Duration::days(1);
+    let list = rollup.incidents(since).unwrap();
+    // The same instant in another offset reads the same incidents.
+    let east = time::UtcOffset::from_hms(9, 30, 0).unwrap();
+    assert_eq!(rollup.incidents(since.to_offset(east)).unwrap(), list);
+    list
 }
 
 fn of<'a>(list: &'a [Incident], session: &str, kind: Kind) -> Vec<&'a Incident> {
@@ -891,4 +893,12 @@ fn news_is_told_by_its_subject() {
     ] {
         assert!(objects(objection), "{objection}");
     }
+}
+
+#[test]
+fn times_are_compared_in_utc() {
+    // The column is text: a local midnight east of UTC must not read as a
+    // later day than the turns stored in UTC.
+    let local = time::macros::datetime!(2026-11-13 00:00 +5:30);
+    assert_eq!(super::fmt(local), "2026-11-12T18:30:00Z");
 }
