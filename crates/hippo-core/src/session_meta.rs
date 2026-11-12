@@ -592,8 +592,9 @@ pub enum Injection {
     /// An image the client put in the conversation (`[Image: …]`): a
     /// pasted screenshot, or a picture a tool read.
     Image,
-    /// Claude Code's summary of the conversation before a compaction
-    /// (`This session is being continued from a previous conversation …`).
+    /// A summary of the conversation before a compaction: Claude Code's
+    /// (`This session is being continued from a previous conversation …`)
+    /// and the OpenCode adapter's (`[Compaction summary, auto]`).
     Summary,
     /// Instructions a client put first in the conversation: Codex's
     /// `# AGENTS.md instructions for <dir>`, `<user_instructions>` and
@@ -652,6 +653,8 @@ const INJECTIONS: &[(&str, Injection)] = &[
         "This session is being continued from a previous conversation",
         Injection::Summary,
     ),
+    // The OpenCode adapter's turn for a compaction summary.
+    ("[Compaction summary", Injection::Summary),
 ];
 
 /// The kind of a turn with this `role` (`user`, `assistant` or `tool`),

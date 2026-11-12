@@ -362,7 +362,7 @@ fn sessions_are_listed_with_stamps_that_change_with_them() {
             .stamp
             .clone()
     };
-    assert_eq!(stamp(&listed, S1), "opencode:40:1793527200000:6");
+    assert_eq!(stamp(&listed, S1), "opencode2:40:1793527200000:6");
     // A new message, or a change OpenCode commits, changes the stamp; the
     // other sessions keep theirs.
     let conn = Connection::open(&db).unwrap();
@@ -569,4 +569,154 @@ fn a_missing_session_or_a_bad_message_is_handled() {
     let p = parse(&db, S2);
     assert!(p.turns[0].text.starts_with("Grep"), "{:?}", p.turns[0]);
     assert!(!p.turns.iter().any(|t| t.text.contains("ODD")));
+}
+
+const S8: &str = "ses_8888synthetic0000000008";
+
+/// The fixture database with the endings session added.
+fn with_endings(dir: &Path) -> PathBuf {
+    build(dir, &["schema.sql", "sessions.sql", "endings.sql"])
+}
+
+#[test]
+fn endings_attachments_and_a_compaction_become_turns() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = with_endings(dir.path());
+    let p = parse(&db, S8);
+    let texts: Vec<(Role, &str)> = p.turns.iter().map(|t| (t.role, t.text.as_str())).collect();
+    let png = base64_len(&b64(b"\x89PNG synthetic image bytes, never indexed"));
+    let pdf = base64_len(&b64(b"%PDF synthetic spec bytes"));
+    assert_eq!(
+        texts[0],
+        (
+            Role::User,
+            format!(
+                "Why does the cart page look broken?\n\
+                 [Image: cart-broken.png, image/png, {png} bytes]\n\
+                 [File: fake.person@example.com spec.pdf, application/pdf, {pdf} bytes, /home/synthetic/shop/docs/fake.person@example.com spec.pdf]"
+            )
+            .as_str()
+        )
+    );
+    // The read's result: its text, then one line per file, the data URL's
+    // size only.
+    let result = p
+        .turns
+        .iter()
+        .find(|t| t.role == Role::Tool && t.text.starts_with("Image read."))
+        .unwrap();
+    assert_eq!(
+        result.text,
+        format!(
+            "Image read.\n[Image: cart.png, image/png, {png} bytes]\n\
+             [File: cart.css, text/css, /home/synthetic/shop/public/cart.css]"
+        )
+    );
+    assert!(p.turns.iter().all(|t| !t.text.contains("base64,")));
+    let rest: Vec<(Role, &str)> = texts[4..].to_vec();
+    assert_eq!(
+        rest,
+        [
+            // The 429 step; the failed idle after it adds nothing.
+            (
+                Role::Assistant,
+                "API Error: 429 provider.free-limit: Free usage limit reached for synthetic-coder-1."
+            ),
+            (
+                Role::User,
+                "[Compaction summary, auto]\nSYNTHETIC SUMMARY: the cart page lost its grid styles."
+            ),
+            (Role::User, "Carry on with the grid."),
+            (Role::Assistant, "Restoring the grid"),
+            // Aborted; the interrupted idle adds nothing.
+            (Role::User, "[Request interrupted by user]"),
+            (Role::User, "Try again."),
+            (
+                Role::Assistant,
+                "Failed to authenticate: 401: Invalid API key for provider synthetic."
+            ),
+            (Role::User, "One last try."),
+            (Role::Assistant, "The grid is back."),
+            // A failed run whose steps had no error.
+            (
+                Role::Assistant,
+                "API Error: 503 provider.internal: Upstream connection reset."
+            ),
+        ]
+    );
+    // An error turn is stamped when its step ended.
+    assert_eq!(p.turns[4].ts, ms(1_793_528_002_100).unwrap());
+    // The compaction reads as an earlier conversation's summary.
+    assert_eq!(
+        crate::session_meta::classify("user", None, texts[5].1),
+        crate::session_meta::TurnKind::Injection(crate::session_meta::Injection::Summary)
+    );
+}
+
+fn b64(bytes: &[u8]) -> String {
+    const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for c in bytes.chunks(3) {
+        let n = (u32::from(c[0]) << 16)
+            | (u32::from(*c.get(1).unwrap_or(&0)) << 8)
+            | u32::from(*c.get(2).unwrap_or(&0));
+        for i in 0..4 {
+            if i <= c.len() {
+                out.push(T[(n >> (18 - 6 * i) & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
+#[test]
+fn base64_sizes_come_from_the_length_alone() {
+    for n in 0..12usize {
+        let bytes = vec![7u8; n];
+        assert_eq!(base64_len(&b64(&bytes)), n as u64, "{n}");
+    }
+    assert_eq!(data_url_len("text/plain,hello"), Some(5));
+    assert_eq!(data_url_len("image/png;base64,AAAA"), Some(3));
+    assert_eq!(data_url_len("no comma"), None);
+    assert_eq!(attachment_line(None, None, None, None), "[File]");
+    assert_eq!(
+        attachment_line(Some("a.png"), Some("image/png"), Some(3), None),
+        "[Image: a.png, image/png, 3 bytes]"
+    );
+    assert_eq!(
+        path_of_uri("file:///a/b%20c.txt").as_deref(),
+        Some("/a/b c.txt")
+    );
+    assert_eq!(path_of_uri("file://localhost/a").as_deref(), Some("/a"));
+    assert_eq!(path_of_uri("/abs").as_deref(), Some("/abs"));
+    assert_eq!(path_of_uri("media:00"), None);
+    assert_eq!(path_of_uri("https://x/y"), None);
+    assert_eq!(percent_decode("100%"), "100%");
+}
+
+#[test]
+fn a_sub_agent_result_carries_its_token_use() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = with_endings(dir.path());
+    let conn = open(&db).unwrap();
+    // Three steps of 1 950 tokens each, one tool call.
+    assert_eq!(sub_agent_usage(&conn, S8), Some((Some(5850), 1)));
+    // A session with no token counts: tool calls only.
+    assert_eq!(sub_agent_usage(&conn, S2), Some((None, 2)));
+    assert_eq!(sub_agent_usage(&conn, "ses_gone"), None);
+    let p = parse(&db, S1);
+    let agent = p
+        .turns
+        .iter()
+        .find(|t| t.tool_name.as_deref() == Some("Agent") && t.text.starts_with("<subagent"))
+        .unwrap();
+    assert!(
+        agent
+            .text
+            .ends_with("</subagent>\n<usage>tool_uses: 2</usage>"),
+        "{}",
+        agent.text
+    );
 }

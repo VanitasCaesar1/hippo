@@ -4,6 +4,10 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Added
+
+- **More of OpenCode.** How a run ended: an assistant step's error and a run's `idle` outcome become the turns hippo already reads for Claude Code (`API Error: …`, `Failed to authenticate: …`, `[Request interrupted by user]`), so Fleet shows an OpenCode session that stopped on an error, a limit, a failed sign-in or a stop, and Incidents lists the errors. Attachments: a line per attached file or tool file with its name, type, size and path, never the bytes. A finished sub-agent call's result carries the sub-agent's tokens and tool calls, which Fleet shows as it does Claude Code's. A completed compaction is a summary turn the session view shows as the earlier conversation's summary. Cost is not recorded: hippo has no cost field, and Claude Code and Codex record no price. Every OpenCode session is read once more on the next ingest. See the [design](docs/designs/opencode-adapter.md#added-in-041).
+
 ## [0.4.0] - 2026-11-12
 
 ### Added

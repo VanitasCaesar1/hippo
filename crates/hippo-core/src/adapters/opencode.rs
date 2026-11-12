@@ -15,12 +15,19 @@
 //! number of its newest change) and `migration` (the schema's version).
 //! Turns, each stamped with its own time:
 //!
-//! - `user`: one `user` turn of `text`;
+//! - `user`: one `user` turn of `text` and a line per attached file
+//!   ([`attachment_line`]: name, type, size, path; never the bytes);
 //! - `assistant`: one `assistant` turn per non-empty `text` item; per
 //!   `tool` item, a `tool` turn for the call (`<name> <input>`, with the
 //!   core tools under Claude Code's names and argument names,
 //!   [`stored_name`], [`stored_input`]) and, once it finished, one for its
-//!   result ([`result_text`]); reasoning is never a turn;
+//!   result ([`result_text`], with a line per file item, and for a
+//!   sub-agent call the sub-agent's `<usage>`); reasoning is never a turn;
+//!   then, for an `error`, the turn Claude Code would write for it
+//!   (`[Request interrupted by user]`, `Failed to authenticate: …`,
+//!   `API Error: …`);
+//! - `idle`: for a `failed` or `interrupted` run with no such turn yet, one;
+//! - `compaction`, completed: a `[Compaction summary, <reason>]` user turn;
 //! - every other message type is not a turn.
 //!
 //! In a fork, the messages copied from the session it was forked from are
@@ -451,7 +458,7 @@ pub fn list(db: &Path) -> Result<Vec<Listed>> {
             let changed: i64 = r.get(4)?;
             Ok(Listed {
                 path: session_path(db, &id),
-                stamp: format!("opencode:{seq}:{updated}:{count}"),
+                stamp: format!("opencode2:{seq}:{updated}:{count}"),
                 modified: ms(changed),
             })
         })
@@ -594,6 +601,9 @@ fn fork_start(conn: &Connection, info: &Info) -> rusqlite::Result<ForkStart> {
 
 fn turns_of(conn: &Connection, info: &Info, path: &Path) -> rusqlite::Result<Vec<RawTurn>> {
     let mut turns = Vec::new();
+    // Since the last `user` message: an assistant step ended in an error,
+    // or was aborted. An `idle` then adds no second ending.
+    let (mut run_error, mut run_aborted) = (false, false);
     for m in messages(conn, info, path)? {
         let Some(ts) = m.created else {
             tracing::warn!(
@@ -605,18 +615,66 @@ fn turns_of(conn: &Connection, info: &Info, path: &Path) -> rusqlite::Result<Vec
         };
         match m.kind.as_str() {
             "user" => {
+                run_error = false;
+                run_aborted = false;
+                let mut lines: Vec<String> = Vec::new();
                 if let Some(text) = m.data.get("text").and_then(Value::as_str) {
                     if !text.trim().is_empty() {
-                        push_turn(&mut turns, Role::User, ts, None, text.to_owned());
+                        lines.push(text.to_owned());
                     }
+                }
+                let files = m.data.get("files").and_then(Value::as_array);
+                lines.extend(files.into_iter().flatten().filter_map(user_attachment));
+                if !lines.is_empty() {
+                    push_turn(&mut turns, Role::User, ts, None, lines.join("\n"));
                 }
             }
             "assistant" => {
-                let Some(content) = m.data.get("content").and_then(Value::as_array) else {
-                    continue;
-                };
-                for item in content {
-                    add_item(&mut turns, item, ts);
+                if let Some(content) = m.data.get("content").and_then(Value::as_array) {
+                    for item in content {
+                        add_item(&mut turns, item, ts, conn);
+                    }
+                }
+                if let Some(error) = m.data.get("error").filter(|e| e.is_object()) {
+                    let at = json_ms(m.data.pointer("/time/completed")).unwrap_or(ts);
+                    let (role, text) = ending_of(error);
+                    if role == Role::User {
+                        run_aborted = true;
+                    } else {
+                        run_error = true;
+                    }
+                    push_turn(&mut turns, role, at, None, text);
+                }
+            }
+            "idle" => {
+                match m.data.get("outcome").and_then(Value::as_str) {
+                    Some("failed") if !run_error => {
+                        let text = match m.data.get("error").filter(|e| e.is_object()) {
+                            Some(error) => api_error(error),
+                            None => "API Error: the run failed".to_owned(),
+                        };
+                        push_turn(&mut turns, Role::Assistant, ts, None, text);
+                    }
+                    Some("interrupted") if !run_aborted => {
+                        push_turn(&mut turns, Role::User, ts, None, INTERRUPTED.to_owned());
+                    }
+                    _ => {}
+                }
+                run_error = false;
+                run_aborted = false;
+            }
+            "compaction" => {
+                let summary = m.data.get("summary").and_then(Value::as_str).unwrap_or("");
+                if m.data.get("status").and_then(Value::as_str) == Some("completed")
+                    && !summary.trim().is_empty()
+                {
+                    let reason = m
+                        .data
+                        .get("reason")
+                        .and_then(Value::as_str)
+                        .unwrap_or("auto");
+                    let text = format!("{COMPACTION_PREFIX}, {reason}]\n{summary}");
+                    push_turn(&mut turns, Role::User, ts, None, text);
                 }
             }
             _ => {}
@@ -625,8 +683,241 @@ fn turns_of(conn: &Connection, info: &Info, path: &Path) -> rusqlite::Result<Vec
     Ok(turns)
 }
 
-/// The turns of one assistant content item.
-fn add_item(turns: &mut Vec<RawTurn>, item: &Value, ts: OffsetDateTime) {
+/// Claude Code's words for a run the person stopped, which hippo's ending
+/// classifier reads as "stopped by you".
+pub const INTERRUPTED: &str = "[Request interrupted by user]";
+
+/// How a compaction summary's turn starts; the turn classifier reads it as
+/// an earlier conversation's summary.
+pub const COMPACTION_PREFIX: &str = "[Compaction summary";
+
+/// The turn an assistant message's `error` adds, in the words hippo's
+/// ending classifier reads: an aborted step as the person's stop, a
+/// failed sign-in as `Failed to authenticate`, anything else as an
+/// `API Error`.
+fn ending_of(error: &Value) -> (Role, String) {
+    match error.get("type").and_then(Value::as_str) {
+        Some("aborted") => (Role::User, INTERRUPTED.to_owned()),
+        Some("provider.auth") => (
+            Role::Assistant,
+            format!("Failed to authenticate: {}", error_words(error, false)),
+        ),
+        _ => (Role::Assistant, api_error(error)),
+    }
+}
+
+/// `API Error: <status> <type>: <message>`.
+fn api_error(error: &Value) -> String {
+    format!("API Error: {}", error_words(error, true))
+}
+
+/// `<status> <type>: <message>`, each part only when it is there.
+fn error_words(error: &Value, with_type: bool) -> String {
+    let status = error.get("status").and_then(Value::as_i64);
+    let kind = error
+        .get("type")
+        .and_then(Value::as_str)
+        .filter(|_| with_type);
+    let message = error.get("message").and_then(Value::as_str).unwrap_or("");
+    let mut head = String::new();
+    if let Some(s) = status {
+        head.push_str(&s.to_string());
+    }
+    if let Some(k) = kind {
+        if !head.is_empty() {
+            head.push(' ');
+        }
+        head.push_str(k);
+    }
+    match (head.is_empty(), message.is_empty()) {
+        (true, true) => "the request failed".to_owned(),
+        (true, false) => message.to_owned(),
+        (false, true) => head,
+        (false, false) => format!("{head}: {message}"),
+    }
+}
+
+/// The line for one file a person attached ([`attachment_line`]):
+/// `bytes`, else the size its base64 `data` decodes to; the path of a
+/// `uri` source that names a file. `None` for a value that is not an
+/// object.
+fn user_attachment(file: &Value) -> Option<String> {
+    let file = file.as_object()?;
+    let mime = file.get("mime").and_then(Value::as_str);
+    let path = file
+        .get("source")
+        .filter(|s| s.get("type").and_then(Value::as_str) == Some("uri"))
+        .and_then(|s| s.get("uri"))
+        .and_then(Value::as_str)
+        .and_then(path_of_uri);
+    let size = file
+        .get("bytes")
+        .and_then(Value::as_u64)
+        .or_else(|| file.get("data").and_then(Value::as_str).map(base64_len));
+    let name = file
+        .get("name")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .or_else(|| path.as_deref().and_then(last_part));
+    Some(attachment_line(
+        name.as_deref(),
+        mime,
+        size,
+        path.as_deref(),
+    ))
+}
+
+/// The line for a tool result's `file` item: its name, type and path, and
+/// for a `data:` URL the size its payload decodes to (the payload itself is
+/// never kept).
+fn tool_attachment(item: &Value) -> String {
+    let uri = item.get("uri").and_then(Value::as_str).unwrap_or("");
+    let mime = item.get("mime").and_then(Value::as_str);
+    let (path, size) = match uri.strip_prefix("data:") {
+        Some(rest) => (None, data_url_len(rest)),
+        None => (
+            path_of_uri(uri)
+                .or_else(|| (!uri.is_empty() && !uri.contains(':')).then(|| uri.to_owned())),
+            None,
+        ),
+    };
+    let name = item
+        .get("name")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .or_else(|| path.as_deref().and_then(last_part));
+    attachment_line(name.as_deref(), mime, size, path.as_deref())
+}
+
+/// `[Image: <name>, <mime>, <size> bytes, <path>]`, or `[File: …]` for a
+/// type that is not `image/*`; a part not known is left out.
+pub fn attachment_line(
+    name: Option<&str>,
+    mime: Option<&str>,
+    size: Option<u64>,
+    path: Option<&str>,
+) -> String {
+    let kind = if mime.is_some_and(|m| m.starts_with("image/")) {
+        "Image"
+    } else {
+        "File"
+    };
+    let size = size.map(|n| format!("{n} bytes"));
+    let parts: Vec<&str> = [name, mime, size.as_deref(), path]
+        .into_iter()
+        .flatten()
+        .filter(|p| !p.is_empty())
+        .collect();
+    if parts.is_empty() {
+        format!("[{kind}]")
+    } else {
+        format!("[{kind}: {}]", parts.join(", "))
+    }
+}
+
+/// The path a `file:` URL names, percent-decoded, or an absolute path as
+/// given. `None` for any other URI (`data:`, `media:`, a web address).
+fn path_of_uri(uri: &str) -> Option<String> {
+    if let Some(rest) = uri.strip_prefix("file://") {
+        let rest = rest.strip_prefix("localhost").unwrap_or(rest);
+        return Some(percent_decode(rest));
+    }
+    uri.starts_with('/').then(|| uri.to_owned())
+}
+
+fn percent_decode(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).ok();
+            if let Some(b) = hex.and_then(|h| u8::from_str_radix(h, 16).ok()) {
+                out.push(b);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+fn last_part(path: &str) -> Option<String> {
+    path.rsplit('/').find(|p| !p.is_empty()).map(str::to_owned)
+}
+
+/// The number of bytes base64 `text` decodes to, from its length alone.
+pub fn base64_len(text: &str) -> u64 {
+    let t = text.trim_end_matches(['\n', '\r']);
+    let pad = t.bytes().rev().take(2).filter(|b| *b == b'=').count() as u64;
+    let n = t.len() as u64;
+    (n / 4 * 3 + (n % 4) * 3 / 4).saturating_sub(pad)
+}
+
+/// The size of a `data:` URL's payload (`<mime>[;base64],<payload>`).
+fn data_url_len(rest: &str) -> Option<u64> {
+    let (head, payload) = rest.split_once(',')?;
+    Some(if head.ends_with(";base64") {
+        base64_len(payload)
+    } else {
+        payload.len() as u64
+    })
+}
+
+/// A sub-agent session's token use: the sum of OpenCode's total over its
+/// own assistant messages (`None` when none records tokens), and its tool
+/// calls. `None` when the session is not in the database.
+fn sub_agent_usage(conn: &Connection, sid: &str) -> Option<(Option<u64>, u64)> {
+    let exists: Option<i64> = conn
+        .query_row("SELECT 1 FROM session_v2 WHERE id = ?1", [sid], |r| {
+            r.get(0)
+        })
+        .optional()
+        .ok()?;
+    exists?;
+    let mut stmt = conn
+        .prepare("SELECT data FROM session_message WHERE session_id = ?1 AND type = 'assistant'")
+        .ok()?;
+    let rows = stmt
+        .query_map([sid], |r| r.get::<_, String>(0))
+        .ok()?
+        .filter_map(std::result::Result::ok);
+    let (mut tokens, mut tools, mut counted) = (0f64, 0u64, false);
+    for text in rows {
+        let Ok(data) = serde_json::from_str::<Value>(&text) else {
+            continue;
+        };
+        if let Some(t) = data.get("tokens").filter(|t| t.is_object()) {
+            counted = true;
+            let n = |p: &str| t.pointer(p).and_then(Value::as_f64).unwrap_or(0.0);
+            tokens +=
+                n("/input") + n("/output") + n("/reasoning") + n("/cache/read") + n("/cache/write");
+        }
+        tools += data
+            .get("content")
+            .and_then(Value::as_array)
+            .map_or(0, |c| {
+                c.iter()
+                    .filter(|i| i.get("type").and_then(Value::as_str) == Some("tool"))
+                    .count() as u64
+            });
+    }
+    if let Ok(parts) = parts_of(conn, sid) {
+        tools += parts
+            .values()
+            .flatten()
+            .filter(|i| i.get("type").and_then(Value::as_str) == Some("tool"))
+            .count() as u64;
+    }
+    Some((counted.then(|| tokens.max(0.0).round() as u64), tools))
+}
+
+/// The turns of one assistant content item. A finished sub-agent call's
+/// result ends with the sub-agent's token use, in the `<usage>` block
+/// Claude Code writes ([`sub_agent_usage`]).
+fn add_item(turns: &mut Vec<RawTurn>, item: &Value, ts: OffsetDateTime, conn: &Connection) {
     match item.get("type").and_then(Value::as_str) {
         Some("text") => {
             if let Some(text) = item.get("text").and_then(Value::as_str) {
@@ -639,7 +930,19 @@ fn add_item(turns: &mut Vec<RawTurn>, item: &Value, ts: OffsetDateTime) {
             let Some(call) = Call::of(item) else { return };
             let at = json_ms(item.pointer("/time/created")).unwrap_or(ts);
             push_turn(turns, Role::Tool, at, Some(call.name.clone()), call.text());
-            if let Some(result) = call.result {
+            if let Some(mut result) = call.result {
+                let child = item
+                    .pointer("/state/metadata/sessionID")
+                    .and_then(Value::as_str);
+                if let (Some(child), "completed", "Agent") =
+                    (child, call.status.as_str(), call.name.as_str())
+                {
+                    if let Some((tokens, tools)) = sub_agent_usage(conn, child) {
+                        let tokens =
+                            tokens.map_or(String::new(), |n| format!("total_tokens: {n}\n"));
+                        result.push_str(&format!("\n<usage>{tokens}tool_uses: {tools}</usage>"));
+                    }
+                }
                 let done = json_ms(item.pointer("/time/completed"))
                     .or_else(|| json_ms(item.pointer("/time/ran")))
                     .unwrap_or(at);
@@ -730,16 +1033,23 @@ impl Call {
     }
 }
 
-/// The text items of a result's `content`, joined by newlines.
+/// The text items of a result's `content`, then a line for each `file`
+/// item ([`tool_attachment`]), joined by newlines.
 fn content_text(content: Option<&Value>) -> String {
     match content {
         Some(Value::String(s)) => s.clone(),
-        Some(Value::Array(items)) => items
-            .iter()
-            .filter(|i| i.get("type").and_then(Value::as_str) == Some("text"))
-            .filter_map(|i| i.get("text").and_then(Value::as_str))
-            .collect::<Vec<_>>()
-            .join("\n"),
+        Some(Value::Array(items)) => {
+            let texts = items
+                .iter()
+                .filter(|i| i.get("type").and_then(Value::as_str) == Some("text"))
+                .filter_map(|i| i.get("text").and_then(Value::as_str))
+                .map(str::to_owned);
+            let files = items
+                .iter()
+                .filter(|i| i.get("type").and_then(Value::as_str) == Some("file"))
+                .map(tool_attachment);
+            texts.chain(files).collect::<Vec<_>>().join("\n")
+        }
         _ => String::new(),
     }
 }

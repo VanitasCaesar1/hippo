@@ -268,3 +268,59 @@ fn ingest_reads_opencode_sessions_incrementally_without_leaks() {
         .iter()
         .any(|t| t.text.contains("receipt rounding")));
 }
+
+const S8: &str = "ses_8888synthetic0000000008";
+
+#[test]
+fn endings_tokens_and_attachments_reach_the_rollup_redacted() {
+    use hippo_core::rollup::{Rollup, Stored};
+    let home = tempfile::tempdir().unwrap();
+    std::env::set_var("HIPPO_HOME", home.path());
+    let workspace = tempfile::tempdir().unwrap();
+    let data = home.path().join("share/opencode");
+    build(
+        &data,
+        &workspace.path().display().to_string(),
+        &["schema.sql", "sessions.sql", "endings.sql"],
+    );
+    let (config, ws) = setup(
+        home.path(),
+        workspace.path(),
+        vec![data.display().to_string()],
+    );
+    ingest(&config, Some(&ws), false).unwrap();
+
+    // The session ended on an API error: stored as interrupted, the
+    // error's first line as the detail, as for Claude Code.
+    let rollup = Rollup::open(&config.home).unwrap().unwrap();
+    let facts = rollup.session(&hid(S8)).unwrap().unwrap();
+    assert_eq!(facts.stored, Stored::Interrupted);
+    assert_eq!(
+        facts.ending_detail.as_deref(),
+        Some("API Error: 503 provider.internal: Upstream connection reset.")
+    );
+    // Its work counts in the day the card and the overview read.
+    let start = facts.first_turn.unwrap();
+    let day = rollup
+        .sessions_in(start, start + time::Duration::hours(1))
+        .unwrap();
+    let s8 = day.iter().find(|s| s.facts.id == hid(S8)).unwrap();
+    assert!(s8.last.unwrap() > s8.first.unwrap());
+
+    // The sub-agent run's tool calls reach Fleet's task line.
+    let tasks = rollup.tasks_of(&hid(S1)).unwrap();
+    let agent = tasks.iter().find(|t| t.tools.is_some()).unwrap();
+    assert_eq!((agent.tokens, agent.tools), (None, Some(2)));
+
+    // An attachment's name and path are indexed, redacted; its bytes are not.
+    let index = Index::open(&config.home, false).unwrap();
+    let turns = index.turns_for_session(&hid(S8)).unwrap();
+    let first = &turns[0].text;
+    assert!(
+        first.contains("[Image: cart-broken.png, image/png, "),
+        "{first}"
+    );
+    assert!(first.contains("[redacted:email]"), "{first}");
+    assert!(!first.contains("fake.person@example.com"), "{first}");
+    assert!(turns.iter().all(|t| !t.text.contains("base64")));
+}
