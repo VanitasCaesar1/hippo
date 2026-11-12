@@ -281,6 +281,27 @@ fn end_at(
     Ok(record)
 }
 
+/// Ends declared session `id` as a Codex hook does: `ended` is now, and
+/// `handoff`, when given, replaces the record's with `handoff_derived`
+/// true and no `no_change_reason`, as ingest would have derived it; with
+/// none it ends as [`end`] does with nothing given (`unspecified`).
+pub fn end_with_derived_handoff(
+    ws: &Workspace,
+    id: &str,
+    handoff: Option<&str>,
+) -> Result<Session> {
+    let Some(handoff) = handoff else {
+        return end(ws, id, &[], None, None);
+    };
+    let (path, mut record) = declared(ws, id)?;
+    record.ended = Some(utc(OffsetDateTime::now_utc()));
+    record.handoff = Some(handoff.to_owned());
+    record.handoff_derived = true;
+    record.no_change_reason = None;
+    record.save(&path)?;
+    Ok(record)
+}
+
 /// Sets a declared session's `task` and `task_seen` (`hippo hook prompt`,
 /// on the first prompt).
 pub fn set_task_and_seen(ws: &Workspace, id: &str, task: &str) -> Result<Session> {

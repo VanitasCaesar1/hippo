@@ -135,7 +135,7 @@ rules:
       <span class="how-a"><i class="ag cc">CC</i><span><b>Claude Code</b> at session start</span></span>
       <span class="how-a"><i class="ag ds">DS</i><span><b>DeepSeek Harness</b> at session start</span></span>
       <span class="how-a"><i class="ag oc">OC</i><span><b>OpenCode</b> in each request</span></span>
-      <span class="how-a"><i class="ag cx">Cx</i><span><b>Codex</b> through <code>hippo brief</code>, for now</span></span>
+      <span class="how-a"><i class="ag cx">Cx</i><span><b>Codex</b> at session start, through its hooks</span></span>
     </figcaption>
   </figure>
   <p class="day-note">Demo data from <a href="https://github.com/VanitasCaesar1/hippo/blob/main/app/scripts/demo-home.sh"><code>app/scripts/demo-home.sh</code></a>, the synthetic home in the repo. Its sessions are all Claude Code; the Codex and DeepSeek Harness ones are drawn.</p>
@@ -335,7 +335,7 @@ rules:
   <aside class="limits" id="limits">
     <h2>Limits</h2>
     <ul>
-      <li>Claude Code, Codex, DeepSeek Harness and OpenCode only. Codex is not given the notes automatically.</li>
+      <li>Claude Code, Codex, DeepSeek Harness and OpenCode only.</li>
       <li>Used daily on macOS; Linux is tested in CI.</li>
       <li>Not measured whether it makes agents better.</li>
       <li>Built by one person for their own many-agent setup. v0.3.0, MIT.</li>

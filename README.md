@@ -38,7 +38,7 @@ Why this is not a memory file an agent keeps for itself:
 | Claude Code | At session start, through `hippo hooks install` or the plugin. |
 | DeepSeek Harness (`dsh`) | At session start, through [its plugin](plugins/dsh/README.md). |
 | OpenCode | In the system prompt of each request, through [its plugin](plugins/opencode/README.md). |
-| Codex | Through `hippo brief --task "<task>"` when your instructions ask for it, for now. Its sessions are read like the others. |
+| Codex | At session start and first prompt, through `hippo hooks install --agent codex` once you trust the hooks in Codex. |
 
 <p align="center"><img src="docs/assets/first-run.gif" width="700" alt="hippo, then hippo start --yes, on synthetic history: what it found, then the last active day"></p>
 
@@ -79,7 +79,7 @@ The overview gives the day's sessions and sub-agents, the agents' work time, how
 
 1. **Search every past session.** `hippo ask --sources-only "<question>"` ranks the past sessions that dealt with it, with the command to resume each; without `--sources-only` it also writes an answer that cites them. `hippo recall "<words>"` searches every indexed turn.
 2. **See the day.** `hippo` shows the last active day; `fleet` today's sessions (live, waiting on you, stopped at a usage limit); `incidents` what went wrong and at which step; `xray <session>` what context a session was given and what it used; `card` the day, or `--week`, as one image.
-3. **A shared brain your agents start from and write back to.** `hippo init --notes-dir notes --entry-note "notes/START HERE.md"` sets up a notes folder; `hippo hooks install` gives every Claude Code session in it the notes at start and keeps a record of each session; `hippo brief --task "<task>"` is the start block for any agent, with the past sessions that already did part of it.
+3. **A shared brain your agents start from and write back to.** `hippo init --notes-dir notes --entry-note "notes/START HERE.md"` sets up a notes folder; `hippo hooks install` gives every Claude Code session in it the notes at start and keeps a record of each session (`--agent codex` does the same for Codex); `hippo brief --task "<task>"` is the start block for any agent, with the past sessions that already did part of it.
 4. **Kept true at night, with a second reviewer and an undo.** `hippo dream` checks notes against transcripts and folds finished sessions' handoffs into them. A second model run that never sees the first one's reasoning must confirm each change; every applied change has a receipt and a snapshot, and `hippo revert <receipt>` undoes it. `hippo schedule install` runs it nightly.
 5. **Packs you copy and own.** `hippo add <path or git URL>` copies a pack of dreaming passes, prompts and reviewer personas into your workspace after a fresh-context review; it is plain files, never code, and `hippo packs update` merges upstream changes without losing your edits.
 
@@ -100,7 +100,7 @@ Everything else, including `hippo`, `start`, `card`, `recall`, `ask --sources-on
 
 ## What it does not do yet
 
-- **Claude Code, Codex, DeepSeek Harness and OpenCode only.** Cursor and Gemini folders are detected, not read; for OpenCode, only OpenCode 2's database. Claude Code gets the notes at session start through hooks or its plugin, a dsh session through [its plugin](plugins/dsh/README.md) and an OpenCode session through [its plugin](plugins/opencode/README.md); a Codex session is indexed and searchable, and can run `hippo brief` itself if your instructions ask it to.
+- **Claude Code, Codex, DeepSeek Harness and OpenCode only.** Cursor and Gemini folders are detected, not read; for OpenCode, only OpenCode 2's database. Claude Code and Codex get the notes at session start through hooks (Claude Code also through its plugin), a dsh session through [its plugin](plugins/dsh/README.md) and an OpenCode session through [its plugin](plugins/opencode/README.md).
 - **Scheduling** is launchd on macOS. Elsewhere `hippo schedule install` prints cron and systemd lines for you to install.
 - **Linux is tested in CI, not in daily use.** The release has static Linux binaries (x86_64 and arm64) and the test suite passes on Linux in CI, but hippo is used day to day on macOS on Apple silicon (the Intel build passes the first-run check under Rosetta).
 - **The desktop app**, Hippo.app in [`app/`](app/README.md), is macOS only, built from source, and early: checked on synthetic data, not in daily use.

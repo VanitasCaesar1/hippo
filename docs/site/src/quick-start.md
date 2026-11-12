@@ -131,6 +131,8 @@ To give every Claude Code session this context, run `hippo hooks install`. It ad
 
 A hook never fails your session. On any error it prints one line to stderr (`hippo hook: <error>`) and exits 0.
 
+For Codex, run `hippo hooks install --agent codex`. It adds the same three hooks, with `--agent codex`, to `$CODEX_HOME/hooks.json` (`~/.codex/hooks.json`), which Codex runs for every session; hippo acts only for sessions in the workspace. The next time Codex starts it lists the new hooks for review. Trust them there (or later with `/hooks`); until then Codex skips them. A Codex session then starts with the same block, gets the relevant notes on its first prompt, and ends with its last answer as the handoff.
+
 ## 7. End sessions with a handoff
 
 `session-end` alone records that a session ended, not what it did. Doctor treats a session that ended with no notes and no handoff as `unspecified`, and it reports a problem when more than half of recent sessions are. Ask your agents, in your own instruction files, to finish with:

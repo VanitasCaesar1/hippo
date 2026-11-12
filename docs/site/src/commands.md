@@ -373,22 +373,24 @@ The second command restores the default.
 ## hippo hooks
 
 ```text
-hippo hooks install
-hippo hooks uninstall
-hippo hooks status
+hippo hooks install [--agent <claude-code|codex>] [--workspace <dir>]
+hippo hooks uninstall [--agent <claude-code|codex>] [--workspace <dir>]
+hippo hooks status [--agent <claude-code|codex>] [--workspace <dir>]
 ```
 
-Adds, removes or checks the three Claude Code hooks (`SessionStart`, `UserPromptSubmit`, `SessionEnd`) in the workspace's `.claude/settings.json`. `install` adds each once and keeps everything else in the file. `uninstall` removes only hippo's three. `status` says which of the three the workspace has.
+Adds, removes or checks hippo's three hooks (`SessionStart`, `UserPromptSubmit`, `SessionEnd`). For Claude Code, the default, they go in the workspace's `.claude/settings.json` (`--workspace` names another workspace). With `--agent codex` they go in `$CODEX_HOME/hooks.json` (`~/.codex/hooks.json`), which Codex runs for every session; the hooks themselves act only for sessions in the workspace. `install` adds each once and keeps everything else in the file. `uninstall` removes only hippo's three. `status` says which of the three are there.
+
+Codex runs a new hook only after you trust it: it lists hippo's hooks for review the next time it starts, or use `/hooks`. hippo never writes that trust for you.
 
 ## hippo hook
 
 ```text
-hippo hook session-start [--plugin]
-hippo hook prompt
-hippo hook session-end
+hippo hook session-start [--plugin] [--agent <claude-code|codex>]
+hippo hook prompt [--agent <claude-code|codex>]
+hippo hook session-end [--agent <claude-code|codex>]
 ```
 
-For Claude Code hooks. Each reads the hook's JSON on stdin (it needs `session_id`; `prompt` also needs `prompt`). See [Quick start](quick-start.md#6-add-the-claude-code-hooks) for the settings to add. A hook always exits 0. On any error it prints `hippo hook: <error>` on one line to stderr.
+For Claude Code hooks, and with `--agent codex` for Codex hooks (below). Each reads the hook's JSON on stdin (it needs `session_id`; `prompt` also needs `prompt`). See [Quick start](quick-start.md#6-add-the-claude-code-hooks) for the settings to add. A hook always exits 0. On any error it prints `hippo hook: <error>` on one line to stderr.
 
 | Subcommand | Does |
 |---|---|
@@ -396,6 +398,8 @@ For Claude Code hooks. Each reads the hook's JSON on stdin (it needs `session_id
 | `session-start --plugin` | The Claude Code plugin's hook ([Install](install.md#in-claude-code)): prints the required parts read-only, with no session record, and prints nothing at all, not even an error, when there is no notes folder, the session is outside the workspace, or a settings file already runs `hippo hook session-start`. |
 | `prompt` | On the first prompt of a session only: records it as the task and prints the relevant notes and linter counts, within what is left of the budget. Later prompts print nothing. |
 | `session-end` | Ends the session with no notes, no handoff and no reason (recorded as `unspecified`). |
+
+With `--agent codex` each reads Codex's hook input and does nothing at all unless hippo has a workspace and the input's `cwd` is in it. The session id is `codex-<session_id>`, the id the Codex adapter gives the same session. `session-start` and `prompt` print the same parts as JSON Codex reads (`{"hookSpecificOutput": {"hookEventName": …, "additionalContext": …}}`); `prompt` passes over a sub-agent's prompt (one with an `agent_id`). `session-end` records the last assistant message of the session's transcript as a derived handoff, or ends it `unspecified` when the transcript cannot be read.
 
 ## hippo log
 

@@ -46,7 +46,9 @@ Reasoning blocks of the model are never indexed. Tool calls and tool results are
 
 Redaction is best-effort pattern matching. It will miss secrets that do not look like these patterns, and it will redact some harmless text: the `aadhaar` and `phone` patterns can still match some numeric ids. Text already in an index keeps the redaction it had when it was indexed. Do not rely on it as your only protection. The index is local and is never uploaded by hippo.
 
-A derived Codex, dsh or OpenCode handoff is redacted in the same way, because it is transcript text written into a record you may commit.
+A derived Codex, dsh or OpenCode handoff is redacted in the same way, because it is transcript text written into a record you may commit. So is the handoff the Codex `session-end` hook takes from a Codex transcript.
+
+The Codex hooks put the start block and the relevant notes into the Codex session, which Codex sends to the model provider it is set up with, as it does with every file the agent reads. They give the same text a Claude Code session gets from its hooks, and nothing from other projects.
 
 ## What reaches a model, and how it is isolated
 

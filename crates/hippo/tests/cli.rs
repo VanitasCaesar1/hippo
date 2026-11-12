@@ -75,6 +75,7 @@ impl Hippo {
             .args(args)
             .env("HIPPO_HOME", self.home.path())
             .env("HOME", self.user_home.path())
+            .env_remove("CODEX_HOME")
             .env_remove("RUST_LOG")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -248,6 +249,181 @@ fn hooks_print_context_and_never_fail_the_session() {
         assert!(err.starts_with("hippo hook: "), "{err}");
         assert_eq!(err.lines().count(), 1, "{err}");
     }
+}
+
+#[test]
+fn codex_hooks_act_only_in_the_workspace_and_answer_in_json() {
+    let hippo = Hippo::init();
+    fs::write(
+        hippo.workspace.join("notes/Retry policy.md"),
+        "# Retry policy\n\nRetries back off.\n",
+    )
+    .unwrap();
+    let app = hippo.workspace.join("app");
+    fs::create_dir(&app).unwrap();
+    let cwd = Value::from(app.display().to_string());
+    let codex = ["--agent", "codex"];
+    let run = |hook: &str, input: &str| {
+        let out = hippo.run(&[&["hook", hook][..], &codex[..]].concat(), Some(input));
+        assert!(out.status.success(), "{hook} {input}");
+        out
+    };
+
+    // Install, idempotent, then status, in the scratch ~/.codex.
+    let out = hippo.run(&["hooks", "install", "--agent", "codex"], None);
+    assert!(
+        stdout(&out).contains("added SessionStart, UserPromptSubmit, SessionEnd"),
+        "{}",
+        stdout(&out)
+    );
+    let file = hippo.user_home.path().join(".codex/hooks.json");
+    let hooks: Value = serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
+    assert_eq!(
+        hooks["hooks"]["SessionStart"][0]["hooks"][0]["command"],
+        "hippo hook session-start --agent codex"
+    );
+    assert_eq!(hooks["hooks"]["SessionEnd"][0]["hooks"][0]["timeout"], 3);
+    let out = hippo.run(&["hooks", "install", "--agent", "codex"], None);
+    assert!(stdout(&out).contains("already there"), "{}", stdout(&out));
+    let out = hippo.run(
+        &["hooks", "install", "--agent", "codex", "--workspace", "/x"],
+        None,
+    );
+    assert!(!out.status.success());
+
+    // Session start: JSON with the block, a declared codex record.
+    let start = format!(
+        r#"{{"session_id":"019a","cwd":{cwd},"hook_event_name":"SessionStart","source":"startup","transcript_path":null}}"#
+    );
+    let out = run("session-start", &start);
+    let printed: Value = serde_json::from_str(&stdout(&out)).unwrap();
+    assert_eq!(
+        printed["hookSpecificOutput"]["hookEventName"],
+        "SessionStart"
+    );
+    let block = printed["hookSpecificOutput"]["additionalContext"]
+        .as_str()
+        .unwrap();
+    assert!(
+        block.starts_with("# Start here\n\nRead the protocol first."),
+        "{block}"
+    );
+    let record = hippo.session("codex-019a");
+    assert_eq!(record["tool"], "codex");
+    assert_eq!(record["derived"], false);
+    assert_eq!(record["context_start"], block);
+
+    // A sub-agent's prompt is passed over; the first prompt gets the
+    // relevant notes; a later one gets nothing.
+    let prompt = |extra: &str| {
+        format!(r#"{{"session_id":"019a","cwd":{cwd},"prompt":"the retry policy, please"{extra}}}"#)
+    };
+    assert_eq!(stdout(&run("prompt", &prompt(r#","agent_id":"a1""#))), "");
+    let out = run("prompt", &prompt(""));
+    let printed: Value = serde_json::from_str(&stdout(&out)).unwrap();
+    assert_eq!(
+        printed["hookSpecificOutput"]["hookEventName"],
+        "UserPromptSubmit"
+    );
+    assert!(printed["hookSpecificOutput"]["additionalContext"]
+        .as_str()
+        .unwrap()
+        .contains("- Retry policy: Retries back off."));
+    assert_eq!(
+        hippo.session("codex-019a")["task"],
+        "the retry policy, please"
+    );
+    assert_eq!(stdout(&run("prompt", &prompt(""))), "");
+
+    // Session end with a transcript: the last assistant message, redacted,
+    // is a derived handoff.
+    let transcript = hippo.user_home.path().join("rollout-x.jsonl");
+    fs::write(
+        &transcript,
+        concat!(
+            r#"{"timestamp":"2026-11-02T10:00:00Z","type":"session_meta","payload":{"id":"019a","timestamp":"2026-11-02T10:00:00Z"}}"#, "\n",
+            r#"{"timestamp":"2026-11-02T10:00:01Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"first"}]}}"#, "\n",
+            r#"{"timestamp":"2026-11-02T10:00:02Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Done; key sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA kept out."}]}}"#, "\n",
+        ),
+    )
+    .unwrap();
+    let end = format!(
+        r#"{{"session_id":"019a","cwd":{cwd},"transcript_path":{}}}"#,
+        Value::from(transcript.display().to_string())
+    );
+    run("session-end", &end);
+    let record = hippo.session("codex-019a");
+    let handoff = record["handoff"].as_str().unwrap();
+    assert!(
+        handoff.starts_with("Done; key ") && !handoff.contains("sk-ant-"),
+        "{handoff}"
+    );
+    assert_eq!(record["handoff_derived"], true);
+    assert!(record["no_change_reason"].is_null());
+    assert!(record["ended"].is_string());
+
+    // Without a readable transcript the end is unspecified.
+    let start2 = start.replace("019a", "019b");
+    run("session-start", &start2);
+    run(
+        "session-end",
+        &format!(r#"{{"session_id":"019b","cwd":{cwd},"transcript_path":"/nonexistent"}}"#),
+    );
+    assert_eq!(
+        hippo.session("codex-019b")["no_change_reason"],
+        "unspecified"
+    );
+
+    // Outside the workspace: nothing printed, nothing written.
+    let outside = hippo.user_home.path().display().to_string();
+    for hook in ["session-start", "prompt", "session-end"] {
+        let out = run(
+            hook,
+            &format!(
+                r#"{{"session_id":"019c","cwd":{},"prompt":"hi"}}"#,
+                Value::from(outside.as_str())
+            ),
+        );
+        assert_eq!(stdout(&out), "", "{hook}");
+        assert_eq!(stderr(&out), "", "{hook}");
+    }
+    assert!(!hippo
+        .workspace
+        .join(".hippo/sessions/codex-019c.json")
+        .exists());
+
+    // Uninstall leaves an empty hooks object.
+    let out = hippo.run(&["hooks", "uninstall", "--agent", "codex"], None);
+    assert!(stdout(&out).contains("removed SessionStart, UserPromptSubmit, SessionEnd"));
+    assert_eq!(
+        fs::read_to_string(&file).unwrap(),
+        "{\n  \"hooks\": {}\n}\n"
+    );
+}
+
+#[test]
+fn codex_hooks_without_a_set_up_hippo_say_nothing() {
+    let home = tempfile::tempdir().unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_hippo"))
+        .args(["hook", "session-start", "--agent", "codex"])
+        .env("HIPPO_HOME", home.path().join("none"))
+        .env("HOME", home.path())
+        .env_remove("CODEX_HOME")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(br#"{"session_id":"s","cwd":"/tmp"}"#)
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    assert!(out.status.success());
+    assert_eq!(stdout(&out), "");
+    assert_eq!(stderr(&out), "");
 }
 
 #[test]
