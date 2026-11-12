@@ -1,0 +1,30 @@
+#!/bin/sh
+# A fake hippo for the plugin's tests. It logs its directory and arguments
+# (tab-separated, one call per line) to $FAKE_HIPPO_LOG and answers the
+# commands the plugin runs from $FAKE_HIPPO_* variables.
+if [ -n "$FAKE_HIPPO_LOG" ]; then
+  {
+    printf '%s' "$PWD"
+    for arg in "$@"; do printf '\t%s' "$arg"; done
+    printf '\n'
+  } >>"$FAKE_HIPPO_LOG"
+fi
+case "$FAKE_HIPPO_MODE" in
+  fail) echo "hippo: the index is damaged; run hippo doctor" >&2; exit 2 ;;
+  notsetup) echo "hippo is not set up yet (no /scratch/config.toml): run hippo to find your agents' history and index it" >&2; exit 1 ;;
+  slow) sleep 5 ;;
+esac
+case "$1 $2" in
+  "config show")
+    if [ -n "$FAKE_HIPPO_WORKSPACE" ]; then
+      printf '{"config":"/scratch/config.toml","workspace":"%s","budget_bytes":25600}\n' "$FAKE_HIPPO_WORKSPACE"
+    else
+      printf '{"config":"/scratch/config.toml","workspace":null,"budget_bytes":25600}\n'
+    fi ;;
+  "context --parts") printf '%s' "$FAKE_HIPPO_CONTEXT" ;;
+  "ask --sources-only")
+    if [ -n "$FAKE_HIPPO_OUTPUT" ]; then printf '%s' "$FAKE_HIPPO_OUTPUT"
+    else printf '%s\n' '{"terms":["fake"],"searched":{"sessions":2,"notes":1,"ms":3},"sources":[]}'; fi ;;
+  "show day") printf '%s' "${FAKE_HIPPO_OUTPUT:-a fake day: 3 sessions}" ;;
+  *) echo "fake hippo: unexpected arguments: $*" >&2; exit 64 ;;
+esac

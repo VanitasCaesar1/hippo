@@ -48,6 +48,11 @@ if [ -f "$dsh_plugin" ]; then
   dv=$(sed -n 's/^ *"version": *"\(.*\)",*$/\1/p' "$dsh_plugin")
   [ "$version" = "$dv" ] || die "version $version is not the dsh plugin's ($dv in plugins/dsh/package.json)"
 fi
+opencode_plugin=$root/plugins/opencode/package.json
+if [ -f "$opencode_plugin" ]; then
+  ov=$(sed -n 's/^ *"version": *"\(.*\)",*$/\1/p' "$opencode_plugin")
+  [ "$version" = "$ov" ] || die "version $version is not the OpenCode plugin's ($ov in plugins/opencode/package.json)"
+fi
 
 dist=${HIPPO_DIST_DIR:-$root/../hippo-dist/$version}
 mkdir -p "$dist"

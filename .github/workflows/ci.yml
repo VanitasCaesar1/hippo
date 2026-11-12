@@ -73,3 +73,25 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run check-lib
+
+  # The OpenCode plugin (plugins/opencode): its tests, with a fake hippo,
+  # and a check that the committed lib/ is what its source builds.
+  opencode-plugin:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: plugins/opencode
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run check-lib

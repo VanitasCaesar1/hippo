@@ -37,8 +37,8 @@ Why this is not a memory file an agent keeps for itself:
 |---|---|
 | Claude Code | At session start, through `hippo hooks install` or the plugin. |
 | DeepSeek Harness (`dsh`) | At session start, through [its plugin](plugins/dsh/README.md). |
+| OpenCode | In the system prompt of each request, through [its plugin](plugins/opencode/README.md). |
 | Codex | Through `hippo brief --task "<task>"` when your instructions ask for it, for now. Its sessions are read like the others. |
-| OpenCode | Through `hippo brief` when your instructions ask for it. Its sessions are read from OpenCode 2's database. |
 
 <p align="center"><img src="docs/assets/first-run.gif" width="700" alt="hippo, then hippo start --yes, on synthetic history: what it found, then the last active day"></p>
 
@@ -62,6 +62,8 @@ Inside Claude Code, as a plugin (then run `/hippo:setup`):
 With Rust 1.89 or later: `cargo install --locked --git https://github.com/VanitasCaesar1/hippo hippo`.
 
 Inside DeepSeek Harness (`dsh`), as a plugin that gives sessions the same start block and lets the model call `hippo ask` and `hippo show day`: `dsh plugin --profile web add "github:VanitasCaesar1/hippo#v0.2.1&path:/plugins/dsh"` ([details](plugins/dsh/README.md)).
+
+Inside OpenCode 2, as a plugin that does the same: add `{ "package": "github:VanitasCaesar1/hippo#v0.3.0::path:plugins/opencode" }` to `plugins` in `~/.config/opencode/opencode.json` ([details](plugins/opencode/README.md)).
 
 ## The first two minutes
 
@@ -98,7 +100,7 @@ Everything else, including `hippo`, `start`, `card`, `recall`, `ask --sources-on
 
 ## What it does not do yet
 
-- **Claude Code, Codex, DeepSeek Harness and OpenCode only.** Cursor and Gemini folders are detected, not read; for OpenCode, only OpenCode 2's database. Claude Code gets the notes at session start through hooks or its plugin, and a dsh session through [its plugin](plugins/dsh/README.md); a Codex session is indexed and searchable, and can run `hippo brief` itself if your instructions ask it to.
+- **Claude Code, Codex, DeepSeek Harness and OpenCode only.** Cursor and Gemini folders are detected, not read; for OpenCode, only OpenCode 2's database. Claude Code gets the notes at session start through hooks or its plugin, a dsh session through [its plugin](plugins/dsh/README.md) and an OpenCode session through [its plugin](plugins/opencode/README.md); a Codex session is indexed and searchable, and can run `hippo brief` itself if your instructions ask it to.
 - **Scheduling** is launchd on macOS. Elsewhere `hippo schedule install` prints cron and systemd lines for you to install.
 - **Linux is tested in CI, not in daily use.** The release has static Linux binaries (x86_64 and arm64) and the test suite passes on Linux in CI, but hippo is used day to day on macOS on Apple silicon (the Intel build passes the first-run check under Rosetta).
 - **The desktop app**, Hippo.app in [`app/`](app/README.md), is macOS only, built from source, and early: checked on synthetic data, not in daily use.

@@ -103,7 +103,7 @@ The cost is that a change to those shapes is not caught by the compiler. The pac
 
 ## Installing
 
-The plugin is not published to npm. OpenCode installs a package spec with npm's own resolver and runs no install scripts, so the repository holds the plugin's built `lib/` next to its TypeScript source, as for the dsh plugin. CI rebuilds `lib/` and fails when it differs from what is committed.
+The plugin is not published to npm. OpenCode installs a package spec with npm's own resolver and runs no install scripts, so the repository holds the plugin's built `lib/` next to its TypeScript source, as for the dsh plugin. The package has no `build`, `prepare` or install script (its build script is named `compile`): npm's installer runs `npm install` inside a git dependency that has one, and inside OpenCode's single binary that step fails, so the plugin would not load. CI rebuilds `lib/` and fails when it differs from what is committed.
 
 From GitHub, pinned to a release tag, in `~/.config/opencode/opencode.json` (every project) or a project's `opencode.json`:
 
