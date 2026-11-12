@@ -28,7 +28,7 @@ hippo does not replace your agent's own instruction files. It supplies context. 
 
 ## Status
 
-hippo is at version 0.1.0, early, and used and tested on macOS on Apple silicon. Install it with the install script, the Claude Code plugin or Cargo ([Install](install.md)).
+hippo is at version 0.2.0, early, and used and tested on macOS on Apple silicon. Install it with the install script, the Claude Code plugin or Cargo ([Install](install.md)).
 
 What is built today:
 

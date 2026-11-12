@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for looking. hippo is one person's project at version 0.1.0. The core, CLI, dreaming, eval, packs and the desktop app are built. What helps most now: packs for the notes your team keeps, adapters for agents hippo does not read yet, docs that are wrong or unclear, and bug reports from machines that are not mine.
+Thanks for looking. hippo is one person's project at version 0.2.0. The core, CLI, dreaming, eval, packs and the desktop app are built. What helps most now: packs for the notes your team keeps, adapters for agents hippo does not read yet, docs that are wrong or unclear, and bug reports from machines that are not mine.
 
 ## Get it running
 

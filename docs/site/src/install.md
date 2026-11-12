@@ -29,7 +29,7 @@ hippo --version
 ```
 
 ```text
-hippo 0.1.0
+hippo 0.2.0
 ```
 
 ## In Claude Code
