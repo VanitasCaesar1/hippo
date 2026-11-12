@@ -51,9 +51,15 @@
 #              glob error and a BSD sed error that each repeated in three
 #              sessions, whose rules go to one section (a group, Keep all).
 #   Fleet      a session waiting on a question, synthetic usage
-#              meters for the default and work profiles, and an empty
+#              meters for the default and work profiles (default at 74 %
+#              of its 5 hours and burning: Pulse says it runs dry), and an empty
 #              .claude-typo folder (Manage's "Found, never used" when the
 #              app runs with HOME=<dir>/profiles).
+#   Pulse      four sessions at work now in the workspace (start blocks
+#              recorded, token use per reply): a force push corrected, a
+#              preview pointed at production and corrected, a quiet stretch,
+#              and a plan waiting to be approved; and a lesson kept two days
+#              ago whose rule those start blocks carried.
 #   Lanes      yesterday at fixed local hours, so Fleet's Lanes
 #              has a full day: a thread that waits on a question, runs
 #              three sub-agents and opens and merges a pull request; one
@@ -315,7 +321,7 @@ wfile=$dir/profiles/.claude-work/projects/-tern-web/demo-w1.jsonl
 } >"$wfile"
 iso_in() { date -u -r $(( $(date +%s) + $1 )) +%Y-%m-%dT%H:%M:%S+00:00; }
 fetched=$(( ($(date +%s) - 180) * 1000 ))
-printf '{"numStartups":3,"cachedUsageUtilization":{"fetchedAtMs":%s,"utilization":{"five_hour":{"utilization":30,"resets_at":"%s"},"seven_day":{"utilization":81,"resets_at":"%s"}}}}\n' \
+printf '{"numStartups":3,"cachedUsageUtilization":{"fetchedAtMs":%s,"utilization":{"five_hour":{"utilization":74,"resets_at":"%s"},"seven_day":{"utilization":81,"resets_at":"%s"}}}}\n' \
   "$fetched" "$(iso_in 7200)" "$(iso_in 90000)" >"$dir/profiles/.claude.json"
 printf '{"numStartups":3,"cachedUsageUtilization":{"fetchedAtMs":%s,"utilization":{"five_hour":{"utilization":0,"resets_at":null},"seven_day":{"utilization":12,"resets_at":"%s"}}}}\n' \
   "$fetched" "$(iso_in 430000)" >"$dir/profiles/.claude-work/.claude.json"
@@ -814,10 +820,95 @@ proj=$dir/profiles/.claude-work/projects/-tern-web
   rsay "$(at 16 40)" 'Moved the sync cache to caches/sync.'
 } | fill "$proj/demo-y-carry.jsonl"
 proj=$demo_proj
+TS=agos
+
+# Pulse, Fleet's default view: a fleet at work now. Four sessions in the
+# workspace, timed from when the script runs, each with its start block
+# recorded (carrying the Style guide, whose rule a kept lesson below holds)
+# and each reply's token use, so the default account drains:
+# "Push the notes branch to origin" (default) force-pushes, is corrected
+# and is working again; "Gallery page: send me screenshots" (default)
+# points a preview at production and is corrected (a rule candidate the
+# lessons pass already holds); "Rotate the staging certificates" (work)
+# works with a quiet stretch; "Move settings to the new store" (work)
+# waits on a plan to approve.
+pulse_w=$dir/profiles/.claude-work/projects/$(basename "$xproj")
+mkdir -p "$pulse_w"
+P_ID= pk=0
+pmeta() { printf '"sessionId":"%s","cwd":"%s","entrypoint":"cli"' "$P_ID" "$ws"; }
+pu() { printf '{"type":"user",%s,"timestamp":"%s","message":{"role":"user","content":%s}}\n' "$(pmeta)" "$(agos "$1")" "$2"; }
+pa() {
+  pk=$((pk + 1))
+  printf '{"type":"assistant",%s,"timestamp":"%s","message":{"id":"msg_pulse_%s","role":"assistant","model":"claude-demo","usage":{"input_tokens":1800,"cache_read_input_tokens":24000,"output_tokens":420},"content":[%s]}}\n' "$(pmeta)" "$(agos "$1")" "$pk" "$2"
+}
+pres() { pu "$1" "[{\"type\":\"tool_result\",\"tool_use_id\":\"$2\",\"content\":\"$3\"}]"; }
+pstart() { # seconds-ago title request
+  block=$(printf '# Tern notes\\n\\nThe notes every agent reads first.\\n\\nrequired: notes/START HERE.md\\nrequired: notes/On-call.md\\nrequired: notes/Style guide.md\\n\\nsession: %s claude-code %s\\n' "$P_ID" "$(agos "$1")")
+  printf '{"type":"attachment",%s,"timestamp":"%s","attachment":{"type":"hook_success","hookEvent":"SessionStart","command":"hippo hook session-start","stdout":"%s"}}\n' "$(pmeta)" "$(agos "$1")" "$block"
+  printf '{"type":"custom-title","customTitle":"%s","sessionId":"%s"}\n' "$2" "$P_ID"
+  pu "$1" "\"$3\""
+}
+# prun <from> <to> <every> <file>: calls and their results, seconds ago,
+# in bursts (every third step is shorter).
+prun() {
+  t=$1 n=0
+  while [ "$t" -gt "$2" ]; do
+    n=$((n + 1)) c=c$pk
+    case $((n % 4)) in
+      0) pa "$t" "$(tuse "$c" Bash "{\"command\":\"npm test -- $4\",\"description\":\"Run the tests\"}")"
+         pres $((t - 20)) "$c" 'Tests  24 passed (24)' ;;
+      2) pa "$t" "$(tuse "$c" Read "{\"file_path\":\"$ws/src/$4\"}")"
+         pres $((t - 1)) "$c" 'const n = 1' ;;
+      *) pa "$t" "$(tuse "$c" Edit "{\"file_path\":\"$ws/src/$4\",\"old_string\":\"const n = $n\",\"new_string\":\"const n = $((n + 1))\\nconst m = $n\"}")"
+         pres $((t - 2)) "$c" 'The file has been updated.' ;;
+    esac
+    if [ $((n % 3)) -eq 0 ]; then t=$((t - $3 / 3)); else t=$((t - $3)); fi
+  done
+}
+P_ID=demo-p1
+{
+  pstart 1500 "Push the notes branch to origin" "Push the notes branch to origin and open a draft pull request."
+  prun 1480 900 50 notes/draft.ts
+  pa 860 "$(tuse pf1 Bash '{"command":"git push --force origin notes-draft","description":"Push the branch"}')"
+  pres 855 pf1 '+ 3f2a1c9...8b7d6e5 notes-draft -> notes-draft (forced update)'
+  pu 780 '"no, why did you force push? the remote had my commits from this morning"'
+  prun 760 70 45 notes/draft.ts
+  pa 12 "$(tuse pf2 Bash '{"command":"git reflog show origin/notes-draft","description":"Find the commits the force push dropped"}')"
+} >"$xproj/demo-p1.jsonl"
+P_ID=demo-p3
+{
+  pstart 2400 "Gallery page: send me screenshots" "Check the gallery page and send me screenshots."
+  prun 2380 1900 60 gallery/page.ts
+  pa 1880 "$(tuse pg1 Bash '{"command":"npm run preview -- --db production gallery","description":"Start a preview of the gallery"}')"
+  pres 1870 pg1 'saved gallery.png'
+  pu 1800 '"no, previews use the staging database, never production"'
+  prun 1780 60 55 gallery/shots.ts
+  pa 9 "$(tuse pg2 Bash '{"command":"npx playwright test gallery","description":"Take the gallery screenshots"}')"
+} >"$xproj/demo-p3.jsonl"
+P_ID=demo-p2
+{
+  pstart 3000 "Rotate the staging certificates" "Rotate the staging certificates before they expire on Friday."
+  prun 2980 1500 70 ops/certs.ts
+  prun 900 80 80 ops/certs.ts
+  pa 38 "$(tuse pc1 Bash '{"command":"terraform plan -target=module.staging_certs","description":"Plan the certificate change"}')"
+} >"$pulse_w/demo-p2.jsonl"
+P_ID=demo-p4
+{
+  pstart 1500 "Move settings to the new store" "Move the settings screen to the new settings store."
+  prun 1480 400 60 settings/store.ts
+  pa 180 "$(tuse pp1 ExitPlanMode '{"plan":"## Plan\n\n1. Add SettingsStore with the three toggles\n2. Point SettingsView at the store\n3. Delete the old UserDefaults wrapper\n4. Update 6 snapshot tests\n\nPlan ready: 4 steps across 9 files. Approve to start editing?"}')"
+} >"$pulse_w/demo-p4.jsonl"
 TS=ts8
 
 hippo ingest
 HIPPO_STUB_SCENARIO=lessons hippo lessons scan
+
+# A lesson kept two days ago (as `hippo lessons keep` leaves one): its rule
+# is in the Style guide, so every session whose start block carried the
+# Style guide started with it (Pulse's ring and "started with 1 kept rule").
+kept_at=$(date -u -v-2d +%Y-%m-%dT%H:%M:%SZ)
+printf '{"protocol":"HIPPO_V1","id":"01M6Z00000000000000000KEPT","kind":"correction","key":"bundl mid work","terms":["bundl","mid","work"],"title":"Bundle the app only when asked","rule":"Never bundle the app mid-work. Bundle it only when asked.","target":{"note":"notes/Style guide.md","section":null,"new":false},"evidence":[],"seen":{"sessions":2,"profiles":["default"],"first":"%s","last":"%s","most_in_a_day":1},"status":"kept","review":null,"created":"%s","updated":"%s","closed_sessions":null,"kept":{"receipt":"01M6Z000000000000000000RC1","at":"%s","edited":false},"ask":null}\n' \
+  "$kept_at" "$kept_at" "$kept_at" "$kept_at" "$kept_at" >"$home/lessons/01M6Z00000000000000000KEPT.json"
 
 # Open the dreaming window before the 1 November sessions.
 printf '{"protocol":"HIPPO_V1","last_success":"2026-10-31T00:00:00Z"}\n' \

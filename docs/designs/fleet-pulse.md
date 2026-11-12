@@ -1,6 +1,6 @@
 # Fleet Pulse
 
-Status: accepted, to build after 0.4.1.
+Status: accepted, built for the release after 0.4.1.
 
 ## Background
 
@@ -73,7 +73,9 @@ A session's start block is already recorded (`rollup` table `context`: the notes
 
 Pulse is drawn by hand: each lane's beats, the histogram and the drain charts are painted on canvases; the time grid and the now line are one overlay across the scrolling lanes; marks are vector paths. Only needs-you lanes animate (a pulsing dot), and not when the system asks for reduced motion; with nothing waiting the view draws only on refresh. It follows the app's tokens in light and dark, and holds from the app's minimum window size up, dropping the right rail under the lanes, then the activity column, as the window narrows.
 
-Keys: `↵` opens the first waiting thread, `T` opens it in its client, `⌘T` opens a terminal, `S` (Later) skips to the next, `J`/`K` move in Next up, `U` resumes the runs-dry sessions on the account to use next.
+Keys: `↵` opens the first waiting thread (or, once `J`/`K` chose a Next up row, does its action), `T` opens it in T3 Code, `⌘T` resumes it in a terminal, `S` puts it off until the others, `J`/`K` move in Next up, `U` copies the runs-dry sessions' resume commands for the account to use next, Page Up/Down scroll.
+
+Working means live, or quiet in the middle of a call (a long build writes no turn). A correction the last nightly pass already read says so instead of "read tonight".
 
 ## Alternatives
 
