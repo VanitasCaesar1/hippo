@@ -1,25 +1,45 @@
 <!doctype html>
 <!-- The landing page, a whole page that hippo-registry build --landing copies as
-     it is. No script, no web font, nothing loaded from another host. -->
+     it is. Its own stylesheet is landing.css. No script, no web font, nothing
+     loaded from another host. -->
+<!-- hippo landing page. No script, no web font, no inline style, nothing
+     loaded from another host. Every figure is hippo 0.1.0 output from the
+     synthetic demo home that app/scripts/demo-home.sh builds. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>hippo: one brain for all your coding agents</title>
-<meta name="description" content="hippo finds every Claude Code and Codex session on your Mac and shows your day. Open source, MIT, local.">
+<title>hippo: what your coding agents did, read from their history on this machine</title>
+<meta name="description" content="hippo reads the Claude Code and Codex history already on your machine. It shows which session is waiting on you, quotes each time you corrected one, and keeps those corrections as notes the next session starts from. Open source, MIT, local.">
 <meta name="color-scheme" content="dark light">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self' data:">
+<link rel="canonical" href="https://vanitascaesar1.github.io/hippo/">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; style-src &#39;self&#39;; img-src &#39;self&#39; data:">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="hippo">
+<meta property="og:url" content="https://vanitascaesar1.github.io/hippo/">
+<meta property="og:title" content="hippo: what your coding agents did, read from their history on this machine">
+<meta property="og:description" content="For people who run a lot of Claude Code and Codex sessions at once. Which one is waiting on you, what went wrong in your own words, and notes the next session starts from. Local, MIT.">
+<meta property="og:image" content="https://vanitascaesar1.github.io/hippo/assets/card-site.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="675">
+<meta property="og:image:alt" content="A hippo card: My agents did 3 hours 18 minutes of work today. 36 threads and 6 sub-agents. I had to correct them 5 times.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="hippo: what your coding agents did, read from their history on this machine">
+<meta name="twitter:description" content="For people who run a lot of Claude Code and Codex sessions at once. Which one is waiting on you, what went wrong in your own words, and notes the next session starts from. Local, MIT.">
+<meta name="twitter:image" content="https://vanitascaesar1.github.io/hippo/assets/card-site.png">
+<meta name="twitter:image:alt" content="A hippo card: My agents did 3 hours 18 minutes of work today. 36 threads and 6 sub-agents. I had to correct them 5 times.">
 <link rel="stylesheet" href="landing.css">
 </head>
 <body>
 
-<!-- the mascot, once; reused with <use> -->
 <svg width="0" height="0" class="sprite" aria-hidden="true" focusable="false">
   <symbol id="hippo" viewBox="58 59 383 248">
     <g transform="translate(0,387) scale(0.1,-0.1)" fill="currentColor"><path d="M2167 3229 c-294 -28 -582 -125 -766 -257 -41 -30 -81 -56 -87 -59 -19 -7 -144 45 -248 103 -176 98 -282 107 -364 31 -59 -55 -90 -196 -63 -280 29 -85 144 -147 304 -162 42 -4 77 -9 77 -11 0 -2 -24 -41 -54 -87 -270 -414 -391 -1001 -241 -1174 52 -60 62 -32 68 202 13 470 192 876 528 1200 202 195 395 288 719 347 138 25 453 31 560 10 269 -53 448 -177 528 -369 31 -73 31 -73 -43 -73 -205 0 -478 -48 -637 -112 -116 -47 -298 -146 -298 -163 0 -35 32 -31 261 38 390 118 871 141 1289 62 124 -24 350 -84 390 -105 122 -63 155 -177 148 -512 -5 -198 -7 -218 -31 -285 -105 -293 -387 -427 -892 -426 -566 1 -953 119 -1134 345 -100 124 -141 229 -189 478 -4 21 -14 36 -24 38 -26 5 -42 -66 -41 -183 1 -207 104 -400 288 -542 76 -58 76 -58 68 -98 -33 -166 5 -213 212 -266 220 -55 287 -39 320 75 19 65 6 62 180 41 66 -8 201 -15 301 -15 181 0 181 0 197 -60 30 -106 80 -130 237 -112 118 14 177 34 227 76 38 34 38 34 41 129 4 96 4 96 68 138 131 85 236 233 280 394 25 91 31 469 10 593 -39 226 -100 286 -363 358 -220 61 -362 86 -573 105 -97 9 -140 17 -140 25 0 7 -2 19 -5 27 -5 11 9 14 69 14 258 2 372 356 150 464 -72 34 -113 24 -184 -48 -32 -32 -89 -75 -128 -96 -70 -37 -70 -37 -139 14 -206 157 -514 223 -876 188z m1287 -185 c58 -57 6 -194 -80 -210 -46 -9 -162 14 -173 34 -7 13 6 26 67 63 43 26 95 65 117 87 47 46 49 47 69 26z m-2463 -134 c47 -27 113 -62 147 -77 61 -28 61 -28 31 -62 -29 -32 -35 -34 -113 -38 -101 -7 -215 11 -258 41 -32 21 -33 24 -33 90 0 124 67 138 226 46z m1490 -1774 c35 -13 99 -32 142 -42 77 -18 77 -18 77 -51 0 -38 5 -37 -96 -18 -180 34 -221 59 -198 119 8 20 0 20 75 -8z m1395 -61 c21 -54 -15 -77 -151 -99 -97 -15 -100 -15 -110 26 -6 23 -3 28 17 32 12 3 66 16 118 29 119 30 119 30 126 12z M2736 2889 c-50 -59 -24 -172 45 -194 30 -10 78 14 94 46 58 112 -62 240 -139 148z M2193 2865 c-52 -36 -54 -141 -4 -194 68 -73 159 -11 149 101 -9 88 -84 136 -145 93z M3895 2333 c-87 -17 -125 -56 -125 -128 0 -150 273 -228 351 -101 65 107 -82 256 -226 229z M2522 2308 c-142 -25 -228 -180 -145 -263 82 -81 251 -33 312 88 54 109 -31 199 -167 175z"/></g>
   </symbol>
 </svg>
+
+<a class="skip" href="#install">Skip to install</a>
 
 <header class="wrap top">
   <a class="brand" href="index.html" aria-current="page" aria-label="hippo">
@@ -27,248 +47,590 @@
     hippo
   </a>
   <nav aria-label="Site">
-    <a class="hide-s" href="docs/index.html">Docs</a>
-    <a class="hide-s" href="packs.html">Packs</a>
-    <a class="hide-s" href="#install">Install</a>
-    <a class="hide-s" href="#limits">Limits</a>
-    <a class="gh" href="https://github.com/VanitasCaesar1/hippo">
-      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38v-1.4c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.72 1.22 1.88.87 2.33.66.07-.52.28-.87.5-1.07-1.77-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0Z"/></svg>
-      GitHub
-    </a>
+    <a class="opt" href="docs/index.html">docs</a>
+    <a class="opt" href="packs.html">packs</a>
+    <a class="opt" href="#limits">limits</a>
+    <a href="#install">install</a>
+    <a class="gh" href="https://github.com/VanitasCaesar1/hippo">GitHub <span>v0.1.0</span></a>
   </nav>
 </header>
 
 <main>
 
-<section class="hero">
-  <div class="wrap">
-    <h1><span class="hl">One brain</span> for all your coding agents.</h1>
-    <p class="sub"><b>hippo</b> finds every Claude Code and Codex session on your Mac and shows your day: what ran, what needs you, what went wrong.</p>
-
-    <div class="cmd">
-      <div class="line" tabindex="0" aria-label="Install command"><span class="p">$</span><span class="c">curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippo/main/install.sh | sh</span></div>
-      <span class="tip" aria-hidden="true">click, then ⌘C</span>
-    </div>
-    <p class="fine">
-      <span>macOS or Linux. No sudo.</span>
-      <span>Open source, MIT.</span>
-      <a href="#install">Claude Code plugin and more</a>
-    </p>
-
-    <div class="stage">
-      <div class="peek" aria-hidden="true"><svg viewBox="0 0 383 248"><use href="#hippo"/></svg></div>
-      <a class="win" href="assets/app-home.png">
-        <img src="assets/app-home.png" width="1200" height="800" alt="The hippo Mac app, Home: one agent needs you, overnight note changes, corrections, repeated failures, and usage left per account.">
-      </a>
-    </div>
+<!-- ============ hero: the day ============ -->
+<section class="wrap hero">
+  <h1>See what your coding agents did, from the history already on your machine</h1>
+  <p class="intro">For people who run a lot of Claude Code and Codex sessions at once. hippo shows which one is waiting on you and quotes each time you had to correct one. Keep a correction and it goes into the notes the next session starts from.</p>
+  <div class="hero-get">
+    <p class="get-k">install</p>
+    <div class="cmd" tabindex="0" aria-label="Install command"><span class="p">$</span><span class="c">curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippo/main/install.sh | sh</span></div>
+    <p class="get-f">macOS or Linux, no sudo. MIT. Click the line to select it, or see the <a href="#install">plugin and cargo installs</a>.</p>
   </div>
+
+  <figure class="day">
+    <figcaption class="day-top">
+      <span class="day-date">Thu 12 Nov 2026</span>
+      <span class="day-n"><b>36</b> sessions</span>
+      <span class="day-n"><b>6</b> sub-agents</span>
+      <span class="day-n"><b>3h 18m</b> of agent work</span>
+      <span class="day-n day-you"><i class="mk" aria-hidden="true"></i><b>5</b> corrections by you</span>
+    </figcaption>
+
+    <div class="lanes">
+      <div class="lane axis" aria-hidden="true">
+        <span class="who"></span>
+        <div class="ticks"><span class="t t1">13:00</span><span class="t t2">13:30</span><span class="t t3">14:00</span><span class="t t4">14:30</span><span class="t t5">15:00</span><span class="t tn">15:07</span></div>
+        <span class="st"></span>
+      </div>
+
+      <div class="lane la needs">
+        <p class="who"><i class="ac wo">Wo</i><span class="ttl">Get the release branch ready to merge</span><span class="pj">tern-web</span></p>
+        <div class="track"><i class="bar"></i><i class="wait"></i></div>
+        <p class="st"><span class="was">live</span><span class="is">waiting <i class="w">on you </i>14:58</span></p>
+        <p class="more ask">asked: “Should I merge it into main now, or wait for the design review?”</p>
+      </div>
+
+      <div class="lane lb live">
+        <p class="who"><i class="ac de">De</i><span class="ttl">Tern: album covers in parallel</span><span class="pj">tern-web</span></p>
+        <div class="track"><i class="bar"></i></div>
+        <p class="st">live<i class="w"> · 4 sub-agents</i></p>
+      </div>
+      <div class="lane lc">
+        <p class="who"><i class="ac de">De</i><span class="ttl">Tern: export pipeline</span><span class="pj">tern-web</span></p>
+        <div class="track"><i class="bar"></i></div>
+        <p class="st">quiet <i class="w">since </i>14:42</p>
+        <p class="more kids">2 delegated tasks: retry policy is live, queue lane done 14:42</p>
+      </div>
+      <div class="lane lc1 child live">
+        <p class="who"><i class="ac de">De</i><span class="ttl">Tern: export retry policy</span><span class="pj">editing queue.rs</span></p>
+        <div class="track"><i class="bar"></i></div>
+        <p class="st">live</p>
+      </div>
+      <div class="lane lc2 child done">
+        <p class="who"><i class="ac de">De</i><span class="ttl">Tern: export queue lane</span><span class="pj">1 claim verified</span></p>
+        <div class="track"><i class="bar"></i></div>
+        <p class="st">done 14:42</p>
+      </div>
+      <div class="lane ld chk">
+        <p class="who"><i class="ac de">De</i><span class="ttl">Rename the sign helper</span><span class="pj">ws</span></p>
+        <div class="track"><i class="bar"></i></div>
+        <p class="st">check</p>
+        <p class="more">1 claim unverified: “Typecheck is clean.” No typecheck command in the session</p>
+      </div>
+      <div class="lane le">
+        <p class="who"><i class="ac de">De</i><span class="ttl">Force push the notes branch to origin, I want it overwritten</span><span class="pj">ws</span></p>
+        <div class="track"><i class="bar"></i><i class="x" title="destructive command, 14:45"></i></div>
+        <p class="st">quiet <i class="w">since </i>14:53</p>
+      </div>
+      <div class="lane lf">
+        <p class="who"><i class="ac de">De</i><span class="ttl">Show me the export settings</span><span class="pj">ws</span></p>
+        <div class="track"><i class="bar"></i><i class="mk" title="you corrected it, 14:46"></i></div>
+        <p class="st">quiet <i class="w">since </i>14:46</p>
+      </div>
+      <div class="lane lg">
+        <p class="who"><i class="ac de">De</i><span class="ttl">Check the gallery loads</span><span class="pj">ws</span></p>
+        <div class="track"><i class="bar"></i><i class="mk" title="you corrected it, 14:42"></i></div>
+        <p class="st">quiet <i class="w">since </i>14:42</p>
+      </div>
+      <div class="lane lh">
+        <p class="who"><i class="ac de">De</i><span class="ttl">Add the cache cap test</span><span class="pj">ws</span></p>
+        <div class="track"><i class="bar"></i><i class="mk" title="you corrected it, 13:49"></i></div>
+        <p class="st">interrupted 13:49</p>
+      </div>
+      <div class="lane li pick">
+        <p class="who"><i class="ac wo">Wo</i><span class="ttl">Check the gallery page and send me screenshots</span><span class="pj">tern-web</span></p>
+        <div class="track"><i class="bar"></i><i class="mk" title="you corrected it, 13:32"></i></div>
+        <p class="st">interrupted 13:32</p>
+        <p class="call"><span class="call-t">13:32, you</span> <q class="said">dont point previews at the production database again, staging only</q></p>
+      </div>
+      <div class="lane lj">
+        <p class="who"><i class="ac de">De</i><span class="ttl">Build the demo app so I can look at it</span><span class="pj">ws</span></p>
+        <div class="track"><i class="bar"></i><i class="mk" title="you corrected it, 13:01"></i></div>
+        <p class="st">interrupted 13:01</p>
+      </div>
+    </div>
+
+    <div class="day-foot">
+      <ul class="key">
+        <li><i class="k-bar"></i>agent working</li>
+        <li><i class="k-wait"></i>waiting on you</li>
+        <li><i class="mk"></i>you corrected it</li>
+        <li><i class="x"></i>destructive command</li>
+      </ul>
+      <div class="room">
+        <span class="room-k">usage left</span>
+        <span class="room-a"><i class="ac wo">Wo</i>work <i class="meter m100"></i><b>100%</b> 5h <i class="meter m88"></i><b>88%</b> 7d <em>use next</em></span>
+        <span class="room-a"><i class="ac de">De</i>default <i class="meter m70"></i><b>70%</b> 5h <i class="meter m19 low"></i><b class="low">19%</b> 7d</span>
+      </div>
+    </div>
+  </figure>
+  <p class="day-note">Part of a day of 36 sessions, 12:30 to 15:07. The data on this page all comes from one run of the synthetic demo home in the repo, <a href="https://github.com/VanitasCaesar1/hippo/blob/main/app/scripts/demo-home.sh"><code>app/scripts/demo-home.sh</code></a>: invented sessions on a photo library called Tern, a stub model with canned replies, hippo 0.1.0. The terminal figures are its output. The panels, these lanes included, are drawn in HTML from the same values. Clock times are local to the machine that ran it (UTC+5:30); the files and <code>hippo ask</code> print UTC.</p>
 </section>
 
-<section class="features">
-  <div class="wrap">
-
-    <div class="feature">
-      <div>
-        <p class="tag">$ hippo</p>
-        <h2>Your day, read from your agents' history.</h2>
-        <p class="lede">Sessions, sub-agents, hours of agent work, how long agents waited on you, and each time you corrected one.</p>
-      </div>
-      <a class="win term" href="assets/cli-overview.png">
-        <img src="assets/cli-overview.png" width="1646" height="1076" loading="lazy" alt="Terminal output of the hippo command: 36 sessions, 6 sub-agents, 3h 18m of agent work today, and the busiest sessions.">
-      </a>
-    </div>
-
-    <div class="feature">
-      <div>
-        <p class="tag">Fleet</p>
-        <h2>What every agent is doing right now.</h2>
-        <p class="lede">Which one needs you, and which account still has usage left.</p>
-      </div>
-      <a class="win" href="assets/app-fleet.png">
-        <img src="assets/app-fleet.png" width="1200" height="800" loading="lazy" alt="Fleet: sessions grouped into needs you, working and to review, with project, claims and state.">
-      </a>
-    </div>
-
-    <div class="feature">
-      <div>
-        <p class="tag">Incidents</p>
-        <h2>What went wrong, in your own words.</h2>
-        <p class="lede">Each incident quotes you, and names the agent and the step.</p>
-      </div>
-      <a class="win" href="assets/app-incidents.png">
-        <img src="assets/app-incidents.png" width="1200" height="800" loading="lazy" alt="Incidents: a list of quoted corrections such as &quot;no, why did you force push&quot;, each with its agent, step and cause.">
-      </a>
-    </div>
-
-    <div class="pair">
-      <div class="panel">
-        <p class="tag">Ask</p>
-        <h3>Has an agent already solved this?</h3>
-        <p>Ranks your past sessions and notes against the question.</p>
-        <div class="cmd">
-          <div class="line" tabindex="0"><span class="p">$</span><span class="c">hippo ask "&lt;question&gt;"</span></div>
-        </div>
-      </div>
-      <div class="panel">
-        <p class="tag">X-ray</p>
-        <h3>Does "tests pass" hold?</h3>
-        <p>Shows what context a session was given, what it searched for and used, and whether its claims hold.</p>
-        <div class="cmd">
-          <div class="line" tabindex="0"><span class="p">$</span><span class="c">hippo xray &lt;session&gt;</span></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="feature">
-      <div>
-        <p class="tag">Memory</p>
-        <h2>One set of notes for every session.</h2>
-        <p class="lede">Plain Markdown. Every session starts from the same notes and writes back.</p>
-      </div>
-      <a class="win" href="assets/app-memory.png">
-        <img src="assets/app-memory.png" width="1200" height="800" loading="lazy" alt="Memory: a map of shared notes sized by how many sessions read each one.">
-      </a>
-    </div>
-
-    <div class="feature">
-      <div>
-        <p class="tag">Inbox</p>
-        <h2>Your corrections, proposed as rules.</h2>
-        <p class="lede">Repeated failures too. Keep the ones you want.</p>
-      </div>
-      <a class="win" href="assets/app-inbox.png">
-        <img src="assets/app-inbox.png" width="1200" height="800" loading="lazy" alt="Inbox: corrections, repeated failures and note changes waiting for review.">
-      </a>
-    </div>
-
+<!-- ============ the loop: one correction, followed ============ -->
+<section class="wrap story" id="loop">
+  <div class="story-head">
+    <h2>Follow the 13:32 correction</h2>
+    <p>It was the second time that day. The session that heard it the first time had ended, and nothing carried the sentence over to the next one. This is where it goes with hippo running.</p>
   </div>
+
+  <ol class="rail">
+
+    <li class="stop s-session">
+      <p class="when"><b>10:07</b><b>13:32</b> in two sessions</p>
+      <div class="body">
+        <h3>You say the same thing to two sessions</h3>
+        <div class="pair">
+          <div class="term soft">
+            <p class="term-h">ended 10:07 · default account</p>
+<pre><span class="p">$</span> <span class="cmdline">hippo show session demo-l1</span>
+<span class="dim">(no session record)</span>
+<span class="dim">title: Check the gallery page and send me screenshots.</span>
+<span class="dim">project: …/projects/tern-web</span>
+0 user Check the gallery page and send me screenshots.
+1 tool Bash Bash {"command":"npm run preview -- --db <span class="hot">production</span> gallery"}
+2 tool Bash saved gallery.png
+3 user <span class="said">no, previews use the staging database, not production</span></pre>
+          </div>
+          <div class="term soft">
+            <p class="term-h">ended 13:32 · work account</p>
+<pre><span class="p">$</span> <span class="cmdline">hippo show session demo-l2</span>
+<span class="dim">(no session record)</span>
+<span class="dim">title: Check the gallery page and send me screenshots.</span>
+<span class="dim">project: …/projects/tern-web</span>
+0 user Check the gallery page and send me screenshots.
+1 tool Bash Bash {"command":"npm run preview -- --db <span class="hot">production</span> album"}
+2 tool Bash saved gallery.png
+3 user <span class="said">dont point previews at the production database again, staging only</span></pre>
+          </div>
+        </div>
+        <p class="side wide">Two sessions on two Claude accounts, the same command with a different last word. Neither one knew about hippo, which is what “no session record” means. It reads the transcripts Claude Code and Codex already write to disk, so the days before you installed it are there too.</p>
+      </div>
+    </li>
+
+    <li class="stop s-incident">
+      <p class="when">in Incidents</p>
+      <div class="body">
+        <h3>The second one turns up as an incident, with the step that caused it</h3>
+        <div class="inc">
+          <p class="inc-q"><q class="said">dont point previews at the production database again, staging only</q></p>
+          <p class="an">your words, quoted</p>
+          <p class="inc-m"><i class="ac wo">Wo</i><span>Check the gallery page and send me screenshots.</span><span class="dim">step 1 at 13:30 · 1m of work</span></p>
+          <p class="an">the account, the session and the step</p>
+          <p class="inc-m"><span class="dim">what it did</span><code>Bash: npm run preview -- --db production album</code></p>
+          <p class="an">the command it had just run</p>
+          <p class="inc-c"><span class="chip">corrected by you</span><span class="chip">cause not established</span></p>
+          <p class="an">hippo could not tell why, so it says that</p>
+        </div>
+
+        <div class="inclist">
+          <p class="il-h">The rest of that day <span>kind · cause · what happened</span></p>
+          <div class="il-row">
+            <p class="il-k">destructive command<span>the brief asked for it</span></p>
+            <p class="il-w"><q class="said">no, why did you overwrite my draft</q><span>Force push the notes branch to origin, I want it overwritten. · step 1 at 14:45</span></p>
+          </div>
+          <div class="il-row">
+            <p class="il-k">corrected by you<span>no rule covered it</span></p>
+            <p class="il-w"><q class="said">no, that is wrong: exports are PNG</q><span>Show me the export settings. · what it said at 14:43: “Exports are JPEG at 90% quality, up to 4096 px.”</span></p>
+          </div>
+          <div class="il-row">
+            <p class="il-k">collision<span>two agents collided</span></p>
+            <p class="il-w"><span class="il-t">Another session edited upload.ts 3m later while both were working</span><span>Rename the upload helper. · step 1 at 14:33</span></p>
+          </div>
+          <div class="il-row">
+            <p class="il-k">redone by another session<span>cause not established</span></p>
+            <p class="il-w"><span class="il-t">24 of the 24 lines it added to covers.ts were removed by another session 2h 20m later</span><span>Add the cover renderers. · step 1 at 11:09</span></p>
+          </div>
+          <details class="il-more">
+            <summary>five more from the same day</summary>
+            <div class="il-row">
+              <p class="il-k">destructive command<span>cause not established</span></p>
+              <p class="il-w"><q class="said">no, why did you force push</q><span>Publish the notes branch. · step 1 at 14:02</span></p>
+            </div>
+            <div class="il-row">
+              <p class="il-k">corrected by you<span>no rule covered it</span></p>
+              <p class="il-w"><q class="said">no, never bundle the app mid-work, I said that before</q><span>Add the cache cap test. · step 1 at 13:33</span></p>
+            </div>
+            <div class="il-row">
+              <p class="il-k">corrected by you<span>no rule covered it</span></p>
+              <p class="il-w"><q class="said">no, the album export manifest is wrong again, it lists nothing</q><span>Check the gallery loads. · may be about: Write the album export manifest. (another session)</span></p>
+            </div>
+            <div class="il-row">
+              <p class="il-k">corrected by you<span>no rule covered it</span></p>
+              <p class="il-w"><q class="said">no, use the debug build only, I said</q><span>Build the demo app so I can look at it. · what it is about is not established</span></p>
+            </div>
+            <div class="il-row">
+              <p class="il-k">claimed without checking<span>a hint to check</span></p>
+              <p class="il-w"><span class="il-t">no typecheck command in the session</span><span>Rename the sign helper. · step 3 at 14:59</span></p>
+            </div>
+          </details>
+        </div>
+        <p class="cap">Values from <code>hippo incidents</code>, laid out the way the Mac app lists them.</p>
+      </div>
+    </li>
+
+    <li class="stop s-inbox">
+      <p class="when">in the Inbox</p>
+      <div class="body">
+        <h3>hippo drafts a rule from it and waits for you</h3>
+        <div class="split">
+          <div class="inbox">
+            <p class="ib-h">Corrections <b>2</b><span>you corrected an agent; keep it as a rule</span></p>
+            <div class="ib-row on">
+              <i class="ac wo">Wo</i>
+              <div>
+                <p class="ib-t"><span class="kept">Use the staging database for previews, never production</span></p>
+                <p class="ib-d">Run previews and manual checks against the staging database (npm run preview -- --db staging), never production.</p>
+                <p class="ib-to">seen in 2 sessions <span>→ notes/START HERE.md › Reading order</span></p>
+                <p class="ib-b"><span class="btn go">Keep</span><span class="btn">Edit</span><span class="btn">Dismiss</span></p>
+              </div>
+            </div>
+            <div class="ib-row">
+              <i class="ac de">De</i>
+              <div>
+                <p class="ib-t">The export button belongs in the toolbar, not the footer</p>
+                <p class="ib-to">seen in 1 session <span>→ a new note</span></p>
+              </div>
+            </div>
+            <p class="ib-h">Repeated failures <b>2</b><span>→ notes/START HERE.md › Also read</span></p>
+            <div class="ib-row">
+              <i class="ac de">De</i>
+              <div>
+                <p class="ib-t">Give BSD sed -i an empty suffix</p>
+                <p class="ib-to">seen in 3 sessions</p>
+              </div>
+            </div>
+            <div class="ib-row">
+              <i class="ac de">De</i>
+              <div>
+                <p class="ib-t">Quote glob patterns in zsh</p>
+                <p class="ib-to">seen in 3 sessions</p>
+              </div>
+            </div>
+          </div>
+          <p class="side">The draft counts both sessions. Nothing reaches your notes until you keep it; dismiss it and it only comes back if the same thing happens in three more sessions. The lower two are the other kind of repeat: errors agents ran into in three sessions each, without you saying a word.</p>
+        </div>
+        <div class="term soft keep">
+<pre><span class="p">$</span> <span class="cmdline">hippo lessons keep 01M77HWV9SXYG6Y6XKZ2T0GPC9</span>
+01M77HWV9SXYG6Y6XKZ2T0GPC9: kept in notes/START HERE.md (receipt 01M77HYV9QWEXYY1FMTQZ9DE5Q; hippo revert 01M77HYV9QWEXYY1FMTQZ9DE5Q undoes it)</pre>
+        </div>
+      </div>
+    </li>
+
+    <li class="stop s-note">
+      <p class="when"><b>15:08</b> in a note</p>
+      <div class="body">
+        <h3>Keep it, and it is one line of Markdown and a receipt</h3>
+        <div class="split even">
+          <div class="file">
+            <p class="file-h">notes/START HERE.md</p>
+            <div class="md">
+              <p class="md-h2">## Reading order</p>
+              <p class="md-dim">…</p>
+              <p>4. [[Release process]], [[CI]] and [[Database migrations]] before shipping a change.</p>
+              <p>5. [[On-call]] and [[Incidents/2026-10-14 thumbnail backlog]] when something breaks.</p>
+              <p class="md-add"><span class="kept">- **Use the staging database for previews, never production.** Run previews and manual checks against the staging database (npm run preview -- --db staging), never production. *(lesson kept 2026-11-12)*</span></p>
+              <p class="md-h2">## Also read</p>
+              <p class="md-dim">…</p>
+            </div>
+          </div>
+          <div class="file">
+            <p class="file-h">.hippo/receipts/01M77HYV9QWEXYY1FMTQZ9DE5Q.json</p>
+<pre class="json">{
+  "id": "01M77HYV9QWEXYY1FMTQZ9DE5Q",
+  "reviewer": "human",
+  "invocation": "hippo lessons keep 01M77HWV9SXYG6Y6XKZ2T0GPC9",
+  "verdict": "confirm",
+  "before_hash": "e4bc6731ef4adf00…",
+  "after_hash": "fbed291454d39582…",
+  "applied": "2026-11-12T09:38:25.729197Z",
+  "snapshot": ".hippo/snapshots/01M77HYV9AHD60QQ3VXBQ5RNGD/notes/START HERE.md"
+}</pre>
+          </div>
+        </div>
+        <p class="side wide">Notes are plain Markdown in a folder you choose, so you can edit and commit them. The receipt says who confirmed the change and where the old file was copied first. <code>hippo revert 01M77HYV9QWEXYY1FMTQZ9DE5Q</code> puts the old file back. Receipt shortened: three fields left out, hashes cut.</p>
+      </div>
+    </li>
+
+    <li class="stop s-night">
+      <p class="when"><b>03:30</b> nightly</p>
+      <div class="body">
+        <h3>Overnight the notes are checked against what agents did</h3>
+        <p class="lead">Notes go stale. <code>hippo dream</code> reads the day's sessions and proposes changes to the notes they touched. A proposal has to quote a transcript turn, and a second model call that never sees the first one's reasoning has to confirm it before anything is written. Three of the seven proposals from one run:</p>
+        <div class="night">
+          <div class="nrow">
+            <div class="n-l">
+              <p class="path">notes/Thumbnail pipeline.md</p>
+              <p class="del">- Thumbnails are generated at 256 and 1024 pixels on the long edge.</p>
+              <p class="add">+ The thumbnail pipeline now writes 320 and 1280 pixels on the long edge.</p>
+            </div>
+            <div class="n-r">
+              <p class="v ok">confirmed, written</p>
+              <p class="why">“The cited turn reports the change as made in this session, and the note still states the old value.”</p>
+              <p class="rcp">receipt <code>01M77HWVNZRVNCNENJGPJS43K6</code></p>
+            </div>
+          </div>
+          <div class="nrow">
+            <div class="n-l">
+              <p class="path">notes/Auth sessions.md</p>
+              <p class="del">- Login sessions last 7 days.</p>
+              <p class="add off">+ The session lifetime is now 24 hours after the security review.</p>
+            </div>
+            <div class="n-r">
+              <p class="v no">rejected, nothing written</p>
+              <p class="why">“The turn is the assistant saying it changed a config value mid-session; nothing in the evidence shows the 24 hour lifetime was deployed, and the note describes production. Keep 7 days until a release confirms it.”</p>
+            </div>
+          </div>
+          <div class="nrow">
+            <div class="n-l">
+              <p class="path">notes/Database migrations.md</p>
+              <p class="del">- Migrations run automatically on deploy.</p>
+              <p class="add">+ Schema changes no longer run on deploy, so run them by hand before the release.</p>
+            </div>
+            <div class="n-r">
+              <p class="v un">confirmed, written, then undone by hand</p>
+              <div class="undo" tabindex="0">
+<pre><span class="p">$</span> hippo revert 01M77HWVY5GX5N91HTDYF1YRAW
+<span class="out">restored notes/Database migrations.md from .hippo/snapshots/01M77HWVWCBYDW94HSC6TY6GD4/notes/Database migrations.md; revert receipt 01M77HWWJMPHP6PJQN9CNARYT4</span></pre>
+              </div>
+            </div>
+          </div>
+          <p class="n-f">This run: 7 proposals, 5 confirmed, 2 rejected, 5 applied. 2 more failed validation and never reached the reviewer.</p>
+        </div>
+        <p class="cap">In the demo home both model calls are a stub with canned replies, and the run is started by hand. The validation, receipts, snapshots and revert are the real code. <code>hippo schedule install</code> runs it daily, at 03:30 unless you change it.</p>
+      </div>
+    </li>
+
+    <li class="stop s-next">
+      <p class="when">in the next session</p>
+      <div class="body">
+        <h3>The next agent on a preview task gets the rule in its start block</h3>
+        <div class="term soft">
+<pre><span class="p">$</span> <span class="cmdline">hippo brief --task "Run a preview of the album page against the database"</span>
+# hippo brief · ws · 1.9 KB of 25.0 KB
+task: Run a preview of the album page against the database
+
+# START HERE
+
+Tern is an open-source, self-hosted photo library, and this note is the entry point to its engineering notes.
+
+required: notes/START HERE.md
+required: notes/On-call.md
+required: notes/Style guide.md
+
+relevant:
+<span class="dim">… 5 notes, one line each</span>
+
+already done:
+<span class="dim">… 3 past sessions, each with the command that resumes it</span>
+
+<span class="cmdline">rules:</span>
+<span class="kept">- Run previews and manual checks against the staging database (npm run preview -- --db staging), never production.</span></pre>
+        </div>
+        <p class="side wide">This is the start block for a new agent on a task. The rule is there because the task is about previews; a brief for an unrelated task leaves it out. Claude Code sessions also get the required notes through hooks, and START HERE, where the line now lives, is the first of them. Whether the model then follows it is not something hippo has measured. Output shortened where marked.</p>
+      </div>
+    </li>
+
+    <li class="stop s-loop">
+      <p class="when">and round again</p>
+      <div class="body">
+        <div class="loopbox">
+        <ol class="loop">
+          <li><b>you correct an agent</b><span>13:32, the second time</span></li>
+          <li><b>incident</b><span>step 1 at 13:30, quoted</span></li>
+          <li><b>rule you keep</b><span>15:08, one command</span></li>
+          <li><b>line in a note</b><span>with a receipt</span></li>
+          <li><b>next start block</b><span>under rules:</span></li>
+        </ol>
+        <p class="loop-back">if that session gets it wrong anyway, you correct it, and that is the next incident</p>
+        </div>
+      </div>
+    </li>
+
+  </ol>
 </section>
 
-<section class="share">
-  <div class="wrap">
-    <p class="tag">$ hippo card</p>
-    <h2>Your day as one image.</h2>
-    <p class="lede">Made to share. Numbers and a date only.</p>
+<!-- ============ the CLI ============ -->
+<section class="wrap cli">
+  <div class="cli-head">
+    <h2>The same data from a terminal</h2>
+    <p>hippo is a CLI first. The Mac app reads the same index.</p>
+  </div>
+
+  <div class="fig">
+    <div class="fig-k">
+      <p class="fig-c"><code>hippo</code></p>
+      <p>With no arguments, your last active day.</p>
+    </div>
+    <div class="term big">
+<pre><span class="p">$</span> <span class="cmdline">hippo</span>
+hippo · what your coding agents did, read from their history on this machine
+
+All history: 51 sessions, 12 sub-agents on 10 days, Sun 1 Nov 2026 to Thu 12 Nov 2026
+
+Thu 12 Nov 2026 · today
+  36 sessions, 6 sub-agents, 3h 18m of agent work
+  agents waited on you 1m in 1 question
+  5 corrections by you, the first: <span class="said">"no, that is wrong: exports are PNG"</span>
+
+Busiest sessions
+  Fix the release script so it signs the build, then merge an… · ws · 17 turns · completed · demo-x1
+  Tern: album covers in parallel · tern-web · 13 turns · still open · demo-alb
+  Tern: export queue lane · tern-web · 12 turns · completed · demo-t3-child1
+  Tern: export pipeline · tern-web · 8 turns · still open · demo-t3-p
+  Tern: export retry policy · tern-web · 6 turns · still open · demo-t3-child2
+  and 31 more:  hippo show day 2026-11-12
+
+Try next
+  <span class="cmdline">hippo incidents</span>                        what went wrong, quoted, with the step that caused it
+  <span class="cmdline">hippo xray</span> demo-x1                     what the busiest session was given, searched for and used
+  <span class="cmdline">hippo ask</span> --sources-only "&lt;question&gt;"  has an agent already solved it? ranked past sessions
+  <span class="cmdline">hippo card</span>                             the day as one image to share: numbers and a date, no names
+
+Every command: hippo --help</pre>
+    </div>
+  </div>
+
+  <div class="fig">
+    <div class="fig-k">
+      <p class="fig-c"><code>hippo ask</code></p>
+      <p>Before you brief a new agent: has one already solved this? It ranks past sessions and notes, and prints the command that resumes each session. The third hit is the rule from above, now a line in START HERE. Paths shortened.</p>
+    </div>
+    <div class="term big">
+<pre><span class="p">$</span> <span class="cmdline">hippo ask --sources-only "which database do previews use?"</span>
+<span class="dim">searched 64 sessions and 22 notes in 0.0 s for: database previews</span>
+
+[1] Check the gallery page and send me screenshots.  (session · default · tern-web · 2026-11-12 04:37)
+    you: <span class="said">no, previews use the staging database, not production</span>
+<span class="dim">    cd …/projects/tern-web &amp;&amp; claude --resume demo-l1</span>
+
+[2] Check the gallery page and send me screenshots.  (session · work · tern-web · 2026-11-12 08:02)
+    you: <span class="said">dont point previews at the production database again, staging only</span>
+<span class="dim">    cd …/projects/tern-web &amp;&amp; CLAUDE_CONFIG_DIR=…/profiles/.claude-work claude --resume demo-l2</span>
+
+[3] START HERE  (note · 2026-11-12 09:38)
+    <span class="kept">- **Use the staging database for previews, never production.** Run previews and manual checks against the staging database (npm run preview…</span>
+    notes/START HERE.md
+
+<span class="dim">… [4] to [6] are three more notes</span></pre>
+    </div>
+  </div>
+
+  <div class="fig">
+    <div class="fig-k">
+      <p class="fig-c"><code>hippo xray</code></p>
+      <p>What a session was given at the start, what it opened, what it searched for, and whether the things it claimed were checked. Here the tests and the merge hold up. The deploy does not.</p>
+    </div>
+    <div class="term big">
+<pre><span class="p">$</span> <span class="cmdline">hippo xray demo-x1</span>
+Fix the release script so it signs the build, then merge and ship it.  (demo-x1)
+
+<span class="cmdline">CONTEXT USE</span>  read 107 B · cited 0 B · ignored 190 B of 297 B injected  (from the transcript's hook output)
+
+<span class="cmdline">INJECTED AT START</span>
+  START HERE                           required     80 B · note 1.2 KB     read · turn 1
+  On-call                              required     27 B · note 678 B      read · turn 7
+  Style guide                          required     32 B · note 692 B      <span class="hot">never opened</span>
+  session line                         housekeeping 50 B                   ignored
+  Release process                      relevant     79 B · note 738 B      <span class="hot">never opened</span>
+  linter counts                        housekeeping 29 B                   ignored
+
+<span class="cmdline">WHAT IT SEARCHED FOR</span>
+  Grep   signing key                                  0 hits · then asked you  (turn 3)
+
+<span class="cmdline">CLAIMS VS EVIDENCE</span>
+  <span class="tool">verified</span>   "All 12 tests pass." (turn 13)
+             npm test · exit 0 · 12 passed · turn 11
+  <span class="tool">verified</span>   "PR #7 merged." (turn 16)
+             gh pr merge 7 --squash · exit 0 · turn 14
+  <span class="hot">UNVERIFIED</span> "Deployed to production." (turn 16)
+             no deploy command in the transcript; a deploy command and its success output would count
+
+<span class="dim">Read and cited come from tool calls and quotes in the transcript; what the model attended to inside its context cannot be known.</span></pre>
+    </div>
+  </div>
+
+  <div class="two">
     <figure>
-      <img src="assets/card.png" width="1200" height="675" loading="lazy" alt="A hippo card: My agents did 3 hours 18 minutes of work on Tuesday. 36 threads and 4 sub-agents.">
-      <figcaption>1200 &times; 675 PNG</figcaption>
+      <img src="assets/card-site.png" width="1200" height="675" loading="lazy" alt="A hippo card: My agents did 3 hours 18 minutes of work today. 36 threads and 6 sub-agents, no pull requests merged, they waited on me 1m for 1 question, I had to correct them 5 times.">
+      <figcaption><code>hippo card</code> writes the day as a 1200 × 675 PNG. Numbers and a date, no names.</figcaption>
+    </figure>
+    <figure>
+      <a href="assets/app-home.png"><img src="assets/app-home.png" width="1200" height="800" loading="lazy" alt="The hippo Mac app, Home: one agent needs you, overnight note changes confirmed by a fresh reviewer, corrections, repeated failures, and usage left per account."></a>
+      <figcaption>The Mac app, Home. From an earlier run of the same demo, so its clock reads 13:40. Click for full size.</figcaption>
     </figure>
   </div>
+
+  <p class="packs"><b>Packs.</b> 26 reviewed packs add things like a changelog, a decision log and runbooks. A pack is text that gets copied into your workspace, never code. <a href="packs.html">Browse the packs</a></p>
 </section>
 
-<section class="band">
-  <div class="wrap">
-    <h2>How it stays <span class="accent">honest</span></h2>
-    <p class="lede">Every night, hippo checks your notes against what agents actually did.</p>
-    <div class="cells">
-      <div class="cell">
-        <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="4"/><path d="M3 23c0-3.9 3.1-7 7-7 1.4 0 2.7.4 3.8 1.1"/><path d="M16 21l3 3 6-7"/></svg>
-        <h3>A second reviewer</h3>
-        <p>A fresh-context reviewer must confirm each change.</p>
-      </div>
-      <div class="cell">
-        <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h14v22l-3.5-2.5L14 25l-3.5-2.5L7 25z"/><path d="M11 9h6M11 14h6"/></svg>
-        <h3>Receipts</h3>
-        <p>Every change has a receipt.</p>
-      </div>
-      <div class="cell">
-        <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6L4 11l5 5"/><path d="M4 11h12a7 7 0 0 1 0 14h-5"/></svg>
-        <h3>Revert</h3>
-        <p>One command reverts it.</p>
-      </div>
-      <div class="cell">
-        <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="14" cy="7" rx="9" ry="3.5"/><path d="M5 7v14c0 1.9 4 3.5 9 3.5s9-1.6 9-3.5V7"/><path d="M5 14c0 1.9 4 3.5 9 3.5s9-1.6 9-3.5"/></svg>
-        <h3>Local</h3>
-        <p>The index is a SQLite file on your disk. Data leaves only through your own <code>claude -p</code> login, for nightly checks and written answers.</p>
-      </div>
-    </div>
+<!-- ============ on disk ============ -->
+<section class="wrap disk">
+  <div class="disk-head">
+    <h2>What it touches on your machine</h2>
+    <p>No account and no server. The index is a SQLite file, and the one way text leaves is a model call made through the <code>claude -p</code> login you already have.</p>
+  </div>
+  <div class="tree">
+    <p class="tr-k">reads</p>
+    <p class="tr-p">~/.claude*/projects/</p><p class="tr-d">Claude Code session history</p>
+    <p class="tr-p">~/.codex/sessions/</p><p class="tr-d">Codex session history</p>
+    <p class="tr-k">writes</p>
+    <p class="tr-p">~/.hippo/index.sqlite</p><p class="tr-d">the index, a local SQLite file</p>
+    <p class="tr-p">notes/*.md</p><p class="tr-d">your notes, in a folder you choose</p>
+    <p class="tr-p">.hippo/receipts/</p><p class="tr-d">one receipt per reviewed change</p>
+    <p class="tr-p">.hippo/snapshots/</p><p class="tr-d">the note as it was, for <code>hippo revert</code></p>
+    <p class="tr-k out">sends</p>
+    <p class="tr-p out">claude -p</p><p class="tr-d">nightly checks and written answers, through your own login. Nothing else leaves.</p>
   </div>
 </section>
 
-<section>
-  <div class="wrap packs">
-    <p class="count" aria-hidden="true">26</p>
-    <div>
-      <h2>Reviewed packs.</h2>
-      <p class="lede">Copied in as text, never code.</p>
-      <ul class="chips">
-        <li>changelog</li>
-        <li>decision log</li>
-        <li>runbooks</li>
-        <li class="more">+ 23 more</li>
-      </ul>
-    </div>
-  </div>
-</section>
-
-<section class="limits" id="limits">
-  <div class="wrap">
-    <h2>Honest limits</h2>
-    <ul>
-      <li>Claude Code and Codex only.</li>
-      <li>Used daily on macOS; Linux is tested in CI.</li>
-      <li>Not measured whether it makes agents better.</li>
-    </ul>
-  </div>
-</section>
-
-<section class="install limits" id="install">
-  <div class="wrap">
+<!-- ============ install + limits ============ -->
+<section class="wrap install" id="install">
+  <div class="in-main">
     <h2>Install</h2>
-    <p class="more"><a href="docs/install.html">More on installing</a> · <a href="docs/limits.html">What it does not do yet</a></p>
-    <div class="rows">
-      <div class="row">
-        <p class="k k0">macOS and Linux<span>Apple silicon or Intel; x86_64 or arm64 Linux. No sudo.</span></p>
-        <div>
-          <div class="cmd">
-            <div class="line" tabindex="0"><span class="p">$</span><span class="c">curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippo/main/install.sh | sh</span></div>
-            <span class="tip" aria-hidden="true">click, then ⌘C</span>
-          </div>
-        </div>
-      </div>
-      <div class="row">
-        <p class="k k0">Claude Code plugin<span>Two commands, inside Claude Code.</span></p>
-        <div>
-          <div class="cmd">
-            <div class="line" tabindex="0"><span class="c">/plugin marketplace add VanitasCaesar1/hippo</span></div>
-            <span class="tip" aria-hidden="true">click, then ⌘C</span>
-          </div>
-          <div class="cmd">
-            <div class="line" tabindex="0"><span class="c">/plugin install hippo@hippo</span></div>
-            <span class="tip" aria-hidden="true">click, then ⌘C</span>
-          </div>
-        </div>
-      </div>
-      <div class="row">
-        <p class="k k0">From source<span>Anywhere with Rust 1.89 or later.</span></p>
-        <div>
-          <div class="cmd">
-            <div class="line" tabindex="0"><span class="p">$</span><span class="c">cargo install --locked --git https://github.com/VanitasCaesar1/hippo hippo</span></div>
-            <span class="tip" aria-hidden="true">click, then ⌘C</span>
-          </div>
-        </div>
-      </div>
+    <div class="in-row">
+      <p class="in-k">macOS and Linux <span>no sudo</span></p>
+      <div class="cmd" tabindex="0"><span class="p">$</span><span class="c">curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippo/main/install.sh | sh</span></div>
     </div>
+    <div class="in-row">
+      <p class="in-k">Claude Code plugin <span>two commands, inside Claude Code</span></p>
+      <div class="cmd" tabindex="0"><span class="c">/plugin marketplace add VanitasCaesar1/hippo</span></div>
+      <div class="cmd" tabindex="0"><span class="c">/plugin install hippo@hippo</span></div>
+    </div>
+    <div class="in-row">
+      <p class="in-k">From source <span>with cargo</span></p>
+      <div class="cmd" tabindex="0"><span class="p">$</span><span class="c">cargo install --locked --git https://github.com/VanitasCaesar1/hippo hippo</span></div>
+    </div>
+    <p class="in-more">Click a line to select it. <a href="docs/install.html">More on installing</a></p>
   </div>
+  <aside class="limits" id="limits">
+    <h2>Before you do</h2>
+    <ul>
+      <li>It reads Claude Code and Codex. Nothing else yet.</li>
+      <li>I use it every day on macOS. Linux is tested in CI.</li>
+      <li>Nobody has measured whether it makes agents better, me included.</li>
+      <li>One person built it, for a setup with a lot of agents in it.</li>
+      <li>v0.1.0, MIT licensed.</li>
+    </ul>
+    <p><a href="docs/limits.html">What it does not do yet</a></p>
+  </aside>
 </section>
 
 </main>
 
-<footer>
-  <div class="wrap">
-    <a class="brand" href="#" aria-label="hippo, back to top">
-      <svg viewBox="0 0 383 248" aria-hidden="true"><use href="#hippo"/></svg>
-      hippo
-    </a>
-    <nav aria-label="Footer">
-      <a href="docs/index.html">Docs</a>
-      <a href="packs.html">Packs</a>
-      <a href="themes.html">Themes</a>
-      <a href="https://github.com/VanitasCaesar1/hippo">GitHub</a>
-      <span>MIT licensed</span>
-      <span>A Rust CLI and a macOS app</span>
-    </nav>
-  </div>
+<footer class="wrap foot">
+  <a class="brand" href="#" aria-label="hippo, back to top">
+    <svg viewBox="0 0 383 248" aria-hidden="true"><use href="#hippo"/></svg>
+    hippo
+  </a>
+  <nav aria-label="Footer">
+    <a href="docs/index.html">docs</a>
+    <a href="packs.html">packs</a>
+    <a href="docs/install.html">install</a>
+    <a href="docs/limits.html">limits</a>
+    <a href="https://github.com/VanitasCaesar1/hippo">GitHub</a>
+    <span>v0.1.0 · MIT · a Rust CLI and a macOS app</span>
+  </nav>
 </footer>
 
 </body>
