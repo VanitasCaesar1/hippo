@@ -2,10 +2,11 @@
 
 ## Why
 
-## Checks
+<!-- Link the issue or design doc. -->
 
-- [ ] `cargo fmt --all --check`, `cargo clippy --workspace --all-targets --locked -- -D warnings` and `cargo test --workspace --locked` pass locally
-- [ ] For `app/`: the same four commands in `app/` (with `cargo deny check`), and the change seen in the running app
-- [ ] CI is green, including `gitleaks` and `cargo deny check`
-- [ ] Linked issue or design doc
-- [ ] `CHANGELOG.md` updated if a user would notice
+## Checks run
+
+- [ ] `cargo fmt --all --check`, `cargo clippy --workspace --all-targets --locked -- -D warnings` and `cargo test --workspace --locked`
+- [ ] For `app/`: the same commands and `cargo deny check` in `app/`, and the change seen in the running app
+- [ ] For what a new user sees: `scripts/first-run-check.sh`
+- [ ] A line under *Unreleased* in `CHANGELOG.md` if a user would notice

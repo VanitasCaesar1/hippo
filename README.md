@@ -74,7 +74,7 @@ Everything else, including `hippo`, `start`, `card`, `recall`, `ask --sources-on
 - **Linux is tested in CI, not in daily use.** The release has static Linux binaries (x86_64 and arm64) and the test suite passes on Linux in CI, but hippo is used day to day on macOS on Apple silicon (the Intel build passes the first-run check under Rosetta).
 - **The desktop app**, Hippo.app in [`app/`](app/README.md), is macOS only, built from source, and early: checked on synthetic data, not in daily use.
 - **Whether dreaming makes an agent's work better is not measured.** `hippo eval` measures a small, invented question set, not your notes.
-- **No pack by another author exists.** The 26 first-party packs in [`packs/`](packs/) await their registry review against this repository.
+- **No pack by another author exists.** The 26 first-party packs in [`packs/`](packs/) are reviewed and listed in the [registry](registry/README.md); none is by anyone else yet.
 - **Sharing one brain between people is through git.** `hippo init` ignores what is per person, so the notes can be committed with `git add -A`; nothing syncs live, and each person's dreaming learns from their own sessions ([Sharing a brain in a team](docs/site/src/sharing.md)).
 
 ## Where it came from
@@ -83,7 +83,9 @@ I built hippo to keep my own coding agents on the same page. On one day in Novem
 
 ## Docs, packs, contributing, licence
 
-- **Docs**: [vanitascaesar1.github.io/hippo](https://vanitascaesar1.github.io/hippo/) (source in [`docs/site/src/`](docs/site/src/SUMMARY.md)): [install](docs/site/src/install.md), [quick start](docs/site/src/quick-start.md), [commands](docs/site/src/commands.md), [concepts](docs/site/src/concepts.md), [limits](docs/site/src/limits.md), [roadmap](docs/site/src/roadmap.md), [architecture](docs/site/src/architecture.md).
+- **Docs**: [vanitascaesar1.github.io/hippo](https://vanitascaesar1.github.io/hippo/) (source in [`docs/site/src/`](docs/site/src/SUMMARY.md)): [install](docs/site/src/install.md), [quick start](docs/site/src/quick-start.md), [commands](docs/site/src/commands.md), [concepts](docs/site/src/concepts.md), [limits](docs/site/src/limits.md), [architecture](docs/site/src/architecture.md).
 - **Packs**: [`packs/`](packs/) and the [registry](registry/README.md); [writing a pack](docs/site/src/writing-packs.md).
-- **Contributing**: [`CONTRIBUTING.md`](CONTRIBUTING.md). Security reports go through [private vulnerability reporting](SECURITY.md), not issues.
+- **Contributing**: [`CONTRIBUTING.md`](CONTRIBUTING.md), [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). Security reports go through [private vulnerability reporting](SECURITY.md), not issues.
 - **Licence**: MIT. The card's embedded DejaVu fonts are under their own [licence](crates/hippo/assets/fonts/LICENSE-DejaVu.txt). The hippo mark is © Vanitas Caesar and may be used to refer to this project.
+
+[Roadmap](ROADMAP.md) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)

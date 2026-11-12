@@ -2,7 +2,7 @@
 
 ## Contributing
 
-Thanks for looking. The most useful contributions right now are design review and adapters for tools you use.
+Thanks for looking. The most useful contributions right now are packs, adapters for tools you use, and fixes to docs that are wrong. [`CONTRIBUTING.md`](https://github.com/VanitasCaesar1/hippo/blob/main/CONTRIBUTING.md) in the repository says how to build hippo and run it on synthetic data, and how to report a bug.
 
 - Read the [roadmap](roadmap.md) and [Architecture](architecture.md) first.
 - A new feature or contract starts as a design doc in `docs/designs/` in the repository, written for a public reader and reviewed before the code. Changing the shape of a note's frontmatter, a session record, a pass file, a dreaming report or the security model is a design change. Open an issue before a large change.

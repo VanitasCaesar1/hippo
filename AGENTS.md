@@ -1,6 +1,6 @@
 # Agent instructions
 
-- `docs/site/src/roadmap.md` says what is built and what is next; `docs/site/src/architecture.md` says how it works.
+- `ROADMAP.md` says what is built and what is next (the docs site's `roadmap.md` includes it); `docs/site/src/architecture.md` says how it works.
 - Design before code: a new feature or contract gets a design doc in `docs/designs/`, written for a public reader and reviewed before the code. Record formats, the pack format and the security model change only through one.
 - Files are the contract (`HIPPO_V1`). Changing the shape of a note's frontmatter, a session record, a pack manifest, a dreaming report, the registry index or the web theme contract ([`docs/themes.md`](docs/themes.md)) is a design change, not a refactor.
 - Rust, stable toolchain. `cargo fmt --all --check`, `cargo clippy --workspace --all-targets --locked -- -D warnings` and `cargo test --workspace --locked` must pass before a pull request. CI runs them on Linux and macOS, plus `gitleaks` and `cargo deny check`. For a change under `app/` (Hippo.app, its own Cargo workspace, macOS only), run `cargo fmt --all --check`, `cargo clippy --all-targets --locked -- -D warnings`, `cargo test --locked` and `cargo deny check` in `app/`, and check the change by running the app (`app/scripts/demo-home.sh` seeds synthetic data), not only by its tests.

@@ -2,19 +2,29 @@
 
 All notable changes to this project are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
-## [0.1.0]
+## [Unreleased]
 
-The first release. hippo is one brain for all your coding agents: it reads what they did, keeps your notes true, and briefs every new session. Everything runs on your machine.
+## [0.1.0] - 2026-11-12
 
-- **History.** `hippo` finds Claude Code and Codex transcripts on the machine, indexes them (redacting keys, tokens and personal data) and shows the last active day: sessions, sub-agents, time agents waited, merged pull requests and corrections. `recall`, `ask`, `fleet`, `incidents`, `xray`, `show` and `resume` search and explain that history.
-- **Notes.** With a notes folder (`hippo init`), sessions get a context block at start under a hard byte budget, through three Claude Code hooks (`hippo hooks install`).
-- **Dreaming.** A scheduled pass checks notes against transcripts and proposes fixes; a fresh-context reviewer confirms every change before it is written, each change keeps a snapshot, and `hippo revert` undoes it.
-- **Packs.** Copy-and-own bundles of passes, prompts, personas and themes, added after a review (`hippo add`, `hippo packs`). Packs never run code.
-- **Eval.** `hippo eval` measures context, recall and dreaming on a synthetic set.
-- **Install** in one line on macOS and Linux (`install.sh`: the release binary for the machine, checked against its SHA-256, into `~/.local/bin` without `sudo`), or with `cargo install --locked --git https://github.com/VanitasCaesar1/hippo hippo`. Release binaries for macOS (arm64, x86_64) and static Linux (x86_64, aarch64) come from `scripts/release.sh`.
-- **A Claude Code plugin** from this repository's marketplace: the start block at session start when hippo has a notes folder (and no workspace hook gives it already), and `/hippo:setup`, `/hippo:ask` and `/hippo:day`.
-- **Hippo.app**, a macOS window over the same files, built from `app/`.
-- **A workspace that is safe to commit.** `hippo ingest` writes a session record into the workspace only for sessions that ran in it or touched its notes; other projects' sessions stay in your own index, and a workspace written by an older version is cleaned on the next ingest. `hippo init` writes the git ignore rules for per-person files and `merge=union` for notes, without touching your own lines, and also runs in a set-up workspace to add them. `hippo doctor` has a `git` row that names tracked per-person files and the fix, and no longer warns for ever after a merged note. `hippo <command> | head` ends quietly.
-- **Claims that hold, as hints.** The "claimed without checking" rule counts the runs it used to miss: CI on the pushed head, wrapper scripts, remote and background runs, delegated sessions, commands in order inside one call, and edits that cannot change the result. It is still not precise enough to count, so `hippo incidents` and the app list these apart, after the incidents, under "Hints to check", and count them nowhere.
-- **`hippo card`**: your agents' day, or `--week`, as one 1200 x 675 image to share and the same lines as text; numbers and a date only, the same pixels on every machine (an embedded DejaVu Sans subset).
-- **Docs**: [Sharing a brain in a team](docs/site/src/sharing.md), tried with two people and one git remote: what to commit, what to keep per person, and what does not work yet.
+The first release. hippo reads what your coding agents did, keeps your notes true, and briefs every new session. Everything runs on your machine.
+
+### Added
+
+- **History.** hippo finds Claude Code and Codex transcripts, indexes them with keys, tokens and personal data redacted, and shows the last active day.
+- **Search.** `recall`, `ask`, `fleet`, `incidents`, `xray`, `show` and `resume` search and explain that history.
+- **Notes.** With a notes folder (`hippo init`), each Claude Code session gets a context block at start, under a hard byte budget, through three hooks (`hippo hooks install`).
+- **Dreaming.** A scheduled pass checks notes against transcripts and proposes fixes. A fresh-context reviewer confirms each change before it is written, every change keeps a snapshot, and `hippo revert` undoes it.
+- **Packs.** Copy-and-own bundles of passes, prompts, personas and themes, added after a review (`hippo add`, `hippo packs`). Packs never run code. 26 first-party packs are listed in the registry.
+- **Eval.** `hippo eval` measures context, recall and dreaming on a small synthetic set.
+- **`hippo card`.** Your agents' day, or `--week`, as one 1200 x 675 image and the same lines as text. Numbers and a date only.
+- **A workspace that is safe to commit.** `hippo ingest` writes a session record into the workspace only for sessions that belong to it. `hippo init` writes git ignore rules for per-person files and `merge=union` for notes. `hippo doctor` has a `git` row that names tracked per-person files.
+- **Hints, not incidents.** A check an agent claimed without a run after its last edit is listed under "Hints to check" and counted nowhere. The rule is not precise enough to count yet.
+- **Release binaries** for macOS (arm64, x86_64) and static Linux (x86_64, aarch64), each with a SHA-256 file, on the [GitHub release](https://github.com/VanitasCaesar1/hippo/releases/tag/v0.1.0).
+- **`install.sh`**: one line on macOS and Linux. It fetches the binary for the machine, checks its SHA-256 and puts it in `~/.local/bin` without `sudo`. `cargo install --locked --git https://github.com/VanitasCaesar1/hippo hippo` also works.
+- **A Homebrew formula**, `hippo.rb`, attached to the release. There is no tap yet.
+- **A Claude Code plugin** from this repository's marketplace: the start block at session start, and `/hippo:setup`, `/hippo:ask` and `/hippo:day`.
+- **Hippo.app**, a macOS window over the same files. Built from source in `app/`; no binary is released. Checked on synthetic data, not in daily use.
+- **Docs** at [vanitascaesar1.github.io/hippo](https://vanitascaesar1.github.io/hippo/), including [Sharing a brain in a team](docs/site/src/sharing.md), tried with two people and one git remote.
+
+[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/VanitasCaesar1/hippo/releases/tag/v0.1.0
