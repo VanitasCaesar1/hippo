@@ -131,7 +131,7 @@ The plugin is not published to npm. A git install of a package that builds on in
 From GitHub, pinned to a commit:
 
 ```sh
-dsh plugin --profile <profile> add "github:VanitasCaesar1/hippo#v0.3.0&path:/plugins/dsh"
+dsh plugin --profile <profile> add "github:VanitasCaesar1/hippo#v0.4.0&path:/plugins/dsh"
 ```
 
 From a clone of this repository:

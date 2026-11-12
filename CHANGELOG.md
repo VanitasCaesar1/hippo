@@ -4,6 +4,8 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-12
+
 ### Added
 
 - **Codex hooks.** `hippo hooks install --agent codex` adds three hooks to `$CODEX_HOME/hooks.json` (`~/.codex/hooks.json`), keeping everything else in the file; `uninstall` and `status` take `--agent codex` too. Once you trust them in Codex's hook review, a top-level Codex session in hippo's workspace starts with the start block, its first prompt brings the relevant notes, and hippo records it as a declared session under the id the adapter gives it, `codex-<session id>`, ending with the last assistant message as a derived handoff. Sessions outside the workspace get nothing. `hippo hook session-start|prompt|session-end --agent codex` are the commands the hooks run. Checked against Codex 0.167.2 with `scripts/codex-e2e/`. See the [design](docs/designs/codex-hooks.md).
@@ -61,7 +63,8 @@ The first release. hippo reads what your coding agents did, keeps your notes tru
 - **Hippo.app**, a macOS window over the same files. Built from source in `app/`; no binary is released. Checked on synthetic data, not in daily use.
 - **Docs** at [vanitascaesar1.github.io/hippo](https://vanitascaesar1.github.io/hippo/), including [Sharing a brain in a team](docs/site/src/sharing.md), tried with two people and one git remote.
 
-[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/VanitasCaesar1/hippo/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.1.0...v0.2.0

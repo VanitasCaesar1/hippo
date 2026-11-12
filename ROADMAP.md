@@ -1,6 +1,6 @@
 # Roadmap
 
-This is version 0.3.0. hippo is one person's project, so there are no dates here. "Planned" means I intend to do it and know roughly how. "Idea" means it is not designed yet and may not happen.
+This is version 0.4.0. hippo is one person's project, so there are no dates here. "Planned" means I intend to do it and know roughly how. "Idea" means it is not designed yet and may not happen.
 
 The text lives in `ROADMAP.md` at the root of the repository, and the docs site shows the same file. How the built parts work is in [Architecture](https://vanitascaesar1.github.io/hippo/docs/architecture.html); what is missing or rough today is in [Limits and known gaps](https://vanitascaesar1.github.io/hippo/docs/limits.html).
 
@@ -11,7 +11,7 @@ The text lives in `ROADMAP.md` at the root of the repository, and the docs site 
 - An adapter for OpenCode: OpenCode 2's SQLite database, read-only and session by session, with sub-agents and forks ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/opencode-adapter.md)).
 - An adapter for Muse Code: its session logs, as Muse 1.4.18 writes them ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/muse-adapter.md)).
 - An adapter for Command Code: its version 3 session files ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/command-code-adapter.md)).
-- Notes, context and Claude Code hooks.
+- Notes, context, and hooks for Claude Code and Codex.
 - Dreaming with a fresh-context reviewer, receipts, snapshots and revert, and its schedule: launchd on macOS, printed cron and systemd lines elsewhere.
 - `hippo eval` with a synthetic question set.
 - Packs: `hippo add` and `hippo packs`, the registry tool and its static site, and 26 first-party packs (23 pass packs and 3 theme packs), all reviewed and listed in the registry.

@@ -110,7 +110,7 @@ From GitHub, pinned to a release tag, in `~/.config/opencode/opencode.json` (eve
 ```json
 {
   "plugins": [
-    { "package": "github:VanitasCaesar1/hippo#v0.3.0::path:plugins/opencode", "options": { "tools": true } }
+    { "package": "github:VanitasCaesar1/hippo#v0.4.0::path:plugins/opencode", "options": { "tools": true } }
   ]
 }
 ```

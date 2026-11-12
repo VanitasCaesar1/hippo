@@ -16,7 +16,7 @@ The plugin is not on npm. Add it to `plugins` in `~/.config/opencode/opencode.js
 ```json
 {
   "plugins": [
-    { "package": "github:VanitasCaesar1/hippo#v0.3.0::path:plugins/opencode", "options": { "tools": true } }
+    { "package": "github:VanitasCaesar1/hippo#v0.4.0::path:plugins/opencode", "options": { "tools": true } }
   ]
 }
 ```
@@ -63,7 +63,7 @@ The end-to-end check runs a real `opencode` against a canned OpenAI-compatible s
 
 ```sh
 plugins/opencode/e2e/run.sh "$(command -v opencode)" /path/to/hippo
-plugins/opencode/e2e/run.sh "$(command -v opencode)" /path/to/hippo "github:VanitasCaesar1/hippo#v0.3.0::path:plugins/opencode"
+plugins/opencode/e2e/run.sh "$(command -v opencode)" /path/to/hippo "github:VanitasCaesar1/hippo#v0.4.0::path:plugins/opencode"
 ```
 
 It writes an `opencode.json` with the canned provider and the plugin, runs one task whose canned model calls both tools, and checks that every model request held the start block once, in its system prompt, and that both tool results came back. Then hippo ingests the database OpenCode wrote and must find the session. The second form installs the plugin from GitHub (it needs the network). Run it before a release that changes the plugin and after a new OpenCode minor version.

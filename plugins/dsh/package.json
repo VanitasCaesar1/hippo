@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-hippo",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "hippo for DeepSeek Harness (dsh): hippo's start block in each new session, and tools to search past agent sessions and show a day's work.",
   "keywords": [
     "dsh-plugin",

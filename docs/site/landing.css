@@ -35,6 +35,8 @@
   --cx: #1f7a68;
   --ds: #3d5bd9;
   --oc: #6b5b3e;
+  --mu: #8b4a8c;
+  --cm: #5a6b2a;
   --shadow: 0 24px 60px -28px rgba(0, 0, 0, .7);
 
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -118,6 +120,8 @@ h3 { font: 600 20px/1.25 var(--sans); letter-spacing: -.01em; text-wrap: balance
 .ag.cx { background: var(--cx); }
 .ag.ds { background: var(--ds); }
 .ag.oc { background: var(--oc); }
+.ag.mu { background: var(--mu); }
+.ag.cm { background: var(--cm); }
 
 /* ---------- top ---------- */
 .top { display: flex; align-items: center; justify-content: space-between; padding-top: 18px; padding-bottom: 18px; }
