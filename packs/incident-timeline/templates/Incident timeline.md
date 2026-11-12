@@ -4,6 +4,6 @@ What happened during one incident, in order. Entries under Timeline were added b
 
 ## Summary
 
-State what broke and who it affected.
+_Your summary of the incident: what broke and when._
 
 ## Timeline

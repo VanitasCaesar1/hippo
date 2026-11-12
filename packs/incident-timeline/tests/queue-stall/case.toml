@@ -1,6 +1,6 @@
 protocol = "HIPPOCAMP_V1"
 pass = "incident-timeline"
-about = "A moment of the incident is appended to the timeline, and a note the filter leaves out is not read"
+about = "Each moment of the incident is appended to the timeline as its own entry, and a note the filter leaves out is not read"
 
 [[session]]
 id = "queue-stall"
@@ -8,7 +8,7 @@ notes = ["notes/Incident timeline.md", "notes/Meeting notes.md"]
 handoff = "Found why the queue stalled; see [[Incident timeline]]."
 
 [model]
-reply = '''[{"note": "notes/Incident timeline.md", "kind": "append", "old": "", "new": "\n- 2026-11-01 10:00: The queue was reported stalled. At 10:00 the session found the worker crashing at startup because the config file had a duplicate key, and fixed it by removing the duplicate; the worker took jobs again. (queue-stall, turn 1)\n", "evidence": [{"session": "queue-stall", "ordinal": 1}], "reason": "Turn 1 shows the finding and the fix."}]'''
+reply = '''[{"note": "notes/Incident timeline.md", "kind": "append", "old": "", "new": "\n- 2026-11-01 10:00: The sample queue was reported stalled since that morning. (queue-stall, turn 0)\n- 2026-11-01 10:01: The worker was found crashing at startup because the config file had a duplicate key, so it took no jobs. (queue-stall, turn 1)\n- 2026-11-01 10:01: The duplicate key was removed and the worker took jobs again. (queue-stall, turn 1)\n", "evidence": [{"session": "queue-stall", "ordinal": 0}, {"session": "queue-stall", "ordinal": 1}], "reason": "Turn 0 reports the stall; turn 1 shows the finding and the fix, one entry per moment."}]'''
 verdict = "confirm"
 
 [expect]
