@@ -326,6 +326,14 @@ pub fn lines_once<'a>(
 }
 
 impl Row {
+    /// Working now: live, or quiet in the middle of a call (a long build
+    /// writes no turn).
+    pub fn working(&self) -> bool {
+        self.state.is_live()
+            || (matches!(self.state, State::Quiet { .. })
+                && self.call.as_ref().is_some_and(|c| c.running))
+    }
+
     /// Its own lines and its sub-agents', files counted once.
     pub fn total_lines(&self) -> Option<LineTotals> {
         if self.sub.changed.is_empty() {

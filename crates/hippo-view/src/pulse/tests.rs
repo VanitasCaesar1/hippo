@@ -379,11 +379,14 @@ fn next_up_ranks_runs_dry_then_claims_then_destructive_then_corrections() {
         ),
     ];
     let lessons = vec![lesson(LessonStatus::Pending, "notes/deploy.md", None)];
-    let corrected = corrections(&incidents, &lessons, day_start());
+    let corrected = corrections(&incidents, &lessons, day_start(), None);
     assert_eq!(corrected.len(), 2);
     assert_eq!(corrected[0].incident, "i3", "newest first");
     assert_eq!(corrected[0].fate, Fate::Tonight);
     assert!(matches!(corrected[1].fate, Fate::Candidate { seen: 2, .. }));
+    // Once the nightly pass has run past it, a correction is read.
+    let read = corrections(&incidents, &lessons, day_start(), Some(NOW));
+    assert_eq!(read[0].fate, Fate::Read);
 
     let next = next_up(&f, &incidents, &corrected, day_start());
     let ranks: Vec<u8> = next.iter().map(Next::rank).collect();
@@ -478,4 +481,36 @@ fn tonight_counts_the_sessions_since_the_last_pass() {
     assert_eq!((t.sessions, t.notes_due), (1, 3));
     let later = tonight(&rollup, "03:30", Some(NOW - Duration::minutes(10)), 0, NOW);
     assert_eq!(later.sessions, 0);
+}
+
+#[test]
+fn a_quiet_session_in_the_middle_of_a_call_is_working() {
+    let mut building = row(
+        "b",
+        "work",
+        State::Quiet {
+            since: Some(NOW - Duration::minutes(6)),
+        },
+    );
+    building.call = Some(crate::fleet::tail::Activity {
+        label: "cargo build".into(),
+        at: NOW - Duration::minutes(6),
+        running: true,
+        delegates: false,
+        verb: "Bash".into(),
+        target: Some("cargo build".into()),
+        step: None,
+        lines: None,
+    });
+    let idle = row(
+        "i",
+        "work",
+        State::Quiet {
+            since: Some(NOW - Duration::minutes(6)),
+        },
+    );
+    assert!(building.working() && !idle.working());
+    let f = fleet(vec![building, idle]);
+    assert_eq!(totals(&f, None, NOW).working, 1);
+    assert_eq!(live_by_profile(&f.rows).get("work"), Some(&1));
 }

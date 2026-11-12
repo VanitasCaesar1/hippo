@@ -21,7 +21,8 @@ pub const LATELY: Duration = Duration::minutes(5);
 /// The header's numbers.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Totals {
-    /// Live sessions, and sub-agents running under them.
+    /// Sessions working ([`Row::working`]), and sub-agents running under
+    /// them.
     pub working: usize,
     pub subs: usize,
     /// Sessions waiting on the person or stopped at a limit nothing
@@ -40,11 +41,11 @@ pub struct Totals {
 /// The header's numbers at `now`.
 pub fn totals(fleet: &Fleet, day: Option<&Day>, now: OffsetDateTime) -> Totals {
     let mut t = Totals {
-        working: fleet.working(),
+        working: fleet.rows.iter().filter(|r| r.working()).count(),
         need_you: fleet.needs_you().len(),
         ..Totals::default()
     };
-    for r in fleet.rows.iter().filter(|r| r.state.is_live()) {
+    for r in fleet.rows.iter().filter(|r| r.working()) {
         t.subs += r
             .tasks
             .iter()
@@ -232,8 +233,10 @@ pub enum Fate {
     /// A pending lesson already holds it: a rule candidate, seen in this
     /// many sessions.
     Candidate { lesson: Ulid, seen: usize },
-    /// The nightly pass reads it.
+    /// The next nightly pass reads it.
     Tonight,
+    /// The last pass read it already.
+    Read,
 }
 
 /// A correction of the person's today.
@@ -250,11 +253,13 @@ pub struct Corrected {
 }
 
 /// Today's corrections (incidents since `start`), newest first, each with
-/// the pending lesson that holds it, if any.
+/// the pending lesson that holds it, else whether the nightly pass that
+/// last succeeded at `read_until` has read it.
 pub fn corrections(
     incidents: &[Incident],
     lessons: &[Lesson],
     start: OffsetDateTime,
+    read_until: Option<OffsetDateTime>,
 ) -> Vec<Corrected> {
     let mut out: Vec<Corrected> = incidents
         .iter()
@@ -270,10 +275,17 @@ pub fn corrections(
                             && (e.ordinal == showed.ordinal || e.at == showed.at)
                     })
                 })
-                .map_or(Fate::Tonight, |l| Fate::Candidate {
-                    lesson: l.id,
-                    seen: l.seen.sessions,
-                });
+                .map_or(
+                    if read_until.is_some_and(|r| i.at <= r) {
+                        Fate::Read
+                    } else {
+                        Fate::Tonight
+                    },
+                    |l| Fate::Candidate {
+                        lesson: l.id,
+                        seen: l.seen.sessions,
+                    },
+                );
             Corrected {
                 incident: i.id.clone(),
                 session: i.body.chain.root.clone(),
@@ -296,7 +308,7 @@ pub enum Next {
         profile: String,
         empty_at: i64,
         reset: i64,
-        /// Its live sessions, which will stop.
+        /// Its working sessions, which will stop.
         sessions: Vec<String>,
         /// The account to resume them on.
         to: Option<String>,
@@ -357,7 +369,7 @@ pub fn next_up(
             let sessions: Vec<String> = fleet
                 .rows
                 .iter()
-                .filter(|r| r.profile.as_deref() == Some(p) && r.state.is_live())
+                .filter(|r| r.profile.as_deref() == Some(p) && r.working())
                 .map(|r| r.id.clone())
                 .collect();
             Some(Next::RunsDry {
@@ -444,10 +456,10 @@ pub fn served(rows: &[Row]) -> usize {
     rows.iter().filter(|r| !r.rules.is_empty()).count()
 }
 
-/// Live sessions per profile.
+/// Working sessions ([`Row::working`]) per profile.
 pub fn live_by_profile(rows: &[Row]) -> BTreeMap<String, usize> {
     let mut out = BTreeMap::new();
-    for r in rows.iter().filter(|r| r.state.is_live()) {
+    for r in rows.iter().filter(|r| r.working()) {
         if let Some(p) = &r.profile {
             *out.entry(p.clone()).or_default() += 1;
         }
