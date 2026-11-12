@@ -33,7 +33,7 @@ Hippo.app (macOS only) runs against the same synthetic home. Build it and start 
 ## Where to start
 
 - **A pack.** A pack lives in your own public GitHub repository, and a pull request here adds one entry file that pins it. Read [`registry/README.md`](registry/README.md) and [Writing a pack](docs/site/src/writing-packs.md). No pack by another author exists yet, so the first one will find the rough edges.
-- **An adapter.** hippo reads Claude Code and Codex transcripts and DeepSeek Harness (dsh) session logs ([its design](docs/designs/dsh-adapter.md) shows what an adapter decides). OpenCode and Cursor folders are detected but not read. Open an issue first to agree on the record shape. A new adapter comes with a redaction test.
+- **An adapter.** hippo reads Claude Code and Codex transcripts, DeepSeek Harness (dsh) session logs ([its design](docs/designs/dsh-adapter.md) shows what an adapter decides) and OpenCode's database ([its design](docs/designs/opencode-adapter.md) covers a database that holds many sessions). Cursor and Gemini folders are detected but not read. Open an issue first to agree on the record shape. A new adapter comes with a redaction test.
 - **Docs.** The docs site's source is [`docs/site/src/`](docs/site/src/SUMMARY.md). If a page says one thing and hippo does another, that is a bug in one of them.
 - Issues labelled [`good first issue`](https://github.com/VanitasCaesar1/hippo/labels/good%20first%20issue) or [`help wanted`](https://github.com/VanitasCaesar1/hippo/labels/help%20wanted), when there are any.
 

@@ -1001,3 +1001,171 @@ fn dsh_sessions_are_live_running_waiting_or_quiet_from_their_logs() {
     );
     assert_eq!(fleet.rows.len(), 4);
 }
+
+/// An OpenCode session in the database at `db`, in `/w/app`: its
+/// messages as `(type, minutes ago, data)`, each updated when it was
+/// created unless its data has `time.completed`.
+fn opencode_session(
+    db: &Path,
+    id: &str,
+    parent: Option<&str>,
+    now: OffsetDateTime,
+    messages: &[(&str, i64, serde_json::Value)],
+) {
+    let ms = |t: OffsetDateTime| (t.unix_timestamp_nanos() / 1_000_000) as i64;
+    let conn = rusqlite::Connection::open(db).unwrap();
+    let created = ms(now - Duration::hours(1));
+    conn.execute(
+        "INSERT INTO session_v2 (id, project_id, parent_id, slug, directory, title, version, \
+         time_created, time_updated) VALUES (?1, 'prj', ?2, 's', '/w/app', ?3, '2.2.7', ?4, ?4)",
+        rusqlite::params![id, parent, format!("Session {id}"), created],
+    )
+    .unwrap();
+    for (seq, (kind, ago, data)) in messages.iter().enumerate() {
+        let at = ms(now - Duration::seconds(*ago * 60));
+        let mut data = data.clone();
+        data["time"]["created"] = json!(at);
+        let updated = data
+            .pointer("/time/completed")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(at);
+        conn.execute(
+            "INSERT INTO session_message (id, session_id, type, seq, time_created, time_updated, data) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![
+                format!("msg_{id}_{seq}"),
+                id,
+                kind,
+                seq as i64 + 1,
+                at,
+                updated,
+                data.to_string()
+            ],
+        )
+        .unwrap();
+    }
+}
+
+#[test]
+fn opencode_sessions_are_live_running_waiting_or_quiet_from_the_database() {
+    let e = Env::new();
+    let data = e.tmp.path().join(".local/share/opencode");
+    std::fs::create_dir_all(&data).unwrap();
+    let db = data.join("opencode.db");
+    let schema = include_str!("../../../../fixtures/opencode/schema.sql");
+    rusqlite::Connection::open(&db)
+        .unwrap()
+        .execute_batch(&format!(
+            "{schema}INSERT INTO project (id, worktree, time_created, time_updated, sandboxes) \
+             VALUES ('prj', '/w/app', 0, 0, '[]'); \
+             INSERT INTO migration VALUES ('20261030054400_job', 0);"
+        ))
+        .unwrap();
+    let ms = |ago: f64| (e.now.unix_timestamp_nanos() / 1_000_000) as i64 - (ago * 60_000.0) as i64;
+    let user = |text: &str| json!({"text": text, "time": {}});
+    let shell = |id: &str| {
+        json!({"agent": "build", "time": {}, "content": [{"type": "tool", "id": id, "name": "shell",
+            "state": {"status": "running", "input": {"command": "cargo test --workspace"}, "metadata": {}},
+            "time": {"created": ms(4.0)}}]})
+    };
+    // Running a test for 4 minutes, streamed 30 seconds ago.
+    let mut busy = shell("c1");
+    busy["time"]["completed"] = json!(null);
+    opencode_session(
+        &db,
+        "busy",
+        None,
+        e.now,
+        &[("user", 10, user("Run the tests.")), ("assistant", 4, busy)],
+    );
+    rusqlite::Connection::open(&db)
+        .unwrap()
+        .execute(
+            "UPDATE session_message SET time_updated = ?1 WHERE id = 'msg_busy_1'",
+            [ms(0.5)],
+        )
+        .unwrap();
+    // Waiting on a question for 6 minutes.
+    opencode_session(
+        &db,
+        "asks",
+        None,
+        e.now,
+        &[
+            ("user", 9, user("Add free shipping.")),
+            (
+                "assistant",
+                6,
+                json!({"time": {}, "content": [{"type": "tool", "id": "q1", "name": "question",
+                    "state": {"status": "running", "metadata": {},
+                              "input": {"questions": [{"question": "Which threshold?", "header": "Threshold",
+                                         "options": [{"label": "50", "description": "Fifty"}]}]}},
+                    "time": {"created": ms(6.0)}}]}),
+            ),
+        ],
+    );
+    // A finished reply 20 minutes ago: quiet.
+    opencode_session(
+        &db,
+        "done",
+        None,
+        e.now,
+        &[
+            ("user", 30, user("Tidy up.")),
+            (
+                "assistant",
+                20,
+                json!({"time": {"completed": ms(20.0)}, "finish": "stop",
+                       "content": [{"type": "text", "text": "Done."}]}),
+            ),
+        ],
+    );
+    // A sub-agent working keeps its quiet parent live, and is no row.
+    opencode_session(&db, "lead", None, e.now, &[("user", 15, user("Delegate."))]);
+    opencode_session(
+        &db,
+        "kid",
+        Some("lead"),
+        e.now,
+        &[("assistant", 0, shell("k1"))],
+    );
+    let snap = Snapshot::default();
+    let fleet = build(&Inputs {
+        now: e.now,
+        offset: ACST,
+        roots: std::slice::from_ref(&data),
+        rollup: None,
+        usage: &snap,
+    });
+    let row = |id: &str| {
+        fleet.row(id).unwrap_or_else(|| {
+            panic!(
+                "no {id} in {:?}",
+                fleet.rows.iter().map(|r| &r.id).collect::<Vec<_>>()
+            )
+        })
+    };
+    assert_eq!(row("opencode-busy").state, State::Live);
+    assert_eq!(
+        row("opencode-busy").activity.as_deref(),
+        Some("cargo test · 4m")
+    );
+    assert_eq!(row("opencode-busy").profile.as_deref(), Some("opencode"));
+    assert_eq!(row("opencode-busy").project.as_deref(), Some("app"));
+    assert!(
+        matches!(row("opencode-asks").state, State::Waiting { .. }),
+        "{:?}",
+        row("opencode-asks").state
+    );
+    assert!(
+        matches!(row("opencode-done").state, State::Quiet { .. }),
+        "{:?}",
+        row("opencode-done").state
+    );
+    assert_eq!(row("opencode-lead").state, State::Live);
+    assert!(
+        fleet.row("opencode-lead-agent-kid").is_none(),
+        "sub-agents are not rows"
+    );
+    assert_eq!(fleet.rows.len(), 4);
+}

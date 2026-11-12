@@ -32,15 +32,20 @@ pub enum Tool {
     Codex,
     /// `dsh`: DeepSeek Harness.
     Dsh,
+    /// `opencode`
+    #[serde(rename = "opencode")]
+    OpenCode,
 }
 
 impl Tool {
-    /// `claude-code`, `codex` or `dsh`, as records and the index write it.
+    /// `claude-code`, `codex`, `dsh` or `opencode`, as records and the index
+    /// write it.
     pub fn as_str(self) -> &'static str {
         match self {
             Tool::ClaudeCode => "claude-code",
             Tool::Codex => "codex",
             Tool::Dsh => "dsh",
+            Tool::OpenCode => "opencode",
         }
     }
 }
@@ -626,7 +631,7 @@ mod tests {
 
     #[test]
     fn tool_names_match_their_serde_names() {
-        for tool in [Tool::ClaudeCode, Tool::Codex, Tool::Dsh] {
+        for tool in [Tool::ClaudeCode, Tool::Codex, Tool::Dsh, Tool::OpenCode] {
             let json = serde_json::to_string(&tool).unwrap();
             assert_eq!(json, format!("\"{}\"", tool.as_str()));
         }

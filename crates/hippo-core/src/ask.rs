@@ -245,14 +245,14 @@ struct Group {
 }
 
 /// A tool call that runs hippo's own search or context. `hippo_ask` is the
-/// dsh plugin's tool (`plugins/dsh/`), which the dsh
-/// adapter stores as `hippo_ask {"question": …}`.
+/// dsh and OpenCode plugins' tool (`plugins/dsh/`, `plugins/opencode/`),
+/// which their adapters store as `hippo_ask {"question": …}`.
 static HIPPO_CALL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\bhippo(\s+(ask|recall|context)\b|_ask\b)").expect("valid regex")
 });
 
 /// Whether `t` is a tool call that runs `hippo ask`, `hippo recall` or
-/// `hippo context` (or the dsh plugin's `hippo_ask`), or a tool result of
+/// `hippo context` (or the dsh or OpenCode plugin's `hippo_ask`), or a tool result of
 /// one: a result whose nearest earlier
 /// tool calls (those before it with only calls and results between) hold
 /// such a call.

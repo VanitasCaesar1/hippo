@@ -773,16 +773,16 @@ impl Shell {
                     .border_color(look.c.border_variant.opacity(0.6))
                     .child(kit::avatar(
                         look,
-                        a.profile
-                            .as_deref()
-                            .or(if matches!(a.tool, "codex" | "dsh") {
+                        a.profile.as_deref().or(
+                            if matches!(a.tool, "codex" | "dsh" | "opencode") {
                                 Some(a.tool)
                             } else {
                                 // A folder added by hand: its mark, not `?`.
                                 std::path::Path::new(&a.display)
                                     .file_name()
                                     .and_then(|n| n.to_str())
-                            }),
+                            },
+                        ),
                         None,
                     ))
                     .child(
@@ -799,7 +799,8 @@ impl Shell {
                                     // A folder added by hand is named by
                                     // its last part, the path below it.
                                     .child(div().truncate().child(
-                                        if a.profile.is_none() && !matches!(a.tool, "codex" | "dsh")
+                                        if a.profile.is_none()
+                                            && !matches!(a.tool, "codex" | "dsh" | "opencode")
                                         {
                                             std::path::Path::new(&a.display)
                                                 .file_name()

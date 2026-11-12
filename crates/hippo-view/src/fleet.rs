@@ -10,7 +10,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
-use hippo_core::adapters::dsh;
+use hippo_core::adapters::{dsh, opencode};
 use hippo_core::index::Index;
 use hippo_core::resume::{self, Target};
 use hippo_core::rollup::{self, Ending, Rollup, SessionFacts};
@@ -100,7 +100,7 @@ impl State {
 pub struct Row {
     pub id: String,
     pub title: String,
-    /// `claude-code`, `codex` or `dsh`.
+    /// `claude-code`, `codex`, `dsh` or `opencode`.
     pub tool: String,
     pub profile: Option<String>,
     pub project: Option<String>,
@@ -670,6 +670,13 @@ pub struct Inputs<'a> {
 
 /// A transcript's place: the top-level session it belongs to.
 fn session_of(path: &Path) -> Option<(String, &'static str, bool)> {
+    if opencode::split(path).is_some() {
+        let (id, parent) = opencode::ids(path)?;
+        return Some(match parent {
+            Some(parent) => (parent, "opencode", false),
+            None => (id, "opencode", true),
+        });
+    }
     if dsh::is_log(path) {
         let h = dsh::header(path)?;
         return Some(match dsh::parent_id(path, &h) {
@@ -695,11 +702,15 @@ fn session_of(path: &Path) -> Option<(String, &'static str, bool)> {
 
 /// The time of the newest turn in a transcript's last [`TAIL_BYTES`]: a
 /// Claude Code `user` or `assistant` record, or a Codex `response_item`;
-/// for a dsh log, its newest message, call or result.
+/// for a dsh log, its newest message, call or result; for an OpenCode
+/// session, its newest message.
 /// Title and summary records a client writes later do not count.
 pub fn last_turn_at(path: &Path) -> Option<OffsetDateTime> {
     if dsh::is_log(path) {
         return dsh::last_turn_at(path);
+    }
+    if opencode::split(path).is_some() {
+        return opencode::last_turn_at(path);
     }
     let mut file = File::open(path).ok()?;
     let len = file.metadata().ok()?.len();
@@ -756,7 +767,8 @@ pub fn build(inp: &Inputs<'_>) -> Fleet {
     let today_files = usage::transcripts(inp.roots, start.unix_timestamp())
         .into_iter()
         .map(|t| t.path)
-        .chain(dsh::logs_since(inp.roots, start.unix_timestamp()));
+        .chain(dsh::logs_since(inp.roots, start.unix_timestamp()))
+        .chain(opencode::sessions_since(inp.roots, start.unix_timestamp()));
     for path in today_files {
         let Some((id, tool, own)) = session_of(&path) else {
             continue;

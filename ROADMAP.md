@@ -6,8 +6,9 @@ The text lives in `ROADMAP.md` at the root of the repository, and the docs site 
 
 ## What is built
 
-- The core and CLI: an index of Claude Code, Codex and DeepSeek Harness (`dsh`) transcripts, `recall` and `ask`, the overview, `fleet`, `incidents`, `xray` and `card`.
+- The core and CLI: an index of Claude Code, Codex, DeepSeek Harness (`dsh`) and OpenCode transcripts, `recall` and `ask`, the overview, `fleet`, `incidents`, `xray` and `card`.
 - An adapter for DeepSeek Harness (`dsh`): its session logs, compressed or not, with sub-agents and forks ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/dsh-adapter.md)).
+- An adapter for OpenCode: OpenCode 2's SQLite database, read-only and session by session, with sub-agents and forks ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/opencode-adapter.md)).
 - Notes, context and Claude Code hooks.
 - Dreaming with a fresh-context reviewer, receipts, snapshots and revert, and its schedule: launchd on macOS, printed cron and systemd lines elsewhere.
 - `hippo eval` with a synthetic question set.
@@ -19,7 +20,7 @@ The text lives in `ROADMAP.md` at the root of the repository, and the docs site 
 
 ## Planned
 
-- **Adapters for more agents.** OpenCode and Cursor folders are detected but not read. Reading them is the next adapter work. An adapter needs a redaction test before it lands.
+- **Adapters for more agents.** Cursor and Gemini folders are detected but not read. Reading them is the next adapter work. An adapter needs a redaction test before it lands.
 - **Measuring whether dreaming helps.** `hippo eval` measures a small invented set. It does not show whether the nightly pass makes an agent's work better on real notes. I want a measurement that does, before claiming it.
 - **Packs by other authors.** The registry takes outside entries today ([`registry/README.md`](https://github.com/VanitasCaesar1/hippo/blob/main/registry/README.md)). None exists yet.
 - **Deploying the community feed.** The server is built and tested locally. Nothing is hosted.

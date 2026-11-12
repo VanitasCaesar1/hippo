@@ -3,7 +3,8 @@
 //! tool call.
 //!
 //! Read from the file's last [`TAIL_BYTES`], like [`super::last_turn_at`];
-//! a dsh log from its newest [`DSH_EVENTS`] turn events.
+//! a dsh log from its newest [`DSH_EVENTS`] turn events, an OpenCode
+//! session from its newest [`DSH_EVENTS`] messages.
 //! Precision over recall: a tool call that is still running cannot be told
 //! from one waiting at a permission prompt, so neither is "waiting".
 
@@ -12,7 +13,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
-use hippo_core::adapters::dsh;
+use hippo_core::adapters::{dsh, opencode};
 use hippo_core::rollup::changes::{self, Lines};
 use serde_json::Value;
 use time::format_description::well_known::Rfc3339;
@@ -298,6 +299,14 @@ fn turn_of(lines: &[&str], side: bool) -> Turn {
 /// [`dsh::as_claude_lines`], and a call waiting for the person's approval
 /// is a wait.
 pub fn read(path: &Path) -> Tail {
+    if opencode::split(path).is_some() {
+        let lines = opencode::as_claude_lines(path, DSH_EVENTS);
+        let mut tail = of_lines(&lines.iter().map(String::as_str).collect::<Vec<_>>());
+        if let Some(t) = opencode::last_turn_at(path) {
+            tail.last = Some(tail.last.map_or(t, |l| l.max(t)));
+        }
+        return tail;
+    }
     if dsh::is_log(path) {
         let Ok(log) = dsh::read(path) else {
             return Tail::default();
@@ -338,6 +347,9 @@ pub fn read(path: &Path) -> Tail {
 pub const DSH_EVENTS: usize = 400;
 
 fn tail_lines(path: &Path) -> Option<Vec<String>> {
+    if opencode::split(path).is_some() {
+        return Some(opencode::as_claude_lines(path, DSH_EVENTS));
+    }
     if dsh::is_log(path) {
         let log = dsh::read(path).ok()?;
         return Some(dsh::as_claude_lines(&log, DSH_EVENTS));

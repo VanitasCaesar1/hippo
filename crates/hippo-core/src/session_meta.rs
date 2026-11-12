@@ -16,7 +16,7 @@ use regex::Regex;
 
 use serde_json::Value;
 
-use crate::adapters::dsh;
+use crate::adapters::{dsh, opencode};
 use crate::error::Result;
 use crate::index::Index;
 use crate::redact::redact;
@@ -104,11 +104,14 @@ pub fn origins(index: &Index) -> Result<HashMap<String, Origin>> {
         .collect())
 }
 
-/// The origin of session `id`, a `tool` session (`claude-code`, `codex` or
-/// `dsh`) whose transcript is `path`.
+/// The origin of session `id`, a `tool` session (`claude-code`, `codex`,
+/// `dsh` or `opencode`) whose transcript is `path`.
 pub fn origin(id: &str, tool: &str, path: &Path) -> Origin {
     if tool == "dsh" {
         return dsh_origin(path);
+    }
+    if tool == "opencode" {
+        return opencode_origin(path);
     }
     let mut out = Origin::default();
     let Ok(file) = File::open(path) else {
@@ -222,6 +225,33 @@ fn dsh_origin(path: &Path) -> Origin {
     }
 }
 
+/// An OpenCode session's origin, from its row in the database: the
+/// working directory, the session a sub-agent belongs under, and its title,
+/// which OpenCode writes itself (not the person): a sub-agent's is the task
+/// it was given, its description; another session's is its name. No
+/// entrypoint or branch: OpenCode stores neither.
+fn opencode_origin(path: &Path) -> Origin {
+    let Some(info) = opencode::info(path) else {
+        return Origin::default();
+    };
+    let parent = opencode::ids(path).and_then(|(_, parent)| parent);
+    let title = info
+        .title
+        .filter(|t| !opencode::is_placeholder_title(t))
+        .map(|t| collapse(redact(&t).as_str()))
+        .filter(|t| !t.is_empty() && t.chars().count() <= 200);
+    Origin {
+        automated: info.directory.as_deref().is_some_and(is_temporary),
+        description: title.clone().filter(|_| parent.is_some()),
+        named: title.filter(|_| parent.is_none()),
+        named_by_person: false,
+        cwd: info.directory,
+        parent,
+        entrypoint: None,
+        branch: None,
+    }
+}
+
 /// How a session ran, as its transcript records it: the git branch, the
 /// model and the reasoning effort, each the newest the transcript names.
 /// Read for one session at a time (the app's session tab), not for a list.
@@ -243,6 +273,18 @@ pub const RUN_TAIL_BYTES: u64 = 1 << 20;
 /// A detached `HEAD` and Claude Code's `<synthetic>` model are not values.
 /// Reads only; a missing or unreadable transcript gives nothing.
 pub fn run_facts(tool: &str, path: &Path) -> RunFacts {
+    if tool == "opencode" {
+        let (model, effort) = opencode::model(path);
+        let clean = |v: Option<String>| {
+            v.map(|s| collapse(redact(&s).as_str()))
+                .filter(|s| !s.is_empty())
+        };
+        return RunFacts {
+            branch: None,
+            model: clean(model),
+            effort: clean(effort),
+        };
+    }
     if tool == "dsh" {
         let facts = dsh::facts(path);
         let clean = |v: Option<String>| {
@@ -465,6 +507,20 @@ pub struct SubAgentMeta {
 /// 64 KiB is read.
 pub fn sub_agent_meta(path: &Path) -> SubAgentMeta {
     let mut out = SubAgentMeta::default();
+    if opencode::split(path).is_some() {
+        let clean = |t: Option<String>, max: usize| {
+            t.map(|t| collapse(redact(&t).as_str()))
+                .filter(|t| !t.is_empty() && t.chars().count() <= max)
+        };
+        out.description = clean(
+            opencode::info(path)
+                .and_then(|i| i.title)
+                .filter(|t| !opencode::is_placeholder_title(t)),
+            200,
+        );
+        out.model = clean(opencode::model(path).0, 60);
+        return out;
+    }
     if dsh::is_log(path) {
         let facts = dsh::facts(path);
         let clean = |t: Option<String>, max: usize| {

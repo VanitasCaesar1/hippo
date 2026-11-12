@@ -466,7 +466,7 @@ pub fn millis(field: Option<&Value>) -> Option<OffsetDateTime> {
 
 /// An id part as hippo writes it: as written when it is letters, digits,
 /// `_` and `-`, at most [`ID_CHARS`] long; else `h` and a hash of it.
-fn id_part(id: &str) -> String {
+pub(crate) fn id_part(id: &str) -> String {
     let plain = !id.is_empty()
         && id.len() <= ID_CHARS
         && id

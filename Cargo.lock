@@ -653,6 +653,7 @@ name = "hippo-view"
 version = "0.2.1"
 dependencies = [
  "hippo-core",
+ "rusqlite",
  "serde",
  "serde_json",
  "tempfile",

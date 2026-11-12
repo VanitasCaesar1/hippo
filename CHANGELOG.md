@@ -4,6 +4,10 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Added
+
+- **OpenCode.** hippo reads OpenCode 2's SQLite database (`~/.local/share/opencode/opencode.db`, or under `$XDG_DATA_HOME`) into the index, with sub-agents under their session and forks without their copied history. The database is opened read-only and read session by session; a session whose change stamp has not moved is not read again. OpenCode's core tools are stored under Claude Code's names, so the x-ray, incidents, the rollup and dreaming read them. `hippo doctor` has an `OpenCode database` row. A configuration that lists its own roots adds it with `hippo start --add-root ~/.local/share/opencode`. See the [design](docs/designs/opencode-adapter.md).
+
 ## [0.2.1] - 2026-11-12
 
 ### Added

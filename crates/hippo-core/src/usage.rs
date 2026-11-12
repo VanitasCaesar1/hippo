@@ -365,6 +365,7 @@ pub fn transcripts(roots: &[PathBuf], since: i64) -> Vec<Transcript> {
         for entry in walkdir::WalkDir::new(root)
             .follow_links(false)
             .into_iter()
+            .filter_entry(crate::adapters::descend)
             .filter_map(|e| e.ok())
         {
             if !entry.file_type().is_file() {

@@ -27,13 +27,15 @@ pub struct Agent {
 }
 
 impl Agent {
-    /// The name the row shows: `default`, `work`, `codex`, `dsh`, else
+    /// The name the row shows: `default`, `work`, `codex`, `dsh`,
+    /// `opencode`, else
     /// the folder. Never `claude-`.
     pub fn name(&self) -> String {
         match (&self.profile, self.tool) {
             (Some(p), _) => p.clone(),
             (None, "codex") => "codex".into(),
             (None, "dsh") => "dsh".into(),
+            (None, "opencode") => "opencode".into(),
             _ => self.display.clone(),
         }
     }
@@ -78,7 +80,7 @@ impl HookDir {
 pub struct Manage {
     pub shown: Option<Shown>,
     pub agents: Vec<Agent>,
-    /// Agent tools found with no adapter: `Cursor`, `OpenCode`.
+    /// Agent tools found with no adapter: `Cursor`, `Gemini`.
     pub unsupported: Vec<String>,
     pub hooks: Vec<HookDir>,
     /// Each pass the workspace's packs define, and whether it runs.

@@ -105,10 +105,18 @@ fi
 mkdir -p "$home/.dsh/sessions"
 cp -R "$root/fixtures/dsh/--home-synthetic-shop--" "$home/.dsh/sessions/"
 
+# OpenCode: a database built from the synthetic SQL fixtures, where
+# OpenCode keeps it when XDG_DATA_HOME is not set.
+command -v sqlite3 >/dev/null 2>&1 || fail "sqlite3 is needed to build the OpenCode fixture database"
+mkdir -p "$home/.local/share/opencode"
+cat "$root/fixtures/opencode/schema.sql" "$root/fixtures/opencode/sessions.sql" |
+  sqlite3 "$home/.local/share/opencode/opencode.db"
+
 # Before setup: one command, and every other command says how to start.
 run "$home" 02-hippo-before-setup 0
 has "Looking for agent history" "nothing is sent anywhere" "hippo start --yes"
 has "~/.dsh/sessions 5 files"
+has "~/.local/share/opencode 7 sessions"
 [ ! -e "$home/.hippo/config.toml" ] || fail "hippo alone wrote config.toml without a yes"
 
 run "$home" 03-help 0 --help
@@ -144,6 +152,7 @@ id=$(printf '%s\n' "$out" | sed -n 's/^  hippo xray \([^ ]*\) .*/\1/p' | head -n
 run "$home" 07-doctor 0 doctor
 lacks "| problem |"
 has "dsh logs | ok"
+has "OpenCode database | ok"
 
 # The card: numbers and a date, a PNG.
 run "$home" 07-card 0 card --out "$tmp/card.png"

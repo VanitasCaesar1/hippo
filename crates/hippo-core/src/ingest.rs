@@ -7,11 +7,16 @@
 //! regular file under the root that the adapter claims (a symlink is not
 //! followed), and takes them newest first (by modification time, then
 //! path), so that a first ingest of months of history has the recent days
-//! early. For each file:
+//! early. A file that holds many sessions (OpenCode's database) is listed
+//! as its sessions instead, each at a path of its own and dated by when it
+//! last changed ([`Adapter::sessions_in`]); a database that cannot be
+//! listed is recorded as a parse failure and counted as skipped. For each
+//! file:
 //!
 //! 1. Files under `$HIPPO_HOME/model-runs/` are never read.
 //! 2. The file is hashed (SHA-256, followed by `+<revision>` when the
-//!    adapter needs a newer parser for its bytes). Unless
+//!    adapter needs a newer parser for its bytes); a session in a database
+//!    takes its stamp as its hash, and the database is not read. Unless
 //!    `full`, a file whose hash is the one the index holds for its path is
 //!    skipped.
 //! 3. Otherwise the adapter parses it, every turn goes through
@@ -315,12 +320,16 @@ fn walk(
     // A file reached through two overlapping roots is ingested once.
     let mut seen: HashSet<PathBuf> = HashSet::new();
     let mut files: Vec<Found> = Vec::new();
+    // Databases whose sessions cannot be listed: skipped.
+    let mut unreadable = 0;
     for (which, adapter) in adapters.iter().enumerate() {
         for root in adapter.roots(cfg) {
             let entries = WalkDir::new(&root)
                 .sort_by_file_name()
                 .into_iter()
-                .filter_entry(|entry| !entry.path().starts_with(&model_runs));
+                .filter_entry(|entry| {
+                    !entry.path().starts_with(&model_runs) && adapters::descend(entry)
+                });
             for entry in entries {
                 let entry = match entry {
                     Ok(entry) => entry,
@@ -330,21 +339,51 @@ fn walk(
                     }
                 };
                 let path = entry.path();
-                if entry.file_type().is_file()
+                if !(entry.file_type().is_file()
                     && adapter.file_matches(path)
-                    && seen.insert(path.to_path_buf())
+                    && seen.insert(path.to_path_buf()))
                 {
-                    let meta = entry.metadata().ok();
-                    files.push(Found {
-                        adapter: which,
-                        root: root.clone(),
-                        path: path.to_path_buf(),
-                        bytes: meta.as_ref().map_or(0, |m| m.len()),
-                        modified: meta
-                            .and_then(|m| m.modified().ok())
-                            .map(OffsetDateTime::from),
-                    });
+                    continue;
                 }
+                // A file that holds many sessions is one entry per session.
+                match adapter.sessions_in(path) {
+                    Some(Ok(listed)) => {
+                        index.forget_failure(&path.to_string_lossy())?;
+                        files.extend(listed.into_iter().map(|l| Found {
+                            adapter: which,
+                            root: root.clone(),
+                            path: l.path,
+                            bytes: 0,
+                            modified: l.modified,
+                            stamp: Some(l.stamp),
+                        }));
+                        continue;
+                    }
+                    Some(Err(err)) => {
+                        let message = redact(&err.to_string());
+                        tracing::warn!(
+                            path = %path.display(),
+                            "skipping a database hippo cannot read: {}",
+                            message.as_str()
+                        );
+                        let hash = hex(&sha256(message.as_str().as_bytes()));
+                        index.record_failure(adapter.tool(), path, &hash, &message)?;
+                        unreadable += 1;
+                        continue;
+                    }
+                    None => {}
+                }
+                let meta = entry.metadata().ok();
+                files.push(Found {
+                    adapter: which,
+                    root: root.clone(),
+                    path: path.to_path_buf(),
+                    bytes: meta.as_ref().map_or(0, |m| m.len()),
+                    modified: meta
+                        .and_then(|m| m.modified().ok())
+                        .map(OffsetDateTime::from),
+                    stamp: None,
+                });
             }
         }
     }
@@ -371,10 +410,18 @@ fn walk(
         full,
         known,
         index,
-        counts: Counts::default(),
+        counts: Counts {
+            skipped: unreadable,
+            ..Counts::default()
+        },
     };
     for found in files {
-        run.file(adapters[found.adapter].as_ref(), &found.root, &found.path)?;
+        run.file(
+            adapters[found.adapter].as_ref(),
+            &found.root,
+            &found.path,
+            found.stamp.as_deref(),
+        )?;
         progress.files_done += 1;
         progress.bytes_done += found.bytes;
         progress.indexed = run.counts.indexed;
@@ -404,6 +451,9 @@ struct Found {
     path: PathBuf,
     bytes: u64,
     modified: Option<OffsetDateTime>,
+    /// For a session inside a file that holds many, its stamp, which
+    /// stands in for the hash of its bytes.
+    stamp: Option<String>,
 }
 
 struct Run<'a> {
@@ -417,16 +467,27 @@ struct Run<'a> {
 }
 
 impl Run<'_> {
-    /// Ingests one transcript file, or skips it.
-    fn file(&mut self, adapter: &dyn Adapter, root: &Path, path: &Path) -> Result<()> {
-        let hash = match fs::read(path) {
-            // A file that needs a newer parser is stored
-            // under its hash and that revision, so an index that holds the
-            // plain hash reads it again once.
-            Ok(bytes) => match adapter.revision(&bytes) {
+    /// Ingests one transcript file, or one session of a file that holds
+    /// many (`stamp` is then its stamp), or skips it.
+    fn file(
+        &mut self,
+        adapter: &dyn Adapter,
+        root: &Path,
+        path: &Path,
+        stamp: Option<&str>,
+    ) -> Result<()> {
+        let read = match stamp {
+            Some(stamp) => Ok(stamp.to_owned()),
+            None => fs::read(path).map(|bytes| match adapter.revision(&bytes) {
                 Some(rev) => format!("{}+{rev}", hex(&sha256(&bytes))),
                 None => hex(&sha256(&bytes)),
-            },
+            }),
+        };
+        let hash = match read {
+            // A file that needs a newer parser is stored under its hash and
+            // that revision, so an index that holds the plain hash reads it
+            // again once.
+            Ok(hash) => hash,
             Err(err) => {
                 tracing::warn!(path = %path.display(), "skipping unreadable transcript: {err}");
                 self.counts.skipped += 1;
@@ -579,6 +640,7 @@ mod tests {
                 Some("claude-code") => Tool::ClaudeCode,
                 Some("codex") => Tool::Codex,
                 Some("dsh") => Tool::Dsh,
+                Some("opencode") => Tool::OpenCode,
                 _ => return Err(bad(&format!("no tool in the header {header:?}"))),
             };
             let started = head.next().ok_or_else(|| bad("no start"))?;

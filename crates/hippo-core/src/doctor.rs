@@ -150,6 +150,7 @@ fn run_history(cfg: &Config, env: &Env) -> Report {
     checks.push(index_row);
     checks.push(parse_failures_check(index.as_ref()));
     checks.extend(dsh_logs_check(index.as_ref()));
+    checks.extend(opencode_check(cfg));
     checks.push(unindexed_check(cfg, index.as_ref()));
     if let Some(dir) = &env.launch_agents {
         checks.push(launchd_jobs_check(dir, &["dev.hippo.ingest"], cfg));
@@ -219,6 +220,7 @@ fn run_with(cfg: &Config, ws: &Workspace, env: &Env) -> Report {
     checks.push(index_row);
     checks.push(parse_failures_check(index.as_ref()));
     checks.extend(dsh_logs_check(index.as_ref()));
+    checks.extend(opencode_check(cfg));
     checks.push(unindexed_check(cfg, index.as_ref()));
     checks.push(sample_tasks_check(ws));
     checks.push(report_check(ws));
@@ -567,6 +569,41 @@ fn dsh_logs_check(index: Option<&Index>) -> Option<Check> {
     ))
 }
 
+/// Each OpenCode database under the transcript roots, and whether hippo
+/// reads it: `ok` for a schema it was checked against, a warning for a
+/// newer one it still reads, or for one it does not read and why. With
+/// no database, no row.
+fn opencode_check(cfg: &Config) -> Vec<Check> {
+    use crate::adapters::opencode::{self, Schema};
+    let roots = adapters::transcript_roots(cfg);
+    opencode::databases(&roots)
+        .into_iter()
+        .map(|db| {
+            let shown = db.display();
+            match opencode::check_path(&db) {
+                Ok(Schema::Known(m)) => row(
+                    "OpenCode database",
+                    Status::Ok,
+                    format!("{shown}: schema {m}, read"),
+                ),
+                Ok(Schema::Newer(m)) => row(
+                    "OpenCode database",
+                    Status::Warn,
+                    format!(
+                        "{shown}: schema {m} is newer than this hippo was checked against ({});                          read, because the tables hippo reads are unchanged. A newer hippo may read it better",
+                        opencode::NEWEST_KNOWN
+                    ),
+                ),
+                Err(why) => row(
+                    "OpenCode database",
+                    Status::Warn,
+                    format!("{shown}: not read. {why}"),
+                ),
+            }
+        })
+        .collect()
+}
+
 /// Transcript files an adapter claims that the index has no row for: new
 /// since the last ingest, or sharing a session id with another file (the
 /// index keeps one file per session).
@@ -585,16 +622,36 @@ fn unindexed_check(cfg: &Config, index: Option<&Index>) -> Check {
         for root in adapter.roots(cfg) {
             let entries = WalkDir::new(&root)
                 .into_iter()
-                .filter_entry(|entry| !entry.path().starts_with(&model_runs))
+                .filter_entry(|entry| {
+                    !entry.path().starts_with(&model_runs) && adapters::descend(entry)
+                })
                 .filter_map(|entry| entry.ok());
             for entry in entries {
                 let path = entry.path();
-                if entry.file_type().is_file()
+                if !(entry.file_type().is_file()
                     && adapter.file_matches(path)
-                    && seen.insert(path.to_path_buf())
-                    && !known.contains_key(path.to_string_lossy().as_ref())
+                    && seen.insert(path.to_path_buf()))
                 {
-                    missing.push(path.display().to_string());
+                    continue;
+                }
+                // A database's sessions count one by one; one that cannot
+                // be listed is the parse failures row's.
+                let paths = match adapter.sessions_in(path) {
+                    Some(Ok(listed)) => {
+                        seen.remove(path);
+                        listed.into_iter().map(|l| l.path).collect()
+                    }
+                    Some(Err(_)) => {
+                        seen.remove(path);
+                        continue;
+                    }
+                    None => vec![path.to_path_buf()],
+                };
+                for path in paths {
+                    if !known.contains_key(path.to_string_lossy().as_ref()) {
+                        missing.push(path.display().to_string());
+                    }
+                    seen.insert(path);
                 }
             }
         }
@@ -1996,6 +2053,40 @@ mod tests {
         ] {
             assert!(d.contains(expected), "{expected}: {d}");
         }
+        assert!(!r.has_problem(), "{r}");
+    }
+
+    #[test]
+    fn each_opencode_database_says_whether_hippo_reads_it() {
+        let mut s = setup();
+        // No database, no row.
+        assert!(report(&s).check("OpenCode database").is_none());
+        let roots = s._home.path().join("roots");
+        let known = crate::adapters::opencode::tests::sessions(&roots.join("a"));
+        let newer = crate::adapters::opencode::tests::build(&roots.join("b"), &["newer.sql"]);
+        s.cfg.transcript_roots = vec![roots.display().to_string()];
+        let r = report(&s);
+        let rows: Vec<&Check> = r
+            .checks
+            .iter()
+            .filter(|c| c.name == "OpenCode database")
+            .collect();
+        assert_eq!(rows.len(), 2, "{r}");
+        assert_eq!(rows[0].status, Status::Ok);
+        assert!(rows[0].detail.starts_with(&known.display().to_string()));
+        assert!(rows[0].detail.contains("schema 20261030054400_job, read"));
+        assert_eq!(rows[1].status, Status::Warn);
+        assert!(rows[1].detail.contains(&newer.display().to_string()));
+        assert!(rows[1].detail.contains("not read"), "{}", rows[1].detail);
+        assert!(rows[1].detail.contains("session_message.seq"));
+        // A database ingested session by session has nothing unindexed
+        // once its sessions are in the index.
+        let index = Index::open(&s.cfg.home, true).unwrap();
+        drop(index);
+        crate::ingest::ingest(&s.cfg, None, false).unwrap();
+        let r = report(&s);
+        assert_eq!(status(&r, "unindexed files"), Status::Ok, "{r}");
+        assert!(detail(&r, "unindexed files").starts_with("7 transcript files"));
         assert!(!r.has_problem(), "{r}");
     }
 

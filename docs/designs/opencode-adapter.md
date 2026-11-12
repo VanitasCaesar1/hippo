@@ -60,7 +60,7 @@ A `tool` item is `{id, name, state, time}`. `state.status` is `streaming` or `ru
 
 hippo opens the database read-only (`SQLITE_OPEN_READ_ONLY`, a `file:` URI with `mode=ro`), with a busy timeout of two seconds, and never writes to it: no schema change, no `VACUUM`, no checkpoint, no `PRAGMA` that writes. It does not use `immutable=1`, which is only safe for a file nobody is writing.
 
-A WAL database is read through its `-shm` file, as every reader of it is. When OpenCode is running, hippo's reader takes the same shared locks OpenCode's own readers take. While a read transaction is open, OpenCode can keep writing, but a checkpoint cannot move past the snapshot hippo is reading, so the `-wal` file can grow until hippo is done. hippo keeps each read short: one query lists the sessions, then each changed session is read by its own statement, so no transaction spans the ingest. When the `-shm` and `-wal` files are missing (OpenCode is not running and shut down cleanly), SQLite reads the database file alone; hippo cannot create them, and does not need to.
+A WAL database is read through its `-shm` file, as every reader of it is. When OpenCode is running, hippo's reader takes the same shared locks OpenCode's own readers take. While a read transaction is open, OpenCode can keep writing, but a checkpoint cannot move past the snapshot hippo is reading, so the `-wal` file can grow until hippo is done. hippo keeps each read short: one query lists the sessions, then each changed session is read by its own statement, so no transaction spans the ingest. When the `-shm` and `-wal` files are missing (OpenCode is not running and shut down cleanly), SQLite creates an empty `-wal` and a `-shm` beside the database as it opens it, as it does for any reader of a WAL database, read-only or not; the database file itself is not changed. OpenCode uses and resets both files when it next starts. In a folder hippo cannot write to, such a database cannot be opened, and the ingest records that as a parse failure.
 
 If OpenCode holds a lock longer than the busy timeout, that ingest skips the database with a warning and the next ingest tries again.
 
@@ -70,7 +70,7 @@ The ingest treats each session in the database as a transcript of its own, at th
 
 A session whose stamp changed is read whole, by its own `SELECT … WHERE session_id = ? ORDER BY seq`, one row at a time, and replaces what the index held for it, as a changed transcript file does. Memory holds one session's turns at a time, never the database.
 
-The listing query reads the session table, the sequence table and the message index, not message content: on a 17.6 GB database with 3,066 sessions it takes under half a second. A first index reads every session once. Measured numbers for a synthetic database are in the pull request that builds this.
+The listing query reads the session table, the sequence table and the message index, not message content: on a 17.6 GB database with 3,066 sessions it takes under half a second. A first index reads every session once. On a synthetic 536 MB database of 2,000 sessions and 80,000 messages, on a laptop, the first index took 20 seconds with at most 35 MB of memory, an ingest with nothing changed 0.07 seconds, and one with ten changed sessions 0.26 seconds.
 
 ## Mapping onto hippo
 

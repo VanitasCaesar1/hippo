@@ -4,11 +4,14 @@
 //! root may hold any tool's files: Codex takes `rollout-*.jsonl`, dsh takes
 //! its session logs (`session.v<N>.jsonl`, optionally `.zstd`, in a
 //! session folder of a project folder), and Claude Code takes every other
-//! `*.jsonl`. Every transcript belongs to the one configured workspace.
+//! `*.jsonl`, and OpenCode takes its database (`opencode.db`), which holds
+//! many sessions ([`Adapter::sessions_in`]). Every transcript belongs to the
+//! one configured workspace.
 
 pub mod claude_code;
 pub mod codex;
 pub mod dsh;
+pub mod opencode;
 
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
@@ -66,6 +69,20 @@ pub struct Parsed {
     pub turns: Vec<RawTurn>,
 }
 
+/// One session inside a file that holds many (OpenCode's database), as
+/// [`Adapter::sessions_in`] lists it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Listed {
+    /// The session's own path, `<file>#<session id>`: what the index stores
+    /// as its transcript path, and what [`Adapter::parse`] is given.
+    pub path: PathBuf,
+    /// A value that changes whenever the session does. The index stores it
+    /// as the session's file hash, so an unchanged session is not read.
+    pub stamp: String,
+    /// When the session last changed.
+    pub modified: Option<OffsetDateTime>,
+}
+
 /// Reads one tool's transcripts.
 pub trait Adapter {
     fn tool(&self) -> Tool;
@@ -87,6 +104,14 @@ pub trait Adapter {
     fn cwd(&self, id: &str, path: &Path) -> Option<PathBuf> {
         crate::session_meta::origin(id, self.tool().as_str(), path).cwd
     }
+    /// The sessions inside a matching file that holds many, each ingested
+    /// as if it were a file of its own ([`Listed`]); `None`, the default,
+    /// for a file that is one transcript. An error (the file cannot be
+    /// opened, or is in a format this adapter does not read) is recorded as
+    /// the file's parse failure.
+    fn sessions_in(&self, _path: &Path) -> Option<Result<Vec<Listed>>> {
+        None
+    }
 }
 
 /// The adapters ingest runs, in order.
@@ -95,6 +120,7 @@ pub fn all() -> Vec<Box<dyn Adapter>> {
         Box::new(claude_code::ClaudeCode),
         Box::new(codex::Codex),
         Box::new(dsh::Dsh),
+        Box::new(opencode::OpenCode),
     ]
 }
 
@@ -119,6 +145,15 @@ pub fn transcript_roots(cfg: &Config) -> Vec<PathBuf> {
     roots.sort();
     roots.dedup();
     roots
+}
+
+/// Whether a walk of a transcript root goes into `entry`: everywhere but
+/// the folders inside OpenCode's data folder (its snapshots and cloned
+/// repositories), whose files are not transcripts.
+pub fn descend(entry: &walkdir::DirEntry) -> bool {
+    !(entry.depth() > 0
+        && entry.file_type().is_dir()
+        && entry.path().parent().is_some_and(opencode::is_data_dir))
 }
 
 /// Whether `dir` equals or lies below one of `excluded`.
@@ -246,8 +281,9 @@ mod tests {
 
     /// The turns of each adapter's synthetic transcripts, parsed with
     /// `fixtures/` as the root: Claude Code's two files, then Codex's, then
-    /// dsh's normal session.
-    fn fixture_turns() -> [(&'static str, Vec<RawTurn>); 3] {
+    /// dsh's normal session, then OpenCode's, from a database built from
+    /// the fixture's SQL.
+    fn fixture_turns() -> [(&'static str, Vec<RawTurn>); 4] {
         let root = Path::new(FIXTURES);
         let claude_code = [
             "claude-code/synthetic.jsonl",
@@ -268,7 +304,17 @@ mod tests {
             .join("--home-synthetic-shop--/11111111-1111-4111-8111-111111111111/session.v4.jsonl");
         assert!(dsh::Dsh.file_matches(&path));
         let dsh = dsh::Dsh.parse(&dsh_root, &path).unwrap().turns;
-        [("claude-code", claude_code), ("codex", codex), ("dsh", dsh)]
+        let dir = tempfile::tempdir().unwrap();
+        let db = opencode::tests::sessions(dir.path());
+        assert!(opencode::OpenCode.file_matches(&db));
+        let path = opencode::session_path(&db, "ses_1111synthetic0000000001");
+        let opencode = opencode::OpenCode.parse(dir.path(), &path).unwrap().turns;
+        [
+            ("claude-code", claude_code),
+            ("codex", codex),
+            ("dsh", dsh),
+            ("opencode", opencode),
+        ]
     }
 
     #[test]

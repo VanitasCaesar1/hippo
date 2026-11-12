@@ -46,8 +46,14 @@ pub fn print_found(found: &detect::Detected) {
             let latest = dir
                 .newest
                 .map_or_else(|| "-".to_owned(), |t| t.date().to_string());
+            // OpenCode's database counts sessions, not files.
+            let unit = if dir.tool == "opencode" {
+                "sessions"
+            } else {
+                "files"
+            };
             println!(
-                "  {} {} files {} {}{}",
+                "  {} {} {unit} {} {}{}",
                 dir.display,
                 dir.files,
                 human_bytes(dir.bytes),
@@ -80,6 +86,8 @@ fn expected(pattern: &str) -> &'static str {
         "Codex keeps its sessions in ~/.codex/sessions"
     } else if pattern.contains(".dsh") {
         "DeepSeek Harness (dsh) keeps its sessions in ~/.dsh/sessions, or $DSH_HOME/sessions"
+    } else if pattern.contains("opencode") {
+        "OpenCode keeps its sessions in ~/.local/share/opencode/opencode.db, or $XDG_DATA_HOME/opencode"
     } else {
         "a folder of agent transcripts"
     }

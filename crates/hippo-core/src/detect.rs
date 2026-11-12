@@ -4,8 +4,9 @@
 //! [`detect`] matches each transcript root pattern, walks the directories
 //! it names and counts the files the adapters would ingest, their bytes and
 //! their newest and oldest modification times. It reads directory entries
-//! and file metadata only: no file is opened, nothing is written, and no
-//! index is needed. It also names the agent tools whose folders exist but
+//! and file metadata only, except that OpenCode's database is opened
+//! read-only to count its sessions: nothing is written, and no index is
+//! needed. It also names the agent tools whose folders exist but
 //! that hippo has no adapter for yet.
 
 use std::path::{Path, PathBuf};
@@ -24,14 +25,15 @@ pub struct Dir {
     pub path: PathBuf,
     /// The directory with the home directory written `~`.
     pub display: String,
-    /// `claude-code`, `codex` or `dsh`: the tool whose files it holds, or, with
-    /// none, the tool its path suggests.
+    /// `claude-code`, `codex`, `dsh` or `opencode`: the tool whose files it
+    /// holds, or, with none, the tool its path suggests.
     pub tool: &'static str,
     /// The Claude Code profile: `default` for `~/.claude`, `work` for
-    /// `~/.claude-work`; `None` for Codex, dsh and other paths.
+    /// `~/.claude-work`; `None` for Codex, dsh, OpenCode and other paths.
     pub profile: Option<String>,
     /// Transcript files an ingest would read (sub-agent transcripts count,
-    /// as they do in the index).
+    /// as they do in the index); for OpenCode, the sessions in its
+    /// database.
     pub files: u64,
     /// Their size in bytes.
     pub bytes: u64,
@@ -86,12 +88,7 @@ impl Detected {
 }
 
 /// Agent tools with no adapter yet, and where they keep their folders.
-const UNSUPPORTED: [(&str, &str); 4] = [
-    ("Cursor", "~/.cursor"),
-    ("OpenCode", "~/.opencode"),
-    ("OpenCode", "~/.local/share/opencode"),
-    ("Gemini", "~/.gemini"),
-];
+const UNSUPPORTED: [(&str, &str); 2] = [("Cursor", "~/.cursor"), ("Gemini", "~/.gemini")];
 
 /// Matches `patterns` (as `config.toml` holds them, `~` not yet expanded or
 /// already expanded) and counts what each directory holds, leaving out
@@ -133,10 +130,10 @@ pub fn detect(patterns: &[String], hippo_home: &Path, user_home: Option<&Path>) 
                 excluded: false,
                 path,
             };
-            let (mut claude, mut codex, mut dsh) = (0u64, 0u64, 0u64);
+            let (mut claude, mut codex, mut dsh, mut opencode) = (0u64, 0u64, 0u64, 0u64);
             let entries = WalkDir::new(&dir.path)
                 .into_iter()
-                .filter_entry(|e| !e.path().starts_with(&model_runs));
+                .filter_entry(|e| !e.path().starts_with(&model_runs) && adapters::descend(e));
             for entry in entries.flatten() {
                 if !entry.file_type().is_file() {
                     continue;
@@ -144,24 +141,35 @@ pub fn detect(patterns: &[String], hippo_home: &Path, user_home: Option<&Path>) 
                 let Some(adapter) = adapters.iter().find(|a| a.file_matches(entry.path())) else {
                     continue;
                 };
-                match adapter.tool().as_str() {
-                    "codex" => codex += 1,
-                    "dsh" => dsh += 1,
-                    _ => claude += 1,
-                }
                 let Ok(meta) = entry.metadata() else {
                     continue;
                 };
-                dir.files += 1;
+                // A database counts its sessions, each stamped with when it
+                // last changed; one hippo cannot read counts none.
+                let times: Vec<Option<OffsetDateTime>> = match adapter.sessions_in(entry.path()) {
+                    Some(listed) => listed
+                        .map(|l| l.into_iter().map(|l| l.modified).collect())
+                        .unwrap_or_default(),
+                    None => vec![meta.modified().ok().map(OffsetDateTime::from)],
+                };
+                let n = times.len() as u64;
+                match adapter.tool().as_str() {
+                    "codex" => codex += n,
+                    "dsh" => dsh += n,
+                    "opencode" => opencode += n.max(1),
+                    _ => claude += n,
+                }
+                dir.files += n;
                 dir.bytes += meta.len();
-                if let Ok(modified) = meta.modified() {
-                    let at = OffsetDateTime::from(modified);
+                for at in times.into_iter().flatten() {
                     dir.newest = Some(dir.newest.map_or(at, |n| n.max(at)));
                     dir.oldest = Some(dir.oldest.map_or(at, |o| o.min(at)));
                 }
             }
-            if claude + codex + dsh > 0 {
-                dir.tool = if dsh > claude.max(codex) {
+            if claude + codex + dsh + opencode > 0 {
+                dir.tool = if opencode > 0 && claude + codex + dsh == 0 {
+                    "opencode"
+                } else if dsh > claude.max(codex) {
                     "dsh"
                 } else if codex > claude {
                     "codex"
@@ -196,6 +204,8 @@ fn tool_of(path: &Path) -> &'static str {
         "codex"
     } else if path.components().any(|c| c.as_os_str() == ".dsh") {
         "dsh"
+    } else if path.file_name().is_some_and(|n| n == "opencode") {
+        "opencode"
     } else {
         "claude-code"
     }
@@ -301,5 +311,26 @@ mod tests {
         assert!(gemini.is_some());
         let json = serde_json::to_value(&found).unwrap();
         assert_eq!(json["roots"][0]["dirs"][0]["files"], 1);
+    }
+
+    #[test]
+    fn an_opencode_database_counts_its_sessions() {
+        let tmp = tempfile::tempdir().unwrap();
+        let home = tmp.path();
+        let db = crate::adapters::opencode::tests::sessions(&home.join(".local/share"));
+        // Its snapshots and cloned repositories are not transcripts.
+        let repo = db.parent().unwrap().join("repos/r");
+        fs::create_dir_all(&repo).unwrap();
+        fs::write(repo.join("x.jsonl"), "{}").unwrap();
+        let patterns = [format!("{}/.local/share/opencode", home.display())];
+        let found = detect(&patterns, &home.join(".hippo"), Some(home));
+        let dir = &found.roots[0].dirs[0];
+        assert_eq!(dir.display, "~/.local/share/opencode");
+        assert_eq!(dir.tool, "opencode");
+        assert_eq!(dir.profile, None);
+        assert_eq!(dir.files, 7);
+        assert_eq!(dir.bytes, fs::metadata(&db).unwrap().len());
+        assert!(dir.newest.is_some() && dir.oldest < dir.newest);
+        assert!(!found.unsupported.iter().any(|u| u.name == "OpenCode"));
     }
 }

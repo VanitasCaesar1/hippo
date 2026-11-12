@@ -8,7 +8,7 @@ This page takes you from an installed `hippo` to a working setup. The first step
 hippo
 ```
 
-With no setup yet, `hippo` finds the history your agents left on this machine (Claude Code, Codex and DeepSeek Harness), shows what it found, and asks `Index it now? [Y/n]`. Answer yes. Nothing is sent anywhere, and no notes folder is needed. In a script, or with no terminal, use:
+With no setup yet, `hippo` finds the history your agents left on this machine (Claude Code, Codex, DeepSeek Harness and OpenCode), shows what it found, and asks `Index it now? [Y/n]`. Answer yes. Nothing is sent anywhere, and no notes folder is needed. In a script, or with no terminal, use:
 
 ```sh
 hippo start --yes
@@ -16,7 +16,7 @@ hippo start --yes
 
 hippo writes `~/.hippo/config.toml` (`$HIPPO_HOME/config.toml` if you set `HIPPO_HOME`), indexes the transcripts, and shows the last active day: its sessions, merged pull requests and corrections, then `Try next:` with three commands that fit your data. Add another folder of transcripts with `hippo start --add-root ~/.claude-work`. To see what is on the machine before indexing, run `hippo detect`.
 
-hippo reads Claude Code and Codex transcripts and DeepSeek Harness (dsh) session logs. `hippo detect` also lists OpenCode and Cursor folders, but hippo has no adapter for them and does not read them.
+hippo reads Claude Code and Codex transcripts, DeepSeek Harness (dsh) session logs and OpenCode's database. `hippo detect` also lists Cursor and Gemini folders, but hippo has no adapter for them and does not read them.
 
 Once hippo is set up, `hippo` on its own updates the index when it is stale and shows the last active day again.
 
@@ -48,7 +48,7 @@ stub-1 claude-code 2026-11-01T10:00:04.000000Z assistant I'll ask a sub-agent wh
 
 Each line is `<session> <tool> <time> <role> [<tool name>] <snippet>`. Add `--json` for one JSON object per line, `--limit N` for more or fewer than 20 results.
 
-By default hippo looks for Claude Code transcripts under `~/.claude*/projects` Codex transcripts under `~/.codex/sessions`, and dsh logs under `~/.dsh/sessions`. A configuration written before dsh was read keeps its own list: add the folder with `hippo start --add-root ~/.dsh/sessions` (or `$DSH_HOME/sessions` if you set `DSH_HOME`). Change `transcript_roots` in `config.toml` to look elsewhere, or run `hippo config add transcript_roots <glob> --yes`. `hippo ingest` brings the index up to date; a run that finds nothing new prints `indexed 0 files, skipped 3, derived 0 sessions`.
+By default hippo looks for Claude Code transcripts under `~/.claude*/projects` Codex transcripts under `~/.codex/sessions`, dsh logs under `~/.dsh/sessions`, and OpenCode's database under `~/.local/share/opencode` (or `$XDG_DATA_HOME/opencode`). A configuration written before dsh or OpenCode was read keeps its own list: add the folder with `hippo start --add-root ~/.dsh/sessions` (or `$DSH_HOME/sessions` if you set `DSH_HOME`) and `hippo start --add-root ~/.local/share/opencode`. Change `transcript_roots` in `config.toml` to look elsewhere, or run `hippo config add transcript_roots <glob> --yes`. `hippo ingest` brings the index up to date; a run that finds nothing new prints `indexed 0 files, skipped 3, derived 0 sessions`.
 
 ## 4. Add a notes folder
 

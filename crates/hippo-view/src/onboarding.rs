@@ -25,7 +25,7 @@ pub const LINE: &str =
 pub const JOBS: [(&str, &str); 3] = [
     (
         "Reads",
-        "Every Claude Code, Codex and DeepSeek Harness session on this Mac, from every profile, in one place you can search.",
+        "Every Claude Code, Codex, DeepSeek Harness and OpenCode session on this Mac, from every profile, in one place you can search.",
     ),
     (
         "Keeps true",
@@ -187,6 +187,7 @@ pub fn found(d: &Detected, now: OffsetDateTime, offset: UtcOffset) -> Found {
     let mut claude_profiles = 0;
     let mut codex_files = 0;
     let mut dsh_files = 0;
+    let mut opencode_files = 0;
     for root in &d.roots {
         let dirs: Vec<&Dir> = root.dirs.iter().collect();
         if dirs.is_empty() {
@@ -196,12 +197,15 @@ pub fn found(d: &Detected, now: OffsetDateTime, offset: UtcOffset) -> Found {
         let name = match tool {
             "codex" => "Codex",
             "dsh" => "dsh",
+            "opencode" => "OpenCode",
             _ => "Claude Code",
         };
         if tool == "codex" {
             codex_files += dirs.iter().map(|d| d.files).sum::<u64>();
         } else if tool == "dsh" {
             dsh_files += dirs.iter().map(|d| d.files).sum::<u64>();
+        } else if tool == "opencode" {
+            opencode_files += dirs.iter().map(|d| d.files).sum::<u64>();
         } else {
             claude_profiles += dirs.iter().filter(|d| d.files > 0).count();
         }
@@ -256,11 +260,15 @@ pub fn found(d: &Detected, now: OffsetDateTime, offset: UtcOffset) -> Found {
         };
         total.latest = format!("{} {} → {end}", o.day(), month(o));
     }
-    let others: Vec<&str> = [("Codex", codex_files), ("dsh", dsh_files)]
-        .into_iter()
-        .filter(|(_, files)| *files > 0)
-        .map(|(name, _)| name)
-        .collect();
+    let others: Vec<&str> = [
+        ("Codex", codex_files),
+        ("dsh", dsh_files),
+        ("OpenCode", opencode_files),
+    ]
+    .into_iter()
+    .filter(|(_, files)| *files > 0)
+    .map(|(name, _)| name)
+    .collect();
     let tools = match (claude_profiles, others.as_slice()) {
         (0, []) => "Your agents".to_owned(),
         (0, others) => crate::text::and_list(others),
@@ -322,6 +330,8 @@ pub fn empty(d: &Detected) -> Vec<Looked> {
                 "Codex"
             } else if root.pattern.contains(".dsh") {
                 "dsh"
+            } else if root.pattern.contains("opencode") {
+                "OpenCode"
             } else {
                 "Claude Code"
             };
@@ -348,7 +358,6 @@ pub fn empty(d: &Detected) -> Vec<Looked> {
         place: d
             .unsupported
             .iter()
-            .filter(|u| u.path != "~/.local/share/opencode")
             .map(|u| u.path)
             .collect::<Vec<_>>()
             .join(" · "),

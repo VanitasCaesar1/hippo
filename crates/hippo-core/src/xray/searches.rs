@@ -320,7 +320,7 @@ fn one_producer(commands: &[(shell::Simple, Option<PathBuf>)]) -> bool {
     producers <= 1
 }
 
-/// A `Grep` or `Glob` call, or the dsh plugin's `hippo_ask`.
+/// A `Grep` or `Glob` call, or the dsh or OpenCode plugin's `hippo_ask`.
 fn tool_search(t: &StoredTurn) -> Option<Found> {
     let (name, v) = shell::input(t)?;
     let s = |k: &str| v.get(k).and_then(Value::as_str).map(str::to_owned);

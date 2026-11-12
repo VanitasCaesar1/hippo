@@ -46,6 +46,8 @@ pub enum ToolName {
     ClaudeCode,
     Codex,
     Dsh,
+    #[value(name = "opencode")]
+    OpenCode,
 }
 
 pub fn run(command: Command) -> Result<ExitCode> {
@@ -60,6 +62,7 @@ pub fn run(command: Command) -> Result<ExitCode> {
                 ToolName::ClaudeCode => Tool::ClaudeCode,
                 ToolName::Codex => Tool::Codex,
                 ToolName::Dsh => Tool::Dsh,
+                ToolName::OpenCode => Tool::OpenCode,
             };
             sessions::start(&workspace, tool, &session, task.as_deref())?;
         }
