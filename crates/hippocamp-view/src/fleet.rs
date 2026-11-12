@@ -424,17 +424,14 @@ pub enum Shelf {
 }
 
 /// Which shelf `row` sits on. `opened` says whether the person has opened
-/// a session in Hippocamp. Needs you: waiting, stopped at a limit nothing
-/// carried on, or finished with an unverified claim. Working: live or
+/// a session in Hippocamp. Needs you: waiting, or stopped at a limit nothing
+/// carried on. An unverified claim is a hint to check, shown on the row; it
+/// does not put a session in Needs you. Working: live or
 /// quiet mid-step. Settled: finished and every pull request it opened is
 /// merged (by it or another session), or it opened none and the person
 /// has opened it. To review: the rest.
 pub fn shelf(row: &Row, opened: impl Fn(&str) -> bool) -> Shelf {
-    let finished = matches!(
-        row.state,
-        State::Finished { .. } | State::Interrupted { .. }
-    );
-    if row.state.is_waiting() || row.state.needs_resume() || (finished && row.needs_check()) {
+    if row.state.is_waiting() || row.state.needs_resume() {
         return Shelf::NeedsYou;
     }
     if matches!(row.state, State::Live | State::Quiet { .. }) {
@@ -602,18 +599,6 @@ impl Fleet {
             row,
             why: Why::Stopped,
         }));
-        out.extend(
-            self.rows
-                .iter()
-                .filter(|r| {
-                    matches!(r.state, State::Finished { .. } | State::Interrupted { .. })
-                        && r.needs_check()
-                })
-                .map(|row| Need {
-                    row,
-                    why: Why::Check,
-                }),
-        );
         out
     }
 

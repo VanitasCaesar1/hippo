@@ -12,7 +12,7 @@ use gpui::{
     Context, FocusHandle, FontWeight, SharedString, SystemNotification, SystemNotificationAction,
     Window, div, prelude::*,
 };
-use hippocamp_view::fleet::{Fleet, Row, Why};
+use hippocamp_view::fleet::{Fleet, Row};
 use time::OffsetDateTime;
 
 use super::Shell;
@@ -570,10 +570,10 @@ impl Shell {
             .as_ref()
             .and_then(|l| l.fleet.as_ref())
             .map(|f| {
-                f.needs_you()
+                f.rows
                     .iter()
-                    .filter(|n| n.why == Why::Check)
-                    .filter(|n| match n.row.state {
+                    .filter(|r| r.needs_check())
+                    .filter(|r| match r.state {
                         hippocamp_view::fleet::State::Finished { at }
                         | hippocamp_view::fleet::State::Interrupted { at, .. } => at > since,
                         _ => true,
@@ -667,7 +667,7 @@ impl Shell {
                     plural(d.claims, "claim unverified", "claims unverified"),
                 )
                 .on_click(cx.listener(|this, _, window, cx| {
-                    // Unverified claims are in Fleet's Needs you group.
+                    // Unverified claims are hints on their Fleet rows.
                     this.fleet_ui.group = super::fleet::Group::State;
                     this.show_section(Section::Fleet, window, cx);
                 }))

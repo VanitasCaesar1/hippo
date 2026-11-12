@@ -160,23 +160,23 @@ fn every_count_the_app_shows_is_its_shelf() {
     assert_eq!(
         t,
         Tally {
-            needs_you: 3,
+            needs_you: 2,
             working: 2,
-            to_review: 1,
+            to_review: 2,
             settled: 2,
             snoozed: 1,
         }
     );
     // The sidebar's shelves.
-    assert_eq!(ids(s.rows(Shelf::NeedsYou)), ["ask", "limit", "claim"]);
+    assert_eq!(ids(s.rows(Shelf::NeedsYou)), ["ask", "limit"]);
     assert_eq!(ids(s.rows(Shelf::Working)), ["live", "quiet"]);
     // The Headroom pane's per-account count adds up to the shelf.
     assert_eq!(s.working_on("work"), t.working);
     assert_eq!(s.working_on("other"), 0);
     // Home's headline.
     let (head, facts) = crate::ui::home_panes::hero_words(Some(t), 0);
-    assert_eq!(head, "3 agents need you");
-    assert_eq!(facts, "2 working · 1 to review · 1 snoozed");
+    assert_eq!(head, "2 agents need you");
+    assert_eq!(facts, "2 working · 2 to review · 1 snoozed");
     // Fleet's State groups.
     let groups = crate::ui::fleet::state_groups(&s);
     let n = |k: &str| groups.iter().find(|g| g.0 == k).map_or(0, |g| g.2.len());
@@ -192,8 +192,8 @@ fn every_count_the_app_shows_is_its_shelf() {
     );
     // The menu-bar item.
     let m = crate::reach::menu(Some(&f), &marks, 0, NOW);
-    assert_eq!(m.badge, "3 need you");
-    assert_eq!(m.needs_head, "Needs you · 3");
+    assert_eq!(m.badge, "2 need you");
+    assert_eq!(m.needs_head, "Needs you · 2");
     assert_eq!(m.live_head.as_deref(), Some("Working · 2"));
     assert_eq!(m.live.len(), 2);
 }
@@ -241,7 +241,7 @@ fn a_mark_never_moves_a_row_that_needs_you() {
         },
     );
     let s = Shelves::of(&f, &store.marks());
-    assert_eq!(ids(s.rows(Shelf::NeedsYou)), ["ask", "limit", "claim"]);
+    assert_eq!(ids(s.rows(Shelf::NeedsYou)), ["ask", "limit"]);
     assert!(s.snoozed.is_empty());
     // And the snooze ends for good once its session needs you.
     assert_eq!(woken(&f, &store.marks()), ["limit"]);
@@ -367,7 +367,7 @@ fn a_delegated_session_sits_under_its_parent_and_counts_with_it() {
     );
     let t = s.tally();
     assert_eq!(t.working, 3, "the lanes count with their parent");
-    assert_eq!(t.to_review, 2, "done2 and the orphan");
+    assert_eq!(t.to_review, 3, "done2, the orphan and the unverified claim");
     assert!(nested_in(&f.rows[9], s.rows(Shelf::Working)));
     assert!(!nested_in(&f.rows[11], s.rows(Shelf::ToReview)));
     assert_eq!(s.working_on("work"), 3);

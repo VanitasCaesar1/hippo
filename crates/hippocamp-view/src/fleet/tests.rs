@@ -668,10 +668,10 @@ fn a_finished_session_settles_when_its_pulls_merge_or_once_opened() {
         shelf(&shelf_row(State::Live, vec![]), never),
         Shelf::Working
     );
-    // An unverified claim needs you.
+    // An unverified claim is a hint on the row, not a reason to need you.
     let mut claimed = shelf_row(done, vec![]);
     claimed.claims.unverified = 1;
-    assert_eq!(shelf(&claimed, always), Shelf::NeedsYou);
+    assert_eq!(shelf(&claimed, never), Shelf::ToReview);
 }
 
 #[test]
