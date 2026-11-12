@@ -1,6 +1,6 @@
 # An adapter for OpenCode
 
-Status: accepted, to build in 0.3.0.
+Status: accepted, built in 0.3.0. Attachments, sub-agent token use, how a run ended and compaction summaries added for 0.4.1 ([below](#added-in-041)).
 
 ## The problem
 
@@ -80,10 +80,11 @@ The listing query reads the session table, the sequence table and the message in
 
 **Turns.** Messages are read in `seq` order. Each turn is stamped with its own time: a message's `time.created`, a tool call's `time.created`, a tool result's `time.completed`, else the message's.
 
-- `user`: one `user` turn of `text`. Attached files are not read.
+- `user`: one `user` turn of `text`, followed by one line per attached file ([Attachments](#attachments)).
 - `assistant`: in content order, one `assistant` turn per non-empty `text` item; for each `tool` item, one `tool` turn for the call, `<name> <input as JSON>`, and, once it has finished, one `tool` turn for its result. Reasoning is never indexed. When `session_part` rows exist for the message, they come first in `ordinal` order, then any inline content, as OpenCode reads them.
-- A tool result's text is its `content[]` text items, joined by newlines; files are left out. A result with `status: error` is its `error.message`, then any content text.
-- `synthetic`, `system`, `skill`, `shell`, `compaction`, `idle` and the `…-switched` messages are not turns.
+- A tool result's text is its `content[]` text items, joined by newlines, then one line per file item ([Attachments](#attachments)). A result with `status: error` is its `error.message`, then any content text. A finished `subagent` result ends with the sub-agent's token use ([Sub-agent token use](#sub-agent-token-use)).
+- An assistant message with an `error`, an `idle` message that is not `succeeded`, and a completed `compaction` add turns as [How a run ended](#how-a-run-ended) and [Compaction](#compaction) say.
+- `synthetic`, `system`, `skill`, `shell`, a `compaction` that is running or failed, a `succeeded` `idle` and the `…-switched` messages are not turns.
 - In a fork, the messages copied from the session it was forked from (those up to its boundary, by `seq`) are skipped. When that session is gone, the copied messages are known by being older than the fork.
 
 **Tool names.** hippo's readers (the x-ray's claims, incidents, the rollup's edits and agents, Fleet's activity line, dreaming's observed reads and edits) recognise a tool by its name and its arguments by Claude Code's names. OpenCode's core tools do the same things under other names, and name some arguments in camel case, so the adapter stores them as Claude Code would have written them:
@@ -117,6 +118,73 @@ Every other tool, MCP tools included, keeps OpenCode's name and arguments. OpenC
 
 **Model.** The session tab shows the newest assistant message's `model.id`, and its `model.variant` as the effort.
 
+## Added in 0.4.1
+
+Four things 0.3.0 left out, read from the same source (tag `v2.2.7`, `packages/schema/src/session-message.ts`, `prompt.ts`, `tool.ts`, `token-usage.ts`, `session-error.ts`, and `packages/core/src/session/message-updater.ts`) and checked against the schema of a real database, and against counts of the values these fields take in it (no text was read).
+
+### What OpenCode writes for them
+
+- **An assistant message** (one model step) may carry `tokens` (`input`, `output`, `reasoning`, `cache.read`, `cache.write`), `cost` (US dollars, as OpenCode prices the model), `finish` (`stop`, `tool-calls`, `length`, `content-filter`, `error`, `unknown`), and `error` (`type`, `message`, an optional HTTP `status`). Error types seen: `aborted` (the run was stopped), `provider.free-limit` and `provider.quota` (429 or 402), `provider.auth` (401, 403), `provider.error`, `provider.internal` (5xx), `provider.content-filter`, `provider.invalid-request`, `unknown`. `session_v2` also keeps running totals (`cost`, `tokens_*`).
+- **An `idle` message** ends each run: `outcome` is `succeeded`, `failed` (with `error`) or `interrupted`. OpenCode writes `interrupted` when the person stopped the run, a new prompt superseded it, or it timed out for inactivity; the message does not say which. The reason exists only in the event log's payloads, which OpenCode keeps only when `persist` is on, and it is off outside OpenCode's tests (the real database's `event` table is empty). `session_v2.idle_outcome` repeats the newest outcome.
+- **A user message's `files[]`**: each `{mime, name?, description?, source: {type: "inline"} or {type: "uri", uri}, data}` with the bytes inline as base64 in `data`, or, for a client that stores media apart, `{mime, name?, uri: "media:<sha256>", bytes?}`. **A tool result's `content[]`** may hold `{type: "file", uri, mime, name?}`, where `uri` is a `file:` URL, a virtual path, or a `data:` URL that holds the bytes.
+- **A `compaction` message** is `running`, `completed` (with `summary`, the text that replaced the older messages, and `reason`, `auto` or `manual`) or `failed`.
+
+### Sub-agent token use
+
+hippo has no token count per session for any agent. What Fleet shows is the tokens and tool calls of each sub-agent run, read from the `<usage>` block Claude Code appends to an `Agent` result (`subagent_tokens: N`, `tool_uses: M`). The OpenCode adapter appends the same block to a finished `subagent` call's result:
+
+```text
+<usage>total_tokens: <N>
+tool_uses: <M></usage>
+```
+
+N is the sum, over the sub-agent session's own assistant messages, of OpenCode's total (`input + output + reasoning + cache.read + cache.write`); M is the number of tool calls in them. The sub-agent session is the one the call's `state.metadata.sessionID` names. A sub-agent of the sub-agent counts in its own call, not here, as in Claude Code. The block is left out when that session is not in the database.
+
+Work time in the overview, Fleet and `hippo card` comes from each session's turns whatever the tool, so OpenCode sessions already count there; a test now says so.
+
+**Cost is not recorded.** hippo has no cost field, and adding one only for OpenCode would show a figure for one agent and a blank for the others: Claude Code transcripts and Codex rollouts carry token counts but no price. **Per-message token counts are not stored either.** hippo's only per-message token store, `usage.sqlite`, exists to estimate a Claude subscription's five-hour window; an OpenCode session runs on whatever provider and key it is set up with, which has no such window, so its tokens would make an estimate that means nothing.
+
+### How a run ended
+
+hippo reads how a session ended from its last turns, by the words Claude Code writes ([`rollup::classify`](../../crates/hippo-core/src/rollup.rs)): `API Error: …` (rate-limited when it names 429, 529, a rate limit or an overload; otherwise an error, shown with its first line), `Failed to authenticate: …` (sign-in failed), and `[Request interrupted by user]` (stopped by you). Fleet shows the ending, Incidents lists an error ending as a failed session, and the rollup counts an `API Error` along the way. The adapter writes OpenCode's endings in those words, after the message's other turns, stamped with the message's `time.completed`, else its `time.created`:
+
+| OpenCode | turn |
+|---|---|
+| assistant `error.type` `aborted` | user `[Request interrupted by user]` |
+| assistant `error.type` `provider.auth` | assistant `Failed to authenticate: <status> <message>` |
+| any other assistant `error` | assistant `API Error: <status> <type>: <message>` (no status when there is none) |
+| `idle` `failed`, when no assistant message since the last `user` message had an error | assistant `API Error: <type>: <message>` from the idle's `error`, else `API Error: the run failed` |
+| `idle` `interrupted`, when no assistant message since the last `user` message was `aborted` | user `[Request interrupted by user]` |
+| `idle` `succeeded` | nothing |
+
+An `interrupted` run is shown as stopped by the person because that is what the database cannot rule out and what nearly always happened; a run that timed out for inactivity is shown the same way. `finish: length` (the reply hit its output limit) has no ending in hippo and is not shown; `finish: error` and `content-filter` come with an `error` and are shown by it.
+
+### Attachments
+
+Each attachment is one line, appended to the user turn (after its text) or to the tool result (after its text items):
+
+```text
+[Image: <name>, <mime>, <size> bytes, <path>]
+[File: <name>, <mime>, <size> bytes, <path>]
+```
+
+`Image` for an `image/*` type, else `File`. The name is `name`, else the path's last part; the size is `bytes`, else the length the base64 `data` (or a `data:` URL's payload) decodes to, worked out from the text's length without decoding it; the path is a `uri` source's `file:` URL as a path, or a tool file's `file:` URL or virtual path. A part that is not known is left out of the line. The bytes are never decoded, indexed or kept, nor is a `data:` URL or a `media:` reference. A message of attachments alone starts with its first line, so an image alone reads as Claude Code's `[Image: …]` does. Names and paths go through redaction with the rest of the turn.
+
+### Compaction
+
+A `completed` compaction becomes one user turn at its `time.created`:
+
+```text
+[Compaction summary, <reason>]
+<summary>
+```
+
+hippo's turn classifier gains the prefix `[Compaction summary`, read as the same kind as Claude Code's `This session is being continued from a previous conversation …`, so the session view shows it as "Earlier conversation summary" at the point the older messages were replaced, and requests, titles, lessons and dreaming leave it out as they leave Claude Code's out. A running or failed compaction is not a turn.
+
+### Reading every session again
+
+The stamp an ingest compares becomes `opencode2:<seq>:<updated>:<count>`, so the next ingest reads every OpenCode session once more with these turns, and then only the ones that change.
+
 ## Version compatibility
 
 OpenCode changes its schema through numbered migrations, several a month, and records each one it applied in the `migration` table. Most do not touch the tables hippo reads. So hippo uses the migration table to place the database, and checks the tables themselves before it reads:
@@ -134,17 +202,17 @@ Within a database that is read, a message `type` hippo does not know is skipped,
 
 - **OpenCode 1 storage.** The `session`, `message` and `part` tables and the JSON files under `storage/` are not read. OpenCode 2 copies the tables into the ones hippo reads; a session OpenCode 2 has not copied yet appears once it has. This loses a little detail OpenCode's own copy drops (tool titles, step markers).
 - **`opencode-next.db`** and databases on another machine (OpenCode's remote workspaces).
-- **Attachments.** Files a person attached and files a tool returned are not indexed.
-- **Messages that are not the person's or the model's.** Text OpenCode adds (`synthetic`, `system`, `skill`), commands the person ran with `!`, and compaction summaries are not turns.
+- **Attachment contents.** Only an attachment's name, type, size and path are indexed, never its bytes.
+- **Messages that are not the person's or the model's.** Text OpenCode adds (`synthetic`, `system`, `skill`) and commands the person ran with `!` are not turns.
 - **Permission prompts**, which OpenCode keeps in memory. Fleet cannot tell a call waiting for permission from one that is running.
-- **How a run ended.** `idle`'s `outcome` is not read; the ending comes from the last turns, as for the other tools.
-- **Usage.** Token counts and cost are not read into the usage view.
+- **Who stopped a run.** OpenCode does not record why a run was interrupted, so every interruption reads as stopped by the person. An output cut off at the model's limit (`finish: length`) is not shown.
+- **Cost, and tokens outside sub-agent runs.** See [Sub-agent token use](#sub-agent-token-use).
 - **Hooks.** OpenCode sessions are always derived records. The [plugin](opencode-plugin.md) gives them the start block but does not record them.
 - **Sessions deleted in OpenCode** stay in hippo's index, as a transcript file deleted from disk does.
 
 ## Fixtures and tests
 
-Fixtures are made up and small. They are SQL, not database files: `fixtures/opencode/schema.sql` creates the tables as OpenCode 2.2.7 does, and each scenario is a `.sql` file of `INSERT`s that a test helper loads into a fresh database in a temporary folder. Each begins with a `-- synthetic` comment and inserts a `synthetic` row into OpenCode's `kv` table, the SQL counterpart of the `{"synthetic": true}` line the other fixtures start with. The scenarios: a normal session with every leak, a failed command and a refused edit; a sub-agent, and a sub-agent of that; a fork; a live session that stops mid-call and at a question; and a database whose newest migration is unknown and whose `session_message` lacks a column.
+Fixtures are made up and small. They are SQL, not database files: `fixtures/opencode/schema.sql` creates the tables as OpenCode 2.2.7 does, and each scenario is a `.sql` file of `INSERT`s that a test helper loads into a fresh database in a temporary folder. Each begins with a `-- synthetic` comment and inserts a `synthetic` row into OpenCode's `kv` table, the SQL counterpart of the `{"synthetic": true}` line the other fixtures start with. The scenarios: a normal session with every leak, a failed command and a refused edit, an attached image and file, a sub-agent call with its token use, a compaction, and runs that end aborted, with an API error, a sign-in failure and a failed idle; a sub-agent, and a sub-agent of that; a fork; a live session that stops mid-call and at a question; and a database whose newest migration is unknown and whose `session_message` lacks a column.
 
 Tests: adapter unit tests, the redaction test, an ingest round trip, an incremental re-ingest that reads only the session that changed, the doctor row, and the first-run check for `hippo` alone. The eval set does not change.
 
