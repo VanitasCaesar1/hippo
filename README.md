@@ -7,33 +7,41 @@
 
 <h1 align="center">hippo</h1>
 
-<p align="center"><b>One brain for all your coding agents.</b></p>
+<p align="center"><b>Your coding agents learn while you sleep.</b></p>
 
-hippo keeps your project's notes and the corrections you already made as plain Markdown in your repo, and a new agent session starts from them, whichever agent runs it. It learns from the Claude Code, Codex and DeepSeek Harness (`dsh`) history already on your machine, and at night a second, fresh-context reviewer checks every proposed change to the notes against what your agents actually did. It is local and MIT, built by one person to keep their own agents on the same page.
+hippo is short for hippocampus, the part of a brain that turns the day into long-term memory during sleep. Coding agents have none: every session starts from zero, and each agent is an island. Every night hippo goes through the day's Claude Code, Codex and DeepSeek Harness (`dsh`) sessions and turns what went wrong into rules. A second model with a fresh context checks each one against what actually happened. Keep a rule, and the next session starts with it.
 
-## One correction, every agent
+## A day, a night, the next morning
 
 ```text
-13:32  Claude Code          you: "dont point previews at the production database again, staging only"
-       Inbox                Use the staging database for previews, never production   [keep]
-15:08  notes/START HERE.md  + - **Use the staging database for previews, never production.** ... *(lesson kept 2026-11-12)*
-next   Codex                $ hippo brief --task "Run a preview of the album page against the database"
-                            required: notes/START HERE.md
-                            rules:
-                            - Run previews and manual checks against the staging database (npm run preview -- --db staging), never production.
+day      Claude Code  10:07   you: "no, previews use the staging database, not production"
+         Claude Code  13:32   you: "dont point previews at the production database again, staging only"
+night    03:30  proposed rule  Use the staging database for previews, never production
+                reviewer       confirmed, against turn 3 of both sessions
+                proposed fix   Auth sessions.md: last 7 days -> now 24 hours
+                reviewer       rejected: "nothing in the evidence shows the 24 hour lifetime was deployed"
+morning  Inbox  keep it        (you did not write the rule)
+         Codex  $ hippo brief --task "Run a preview of the album page against the database"
+                rules:
+                - Run previews and manual checks against the staging database (npm run preview -- --db staging), never production.
 ```
 
-You correct one agent once, keep the rule hippo proposes, and it is a line in a note every later session starts from. The notes are files in your repo, so git shares them with your team's agents.
+Why this is not a memory file an agent keeps for itself:
 
-| Agent | How it gets the notes |
+- **Built from what happened.** hippo reads every session on the machine, not what an agent chose to write down. On the maintainer's machine that is 5,078 sessions and 784,867 turns, indexed in 162 seconds.
+- **You never write the rule.** Correct an agent twice and hippo proposes it. You keep it or dismiss it.
+- **It cannot make things up.** A second model must confirm every change against the evidence, and `hippo revert` undoes any change by its receipt. On the repo's eval set with a real model it fixed 3 of 7 planted errors and damaged 0 of 8 correct notes; on the maintainer's own notes it has fixed 7 wrong statements, each checked by hand.
+- **Small.** A session gets about 1.5 KB: the notes that matter to its task, not the whole pile.
+
+| Agent | How it gets the memory |
 |---|---|
 | Claude Code | At session start, through `hippo hooks install` or the plugin. |
 | DeepSeek Harness (`dsh`) | At session start, through [its plugin](plugins/dsh/README.md). |
-| Codex | Indexed and searchable. It runs `hippo brief --task "<task>"` when your instructions ask it to; nothing is injected automatically. |
+| Codex | Through `hippo brief --task "<task>"` when your instructions ask for it, for now. Its sessions are read like the others. |
 
 <p align="center"><img src="docs/assets/first-run.gif" width="700" alt="hippo, then hippo start --yes, on synthetic history: what it found, then the last active day"></p>
 
-<p align="center"><sub>The lines above and the recording are from synthetic data.</sub></p>
+<p align="center"><sub>The day above and the recording are from synthetic data.</sub></p>
 
 ## Install
 

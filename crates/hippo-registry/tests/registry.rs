@@ -517,8 +517,8 @@ fn the_landing_page_is_the_index_and_links_inside_the_site() {
     let (repo, out) = site_repo();
     let landing = fs::read_to_string(out.join("index.html")).unwrap();
     // The landing file is a whole page, so it is copied as it is.
-    assert!(landing.contains("<title>hippo: one brain for all your coding agents</title>"));
-    assert!(landing.contains("<h1>One brain for all your coding agents</h1>"));
+    assert!(landing.contains("<title>hippo: your coding agents learn while you sleep</title>"));
+    assert!(landing.contains("<h1>Your coding agents learn while you sleep</h1>"));
     // The card is the page's share image.
     assert!(landing.contains("assets/card-site.png\""));
     assert!(landing.contains("href=\"landing.css\""));
