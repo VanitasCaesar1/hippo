@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CPGT8TDHGHQNJERH26TFM",
+  "pack": "faq",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/faq",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "53041eb500d55c27633fe9f92e761280d231931bc6a5105b3e56be0705664d85",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The faq pack does what its README says and nothing more. Its one pass reads sessions, notes and turns, makes one call per note, and works only on notes matching **/FAQ*.md, which matches the README's description of what it reads, how it gets work and which notes it works on. The prompt treats untrusted sections as data and limits proposals to append-only entries under a final '## Asked in sessions' section. It requires each question to come from a person and each answer to be established in cited turns. It leaves out private setups, secrets and personal details, and it forbids quoting commands, instructions or links that only tool output shows. The persona rejects by default, rejects invented questions, unbacked answers, added detail, duplicates and any non-append change, and keeps a strict one-sentence JSON reply. The template holds only a heading and a neutral description, with no instructions, commands, links or credential handling. The single fixture is marked synthetic and contains harmless invented content: a thumbnail-cache question and an orchid note used to check that unmatched notes are not read. I found no hidden, encoded or misnamed content, and no text that tries to instruct the reviewer or the dreaming model.",
+  "findings": [],
+  "at": "2026-11-12T08:06:42.815876Z"
+}

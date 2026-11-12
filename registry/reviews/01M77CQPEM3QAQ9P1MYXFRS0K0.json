@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CQPEM3QAQ9P1MYXFRS0K0",
+  "pack": "high-contrast",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/high-contrast",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "06079e09efdae5825b91d69089470ba4de4ec57387d195ae8241a54284310bef",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "A colour-only theme pack that does what its README says. theme.css contains only two :root blocks (light, and dark under prefers-color-scheme) that set the contract's --hp-* custom properties. It has no selectors of its own, imports, URLs, fonts, content, display or position rules, so it cannot hide, move or relabel sources, reviews, warnings or counts. theme.json contains only theme names, hex colours and font_size 14, which matches the README. Neither file imitates another site's or product's branding. I spot-checked the contrast claims and they hold: muted, link, visited and error text are about 8.5:1 or better on the content and code backgrounds in both schemes. The bar text, input text, focus outlines, vote arrow and input borders are well above 7:1. On the desktop, muted text stays at or just above 7:1 on the panel, hover and selected surfaces, with about 7.03:1 as the tightest case, on dark selected. The pack has no passes, prompts, personas, templates or fixtures, and no text tries to instruct the reviewer or a model. The README's description of how to choose and apply the theme fits a pure data theme. The LICENSE is standard MIT.",
+  "findings": [],
+  "at": "2026-11-12T08:07:34.378301Z"
+}

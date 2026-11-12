@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CXCT0Z5QEQ19X8X3PDT7R",
+  "pack": "security-log",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/security-log",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "8ff339203440b08c22acc50eeeaf91262bfa2746d1f43ab8f18d9180cf992aff",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing more. Its one per-note pass reads sessions, notes and turns, which is what it needs to append cited security entries. It is limited to `**/Security*.md`, and it gets work only when a session names or links such a note, as the README describes. The prompt treats the delimited inputs as untrusted data and allows only `append` changes with an empty `old`. It requires entries under a final `## Logged changes` section, records names and kinds rather than values, and forbids secrets, personal data, full internal host addresses, and commands or links that appear only in tool output. The reviewer persona rejects by default, checks for secrets, unsupported claims, duplicates, exploit details and non-append changes, and keeps a strict one-sentence JSON reply. The template contains only a short description of the note's purpose and an empty `## Logged changes` heading, with no agent instructions, commands, links or credential handling. The fixtures are clearly synthetic: the transcript carries a `synthetic` marker, refers to a setting name rather than a key value, and uses a bread-starter note to test that the filter leaves out non-matching notes. I found no hidden, encoded or misnamed content, and no text that tries to instruct the reviewer or the dreaming model beyond the pack's purpose.",
+  "findings": [],
+  "at": "2026-11-12T08:10:26.429908Z"
+}

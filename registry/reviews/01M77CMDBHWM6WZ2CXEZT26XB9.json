@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CMDBHWM6WZ2CXEZT26XB9",
+  "pack": "changelog-keeper",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/changelog-keeper",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "1f880ed624e697ba0fb6ad4be1729302968a8817d351287e134f8dfe345fb4cf",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "changelog-keeper does what its README says and nothing more. It has one per-note pass whose note_paths are limited to the three changelog and release-notes patterns the README lists. It reads sessions, notes and turns, which matches the README's 'What it reads' section, and the test checks that a non-matching note in the same session (Release plan.md) stays out of the prompt. The prompt treats the delimited notes, sessions and turns as untrusted data. It allows only empty-old `append` changes to the given note, under a final `## Pending` section. It requires evidence citations from the listed sessions, forbids quoting instructions, commands or links that appear only in tool output, caps `new` at 2,048 bytes, and requires a strict JSON-array reply. The persona rejects by default. It rejects non-append or altering changes, duplicate entries, entries not shown as finished, and agent instructions, commands or links that the cited turns do not show or that come only from tool output, and it holds the reply to the verdict JSON. The template contains only a title, a descriptive sentence, a placeholder Released entry and an empty Pending heading, with no instructions to agents, commands, links or credential handling. The fixture is plainly synthetic: a sample-cli tool, a 'heron census' decoy and a `{\"synthetic\": true}` transcript marker. It quotes a command option only because the user turn shows it and a changelog entry needs it. I found no hidden, encoded or misnamed content and no text that tries to instruct the reviewer or the dreaming model.",
+  "findings": [],
+  "at": "2026-11-12T08:05:34.013357Z"
+}

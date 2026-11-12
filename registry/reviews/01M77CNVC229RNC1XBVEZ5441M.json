@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CNVC229RNC1XBVEZ5441M",
+  "pack": "env-and-config",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/env-and-config",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "82b794cd35c71da9b461cce4bcdba008aa976872976782bea2f3397c8bd6e8d1",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing more. Its one pass reads sessions, notes and turns, all of which it needs: session dates and handoffs, the note itself so it can skip settings already recorded, and the turns that serve as evidence. It runs once per note and works only on notes matching Environment*, Config* and Env vars*, as the README states. It gets work through `session end --note` and handoff links, also as the README states. The prompt treats untrusted blocks as data and proposes only `append` changes under a final `## Logged settings` section. It records setting names and never values, defaults, hosts, ports, connection strings or secret paths. It requires a turn to show a real introduction, rename or removal, requires citations, and forbids quoting commands or links that only tool output shows. The reviewer persona treats its inputs as untrusted and rejects any entry holding a value. It rejects settings that were only discussed and anything that is not a pure append. It rejects by default and keeps the strict one-sentence reply format. The template contains only a short description and an empty section heading, with no agent instructions, commands, links or credential handling. The fixtures are clearly synthetic: the transcript is marked synthetic, the variables are SAMPLE_ placeholders, and a bake sale note tests the path filter. No content is hidden, encoded or misnamed, and the license is standard MIT. The double slash in the source path looks like a formatting quirk, not a concern.",
+  "findings": [],
+  "at": "2026-11-12T08:06:19.885439Z"
+}

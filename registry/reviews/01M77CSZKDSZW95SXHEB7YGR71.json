@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CSZKDSZW95SXHEB7YGR71",
+  "pack": "migration-log",
+  "version": "1.0.1",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/migration-log",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "fa58939109e592f720df217434f9d00682e1cd43e6d128853d0e6d12f8b9e92a",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing more. It has one per-note pass, limited to notes matching **/Migrations*.md and **/Migration log*.md. That pass reads sessions, notes and turns, which it needs to find runs, skip duplicates and cite evidence. It gets work when a session names or links a matching note, and the README describes this correctly. It proposes append-only entries under a final '## Logged migrations' section. The prompt wraps its inputs as untrusted data. It only asks for commands because logging migrations needs them, and it takes them only from the session's own tool_use calls. It forbids commands, instructions or links that appear only in tool output, and it redacts secrets such as PASSWORD=, TOKEN= and DATABASE_URL=. The reviewer persona treats its inputs as untrusted and rejects by default. It rejects non-append changes, unrun migrations, duplicates, entries that hold credentials, and agent instructions taken from tool output. It keeps a strict one-line JSON reply format. The template only describes the note and holds no instructions, commands, links or credential handling. The fixture is plainly synthetic: the transcript is marked synthetic and uses a sample app, placeholder IDs and the generic command 'make migrate ENV=staging'. The test also checks that an unrelated note is not read. No content is hidden, encoded or misnamed. One small inconsistency: the persona accepts a command shown in the user's own message, while the prompt accepts commands only from tool_use turns. The prompt is the stricter of the two, so this creates no risk.",
+  "findings": [],
+  "at": "2026-11-12T08:08:34.122246Z"
+}

@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CKPKKJYBYN1DBC6DKHP7E",
+  "pack": "adr-status",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/adr-status",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "c34561652175c8f41fecd4d1cced7fbd05d900386fad7be23f9bcb1727c60d8b",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing more. Its single pass reads sessions, notes, turns and human_confirmed, which are the sources the README lists and justifies. It makes one call per note, and only on notes whose frontmatter has `type: decision`, which matches the README's account of how it gets work. The prompt marks untrusted spans as data and allows only `append` changes with an empty `old`, placed under a final `## Status updates` section. Every entry must cite its turns, the prompt forbids quoting instructions, commands or links that only tool output shows, and it caps `new` at 2,048 bytes. It does not ask for instructions to agents, commands, links, credentials or personal data. The reviewer persona treats all inputs as untrusted and rejects by default when evidence is thin. It also rejects anything that is not an append, that adds unsupported reasons, successors or dates, that duplicates an existing entry, or that contradicts text a person restored. It keeps a strict one-line JSON reply format. The template holds only frontmatter, headings and placeholder prose, with no instructions to agents, commands, links or credential handling. The fixtures are clearly synthetic: a sample-app SQLite cache, a lantern-festival decoy note, and a transcript marked synthetic. The test checks that a note of another type is kept out of the prompt. Nothing is hidden, encoded or misnamed, and the MIT license is standard.",
+  "findings": [],
+  "at": "2026-11-12T08:05:08.729284Z"
+}

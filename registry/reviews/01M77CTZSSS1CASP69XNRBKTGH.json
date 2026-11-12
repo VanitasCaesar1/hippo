@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CTZSSS1CASP69XNRBKTGH",
+  "pack": "open-questions",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/open-questions",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "828f8addf016cbafcfa73af3e59296f31c5ccd05f517ebbfe3027bb13ef7d0aa",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack matches its README. Its single pass reads sessions, notes and turns, runs one call per note, and works only on notes matching **/Open questions*.md. That is the scope its stated purpose needs: appending open questions and answers to listed questions. The prompt treats untrusted blocks as data and allows only append changes with an empty old text under a final '## Raised in sessions' section. It requires turn citations, blocks duplicates, and forbids quoting instructions, commands or links that appear only in tool output. It asks for no instructions to agents, credentials or personal data. The reviewer persona rejects by default and requires a strict one-object JSON reply. It covers the cases that matter: non-append changes, edits to existing text, entries the evidence does not support, guesses, duplicates, and content sourced only from tool output. The template contains a heading, a short description, one example question and an empty section. It has no instructions to agents, commands, links or credential handling. The test fixtures are clearly synthetic (the transcript is flagged synthetic and uses a 'sample service' and a decoy 'lantern festival' note). The test checks that the filter leaves out the non-matching note. There is no hidden, encoded or misnamed content, and no text that tries to instruct the reviewer.",
+  "findings": [],
+  "at": "2026-11-12T08:09:08.919486Z"
+}

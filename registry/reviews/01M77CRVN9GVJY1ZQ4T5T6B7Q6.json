@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CRVN9GVJY1ZQ4T5T6B7Q6",
+  "pack": "large-type",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/large-type",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "dd079e97cda3c5da5c752a0b0f7b615f91fefea5402f80da7536f0c371d80df6",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "large-type 1.0.0 is a web-only theme pack: pack.toml, an MIT LICENSE, a README and a theme.css of 884 bytes for contract 1. It has no passes, prompts, personas, templates or desktop theme.json, so no dreaming model or note is involved. theme.css contains only `:root` blocks that set the contract's `--hp-*` custom properties. It has no selectors of its own, no @import, no url(), no font or image, and no content or display property, so it cannot hide, move or relabel sources, reviews, warnings or counts. It uses no branding. The README describes what it does accurately: titles and the top bar at 1.25rem (20px), text at 1.125rem (18px), meta at 1rem (16px), a line height of 1.6, a content width of 90%, an indent of 24px and a mark size of 28px. Under prefers-color-scheme: dark it applies a dark palette that the README says is the contract's own dark defaults. That keeps the theme following the device, and none of those values hides anything. The README says the 90% width applies 'on wide screens', but the CSS sets it without a media query. This is most likely the contract's width variable being applied only at wide widths, not a misdescription. It changes nothing beyond the content width. I found no instructions aimed at the reviewer or at agents, no hidden or encoded content, and no unexplained extras.",
+  "findings": [],
+  "at": "2026-11-12T08:07:57.778515Z"
+}

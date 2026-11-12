@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CM1P0EAN8HRR6F01CQGKJ",
+  "pack": "api-drift",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/api-drift",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "22c29f0cad688d26d5a08994f82df775cf3499d86797674a26a3c7a585b61f9a",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The api-drift pack does what its README says. Its single pass reads sessions, notes and turns, which matches the README's 'What it reads' section, and makes one call per matching note, as the README describes. It works only on notes matching **/API*.md, **/api/** and **/Endpoints*.md, all listed in the README. The prompt treats untrusted blocks as data and proposes only `append` changes with an empty `old`, placed under a final `## Drift` section. It requires every entry to cite turns and forbids quoting instructions, commands or links that only tool output shows. It does not ask for credentials, personal data or instructions to agents. The reviewer persona treats its inputs as untrusted, rejects by default when evidence is thin, rejects non-append changes and edits to existing text, and keeps a strict one-object JSON reply format. The template is a plain sample with one placeholder endpoint and an empty Drift heading, with no instructions, commands or links. The test fixture is clearly synthetic: it is marked `synthetic: true`, uses sample endpoints and a decoy 'lantern festival' note that checks the path filter. Nothing is hidden, encoded or misnamed. One minor point does not weaken safety: the prompt counts a tool call as possible evidence of real behaviour, while the persona rejects entries whose only source is tool output, so the reviewer is the stricter of the two. The **/api/** pattern is broader than the filename patterns, but the README states it openly and it fits the purpose of API notes.",
+  "findings": [],
+  "at": "2026-11-12T08:05:20.458546Z"
+}

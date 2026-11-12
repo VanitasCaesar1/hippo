@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CMTB5Q077F1NP7W1096CX",
+  "pack": "decision-log",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/decision-log",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "35b9e4da57afc68a7fe2662f7b9efb7a537584f512db8576acd33332099f5204",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The decision-log pack does what its README says and nothing more. Its single pass reads sessions, notes and turns, which is what it needs: session records for dates and handoffs, the note so it can skip duplicates, and the turns that mention the note as cited evidence. It makes one call per note and works only on notes matching `**/Decision log*.md` and `**/Decisions.md`, which matches the README's account of the passes, how they get work, and cost. The prompt treats untrusted blocks as data and allows only empty-`old` appends under a final `## Logged decisions` section. It defines a decision narrowly, requires a citation for every turn relied on, forbids repeating decisions already logged, and bars any instruction, command or link that only tool output shows. It asks for no instructions to agents, credentials or personal data. The reviewer persona rejects by default, rejects reasons or rejected options the cited turns do not support, rejects duplicates, non-appends, edits to existing text, and additions sourced only from tool output, and keeps a strict one-line JSON reply format. The template only describes the note and carries no agent instructions, commands, links or credential handling. The fixtures are clearly synthetic (a sample app, a lantern-festival decoy note, and a transcript marked synthetic), and the test checks that a note outside the filter is not read. I found no hidden, encoded or misnamed content, and no file text addressed to me or to the dreaming model beyond the pack's purpose.",
+  "findings": [],
+  "at": "2026-11-12T08:05:46.25974Z"
+}

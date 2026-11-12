@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CW0TYWFK0A4QFW78DRBGT",
+  "pack": "related-links",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/related-links",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "28d2f915251ae3051e849c0e141e199a29ab95a3233ced9eb96d67a2849dc83a",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The related-links pack does what its README says and nothing else. Its single pass reads sessions and notes, makes one call a day for all touched or cited notes (per_note = false), and proposes only `append` changes that add `Related: [[title]]` lines under a final `## Related` section. Those additions are internal wiki links that the purpose needs, limited to titles in the notes input and grounded in a session handoff. The README's descriptions of inputs, triggers, scope and cost match the pass definition. The prompt treats delimited content as data, forbids instructions, commands or links that only tool output shows, and caps `new` at 2,048 bytes. The reviewer persona rejects by default, restricts changes to empty-`old` appends of `Related:` lines, rejects duplicate links in any form, and keeps a strict one-sentence JSON reply. There are no templates. The fixtures are clearly synthetic (sample service, transcript marked synthetic), and the Archive note checks that untouched notes are not read. Nothing is hidden, encoded, misnamed or instructive toward the reviewer. One small point: the prompt's phrase \"frontmatter excluded\" is slightly at odds with the README's \"anywhere in its text\". Any duplicate this allows would only be a redundant internal link, and the persona's \"in any form\" rule would reject it, so it is not a safety concern.",
+  "findings": [],
+  "at": "2026-11-12T08:09:44.81153Z"
+}

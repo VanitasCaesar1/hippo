@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CY54KW35222BHZKRE17QG",
+  "pack": "todo-done",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/todo-done",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "7446978afdbe6369c1fcce3990a29c6f64a0e1a07937f85c6db6dce68a810ca5",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing more. Its one per-note pass reads sessions, notes and turns, which it needs to match finished work to listed tasks and cite evidence. It works only on notes matching TODO*, Tasks* and Backlog*, and gets work as the README describes, from notes named with `hippo session end --note` or linked in a handoff. The prompt treats untrusted blocks as data and proposes only `append` changes with an empty `old`. It never adds, rewords, ticks or moves a task, and requires turn evidence of finished, working work. It keeps tool-only commands and links out of notes and keeps the strict JSON reply. The persona rejects by default, treats its inputs as untrusted, rejects non-append changes, invented or reworded tasks, unfinished work and agent instructions, commands or links not shown in the turns, and keeps a strict one-object reply. The template is a plain task list with a descriptive sentence and an empty `## Done` section, with no agent instructions, commands, links or credential handling. The fixtures are clearly synthetic: the transcript is marked synthetic, and the unrelated pottery note checks that the path filter leaves it unread. No hidden, encoded or misnamed content was found. One small inconsistency: the canned model reply in the test appends a parenthetical citation to the `Done:` line, which goes slightly beyond the format the prompt and README describe. It is harmless test data and does not change what the pack writes.",
+  "findings": [],
+  "at": "2026-11-12T08:10:54.853825Z"
+}

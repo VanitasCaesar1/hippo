@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CN6A6G89T5E0Q9J5RQEK2",
+  "pack": "dependency-changes",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/dependency-changes",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "a0dc35a05069dafc36949272a7c17fe690408f6cc2ed1228a29113cf241a1c04",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing more. Its one pass makes one call per note, works only on notes matching **/Dependencies*.md, and reads sessions, notes and turns: the session records, the note itself so it can skip duplicates, and the transcript turns that serve as evidence. The prompt treats delimited content as untrusted data and allows only append changes with an empty old text. Every entry must cite its turns and must not infer versions or reasons. The prompt forbids quoting commands, instructions or links that only tool output shows. The persona rejects by default, treats all of its inputs as untrusted, rejects agent instructions, commands and links that the cited turns do not show, and keeps a strict JSON reply format. The template is a plain heading and description, with no instructions, commands, links or credential handling. The fixtures are clearly synthetic: a sample app, invented package names, a transcript marked synthetic, and an unrelated note that the test confirms the filter excludes. Nothing is hidden or encoded, and the README describes the passes, how they get work, what they read and the cost accurately.",
+  "findings": [],
+  "at": "2026-11-12T08:05:54.560288Z"
+}

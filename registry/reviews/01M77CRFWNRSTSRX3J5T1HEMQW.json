@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CRFWNRSTSRX3J5T1HEMQW",
+  "pack": "incident-timeline",
+  "version": "1.0.1",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/incident-timeline",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "e9cbaf73d327ddd34eb30f3b6c396a3359a5dfcbf6e24dbdb971a07921096ea8",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing more. Its one pass reads sessions, notes and turns, runs once per matching note, and works only on notes matching **/Incidents/**, **/Incident*.md and **/Postmortem*.md. These patterns are narrow and match the stated purpose, and they cover the shipped template. The README describes the inputs, the triggering (notes named with `--note` or linked in a handoff), append-only output under a final `## Timeline` section, and the cost. The prompt treats delimited input as untrusted data and allows only `append` changes with an empty `old`. It also forbids root causes, impacts and blame that the turns do not state, and allows commands only from `tool_use` turns, never from tool output. It requires secrets to be written as `<redacted>`, requires a citation for every entry, and caps `new` at 2,048 bytes. The reviewer persona treats its inputs as untrusted and rejects by default when evidence is thin. It checks each of these rules again, rejects instructions, commands or links that the turns do not show, and keeps a strict one-object reply format. The template holds only a description, a placeholder summary and an empty Timeline heading. It carries no instructions for agents, no commands, no links and no credential handling. The test fixture is plainly synthetic: it is marked `synthetic: true` and describes a 'sample queue' with a duplicate config key. It checks that a note outside the filter is not read. I found no hidden, encoded or misnamed content, and no text that tries to instruct the reviewer or the dreaming model beyond the pack's purpose.",
+  "findings": [],
+  "at": "2026-11-12T08:07:46.483391Z"
+}

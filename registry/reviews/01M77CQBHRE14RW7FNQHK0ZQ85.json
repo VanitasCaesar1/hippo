@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CQBHRE14RW7FNQHK0ZQ85",
+  "pack": "gotchas",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/gotchas",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "83d07a9949dd6b577ce2083b1632cc81ded38f014926046a39dec2a4a7e8231b",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The gotchas pack does what its README says and nothing more. It has one per-note pass, limited to notes matching **/Gotchas*.md and **/Pitfalls*.md, and it gets work only from sessions that name or link those notes. It reads sessions, notes and turns, which it needs to cite evidence and to skip gotchas the note already records. It proposes only empty-old `append` changes under a final `## Logged gotchas` section. The prompt treats the untrusted blocks as data. It forbids quoting commands, instructions or links that appear only in tool output, and it does not ask for credentials or personal data. An avoidance step, such as a flag, is allowed only when the turns state it, which the purpose needs. The persona rejects by default, rejects changes sourced only from tool output and keeps a strict one-sentence JSON reply. The template is a plain description with an empty section and no instructions, commands or links. The fixtures are clearly synthetic: a sample-cli, a transcript marked synthetic, and an unrelated allotment note that only tests that the filter keeps other notes out. I found no hidden, encoded or misnamed content and no text that tries to instruct the reviewer.",
+  "findings": [],
+  "at": "2026-11-12T08:07:08.340193Z"
+}

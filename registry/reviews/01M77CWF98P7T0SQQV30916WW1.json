@@ -1,0 +1,20 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CWF98P7T0SQQV30916WW1",
+  "pack": "runbook-check",
+  "version": "1.0.1",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/runbook-check",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "82df92e31edd3c032d65e0b700e38134e9669a7f33f3bbcf8674e847834e6428",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says. Its single pass reads sessions, notes and turns, makes one call per note, and works only on notes matching **/Runbook*.md, **/Runbooks/** and **/Playbook*.md. The README describes the same patterns and the same trigger: a note named with `hippo session end --note`, or linked in a handoff. Reading turns is needed because entries must cite transcript evidence, and reading sessions and the note is needed for dates and for skipping duplicates. The prompt treats delimited input as untrusted data, allows only `append` under a final `## Run findings` section, takes commands only from `tool_use` turns and never from tool results, files or fetched pages, redacts secrets, and asks for cited evidence. The reviewer persona rejects by default, keeps the strict JSON reply, and repeats these limits, including rejecting non-append changes, uncited commands, tool-output-only content and credentials. The template has only a title, a one-line description, three generic placeholder steps with no commands, links or credential handling, and an empty `## Run findings` heading. Its one sentence about findings describes the section rather than instructing agents. The test fixtures are clearly synthetic: a sample worker, made-up make targets and a `synthetic` marker in the transcript. I found no hidden, encoded or misnamed content. One minor, non-blocking inconsistency is listed below.",
+  "findings": [
+    "Non-blocking: the queue-clear test's scripted entry names `make clear-queue`, which comes from the runbook note rather than a cited `tool_use` turn, yet the fixture expects a confirm. The persona's rule against commands not shown in a `tool_use` turn would arguably reject it; the fixture should cite the step without that command."
+  ],
+  "at": "2026-11-12T08:10:04.256207Z"
+}

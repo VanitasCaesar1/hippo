@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CSHPWT8N4FG7TVCRK4CZP",
+  "pack": "measurements",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/measurements",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "8bb33444189f8d7f1313f4ae5d1851e1f3e9f580c2fce1b9deee686c80bbbab3",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing more. One pass, set to one call per note, reads sessions, notes and turns. It works only on notes matching the four declared patterns (Benchmarks, Measurements, Performance, Metrics) and proposes only empty-`old` `append` changes under a final `## Recorded measurements` section. The README describes the passes, how the pack gets work (notes named with `hippo session end --note` or linked in a handoff), what it reads and what it costs, all consistently with `passes/measurements.toml`. The prompt treats untrusted blocks as data. It records only values that a tool result shows, and it forbids copying commands, options or links out of tool output. It also forbids improvement claims unless both sides were measured, and it skips duplicates and failed, interrupted, warm-up or dry runs. The reviewer persona rejects by default, repeats each of those checks and keeps a strict one-sentence JSON reply. The template contains only a short description and an empty section heading, with no instructions, commands, links or credential handling. The fixtures are clearly synthetic: a transcript marked synthetic, a sample indexer, a kayak note used to check that the path filter excludes notes outside the patterns, and future dates. Nothing in the files is hidden or encoded, and nothing tries to instruct the reviewer. One minor observation: the `**/Performance*.md` and `**/Metrics*.md` patterns are broad and could match unrelated notes such as staff performance notes. However, they are declared in the README, and the pass appends only tool-measured values that a session obtained while touching or citing that note. This is not a reason to reject.",
+  "findings": [],
+  "at": "2026-11-12T08:08:23.21712Z"
+}

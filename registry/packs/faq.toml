@@ -1,0 +1,8 @@
+protocol = "HIPPO_V1"
+name = "faq"
+repo = "https://github.com/VanitasCaesar1/hippo"
+repo_id = 1454849249
+owner_id = 94681960
+path = "packs/faq"
+commit = "c2590adf628f4586f75f2d6a44d0c246a011bec9"
+maintainers = ["VanitasCaesar1"]

@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CPXMXJAJXCFSJPQAFQT06",
+  "pack": "glossary-terms",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/glossary-terms",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "bef18772cde648d060bf0810c447e14cba74725143edde98b182edd375bdda3b",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing more. Its single pass, glossary-terms, reads sessions, notes and turns, makes one call per note, and only works on notes matching **/Glossary*.md. That matches the README's account of what the pass reads, how it gets work (notes named with `hippo session end --note` or linked in a handoff) and what it writes (cited `append` entries under a final `## Proposed terms` section). Three inputs is the least the purpose needs: the note, to skip terms it already holds; the session records, for dates and scope; and the turns, as evidence. The prompt treats all inputs as untrusted and allows only `append` changes with an empty `old`. It forbids invented meanings, requires a citation for every turn relied on, caps `new` at 2,048 bytes, and bars quoting instructions, commands or links that appear only in tool output. It asks for no credentials or personal data. The reviewer persona rejects by default and also rejects: unsupported or extra detail, duplicates, contradictions, entries placed outside the final section, non-append changes, and agent instructions, commands or links that the cited turns do not show or that come only from tool output. Its reply format is strict JSON with nothing else. The template holds only a heading, a one-line description of the curation flow, one sample term and an empty `## Proposed terms` section; it has no agent instructions, commands, links or credential handling. The test fixture is plainly synthetic (a `synthetic` marker, a 'sample app' and invented content) and checks that the non-matching note is not read. I found nothing hidden, encoded or misnamed, and no text addressed to me or to the dreaming model beyond the pack's purpose. One small inconsistency, not a reason to reject: the test's canned model reply puts an inline '(retry-budget, turn 1)' citation in the entry text, which the prompt's entry format does not ask for. It is test data only.",
+  "findings": [],
+  "at": "2026-11-12T08:06:57.120275Z"
+}

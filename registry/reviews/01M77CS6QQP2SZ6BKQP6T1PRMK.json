@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CS6QQP2SZ6BKQP6T1PRMK",
+  "pack": "limits-and-quotas",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/limits-and-quotas",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "685a326ec6cbc693a5a6344d4d6e9c9f1e0a81d5d347a5426eb62bbeaab1de39",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing more. It has one per-note pass that reads sessions, notes and turns, which match the README's 'What it reads' section, and works only on **/Limits*.md and **/Quotas*.md, as documented. The prompt treats the untrusted blocks as data and proposes only `append` changes under a final `## Hit in sessions` section. It requires cited evidence and allows the error text as the only thing quoted from tool output. It forbids commands, links, agent instructions, and account, project and key identifiers, and it forbids stating limits or reset times from memory. The reviewer persona rejects by default, enforces the same rules, ignores instructions in the evidence, and keeps a strict one-sentence JSON reply format. The template is a heading, one descriptive sentence and an empty section, with no instructions, commands, links or credential handling. The single test fixture is marked synthetic and uses generic content: a geocoding 429 error and an unrelated lichen note that checks the path filter. Nothing in the pack is hidden, encoded or misnamed, and no file tries to instruct the reviewer or the dreaming model. The doubled slash in the source URL is cosmetic and outside the pack's files.",
+  "findings": [],
+  "at": "2026-11-12T08:08:08.998214Z"
+}

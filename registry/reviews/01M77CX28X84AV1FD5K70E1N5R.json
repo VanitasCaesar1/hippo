@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CX28X84AV1FD5K70E1N5R",
+  "pack": "schema-notes",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/schema-notes",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "6ffc39f78a66a3ff12de9705342bc004f0b0f3a2f35200b9cfeb403df2c8789d",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing more. Its one pass reads sessions, notes and turns, which match the README's list. It makes one call per note and works only on notes matching **/Schema*.md, **/Data model*.md and **/Database*.md, which is what a schema-tracking purpose needs. The prompt marks UNTRUSTED blocks as data and allows only append changes under a final `## Schema changes` section. It records only changes the turns show were made in that session, never designs, proposals or reverted changes. It keeps out row data, record values, identifiers and personal data, refuses to guess types or constraints, and forbids quoting instructions, commands or links that appear only in tool output. The reviewer persona rejects by default, treats the note, evidence and session records as untrusted, and keeps a strict JSON reply format. The template is a plain heading with a description and an empty `## Schema changes` section; it carries no agent instructions, commands, links or credential handling. The fixtures are marked synthetic and use generic names: an invoices table with memo, total and paid_at, and an unrelated tide-tables note that tests the path filter. They do not look like real data. I found no hidden, encoded or misnamed content, and nothing in the files tries to instruct the reviewer or the dreaming model. The source URL has a doubled slash, which is cosmetic and does not change what the pack does.",
+  "findings": [],
+  "at": "2026-11-12T08:10:15.071621Z"
+}

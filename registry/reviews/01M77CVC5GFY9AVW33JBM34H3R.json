@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CVC5GFY9AVW33JBM34H3R",
+  "pack": "paper",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/paper",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "f153a3748ace7d919e4d17ffbc6b3317417a01dc4445f5550505878c11836404",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "Paper is a theme-only pack (kind = \"theme\") with no passes, prompts, personas or templates, and hippo raised no warnings. theme.css is a single :root block that sets only --hp-* contract custom properties: colours, a font stack of locally installed serif families, sizes, line height and color-scheme. It has no selectors, imports, url(), @font-face or embedded data, so it cannot hide, move or relabel sources, reviews, warnings or counts. theme.json holds only hex colours for standard style keys, one font name (Georgia) and one size (14). It embeds no images or fonts and imitates no other product's branding. The README matches the files: cream and brown palette, umber web top bar, Georgia serif stack, line height 1.5, a light scheme only, and the same palette on desktop with Georgia at 14. The LICENSE is a standard MIT text and pack.toml is consistent with the files. No file contains text aimed at the reviewer, the dreaming model or agents. I spot-checked the README's claim of at least 5.8:1 contrast and the main text pairs pass: text on both backgrounds, muted on page (about 6.0:1), bar text on bar (about 8.8:1) and error text. Two values sit near or below that figure if the contract counts them as text: --hp-vote #7a6a55 on the page background (about 4.0:1, probably used for vote arrows rather than text) and the visited link on the page background (about 5.7:1, though links are probably drawn on the content background, about 6.4:1). I cannot see the contract's list of pairs, hippo's contract check raised nothing, and neither value hides or relabels anything, so these do not change the verdict.",
+  "findings": [],
+  "at": "2026-11-12T08:09:29.939722Z"
+}

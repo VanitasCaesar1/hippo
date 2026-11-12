@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CTA80J34YABBBR00R69E2",
+  "pack": "onboarding-gaps",
+  "version": "1.0.0",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/onboarding-gaps",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "83917a71d831a25d124057d2c6ee0de44752e2a5bbf60f96003d47e12e7478bd",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README says and nothing else. It has one per-note pass that reads sessions, notes and turns, all of which its purpose needs: turns are the cited evidence, notes allow de-duplication, and session records give dates and the handoff links that bring a note in. It works only on the three onboarding-style path patterns the README lists. It proposes `append` changes only, under a final `## Discovered setup` section. Commands are allowed only when quoted from the session's own `tool_use` turns, which the purpose needs. The prompt forbids variable values, passwords, keys and addresses, and forbids copying commands or links that appear only in tool output. It also marks untrusted inputs as data. The reviewer persona rejects by default, treats all inputs as untrusted and keeps a strict JSON reply format. The template is a plain onboarding skeleton with two generic placeholder steps and a description of the review workflow. It has no commands, links, credential handling or agent-directed instructions beyond ordinary note content. The single fixture is marked synthetic and uses obviously placeholder data (`SAMPLE_API_KEY`, port 4100, a lantern festival meeting note). It checks that a note outside the filter is not read. I found no hidden, encoded or misnamed content, and no text that tries to instruct the reviewer or the dreaming model beyond the stated purpose. One minor observation: the prompt allows an account name to be recorded without saying that personal identifiers must be left out. The ban on addresses and values, and the default-reject reviewer, limit this risk.",
+  "findings": [],
+  "at": "2026-11-12T08:08:56.207528Z"
+}

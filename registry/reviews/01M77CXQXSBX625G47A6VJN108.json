@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CXQXSBX625G47A6VJN108",
+  "pack": "test-commands",
+  "version": "1.0.1",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/test-commands",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "9b4e48f2c9912f7e54d338ec11e559b61d2c7b86c370d734da122bc5870034e4",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The pack does what its README describes and nothing else. Its single pass reads sessions, notes and turns, all of which the purpose needs: the session records find which notes to work on, the note lets it skip commands already listed, and the turns are the cited evidence. It makes one call per matching note and works only on notes matching **/Testing*.md, **/How to test*.md and **/Build*.md, which fits a testing or build log. The README's account of the passes, the triggers (`--note` or a `[[...]]` link in a handoff), the cost and the output (append-only entries under a final `## Logged commands` section) matches pack.toml, the pass file and the prompt. Commands in notes are the stated purpose, and both the prompt and the persona limit them. They must be quoted exactly from the session's own `tool_use` turns and never from tool results, fetched pages or files. They must be shown finishing successfully and must be build, test or lint commands, excluding deploy, migrate, delete and install. Secrets are written as `<redacted>` or the entry is left out, and links or agent instructions that only tool output shows are forbidden. The prompt marks untrusted input as data. The reviewer persona rejects by default, treats its inputs as untrusted, checks the append-only shape, the evidence, the command type, duplication and secrets, and keeps a strict one-sentence JSON reply. The template is a plain heading, a short description and an empty `## Logged commands` section, with no agent instructions, commands, links or credential handling. The fixture is plainly synthetic: it is marked `synthetic: true` and uses a sample app, `make check` and a fête-planning decoy note. It also tests that a non-matching note is not read. The files contain no hidden, encoded or misnamed content and no text aimed at the reviewer or the dreaming model.",
+  "findings": [],
+  "at": "2026-11-12T08:10:39.911267Z"
+}

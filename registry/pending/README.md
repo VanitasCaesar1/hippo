@@ -2,7 +2,7 @@
 
 An entry here is not listed: `check` and `build` do not read this folder. It waits for a change its fresh-context review asked for.
 
-The 26 first-party entries wait here while they are re-pinned to a commit on `main` and reviewed again: the rename to hippo changed every pack's content hash and the reviewer persona's hash.
+No entry waits here today.
 
 To list an entry once its pack is fixed and the fix is on `main`:
 

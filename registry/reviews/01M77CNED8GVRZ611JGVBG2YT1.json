@@ -1,0 +1,18 @@
+{
+  "protocol": "HIPPO_V1",
+  "id": "01M77CNED8GVRZ611JGVBG2YT1",
+  "pack": "deploy-log",
+  "version": "1.0.1",
+  "source": "https://github.com/VanitasCaesar1/hippo//packs/deploy-log",
+  "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+  "repo_id": 1454849249,
+  "pack_hash": "355ff0728b485120a1b309ea65866eb14737602b455edd64d9e62c4f7e3d9327",
+  "reviewer": "pack-reviewer",
+  "persona_hash": "ae3c8d66675e936fc0f2bd55a536de5b6a514a5222cd8978d34e4cbcb1a4eb8f",
+  "invocation": "claude -p --no-session-persistence --setting-sources  --tools  --strict-mcp-config --system-prompt <system prompt: 2587 bytes> --output-format json",
+  "warnings": [],
+  "verdict": "confirm",
+  "notes": "The deploy-log pack has one per-note pass. It reads sessions, notes and turns, and works only on notes matching **/Deploys*.md and **/Deploy log*.md, which is what its purpose needs. The README matches the pass. It describes the note patterns, the per-note calls, how notes are brought in (hippo session end --note or [[...]] links in handoffs), the data it reads and its append-only behavior. The prompt treats untrusted blocks as data and restricts changes to empty-old appends under a final '## Logged deploys' section. It records deploys only when the turns show they ran or were watched, and it never marks an unfinished deploy as succeeded. Commands are allowed only verbatim from the session's own tool_use turns, and the purpose needs them because the README lists the command as part of an entry. Nothing that only tool output shows may be quoted, and the prompt requires secrets to be written as <redacted>. The persona states it works in a fresh context and rejects by default. It mirrors these checks, adds checks against unfounded targets and outcomes, against duplicates and against secrets, and keeps a strict one-sentence JSON reply. The template is a plain heading and description with no agent instructions, commands, links or credential handling. The fixtures are marked synthetic and use generic names (sample-api, make deploy TARGET=staging, a book club note), so they do not look like real data. The test checks that the unrelated note is not read. No hidden, encoded or misnamed content was found, and nothing goes beyond the stated purpose.",
+  "findings": [],
+  "at": "2026-11-12T08:06:07.836198Z"
+}
