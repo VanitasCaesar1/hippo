@@ -10,6 +10,7 @@
 
 pub mod claude_code;
 pub mod codex;
+pub mod command_code;
 pub mod dsh;
 pub mod muse;
 pub mod opencode;
@@ -123,6 +124,7 @@ pub fn all() -> Vec<Box<dyn Adapter>> {
         Box::new(dsh::Dsh),
         Box::new(opencode::OpenCode),
         Box::new(muse::Muse),
+        Box::new(command_code::CommandCode),
     ]
 }
 
@@ -284,8 +286,8 @@ mod tests {
     /// The turns of each adapter's synthetic transcripts, parsed with
     /// `fixtures/` as the root: Claude Code's two files, then Codex's, then
     /// dsh's normal session, then OpenCode's, from a database built from
-    /// the fixture's SQL, then Muse's.
-    fn fixture_turns() -> [(&'static str, Vec<RawTurn>); 5] {
+    /// the fixture's SQL, then Muse's, then Command Code's.
+    fn fixture_turns() -> [(&'static str, Vec<RawTurn>); 6] {
         let root = Path::new(FIXTURES);
         let claude_code = [
             "claude-code/synthetic.jsonl",
@@ -314,12 +316,21 @@ mod tests {
         let path = root.join("muse/2026/11/01/01a1d0f0-0000-7000-8000-000000000001/session.jsonl");
         assert!(muse::Muse.file_matches(&path));
         let muse = muse::Muse.parse(&root.join("muse"), &path).unwrap().turns;
+        let path = root.join(
+            "command-code/.commandcode/projects/work-example/ee000000-0000-4000-8000-000000000001.jsonl",
+        );
+        assert!(command_code::CommandCode.file_matches(&path));
+        let command_code = command_code::CommandCode
+            .parse(&root.join("command-code"), &path)
+            .unwrap()
+            .turns;
         [
             ("claude-code", claude_code),
             ("codex", codex),
             ("dsh", dsh),
             ("opencode", opencode),
             ("muse", muse),
+            ("command-code", command_code),
         ]
     }
 

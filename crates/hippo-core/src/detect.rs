@@ -131,7 +131,7 @@ pub fn detect(patterns: &[String], hippo_home: &Path, user_home: Option<&Path>) 
                 path,
             };
             let (mut claude, mut codex, mut dsh, mut opencode) = (0u64, 0u64, 0u64, 0u64);
-            let mut muse = 0u64;
+            let (mut muse, mut command_code) = (0u64, 0u64);
             let entries = WalkDir::new(&dir.path)
                 .into_iter()
                 .filter_entry(|e| !e.path().starts_with(&model_runs) && adapters::descend(e));
@@ -159,6 +159,7 @@ pub fn detect(patterns: &[String], hippo_home: &Path, user_home: Option<&Path>) 
                     "dsh" => dsh += n,
                     "opencode" => opencode += n.max(1),
                     "muse" => muse += n,
+                    "command-code" => command_code += n,
                     _ => claude += n,
                 }
                 dir.files += n;
@@ -168,9 +169,11 @@ pub fn detect(patterns: &[String], hippo_home: &Path, user_home: Option<&Path>) 
                     dir.oldest = Some(dir.oldest.map_or(at, |o| o.min(at)));
                 }
             }
-            if claude + codex + dsh + opencode + muse > 0 {
-                dir.tool = if opencode > 0 && claude + codex + dsh + muse == 0 {
+            if claude + codex + dsh + opencode + muse + command_code > 0 {
+                dir.tool = if opencode > 0 && claude + codex + dsh + muse + command_code == 0 {
                     "opencode"
+                } else if command_code > claude.max(codex).max(dsh).max(muse) {
+                    "command-code"
                 } else if muse > claude.max(codex).max(dsh) {
                     "muse"
                 } else if dsh > claude.max(codex) {
@@ -208,6 +211,8 @@ fn tool_of(path: &Path) -> &'static str {
         "codex"
     } else if path.components().any(|c| c.as_os_str() == ".dsh") {
         "dsh"
+    } else if path.components().any(|c| c.as_os_str() == ".commandcode") {
+        "command-code"
     } else if path.file_name().is_some_and(|n| n == "opencode") {
         "opencode"
     } else if path.file_name().is_some_and(|n| n == "sessions")

@@ -37,11 +37,13 @@ pub enum Tool {
     OpenCode,
     /// `muse`: Muse Code.
     Muse,
+    /// `command-code`: Command Code.
+    CommandCode,
 }
 
 impl Tool {
-    /// `claude-code`, `codex`, `dsh`, `opencode` or `muse`, as records and
-    /// the index write it.
+    /// `claude-code`, `codex`, `dsh`, `opencode`, `muse` or `command-code`,
+    /// as records and the index write it.
     pub fn as_str(self) -> &'static str {
         match self {
             Tool::ClaudeCode => "claude-code",
@@ -49,6 +51,7 @@ impl Tool {
             Tool::Dsh => "dsh",
             Tool::OpenCode => "opencode",
             Tool::Muse => "muse",
+            Tool::CommandCode => "command-code",
         }
     }
 }
@@ -640,6 +643,7 @@ mod tests {
             Tool::Dsh,
             Tool::OpenCode,
             Tool::Muse,
+            Tool::CommandCode,
         ] {
             let json = serde_json::to_string(&tool).unwrap();
             assert_eq!(json, format!("\"{}\"", tool.as_str()));

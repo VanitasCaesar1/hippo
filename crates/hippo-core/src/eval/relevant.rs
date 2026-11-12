@@ -293,6 +293,9 @@ pub fn run(ws: &Workspace, index: &Index, rollup: &Rollup, opts: &Options) -> Re
                 crate::adapters::opencode::info(&f.transcript_path).and_then(|i| i.directory)
             }
             "muse" => crate::adapters::muse::workspace_root(&f.transcript_path),
+            "command-code" => {
+                crate::adapters::command_code::header(&f.transcript_path).and_then(|h| h.cwd)
+            }
             _ => transcript_cwd(&f.transcript_path),
         };
         let repo = cwd.and_then(|dir| rank::repo_name(&dir, &ws.root));

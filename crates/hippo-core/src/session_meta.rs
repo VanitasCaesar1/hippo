@@ -113,6 +113,14 @@ pub fn origin(id: &str, tool: &str, path: &Path) -> Origin {
     if tool == "opencode" {
         return opencode_origin(path);
     }
+    if tool == "command-code" {
+        let cwd = crate::adapters::command_code::header(path).and_then(|h| h.cwd);
+        return Origin {
+            automated: cwd.as_deref().is_some_and(is_temporary),
+            cwd,
+            ..Origin::default()
+        };
+    }
     if tool == "muse" {
         let cwd = crate::adapters::muse::workspace_root(path);
         return Origin {

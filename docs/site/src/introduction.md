@@ -12,7 +12,7 @@ transcripts  ->  notes  ->  wiki  ->  injected context
        +--------- dreaming (offline, verified) ---+
 ```
 
-- **Transcripts.** `hippo ingest` indexes the transcripts of Claude Code, Codex, DeepSeek Harness (dsh), OpenCode and Muse Code into one local search index. `hippo recall` searches every turn. Secrets are redacted before anything enters the index.
+- **Transcripts.** `hippo ingest` indexes the transcripts of Claude Code, Codex, DeepSeek Harness (dsh), OpenCode, Muse Code and Command Code into one local search index. `hippo recall` searches every turn. Secrets are redacted before anything enters the index.
 - **Notes.** Plain Markdown files with a little frontmatter. They live in your workspace, and you keep editing them as you do now.
 - **Wiki.** The links between notes (`[[Note name]]`). hippo uses them to find the notes a session touched and to count broken links.
 - **Injected context.** `hippo context` compiles a block of text for the start of a session, under a hard size limit. Claude Code hooks can print it into every session.
@@ -43,7 +43,7 @@ What is built today:
 - the desktop app, Hippo.app: macOS only and early, with Home, Fleet, Incidents, Memory, Ask and the Inbox ([`app/README.md`](https://github.com/VanitasCaesar1/hippo/blob/main/app/README.md));
 - the foundation of the community feed, `hippo-feed`: a server crate, a database schema and deployment files. It is not deployed and nothing is live.
 
-What is not built: a hosted registry or feed, and adapters for tools other than Claude Code, Codex, dsh, OpenCode and Muse Code. Every pack so far is by the project's author; packs by others are welcome. This documentation describes only what the code does today. [Limits and known gaps](limits.md) lists what to watch for.
+What is not built: a hosted registry or feed, and adapters for tools other than Claude Code, Codex, dsh, OpenCode, Muse Code and Command Code. Every pack so far is by the project's author; packs by others are welcome. This documentation describes only what the code does today. [Limits and known gaps](limits.md) lists what to watch for.
 
 ## How this guide is organised
 

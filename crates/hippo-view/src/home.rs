@@ -947,13 +947,19 @@ pub fn build(inp: &Inputs<'_>) -> Home {
     let claude = inp
         .profiles
         .iter()
-        .filter(|p| !matches!(p.as_str(), "codex" | "dsh" | "opencode" | "muse"))
+        .filter(|p| {
+            !matches!(
+                p.as_str(),
+                "codex" | "dsh" | "opencode" | "muse" | "command-code"
+            )
+        })
         .count();
     let others: Vec<&str> = [
         ("codex", "Codex"),
         ("dsh", "dsh"),
         ("opencode", "OpenCode"),
         ("muse", "Muse Code"),
+        ("command-code", "Command Code"),
     ]
     .into_iter()
     .filter(|(p, _)| inp.profiles.iter().any(|q| q == p))

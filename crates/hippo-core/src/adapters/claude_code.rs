@@ -64,6 +64,7 @@ impl Adapter for ClaudeCode {
             && !is_workflow_journal(path)
             && !super::dsh::is_log(path)
             && !super::muse::is_muse_file(path)
+            && !super::command_code::is_under_commandcode(path)
     }
 
     fn revision(&self, bytes: &[u8]) -> Option<&'static str> {
