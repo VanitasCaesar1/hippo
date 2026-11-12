@@ -56,6 +56,7 @@ fn row(id: &str, title: &str, profile: &str, state: State) -> Row {
         delegated_by: None,
         asked: None,
         outcome: None,
+        rules: Vec::new(),
     }
 }
 
@@ -97,6 +98,7 @@ fn fleet(rows: Vec<Row>, rooms: Vec<Headroom>, next: Option<&str>) -> Fleet {
         use_next: next.map(str::to_owned),
         signed_out: Vec::new(),
         usage_cached: true,
+        drains: Vec::new(),
     }
 }
 

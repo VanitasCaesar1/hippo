@@ -46,13 +46,17 @@ fn load() -> Result<(Fleet, UtcOffset, hippo_core::config::Config)> {
     let roots = transcript_roots(&config);
     let snap = Snapshot::read(&config.home, &roots, now, offset)?;
     let rollup = Rollup::open(&config.home).ok().flatten();
-    let fleet = fleet::build(&fleet::Inputs {
+    let mut fleet = fleet::build(&fleet::Inputs {
         now,
         offset,
         roots: &roots,
         rollup: rollup.as_ref(),
         usage: &snap,
     });
+    if let Some(r) = rollup.as_ref() {
+        let lessons = hippo_core::lessons::list(&config.home).unwrap_or_default();
+        fleet::serve_rules(&mut fleet.rows, r, &lessons);
+    }
     Ok((fleet, offset, config))
 }
 

@@ -1156,6 +1156,125 @@ fn windows(
     (five, seven, (!current).then_some(m.fetched_at))
 }
 
+/// The step of a [`Drain`]'s samples.
+pub const DRAIN_STEP: i64 = 600;
+/// The burn rate is read over this much of the window's end.
+pub const BURN_OVER: i64 = 30 * 60;
+
+/// How a profile's open 5-hour window has drained, and where it is heading.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Drain {
+    /// The window, Unix seconds.
+    pub start: i64,
+    pub end: i64,
+    /// The fraction used at the end of each [`DRAIN_STEP`] from the
+    /// window's start, the last one at the time it was read.
+    pub samples: Vec<f64>,
+    /// The fraction used now.
+    pub used: f64,
+    /// The fraction used per hour over the last [`BURN_OVER`].
+    pub burn: f64,
+    /// When the window is used up at that rate, if before it resets.
+    pub empty_at: Option<i64>,
+}
+
+impl Drain {
+    /// The minutes between running dry and the reset.
+    pub fn early_by(&self) -> Option<i64> {
+        self.empty_at.map(|e| (self.end - e) / 60)
+    }
+}
+
+/// `room`'s open 5-hour window as a drain, from the snapshot's messages
+/// (Claude) or meter readings (Codex) scaled to the window's own figure:
+/// a current client meter's percent over the tokens counted in the window,
+/// else the learned limit. `None` without an open window or a figure.
+pub fn drain(snap: &Snapshot, room: &Headroom, now: OffsetDateTime) -> Option<Drain> {
+    let now = now.unix_timestamp();
+    let w = WINDOW.whole_seconds();
+    let steps = |start: i64| -> Vec<i64> {
+        let mut out: Vec<i64> = (1..)
+            .map(|k| start + k * DRAIN_STEP)
+            .take_while(|t| *t < now)
+            .collect();
+        out.push(now);
+        out
+    };
+    let finish = |start: i64, end: i64, samples: Vec<f64>, burn: f64| {
+        let used = samples.last().copied().unwrap_or(0.0).clamp(0.0, 1.0);
+        let burn = burn.max(0.0);
+        let empty_at = (burn > 0.0)
+            .then(|| now + ((1.0 - used) / burn * 3600.0) as i64)
+            .filter(|t| *t < end);
+        Drain {
+            start,
+            end,
+            samples,
+            used,
+            burn,
+            empty_at,
+        }
+    };
+    if room.codex {
+        let mine: Vec<&Meter> = snap
+            .meters
+            .iter()
+            .filter(|m| m.profile == room.profile && m.ts <= now)
+            .collect();
+        let last = mine.last()?;
+        let end = last.resets_at.filter(|r| *r > now)?;
+        let start = end - last.window_minutes.map_or(w, |m| m * 60);
+        let window: Vec<&&Meter> = mine
+            .iter()
+            .filter(|m| m.resets_at == Some(end) && m.ts >= start)
+            .collect();
+        let at = |t: i64| {
+            window
+                .iter()
+                .rev()
+                .find(|m| m.ts <= t)
+                .map_or(0.0, |m| m.used_percent / 100.0)
+        };
+        let samples: Vec<f64> = steps(start).into_iter().map(at).collect();
+        let first = window.first()?;
+        let from = window
+            .iter()
+            .rev()
+            .find(|m| m.ts <= now - BURN_OVER)
+            .unwrap_or(first);
+        let hours = (last.ts - from.ts) as f64 / 3600.0;
+        let burn = if hours >= 5.0 / 60.0 {
+            (last.used_percent - from.used_percent) / 100.0 / hours
+        } else {
+            0.0
+        };
+        return Some(finish(start, end, samples, burn));
+    }
+    if matches!(room.window, WindowState::Limited { .. }) || room.weekly_until.is_some() {
+        return None;
+    }
+    let msgs = snap.messages.get(&room.profile)?;
+    let five = room.five?;
+    let (start, end) = match (five.source, five.resets_at, room.window) {
+        (Source::Meter, Some(r), _) => (r - w, r),
+        (_, _, WindowState::Open { start, end, .. }) => (start, end),
+        _ => return None,
+    };
+    let counted = used_between(msgs, start, now);
+    let scale = match five.source {
+        Source::Meter if counted > 0.0 => (1.0 - five.frac) / counted,
+        Source::Meter => 0.0,
+        Source::Estimate => 1.0 / room.limit.filter(|l| *l > 0.0)?,
+    };
+    let samples: Vec<f64> = steps(start)
+        .into_iter()
+        .map(|t| (used_between(msgs, start, t) * scale).clamp(0.0, 1.0))
+        .collect();
+    let recent = used_between(msgs, (now - BURN_OVER).max(start), now) * scale;
+    let burn = recent * 3600.0 / BURN_OVER as f64;
+    Some(finish(start, end, samples, burn))
+}
+
 /// The Claude profile to use next: the most headroom among those with an
 /// estimate, usable now; ties go to the one seen most recently. With the
 /// meter, a profile's headroom is its tighter window's.

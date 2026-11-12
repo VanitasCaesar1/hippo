@@ -45,6 +45,7 @@ fn row(id: &str, state: State) -> Row {
         delegated_by: None,
         asked: None,
         outcome: None,
+        rules: Vec::new(),
     }
 }
 
@@ -108,6 +109,7 @@ fn demo() -> Fleet {
         use_next: None,
         signed_out: Vec::new(),
         usage_cached: false,
+        drains: Vec::new(),
     }
 }
 

@@ -467,3 +467,98 @@ fn without_a_cache_only_recent_files_are_read() {
         "a reader writes nothing"
     );
 }
+
+#[test]
+fn a_drain_follows_the_window_and_says_when_it_runs_dry() {
+    let now = datetime!(2026-11-09 12:00 UTC);
+    let t = now.unix_timestamp();
+    let m = 60;
+    let profile = |name: &str, codex: bool| ProfileInfo {
+        name: name.into(),
+        codex,
+        dir: None,
+    };
+    // "fast": a limit of 1000 learned; 100 used early, then 300 in the last
+    // half hour: 40 % used, 60 % per hour, dry in 40 minutes.
+    let mut messages = BTreeMap::new();
+    messages.insert(
+        "fast".to_owned(),
+        vec![
+            (t - 30 * 3600, 1000.0),
+            (t - 120 * m, 100.0),
+            (t - 20 * m, 150.0),
+            (t - 5 * m, 150.0),
+        ],
+    );
+    // "slow": its meter says 20 % used; the window's tokens are 200.
+    messages.insert(
+        "slow".to_owned(),
+        vec![(t - 100 * m, 150.0), (t - 10 * m, 50.0)],
+    );
+    let mut snap = Snapshot {
+        profiles: vec![
+            profile("fast", false),
+            profile("slow", false),
+            profile("cx", true),
+        ],
+        messages,
+        limits: vec![hit("fast", t - 29 * 3600, t - 27 * 3600)],
+        meters: vec![
+            Meter {
+                profile: "cx".into(),
+                ts: t - 60 * m,
+                used_percent: 10.0,
+                window_minutes: Some(300),
+                resets_at: Some(t + 100 * m),
+            },
+            Meter {
+                profile: "cx".into(),
+                ts: t - 2 * m,
+                used_percent: 70.0,
+                window_minutes: Some(300),
+                resets_at: Some(t + 100 * m),
+            },
+        ],
+        cached: true,
+        claude_meters: BTreeMap::new(),
+    };
+    snap.claude_meters.insert(
+        "slow".into(),
+        client(
+            t - 60,
+            (20.0, Some(t + 200 * m)),
+            (5.0, Some(t + 90 * 3600)),
+        ),
+    );
+    let rooms = headroom(&snap, now);
+    let by = |n: &str| rooms.iter().find(|r| r.profile == n).unwrap();
+
+    let fast = drain(&snap, by("fast"), now).unwrap();
+    assert!((fast.used - 0.4).abs() < 1e-9, "{fast:?}");
+    assert!((fast.burn - 0.6).abs() < 1e-9);
+    assert_eq!(fast.empty_at, Some(t + 60 * m));
+    assert!(fast.early_by().unwrap() > 0);
+    assert!(fast.samples.windows(2).all(|w| w[0] <= w[1]));
+    assert_eq!(
+        fast.samples.len() as i64,
+        (t - fast.start - 1) / DRAIN_STEP + 1
+    );
+
+    let slow = drain(&snap, by("slow"), now).unwrap();
+    assert_eq!(slow.end, t + 200 * m);
+    assert!((slow.used - 0.2).abs() < 1e-9);
+    // 50 of 200 tokens in the last half hour: 5 % used, 10 % per hour.
+    assert!((slow.burn - 0.1).abs() < 1e-9);
+    assert_eq!(slow.empty_at, None);
+
+    let cx = drain(&snap, by("cx"), now).unwrap();
+    assert!((cx.used - 0.7).abs() < 1e-9);
+    // 60 points over 58 minutes.
+    assert!((cx.burn - 0.6 / (58.0 / 60.0)).abs() < 1e-9);
+    assert!(cx.empty_at.is_some_and(|e| e < t + 100 * m));
+    // A profile with no limit learned and no meter has no drain.
+    snap.limits.clear();
+    let rooms = headroom(&snap, now);
+    let fast = rooms.iter().find(|r| r.profile == "fast").unwrap();
+    assert_eq!(drain(&snap, fast, now), None);
+}

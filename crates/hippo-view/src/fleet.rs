@@ -165,6 +165,64 @@ pub struct Row {
     pub asked: Option<String>,
     #[serde(skip)]
     pub outcome: Option<String>,
+    /// The kept rules its recorded start block carried ([`serve_rules`]);
+    /// empty when the block was not recorded.
+    pub rules: Vec<ServedRule>,
+}
+
+/// A kept rule a session started with: a kept lesson whose note was in
+/// the session's recorded start block, kept before the session began.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ServedRule {
+    /// The lesson's title.
+    pub title: String,
+    /// Its note, relative to the workspace.
+    pub note: String,
+}
+
+/// Fills each row's [`Row::rules`] from its recorded start block in
+/// `rollup` and the kept lessons among `lessons`.
+pub fn serve_rules(rows: &mut [Row], rollup: &Rollup, lessons: &[hippo_core::lessons::Lesson]) {
+    if !lessons
+        .iter()
+        .any(|l| l.status == hippo_core::lessons::Status::Kept)
+    {
+        return;
+    }
+    for row in rows.iter_mut() {
+        let Ok(parts) = rollup.context_of(&row.id) else {
+            continue;
+        };
+        let notes: HashSet<String> = parts
+            .iter()
+            .filter_map(|p| p.note.as_ref())
+            .map(|n| n.to_string_lossy().into_owned())
+            .collect();
+        row.rules = rules_served(&notes, row.started, lessons);
+    }
+}
+
+/// The kept lessons among `lessons` whose note is in `notes` (a start
+/// block's, relative to the workspace) and that were kept at or before
+/// `began`.
+pub fn rules_served(
+    notes: &HashSet<String>,
+    began: Option<OffsetDateTime>,
+    lessons: &[hippo_core::lessons::Lesson],
+) -> Vec<ServedRule> {
+    let began = began.unwrap_or(OffsetDateTime::UNIX_EPOCH);
+    lessons
+        .iter()
+        .filter(|l| l.status == hippo_core::lessons::Status::Kept)
+        .filter_map(|l| {
+            let at = l.kept.as_ref()?.at;
+            let note = l.target.as_ref()?.note.to_string_lossy().into_owned();
+            (at <= began && notes.contains(&note)).then(|| ServedRule {
+                title: l.title.clone(),
+                note,
+            })
+        })
+        .collect()
 }
 
 /// What the sessions below a session did.
@@ -569,6 +627,9 @@ pub struct Fleet {
     pub signed_out: Vec<String>,
     /// Whether the usage cache was there; without it no limit is learned.
     pub usage_cached: bool,
+    /// Each profile's open 5-hour window as a drain, where it has one.
+    #[serde(skip)]
+    pub drains: Vec<(String, usage::Drain)>,
 }
 
 impl Fleet {
@@ -621,6 +682,14 @@ impl Fleet {
 
     pub fn row(&self, id: &str) -> Option<&Row> {
         self.rows.iter().find(|r| r.id == id)
+    }
+
+    /// A profile's drain.
+    pub fn drain(&self, profile: &str) -> Option<&usage::Drain> {
+        self.drains
+            .iter()
+            .find(|(p, _)| p == profile)
+            .map(|(_, d)| d)
     }
 
     /// A profile's headroom.
@@ -1027,6 +1096,7 @@ pub fn build(inp: &Inputs<'_>) -> Fleet {
                 .unwrap_or_default(),
             asked: f.and_then(|f| f.asked.clone()),
             outcome: f.and_then(|f| f.outcome.clone()),
+            rules: Vec::new(),
             transcript: path,
             tool,
             id,
@@ -1077,12 +1147,17 @@ pub fn build(inp: &Inputs<'_>) -> Fleet {
         .unwrap_or_default();
     let use_next =
         use_next(&headroom, &signed_out, inp.now.unix_timestamp()).map(|h| h.profile.clone());
+    let drains = headroom
+        .iter()
+        .filter_map(|h| Some((h.profile.clone(), usage::drain(inp.usage, h, inp.now)?)))
+        .collect();
     Fleet {
         rows,
         headroom,
         use_next,
         signed_out,
         usage_cached: inp.usage.cached,
+        drains,
     }
 }
 

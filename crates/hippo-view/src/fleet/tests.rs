@@ -611,6 +611,7 @@ fn shelf_row(state: State, pulls: Vec<(String, &'static str)>) -> Row {
         delegated_by: None,
         asked: None,
         outcome: None,
+        rules: Vec::new(),
     }
 }
 

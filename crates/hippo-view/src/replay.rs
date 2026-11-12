@@ -10,6 +10,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use hippo_core::incidents::Kind as IncidentKind;
 use hippo_core::index::{Index, TurnMark};
 use hippo_core::rollup::{self, parse_ts, InRange, PullDone, Rollup};
 use time::{Date, Duration, OffsetDateTime, UtcOffset};
@@ -22,6 +23,11 @@ use crate::fleet::tail::ends_with_question;
 pub const MARGIN: Duration = Duration::hours(12);
 /// The width of a strength bucket, the rollup's `activity` bucket.
 pub const BUCKET: Duration = Duration::minutes(15);
+/// The width of an activity beat: a live lane's finer series, counted
+/// from the same turns at read time (the rollup keeps [`BUCKET`]).
+pub const BEAT: Duration = Duration::minutes(2);
+/// Beats in a day.
+pub const BEATS: usize = 24 * 60 / 2;
 /// A lone turn is drawn this wide.
 const LONE: Duration = Duration::seconds(30);
 /// Turns and edits (an edit counts three) in a bucket for full strength.
@@ -85,6 +91,9 @@ pub struct Track {
     /// Its first and last turn inside the day.
     pub first: Option<OffsetDateTime>,
     pub last: Option<OffsetDateTime>,
+    /// Its activity per [`BEAT`] of the day from the day's start: turns,
+    /// an edit counting three; empty when it had no turn that day.
+    pub beats: Vec<u16>,
 }
 
 impl Track {
@@ -107,6 +116,19 @@ impl Track {
             .map(Span::len)
             .sum()
     }
+
+    /// Its calls from `from` up to (not including) `to`.
+    pub fn calls_between(&self, from: OffsetDateTime, to: OffsetDateTime) -> usize {
+        let a = self.steps.partition_point(|s| s.at < from);
+        let b = self.steps.partition_point(|s| s.at < to);
+        b.saturating_sub(a)
+    }
+}
+
+/// The beat of `t` in a day starting at `start`, if inside it.
+pub fn beat_of(start: OffsetDateTime, t: OffsetDateTime) -> Option<usize> {
+    let k = (t - start).whole_seconds().div_euclid(BEAT.whole_seconds());
+    usize::try_from(k).ok().filter(|k| *k < BEATS + 30)
 }
 
 /// What a mark on a lane is.
@@ -114,10 +136,25 @@ impl Track {
 pub enum MarkKind {
     PullOpened,
     PullMerged,
+    /// A counted incident other than the two below.
     Incident,
+    /// The person corrected the session.
+    Correction,
+    /// A destructive command that harm followed.
+    Destructive,
     Question,
     Limit,
     CarryOn,
+}
+
+impl MarkKind {
+    /// A counted incident of any kind.
+    pub fn is_incident(self) -> bool {
+        matches!(
+            self,
+            MarkKind::Incident | MarkKind::Correction | MarkKind::Destructive
+        )
+    }
 }
 
 /// What a click on a mark opens.
@@ -491,6 +528,16 @@ pub fn track_of(
         .collect();
     spans.sort_by_key(|s| (s.start, s.kind as u8));
     let inside = |t: &OffsetDateTime| *t >= start && *t < end;
+    let mut beats: Vec<u16> = Vec::new();
+    for (at, t) in turns.iter().filter(|(at, _)| inside(at)) {
+        let Some(k) = beat_of(start, *at) else {
+            continue;
+        };
+        if beats.len() <= k {
+            beats.resize(k + 1, 0);
+        }
+        beats[k] = beats[k].saturating_add(if is_edit(t) { 3 } else { 1 });
+    }
     let steps = turns
         .iter()
         .filter(|(at, t)| t.call && inside(at))
@@ -507,6 +554,7 @@ pub fn track_of(
         steps,
         first: turns.iter().map(|(a, _)| *a).find(inside),
         last: turns.iter().rev().map(|(a, _)| *a).find(inside),
+        beats,
     }
 }
 
@@ -702,10 +750,15 @@ pub fn load(
                 continue;
             };
             let words: String = i.body.showed.text.chars().take(80).collect();
+            let (kind, word) = match i.kind {
+                IncidentKind::Corrected => (MarkKind::Correction, "You corrected it"),
+                IncidentKind::Destructive => (MarkKind::Destructive, "Destructive command"),
+                _ => (MarkKind::Incident, "Incident"),
+            };
             lanes[k].marks.push(Mark {
                 at: i.at,
-                kind: MarkKind::Incident,
-                label: format!("Incident: {}", words.trim()),
+                kind,
+                label: format!("{word}: {}", words.trim()),
                 target: Some(Target::Incident(i.id)),
             });
         }
@@ -795,7 +848,9 @@ pub fn day_line(lanes: &[Lane]) -> DayLine {
             match m.kind {
                 MarkKind::Limit => line.limits += 1,
                 MarkKind::PullMerged => line.merged += 1,
-                MarkKind::Incident => line.incidents += 1,
+                MarkKind::Incident | MarkKind::Correction | MarkKind::Destructive => {
+                    line.incidents += 1
+                }
                 _ => {}
             }
         }

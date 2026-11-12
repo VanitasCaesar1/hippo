@@ -282,7 +282,7 @@ pub fn layout_chips(xs: &[f32], width_of: &dyn Fn(usize) -> f32, tl_w: f32) -> V
 /// limit, merged, opened, carry-on).
 pub fn chip_kind(kinds: &[MarkKind]) -> MarkKind {
     let rank = |k: &MarkKind| match k {
-        MarkKind::Incident => 0,
+        MarkKind::Incident | MarkKind::Correction | MarkKind::Destructive => 0,
         MarkKind::Question => 1,
         MarkKind::Limit => 2,
         MarkKind::PullMerged => 3,
@@ -402,7 +402,8 @@ fn mark_icon(k: MarkKind) -> &'static str {
     match k {
         MarkKind::PullOpened => "git-pull-request",
         MarkKind::PullMerged => "git-merge",
-        MarkKind::Incident => "siren",
+        MarkKind::Incident | MarkKind::Destructive => "siren",
+        MarkKind::Correction => "pencil",
         MarkKind::Question => "message-circle-question",
         MarkKind::Limit => "gauge",
         MarkKind::CarryOn => "arrow-right",
@@ -1522,7 +1523,7 @@ impl Shell {
                         let kind = chip_kind(&kinds);
                         let lit = match hl {
                             Some(Highlight::Merged) => kinds.contains(&MarkKind::PullMerged),
-                            Some(Highlight::Incidents) => kinds.contains(&MarkKind::Incident),
+                            Some(Highlight::Incidents) => kinds.iter().any(|k| k.is_incident()),
                             Some(Highlight::Limits) => kinds.contains(&MarkKind::Limit),
                             Some(Highlight::Waits) => kinds.contains(&MarkKind::Question),
                             None => true,
@@ -1539,7 +1540,7 @@ impl Shell {
                         };
                         let color = match kind {
                             MarkKind::Question => look.c.warn,
-                            MarkKind::Incident => look.c.text,
+                            k if k.is_incident() => look.c.text,
                             _ => look.c.text_muted,
                         };
                         let n = ms.len();

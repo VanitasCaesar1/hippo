@@ -31,6 +31,7 @@ pub mod markdown;
 pub mod memory;
 pub mod notepage;
 pub mod onboarding;
+pub mod pulse;
 pub mod replay;
 pub mod sessions;
 pub mod setup;
