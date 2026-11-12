@@ -6,7 +6,7 @@
 # It picks the binary for this machine, checks its sha256, and copies it to
 # $HIPPO_INSTALL_DIR (default ~/.local/bin). No sudo.
 #
-#   HIPPO_VERSION       a version to install instead of the latest (0.2.1)
+#   HIPPO_VERSION       a version to install instead of the latest (0.3.0)
 #   HIPPO_INSTALL_DIR   where the binary goes
 #   HIPPO_BASE_URL      a folder holding the release files, such as
 #                           file:///path/to/dist (then give HIPPO_VERSION)

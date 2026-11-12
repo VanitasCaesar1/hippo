@@ -8,7 +8,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>hippo: your coding agents learn while you sleep</title>
-<meta name="description" content="Every night hippo goes through the day's Claude Code, Codex and DeepSeek Harness sessions, turns what went wrong into rules, and has a second model check each one against what happened. Keep a rule and the next sessions start with it. Open source, MIT, local.">
+<meta name="description" content="Every night hippo goes through the day's Claude Code, Codex, DeepSeek Harness and OpenCode sessions, turns what went wrong into rules, and has a second model check each one against what happened. Keep a rule and the next sessions start with it. Open source, MIT, local.">
 <meta name="color-scheme" content="dark light">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self' data:">
 <link rel="canonical" href="https://vanitascaesar1.github.io/hippo/">
@@ -50,7 +50,7 @@
     <a class="opt" href="packs.html">packs</a>
     <a class="opt" href="#limits">limits</a>
     <a href="#install">install</a>
-    <a class="gh" href="https://github.com/VanitasCaesar1/hippo">GitHub <span>v0.2.1</span></a>
+    <a class="gh" href="https://github.com/VanitasCaesar1/hippo">GitHub <span>v0.3.0</span></a>
   </nav>
 </header>
 
@@ -134,6 +134,7 @@ rules:
       <span class="how-k">one memory, every agent</span>
       <span class="how-a"><i class="ag cc">CC</i><span><b>Claude Code</b> at session start</span></span>
       <span class="how-a"><i class="ag ds">DS</i><span><b>DeepSeek Harness</b> at session start</span></span>
+      <span class="how-a"><i class="ag oc">OC</i><span><b>OpenCode</b> in each request</span></span>
       <span class="how-a"><i class="ag cx">Cx</i><span><b>Codex</b> through <code>hippo brief</code>, for now</span></span>
     </figcaption>
   </figure>
@@ -150,6 +151,7 @@ rules:
         <li><i class="ag cc">CC</i><code>~/.claude*/projects/</code></li>
         <li><i class="ag cx">Cx</i><code>~/.codex/sessions/</code></li>
         <li><i class="ag ds">DS</i><code>~/.dsh/sessions/</code></li>
+        <li><i class="ag oc">OC</i><code>~/.local/share/opencode/</code></li>
       </ul>
       <p class="src-n"><span><b>5,078</b> sessions</span><span><b>784,867</b> turns</span><span><b>162 s</b> to index</span></p>
       <p class="src-f">The maintainer's machine, into one local SQLite file.</p>
@@ -297,7 +299,7 @@ rules:
 <section class="wrap disk">
   <h2>Local, nothing hosted</h2>
   <div class="io">
-    <p><b>reads</b><code>~/.claude*/projects/</code><code>~/.codex/sessions/</code><code>~/.dsh/sessions/</code></p>
+    <p><b>reads</b><code>~/.claude*/projects/</code><code>~/.codex/sessions/</code><code>~/.dsh/sessions/</code><code>~/.local/share/opencode/</code></p>
     <p><b>writes</b><code>~/.hippo/index.sqlite</code><code>notes/*.md</code><code>.hippo/receipts/</code><code>.hippo/snapshots/</code></p>
     <p class="out"><b>sends</b><code>claude -p</code><span>your own login, for the nightly check</span></p>
   </div>
@@ -318,7 +320,11 @@ rules:
     </div>
     <div class="in-row">
       <p class="in-k">DeepSeek Harness plugin</p>
-      <div class="cmd" tabindex="0"><span class="p">$</span><span class="c">dsh plugin --profile web add "github:VanitasCaesar1/hippo#v0.2.1&amp;path:/plugins/dsh"</span></div>
+      <div class="cmd" tabindex="0"><span class="p">$</span><span class="c">dsh plugin --profile web add "github:VanitasCaesar1/hippo#v0.3.0&amp;path:/plugins/dsh"</span></div>
+    </div>
+    <div class="in-row">
+      <p class="in-k">OpenCode plugin, in <code>opencode.json</code></p>
+      <div class="cmd" tabindex="0"><span class="c">"plugins": ["github:VanitasCaesar1/hippo#v0.3.0::path:plugins/opencode"]</span></div>
     </div>
     <div class="in-row">
       <p class="in-k">From source</p>
@@ -329,10 +335,10 @@ rules:
   <aside class="limits" id="limits">
     <h2>Limits</h2>
     <ul>
-      <li>Claude Code, Codex and DeepSeek Harness only. Codex is not given the notes automatically.</li>
+      <li>Claude Code, Codex, DeepSeek Harness and OpenCode only. Codex is not given the notes automatically.</li>
       <li>Used daily on macOS; Linux is tested in CI.</li>
       <li>Not measured whether it makes agents better.</li>
-      <li>Built by one person for their own many-agent setup. v0.2.1, MIT.</li>
+      <li>Built by one person for their own many-agent setup. v0.3.0, MIT.</li>
     </ul>
     <p><a href="docs/limits.html">What it does not do yet</a></p>
   </aside>
@@ -352,7 +358,7 @@ rules:
     <a href="docs/install.html">install</a>
     <a href="docs/limits.html">limits</a>
     <a href="https://github.com/VanitasCaesar1/hippo">GitHub</a>
-    <span>v0.2.1 · MIT · a Rust CLI and a macOS app</span>
+    <span>v0.3.0 · MIT · a Rust CLI and a macOS app</span>
   </nav>
 </footer>
 

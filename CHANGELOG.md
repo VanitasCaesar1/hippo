@@ -4,6 +4,8 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-12
+
 ### Added
 
 - **OpenCode.** hippo reads OpenCode 2's SQLite database (`~/.local/share/opencode/opencode.db`, or under `$XDG_DATA_HOME`) into the index, with sub-agents under their session and forks without their copied history. The database is opened read-only and read session by session; a session whose change stamp has not moved is not read again. OpenCode's core tools are stored under Claude Code's names, so the x-ray, incidents, the rollup and dreaming read them. `hippo doctor` has an `OpenCode database` row. A configuration that lists its own roots adds it with `hippo start --add-root ~/.local/share/opencode`. See the [design](docs/designs/opencode-adapter.md).
@@ -53,7 +55,8 @@ The first release. hippo reads what your coding agents did, keeps your notes tru
 - **Hippo.app**, a macOS window over the same files. Built from source in `app/`; no binary is released. Checked on synthetic data, not in daily use.
 - **Docs** at [vanitascaesar1.github.io/hippo](https://vanitascaesar1.github.io/hippo/), including [Sharing a brain in a team](docs/site/src/sharing.md), tried with two people and one git remote.
 
-[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/VanitasCaesar1/hippo/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/VanitasCaesar1/hippo/releases/tag/v0.1.0

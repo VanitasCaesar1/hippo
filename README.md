@@ -61,7 +61,7 @@ Inside Claude Code, as a plugin (then run `/hippo:setup`):
 
 With Rust 1.89 or later: `cargo install --locked --git https://github.com/VanitasCaesar1/hippo hippo`.
 
-Inside DeepSeek Harness (`dsh`), as a plugin that gives sessions the same start block and lets the model call `hippo ask` and `hippo show day`: `dsh plugin --profile web add "github:VanitasCaesar1/hippo#v0.2.1&path:/plugins/dsh"` ([details](plugins/dsh/README.md)).
+Inside DeepSeek Harness (`dsh`), as a plugin that gives sessions the same start block and lets the model call `hippo ask` and `hippo show day`: `dsh plugin --profile web add "github:VanitasCaesar1/hippo#v0.3.0&path:/plugins/dsh"` ([details](plugins/dsh/README.md)).
 
 Inside OpenCode 2, as a plugin that does the same: add `{ "package": "github:VanitasCaesar1/hippo#v0.3.0::path:plugins/opencode" }` to `plugins` in `~/.config/opencode/opencode.json` ([details](plugins/opencode/README.md)).
 
