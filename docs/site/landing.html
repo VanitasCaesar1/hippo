@@ -164,7 +164,7 @@
       </div>
     </div>
   </figure>
-  <p class="day-note">Part of a day of 36 sessions, 12:30 to 15:07. The data on this page all comes from one run of the synthetic demo home in the repo, <a href="https://github.com/VanitasCaesar1/hippo/blob/main/app/scripts/demo-home.sh"><code>app/scripts/demo-home.sh</code></a>: invented sessions on a photo library called Tern, a stub model with canned replies, hippo 0.1.0. The terminal figures are its output. The panels, these lanes included, are drawn in HTML from the same values. Clock times are local to the machine that ran it (UTC+5:30); the files and <code>hippo ask</code> print UTC.</p>
+  <p class="day-note">Part of a day of 36 sessions, 12:30 to 15:07. The data on this page all comes from one run of the synthetic demo home in the repo, <a href="https://github.com/VanitasCaesar1/hippo/blob/main/app/scripts/demo-home.sh"><code>app/scripts/demo-home.sh</code></a>: invented sessions on a photo library called Tern, a stub model with canned replies, hippo 0.1.0. The terminal figures are its output. The panels, these lanes included, are drawn in HTML from the same values.</p>
 </section>
 
 <!-- ============ the loop: one correction, followed ============ -->
@@ -343,12 +343,11 @@
   "verdict": "confirm",
   "before_hash": "e4bc6731ef4adf00…",
   "after_hash": "fbed291454d39582…",
-  "applied": "2026-11-12T09:38:25.729197Z",
   "snapshot": ".hippo/snapshots/01M77HYV9AHD60QQ3VXBQ5RNGD/notes/START HERE.md"
 }</pre>
           </div>
         </div>
-        <p class="side wide">Notes are plain Markdown in a folder you choose, so you can edit and commit them. The receipt says who confirmed the change and where the old file was copied first. <code>hippo revert 01M77HYV9QWEXYY1FMTQZ9DE5Q</code> puts the old file back. Receipt shortened: three fields left out, hashes cut.</p>
+        <p class="side wide">Notes are plain Markdown in a folder you choose, so you can edit and commit them. The receipt says who confirmed the change and where the old file was copied first. <code>hippo revert 01M77HYV9QWEXYY1FMTQZ9DE5Q</code> puts the old file back. Receipt shortened: four fields left out, hashes cut.</p>
       </div>
     </li>
 
@@ -500,15 +499,15 @@ Every command: hippo --help</pre>
 <pre><span class="p">$</span> <span class="cmdline">hippo ask --sources-only "which database do previews use?"</span>
 <span class="dim">searched 64 sessions and 22 notes in 0.0 s for: database previews</span>
 
-[1] Check the gallery page and send me screenshots.  (session · default · tern-web · 2026-11-12 04:37)
+[1] Check the gallery page and send me screenshots.  (session · default · tern-web)
     you: <span class="said">no, previews use the staging database, not production</span>
 <span class="dim">    cd …/projects/tern-web &amp;&amp; claude --resume demo-l1</span>
 
-[2] Check the gallery page and send me screenshots.  (session · work · tern-web · 2026-11-12 08:02)
+[2] Check the gallery page and send me screenshots.  (session · work · tern-web)
     you: <span class="said">dont point previews at the production database again, staging only</span>
 <span class="dim">    cd …/projects/tern-web &amp;&amp; CLAUDE_CONFIG_DIR=…/profiles/.claude-work claude --resume demo-l2</span>
 
-[3] START HERE  (note · 2026-11-12 09:38)
+[3] START HERE  (note)
     <span class="kept">- **Use the staging database for previews, never production.** Run previews and manual checks against the staging database (npm run preview…</span>
     notes/START HERE.md
 
