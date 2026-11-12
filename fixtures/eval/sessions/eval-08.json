@@ -1,0 +1,1 @@
+{"protocol":"HIPPOCAMP_V1","id":"eval-08","tool":"claude-code","task":"fix stale search results","task_seen":true,"context_bytes_at_start":0,"started":"2026-11-07T10:05:25Z","ended":"2026-11-07T10:07:23Z","notes_touched":["notes/Search index.md"],"handoff":null,"handoff_derived":false,"no_change_reason":null,"derived":false}

@@ -1,0 +1,27 @@
+protocol = "HIPPOCAMP_V1"
+pass = "open-questions"
+about = "An answer to a listed question is appended, and a note the filter leaves out is not read"
+
+[[session]]
+id = "region-answer"
+notes = ["notes/Open questions.md", "notes/Meeting notes.md"]
+handoff = "Settled the region; see [[Open questions]]."
+
+[model]
+reply = '''[{"note": "notes/Open questions.md", "kind": "append", "old": "", "new": "\n- 2026-11-01: Answer to \"Which region should the sample service run in?\": the eu-north region, because the first customers are in Finland. (region-answer, turn 1)\n", "evidence": [{"session": "region-answer", "ordinal": 1}], "reason": "Turn 1 settles the listed question and gives the answer and its reason."}]'''
+verdict = "confirm"
+
+[expect]
+calls = 1
+proposals = 1
+validation_failures = 0
+confirmed = 1
+rejected = 0
+applied = 1
+prompt_contains = ["Open questions"]
+prompt_excludes = ["lantern festival"]
+
+[[expect.note]]
+path = "notes/Open questions.md"
+contains = ["eu-north"]
+excludes = []

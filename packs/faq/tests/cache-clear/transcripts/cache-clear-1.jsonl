@@ -1,0 +1,4 @@
+{"synthetic": true}
+{"type": "user", "sessionId": "cache-clear-1", "timestamp": "2026-11-01T10:00:00.000Z", "message": {"role": "user", "content": "Quick question for the FAQ: does clearing the thumbnail cache delete my original photos?"}}
+{"type": "assistant", "sessionId": "cache-clear-1", "timestamp": "2026-11-01T10:00:10.000Z", "message": {"role": "assistant", "content": [{"type": "text", "text": "No. The thumbnail cache only holds generated previews; the originals are stored separately, and the clear command skips that folder."}]}}
+{"type": "user", "sessionId": "cache-clear-1", "timestamp": "2026-11-01T10:00:20.000Z", "message": {"role": "user", "content": "Good, then add that to the FAQ."}}

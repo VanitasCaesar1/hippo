@@ -1,0 +1,27 @@
+protocol = "HIPPOCAMP_V1"
+pass = "related-links"
+about = "A handoff that connects two notes gets a Related line, and a note no session touched is not read"
+
+[[session]]
+id = "related-1"
+notes = ["notes/Deploy plan.md", "notes/Rollback steps.md"]
+handoff = "Wrote the rollback order for the sample deploy; see [[Deploy plan]] and [[Rollback steps]]."
+
+[model]
+reply = '''[{"note": "notes/Deploy plan.md", "kind": "append", "old": "", "new": "\n## Related\n\nRelated: [[Rollback steps]]\n", "evidence": [{"session": "related-1", "ordinal": 1}], "reason": "The handoff of related-1 connects Deploy plan and Rollback steps, which do not link each other."}]'''
+verdict = "confirm"
+
+[expect]
+calls = 1
+proposals = 1
+validation_failures = 0
+confirmed = 1
+rejected = 0
+applied = 1
+prompt_contains = ["Rollback steps"]
+prompt_excludes = ["Orchard ledger"]
+
+[[expect.note]]
+path = "notes/Deploy plan.md"
+contains = ["Related: [[Rollback steps]]"]
+excludes = []

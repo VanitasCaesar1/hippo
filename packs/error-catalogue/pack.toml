@@ -1,0 +1,6 @@
+protocol = "HIPPOCAMP_V1"
+name = "error-catalogue"
+version = "1.0.0"
+description = "Appends the error messages sessions hit and the fix that worked to an errors or troubleshooting note."
+authors = ["Vanitas Caesar"]
+license = "MIT"

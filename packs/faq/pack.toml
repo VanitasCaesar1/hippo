@@ -1,0 +1,6 @@
+protocol = "HIPPOCAMP_V1"
+name = "faq"
+version = "1.0.0"
+description = "Appends questions users asked in sessions and the answer the session established to a FAQ note."
+authors = ["Vanitas Caesar"]
+license = "MIT"

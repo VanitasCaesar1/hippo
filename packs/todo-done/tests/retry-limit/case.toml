@@ -1,0 +1,27 @@
+protocol = "HIPPOCAMP_V1"
+pass = "todo-done"
+about = "A finished listed task gets a Done line, and a note the filter leaves out is not read"
+
+[[session]]
+id = "retry-limit-1"
+notes = ["notes/TODO.md", "notes/Pottery glazes.md"]
+handoff = "Finished the retry limit; see [[TODO]]."
+
+[model]
+reply = '''[{"note": "notes/TODO.md", "kind": "append", "old": "", "new": "\n## Done\nDone: 2026-11-01 Add a retry limit to the sync worker (retry-limit-1, turn 1)\n", "evidence": [{"session": "retry-limit-1", "ordinal": 0}, {"session": "retry-limit-1", "ordinal": 1}], "reason": "Turn 1 shows the listed task finished with passing tests; the restore guide was not done."}]'''
+verdict = "confirm"
+
+[expect]
+calls = 1
+proposals = 1
+validation_failures = 0
+confirmed = 1
+rejected = 0
+applied = 1
+prompt_contains = ["TODO"]
+prompt_excludes = ["Celadon"]
+
+[[expect.note]]
+path = "notes/TODO.md"
+contains = ["Done: 2026-11-01 Add a retry limit"]
+excludes = []

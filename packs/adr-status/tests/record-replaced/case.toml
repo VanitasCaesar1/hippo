@@ -1,0 +1,27 @@
+protocol = "HIPPOCAMP_V1"
+pass = "adr-status"
+about = "A reversed decision gets a status update appended, and a note of another type is not read"
+
+[[session]]
+id = "record-replaced"
+notes = ["notes/Use SQLite for the cache.md", "notes/Release plan.md"]
+handoff = "Moved the cache off SQLite; see [[Use SQLite for the cache]]."
+
+[model]
+reply = '''[{"note": "notes/Use SQLite for the cache.md", "kind": "append", "old": "", "new": "\n- 2026-11-01: Replaced. The cache moves to an in-memory store with a periodic snapshot to disk. Why: the workers now run in one process, so SQLite's file locking only added waits. (record-replaced, turn 1)\n", "evidence": [{"session": "record-replaced", "ordinal": 1}], "reason": "Turn 1 says the SQLite decision was reversed, what replaced it and why."}]'''
+verdict = "confirm"
+
+[expect]
+calls = 1
+proposals = 1
+validation_failures = 0
+confirmed = 1
+rejected = 0
+applied = 1
+prompt_contains = ["Use SQLite for the cache"]
+prompt_excludes = ["lantern festival"]
+
+[[expect.note]]
+path = "notes/Use SQLite for the cache.md"
+contains = ["in-memory store"]
+excludes = []

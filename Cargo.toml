@@ -1,0 +1,58 @@
+[workspace]
+resolver = "2"
+members = ["crates/hippocamp-core", "crates/hippocamp", "crates/hippocamp-registry", "crates/hippocamp-theme", "crates/hippocamp-view", "crates/hippocamp-feed"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/VanitasCaesar1/hippocamp"
+homepage = "https://github.com/VanitasCaesar1/hippocamp"
+# 1.89 stabilised std::fs::File::try_lock, which ingest uses for its lock.
+rust-version = "1.89"
+
+[workspace.dependencies]
+hippocamp-core = { path = "crates/hippocamp-core" }
+hippocamp-theme = { path = "crates/hippocamp-theme" }
+hippocamp-view = { path = "crates/hippocamp-view" }
+aho-corasick = "1.1"
+# FTS5 is compiled in by `bundled`.
+rusqlite = { version = "0.41.1", features = ["bundled"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+serde_yaml_ng = "0.10.0"
+toml = "1.2.1"
+clap = { version = "4.6.7", features = ["derive"] }
+anyhow = "1.0.104"
+thiserror = "2.0.21"
+time = { version = "0.3.55", features = ["std", "formatting", "parsing", "macros", "serde", "serde-well-known"] }
+ulid = { version = "3.0.0", features = ["serde"] }
+regex = "1.13.1"
+walkdir = "2.5.0"
+glob = "0.3.4"
+home = "0.5.12"
+libc = "0.2"
+sha2 = "0.11.1"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+tempfile = "3.27.0"
+wait-timeout = "0.2.1"
+axum = "0.8.9"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "signal", "time", "sync"] }
+maud = { version = "0.27.0", features = ["axum"] }
+url = "2.5.8"
+ureq = "3.5.1"
+governor = "0.10.4"
+serde_urlencoded = "0.7.1"
+getrandom = "0.4.3"
+base64 = { version = "0.23.1", default-features = false, features = ["std"] }
+pulldown-cmark = { version = "0.13.6", default-features = false, features = ["html"] }
+# The card: anti-aliased fills, and the PNG's zlib
+# stream and checksums. The fonts are read by crates/hippocamp/src/card/font.rs.
+tiny-skia = { version = "0.11.4", default-features = false, features = ["std", "simd"] }
+flate2 = "1.1.11"
+crc32fast = "1.5.4"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

@@ -1,0 +1,7 @@
+protocol = "HIPPOCAMP_V1"
+prompt = "prompts/adr-status.md"
+reads = ["sessions", "notes", "turns", "human_confirmed"]
+reviewer = "personas/adr-status-reviewer.md"
+input_budget_bytes = 200000
+per_note = true
+note_types = ["decision"]

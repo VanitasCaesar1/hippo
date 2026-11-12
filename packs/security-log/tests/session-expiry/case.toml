@@ -1,0 +1,27 @@
+protocol = "HIPPOCAMP_V1"
+pass = "security-log"
+about = "A security change is appended without any secret, and a note the filter leaves out is not read"
+
+[[session]]
+id = "session-expiry-1"
+notes = ["notes/Security log.md", "notes/Bread starter.md"]
+handoff = "Shortened admin sessions and rotated the signing key; see [[Security log]]."
+
+[model]
+reply = '''[{"note": "notes/Security log.md", "kind": "append", "old": "", "new": "\n## Logged changes\n- 2026-11-01: Authentication: admin sessions now expire after 30 minutes; the auth tests pass. Secret handling: the signing key was rotated; it is still read from the SIGNING_KEY setting. (session-expiry-1, turn 1)\n", "evidence": [{"session": "session-expiry-1", "ordinal": 0}, {"session": "session-expiry-1", "ordinal": 1}], "reason": "Turn 1 says both changes were made and verified; no secret value is recorded."}]'''
+verdict = "confirm"
+
+[expect]
+calls = 1
+proposals = 1
+validation_failures = 0
+confirmed = 1
+rejected = 0
+applied = 1
+prompt_contains = ["Security log"]
+prompt_excludes = ["rye culture"]
+
+[[expect.note]]
+path = "notes/Security log.md"
+contains = ["expire after 30 minutes"]
+excludes = []

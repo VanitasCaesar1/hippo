@@ -1,0 +1,6 @@
+protocol = "HIPPOCAMP_V1"
+name = "decision-log"
+version = "1.0.0"
+description = "Appends the decisions sessions made, with the reason and the rejected options, to a decision log note."
+authors = ["Vanitas Caesar"]
+license = "MIT"

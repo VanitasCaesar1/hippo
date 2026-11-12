@@ -1,0 +1,27 @@
+protocol = "HIPPOCAMP_V1"
+pass = "api-drift"
+about = "A documented status code that a turn contradicts is appended as drift, and a note the filter leaves out is not read"
+
+[[session]]
+id = "status-code"
+notes = ["notes/API.md", "notes/Meeting notes.md"]
+handoff = "Checked the create endpoint; see [[API]]."
+
+[model]
+reply = '''[{"note": "notes/API.md", "kind": "append", "old": "", "new": "\n- 2026-11-01: `POST /items` is documented as returning 201, but the session found it returns 200 with the item (\"returns 200 with the item\"). (status-code, turn 1)\n", "evidence": [{"session": "status-code", "ordinal": 1}], "reason": "Turn 1 contradicts the documented status code and says what the endpoint returns."}]'''
+verdict = "confirm"
+
+[expect]
+calls = 1
+proposals = 1
+validation_failures = 0
+confirmed = 1
+rejected = 0
+applied = 1
+prompt_contains = ["POST /items"]
+prompt_excludes = ["lantern festival"]
+
+[[expect.note]]
+path = "notes/API.md"
+contains = ["returns 200"]
+excludes = []

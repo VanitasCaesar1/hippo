@@ -1,0 +1,27 @@
+protocol = "HIPPOCAMP_V1"
+pass = "runbook-check"
+about = "A runbook step that needed another command is appended with the command from the session's tool call, and a note the filter leaves out is not read"
+
+[[session]]
+id = "queue-clear"
+notes = ["notes/Runbook.md", "notes/Meeting notes.md"]
+handoff = "Followed the restart steps; see [[Runbook]]."
+
+[model]
+reply = '''[{"note": "notes/Runbook.md", "kind": "append", "old": "", "new": "\n- 2026-11-01: Step 2 (clear the queue) failed because `make clear-queue` does not exist. The session ran `make purge-queue` instead and the queue was purged. (queue-clear, turns 1 and 2)\n", "evidence": [{"session": "queue-clear", "ordinal": 1}, {"session": "queue-clear", "ordinal": 2}], "reason": "Turn 1 says step 2 failed and turn 2 is the command the session ran."}]'''
+verdict = "confirm"
+
+[expect]
+calls = 1
+proposals = 1
+validation_failures = 0
+confirmed = 1
+rejected = 0
+applied = 1
+prompt_contains = ["Runbook"]
+prompt_excludes = ["lantern festival"]
+
+[[expect.note]]
+path = "notes/Runbook.md"
+contains = ["make purge-queue"]
+excludes = []

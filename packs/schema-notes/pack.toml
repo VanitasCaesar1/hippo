@@ -1,0 +1,6 @@
+protocol = "HIPPOCAMP_V1"
+name = "schema-notes"
+version = "1.0.0"
+description = "Appends tables, columns and fields that sessions added, renamed or dropped to a schema or data model note."
+authors = ["Vanitas Caesar"]
+license = "MIT"

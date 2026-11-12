@@ -1,0 +1,4 @@
+{"synthetic": true}
+{"type": "user", "sessionId": "retry-limit-1", "timestamp": "2026-11-01T10:00:00.000Z", "message": {"role": "user", "content": "Finish the retry limit for the sync worker from the TODO list."}}
+{"type": "assistant", "sessionId": "retry-limit-1", "timestamp": "2026-11-01T10:00:10.000Z", "message": {"role": "assistant", "content": [{"type": "text", "text": "Added a limit of five retries to the sync worker; `cargo test` passes."}]}}
+{"type": "assistant", "sessionId": "retry-limit-1", "timestamp": "2026-11-01T10:00:20.000Z", "message": {"role": "assistant", "content": [{"type": "text", "text": "Left the restore guide for another day."}]}}

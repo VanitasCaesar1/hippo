@@ -1,0 +1,27 @@
+protocol = "HIPPOCAMP_V1"
+pass = "env-and-config"
+about = "A matching entry is appended, and a note the filter leaves out is not read"
+
+[[session]]
+id = "config-1"
+notes = ["notes/Environment.md", "notes/Bake sale.md"]
+handoff = "Renamed the request timeout variable and added a cache flag; see [[Environment]]."
+
+[model]
+reply = '''[{"note": "notes/Environment.md", "kind": "append", "old": "", "new": "\n- 2026-11-01: `SAMPLE_TIMEOUT` renamed to `SAMPLE_REQUEST_TIMEOUT`; it sets how long the app waits for a reply. `SAMPLE_CACHE_ENABLED` introduced; it switches the response cache on or off. (config-1, turn 1)\n", "evidence": [{"session": "config-1", "ordinal": 1}], "reason": "Turn 1 reports the rename and the new flag and says what each controls; no value is recorded."}]'''
+verdict = "confirm"
+
+[expect]
+calls = 1
+proposals = 1
+validation_failures = 0
+confirmed = 1
+rejected = 0
+applied = 1
+prompt_contains = ["Environment"]
+prompt_excludes = ["volunteer rota"]
+
+[[expect.note]]
+path = "notes/Environment.md"
+contains = ["SAMPLE_REQUEST_TIMEOUT"]
+excludes = []

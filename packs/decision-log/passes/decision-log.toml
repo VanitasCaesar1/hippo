@@ -1,0 +1,7 @@
+protocol = "HIPPOCAMP_V1"
+prompt = "prompts/decision-log.md"
+reads = ["sessions", "notes", "turns"]
+reviewer = "personas/decision-log-reviewer.md"
+input_budget_bytes = 200000
+per_note = true
+note_paths = ["**/Decision log*.md", "**/Decisions.md"]

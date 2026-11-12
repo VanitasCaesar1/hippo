@@ -1,0 +1,27 @@
+protocol = "HIPPOCAMP_V1"
+pass = "measurements"
+about = "A measured value from a tool result is appended with its date and conditions, and a note the filter leaves out is not read"
+
+[[session]]
+id = "index-timing-1"
+notes = ["notes/Measurements.md", "notes/Kayak routes.md"]
+handoff = "Timed the index rebuild; see [[Measurements]]."
+
+[model]
+reply = '''[{"note": "notes/Measurements.md", "kind": "append", "old": "", "new": "\n## Recorded measurements\n- 2026-11-01: nightly index rebuild, 5,000-note corpus, release build, 10 runs: 42.0 s median (range 41.2 s to 42.9 s). (index-timing-1, turn 3)\n", "evidence": [{"session": "index-timing-1", "ordinal": 3}], "reason": "Turn 3 is a tool result with the value, run count and build mode."}]'''
+verdict = "confirm"
+
+[expect]
+calls = 1
+proposals = 1
+validation_failures = 0
+confirmed = 1
+rejected = 0
+applied = 1
+prompt_contains = ["Measurements"]
+prompt_excludes = ["estuary loop"]
+
+[[expect.note]]
+path = "notes/Measurements.md"
+contains = ["42.0 s median"]
+excludes = []

@@ -1,0 +1,6 @@
+protocol = "HIPPOCAMP_V1"
+name = "dependency-changes"
+version = "1.0.0"
+description = "Appends the packages sessions added, removed or upgraded, with versions and the reason, to a dependencies note."
+authors = ["Vanitas Caesar"]
+license = "MIT"

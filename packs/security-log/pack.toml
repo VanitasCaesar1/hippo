@@ -1,0 +1,6 @@
+protocol = "HIPPOCAMP_V1"
+name = "security-log"
+version = "1.0.0"
+description = "Appends security-relevant changes sessions made (auth, permissions, secret handling, advisories) to a security note, never secrets."
+authors = ["Vanitas Caesar"]
+license = "MIT"

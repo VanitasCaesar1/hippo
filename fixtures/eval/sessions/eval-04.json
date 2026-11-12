@@ -1,0 +1,1 @@
+{"protocol":"HIPPOCAMP_V1","id":"eval-04","tool":"claude-code","task":"stop schema changes running on deploy","task_seen":true,"context_bytes_at_start":0,"started":"2026-11-04T08:45:25Z","ended":"2026-11-04T08:47:54Z","notes_touched":["notes/Database migrations.md"],"handoff":null,"handoff_derived":false,"no_change_reason":null,"derived":false}

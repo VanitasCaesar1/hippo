@@ -1,0 +1,8 @@
+protocol = "HIPPOCAMP_V1"
+name = "runbook-check"
+repo = "https://github.com/VanitasCaesar1/hippocamp"
+repo_id = 1449612131
+owner_id = 94681960
+path = "packs/runbook-check"
+commit = "cab9b9040c77f5f69b8e0be1a98df4e9b1f5a506"
+maintainers = ["VanitasCaesar1"]

@@ -1,0 +1,27 @@
+protocol = "HIPPOCAMP_V1"
+pass = "onboarding-gaps"
+about = "A setup fact a session had to discover is appended by name, and a note the filter leaves out is not read"
+
+[[session]]
+id = "local-port"
+notes = ["notes/Onboarding.md", "notes/Meeting notes.md"]
+handoff = "Got the sample app running; see [[Onboarding]]."
+
+[model]
+reply = '''[{"note": "notes/Onboarding.md", "kind": "append", "old": "", "new": "\n- 2026-11-01: The app needs the environment variable `SAMPLE_API_KEY` set before it starts, and it listens on port 4100. (local-port, turn 1)\n", "evidence": [{"session": "local-port", "ordinal": 1}], "reason": "Turn 1 shows the session discovering the variable name and the port."}]'''
+verdict = "confirm"
+
+[expect]
+calls = 1
+proposals = 1
+validation_failures = 0
+confirmed = 1
+rejected = 0
+applied = 1
+prompt_contains = ["Onboarding"]
+prompt_excludes = ["lantern festival"]
+
+[[expect.note]]
+path = "notes/Onboarding.md"
+contains = ["SAMPLE_API_KEY"]
+excludes = []

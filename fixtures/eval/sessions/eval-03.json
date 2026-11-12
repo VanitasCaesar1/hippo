@@ -1,0 +1,1 @@
+{"protocol":"HIPPOCAMP_V1","id":"eval-03","tool":"claude-code","task":"raise the upload size limit","task_seen":true,"context_bytes_at_start":0,"started":"2026-11-03T14:05:25Z","ended":"2026-11-03T14:08:13Z","notes_touched":["notes/Upload API.md"],"handoff":null,"handoff_derived":false,"no_change_reason":null,"derived":false}

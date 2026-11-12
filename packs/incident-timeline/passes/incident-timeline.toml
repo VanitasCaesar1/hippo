@@ -1,0 +1,7 @@
+protocol = "HIPPOCAMP_V1"
+prompt = "prompts/incident-timeline.md"
+reads = ["sessions", "notes", "turns"]
+reviewer = "personas/incident-timeline-reviewer.md"
+input_budget_bytes = 200000
+per_note = true
+note_paths = ["**/Incidents/**", "**/Incident*.md", "**/Postmortem*.md"]

@@ -1,0 +1,27 @@
+protocol = "HIPPOCAMP_V1"
+pass = "gotchas"
+about = "A matching entry is appended, and a note the filter leaves out is not read"
+
+[[session]]
+id = "gotchas-1"
+notes = ["notes/Gotchas.md", "notes/Allotment news.md"]
+handoff = "Lost an hour to the export ordering; see [[Gotchas]]."
+
+[model]
+reply = '''[{"note": "notes/Gotchas.md", "kind": "append", "old": "", "new": "\n- 2026-11-01: `sample-cli export` returns rows in a different order on each run, because it reads them from a hash map; the expected insertion order is not kept. Pass `--sort` whenever the output is compared or diffed. (gotchas-1, turn 1)\n", "evidence": [{"session": "gotchas-1", "ordinal": 1}], "reason": "Turn 1 describes the surprise, the expectation and the way around it, and says it cost time."}]'''
+verdict = "confirm"
+
+[expect]
+calls = 1
+proposals = 1
+validation_failures = 0
+confirmed = 1
+rejected = 0
+applied = 1
+prompt_contains = ["Gotchas"]
+prompt_excludes = ["allotment society"]
+
+[[expect.note]]
+path = "notes/Gotchas.md"
+contains = ["different order on each run"]
+excludes = []

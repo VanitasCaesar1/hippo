@@ -1,0 +1,6 @@
+protocol = "HIPPOCAMP_V1"
+name = "glossary-terms"
+version = "1.0.0"
+description = "Appends terms sessions defined or used in a fixed sense that the glossary lacks."
+authors = ["Vanitas Caesar"]
+license = "MIT"

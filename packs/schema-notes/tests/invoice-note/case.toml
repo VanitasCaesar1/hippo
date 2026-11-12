@@ -1,0 +1,27 @@
+protocol = "HIPPOCAMP_V1"
+pass = "schema-notes"
+about = "A renamed column and an added column are appended, and a note the filter leaves out is not read"
+
+[[session]]
+id = "invoice-note-1"
+notes = ["notes/Schema.md", "notes/Tide tables.md"]
+handoff = "Renamed an invoice column and added paid_at; see [[Schema]]."
+
+[model]
+reply = '''[{"note": "notes/Schema.md", "kind": "append", "old": "", "new": "\n## Schema changes\n- 2026-11-01: invoices: renamed column memo to note; added column paid_at (nullable timestamp). Migration 0007. (invoice-note-1, turns 2 and 4)\n", "evidence": [{"session": "invoice-note-1", "ordinal": 2}, {"session": "invoice-note-1", "ordinal": 4}], "reason": "Turn 2 writes the migration and turn 4 reports it done with passing schema tests."}]'''
+verdict = "confirm"
+
+[expect]
+calls = 1
+proposals = 1
+validation_failures = 0
+confirmed = 1
+rejected = 0
+applied = 1
+prompt_contains = ["Schema"]
+prompt_excludes = ["sandbar"]
+
+[[expect.note]]
+path = "notes/Schema.md"
+contains = ["renamed column memo to note"]
+excludes = []

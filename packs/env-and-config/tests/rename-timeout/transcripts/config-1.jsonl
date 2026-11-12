@@ -1,0 +1,3 @@
+{"synthetic": true}
+{"type": "user", "sessionId": "config-1", "timestamp": "2026-11-01T10:00:00.000Z", "message": {"role": "user", "content": "Rename SAMPLE_TIMEOUT to SAMPLE_REQUEST_TIMEOUT, add a SAMPLE_CACHE_ENABLED flag, and record both in the Environment note. Names only."}}
+{"type": "assistant", "sessionId": "config-1", "timestamp": "2026-11-01T10:00:20.000Z", "message": {"role": "assistant", "content": [{"type": "text", "text": "Done. SAMPLE_TIMEOUT is now SAMPLE_REQUEST_TIMEOUT and still sets how long the app waits for a reply. SAMPLE_CACHE_ENABLED is new and switches the response cache on or off."}]}}

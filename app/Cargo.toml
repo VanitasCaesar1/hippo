@@ -1,0 +1,18 @@
+# Hippocamp.app: a window over hippocamp's files, built on GPUI. A Cargo workspace of
+# its own, so the engine's build, lockfile and CI never compile GPUI.
+[workspace]
+members = ["hippocamp-app"]
+resolver = "3"
+
+# Copied from the [patch.crates-io] table of Zed's own workspace at commit
+# c84af5b99cbc366d675064e52b23664a015b6e35 (Zed v1.27.0), the commit `gpui` is
+# pinned to in hippocamp-app/Cargo.toml: patches in a dependency's workspace do not
+# apply to the app that depends on it. A pin moves on its own pull request,
+# which moves the rev and these two lines together.
+[patch.crates-io]
+async-process = { git = "https://github.com/zed-industries/async-process.git", rev = "0b6d6713570af61806e1e5cb40e0f757cb93fd9d" }
+async-task = { git = "https://github.com/zed-industries/async-task.git", rev = "015845a19fc31752c02367567d3b8900a406f9da" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

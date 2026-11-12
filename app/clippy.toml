@@ -1,0 +1,24 @@
+# The app writes only its preferences file, from prefs.rs. Each entry is a call
+# that writes, with the reason. prefs.rs opts out
+# with `#![allow(clippy::disallowed_methods)]` when it needs one; test code
+# opts out with `#![allow(clippy::disallowed_methods)]` (integration tests) or
+# `#[allow(clippy::disallowed_methods)]` (unit-test modules), with a comment
+# saying why: tests must build temporary workspaces, stub scripts and property
+# lists. The no-write test guards what clippy cannot see.
+disallowed-methods = [
+    { path = "std::fs::write", reason = "the app writes only its preferences file, in prefs.rs" },
+    { path = "std::fs::copy", reason = "the app writes only its preferences file, in prefs.rs" },
+    { path = "std::fs::rename", reason = "the app writes only its preferences file, in prefs.rs" },
+    { path = "std::fs::hard_link", reason = "the app writes only its preferences file, in prefs.rs" },
+    { path = "std::fs::create_dir", reason = "the app writes only its preferences file, in prefs.rs" },
+    { path = "std::fs::create_dir_all", reason = "the app writes only its preferences file, in prefs.rs" },
+    { path = "std::fs::remove_file", reason = "the app writes only its preferences file, in prefs.rs" },
+    { path = "std::fs::remove_dir", reason = "the app writes only its preferences file, in prefs.rs" },
+    { path = "std::fs::remove_dir_all", reason = "the app writes only its preferences file, in prefs.rs" },
+    { path = "std::fs::set_permissions", reason = "the app writes only its preferences file, in prefs.rs" },
+    { path = "std::fs::File::create", reason = "the app writes only its preferences file, in prefs.rs" },
+    { path = "std::fs::File::create_new", reason = "the app writes only its preferences file, in prefs.rs" },
+    { path = "std::fs::File::options", reason = "the app writes only its preferences file, in prefs.rs" },
+    { path = "std::fs::OpenOptions::new", reason = "the app writes only its preferences file, in prefs.rs" },
+    { path = "std::os::unix::fs::symlink", reason = "the app writes only its preferences file, in prefs.rs" },
+]

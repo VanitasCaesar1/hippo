@@ -1,0 +1,6 @@
+protocol = "HIPPOCAMP_V1"
+repo = "https://github.com/VanitasCaesar1/hippocamp"   # this repository: its pins are read from the local clone
+first_party = ["VanitasCaesar1"]                    # owners whose repositories are first-party
+licenses = ["MIT", "MIT-0", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "0BSD", "Zlib", "Unlicense", "CC0-1.0", "CC-BY-4.0"]
+personas = ["fefd758cbb4217b39e4d4b11485e1d7756866e9fc8a2a24f08a0521cc0cec8f7"]   # pack-reviewer persona hashes whose reviews count
+confusable_ok = []                                  # name pairs accepted after a look: [["a", "b"], ...], order ignored

@@ -1,0 +1,17 @@
+pem -----BEGIN RSA PRIVATE KEY-----MIIEFAKEfakeKEYbody0000-----END RSA PRIVATE KEY-----
+aws AKIAFAKEFAKEFAKE0000
+github ghp_FAKEfakeFAKEfakeFAKEfakeFAKEfake0000
+github github_pat_11FAKE0000_FAKEfakeFAKEfakeFAKEfa
+provider sk-ant-api03-FAKEfakeFAKEfakeFAKE00
+provider sk-FAKEfakeFAKEfakeFAKE0000
+provider sk_test_FAKEfakeFAKE0000
+provider xoxb-0000-FAKE-fake
+provider AIzaFAKEfakeFAKEfakeFAKEfakeFAKEfak0000
+jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJmYWtlIn0.ZmFrZXNpZ25hdHVyZQ
+auth Authorization: Bearer FAKEfake0000
+kv DB_PASSWORD=FAKEfake0000FAKEfake
+email fake.person@example.com
+aadhaar 2345 6789 0123
+phone +91 9876543210
+kv {"command":"export DB_PASSWORD=\"FAKEfake0000FAKEfake\""}
+kv {"api_token": "FAKEfake0000FAKEfake"}

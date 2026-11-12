@@ -1,0 +1,79 @@
+/* hippocamp registry: the rules its pages need beyond hippocamp.css. Only the web
+   theme contract's custom properties, so a web theme restyles the registry
+   as it restyles the feed. */
+.hp-pack-box h2,
+.hp-install-box h2 {
+  margin: 0;
+  font-size: var(--hp-size-title);
+  line-height: var(--hp-line);
+}
+.hp-pack-box p,
+.hp-install-box p {
+  margin: 0;
+}
+.hp-pack-box .hp-passes {
+  margin: 0;
+}
+.hp-pack-box pre.hp-code,
+.hp-install-box pre.hp-code {
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-x: auto;
+  font-family: var(--hp-font-mono);
+  font-size: var(--hp-size-text);
+  line-height: var(--hp-line);
+}
+.hp-meta .hp-install {
+  font-family: var(--hp-font-mono);
+}
+.hp-post {
+  padding: 0;
+}
+/* The landing page: the site's index.html, page name
+   `about`. One column; the mark and the card scale to the width. */
+.hp-page-about .hp-md {
+  line-height: var(--hp-line);
+}
+.hp-page-about .hp-md > svg.hp-mark {
+  display: block;
+  width: 7em;
+  height: auto;
+  margin: 1em 0 0;
+}
+.hp-page-about .hp-md h1 {
+  margin: 0.25em 0 0;
+  font-size: calc(var(--hp-size-title) * 2);
+}
+.hp-page-about .hp-md h2 {
+  margin: 1.5em 0 0.25em;
+  font-size: var(--hp-size-title);
+}
+.hp-page-about .hp-md figure {
+  margin: 1em 0;
+}
+.hp-page-about .hp-md img {
+  display: block;
+  width: 100%;
+  max-width: 900px;
+  height: auto;
+}
+.hp-page-about .hp-md figcaption {
+  color: var(--hp-muted);
+  font-size: var(--hp-size-meta);
+}
+.hp-page-about .hp-md pre.hp-code {
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.5em;
+  background: var(--hp-code-bg);
+  font-family: var(--hp-font-mono);
+  font-size: var(--hp-size-text);
+}
+.hp-page-about .hp-md ol,
+.hp-page-about .hp-md ul {
+  padding: 0 0 0 var(--hp-indent);
+}
+.hp-page-about .hp-md li {
+  margin: 0.25em 0;
+}

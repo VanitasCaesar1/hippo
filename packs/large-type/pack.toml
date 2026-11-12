@@ -1,0 +1,8 @@
+protocol = "HIPPOCAMP_V1"
+name = "large-type"
+kind = "theme"
+version = "1.0.0"
+description = "A larger base size and line height for reading."
+authors = ["Vanitas Caesar"]
+license = "MIT"
+theme_contract = 1

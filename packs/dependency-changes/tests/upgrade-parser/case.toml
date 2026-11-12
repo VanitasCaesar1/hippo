@@ -1,0 +1,27 @@
+protocol = "HIPPOCAMP_V1"
+pass = "dependency-changes"
+about = "A matching entry is appended, and a note the filter leaves out is not read"
+
+[[session]]
+id = "deps-1"
+notes = ["notes/Dependencies.md", "notes/Pottery class.md"]
+handoff = "Upgraded the markdown parser and dropped the old date helper; see [[Dependencies]]."
+
+[model]
+reply = '''[{"note": "notes/Dependencies.md", "kind": "append", "old": "", "new": "\n- 2026-11-01: markdown-lite upgraded from 2.3.0 to 2.4.1, because 2.3.0 mishandled nested lists. date-helper 1.0.2 removed, because the standard library covers what the app used. (deps-1, turn 1)\n", "evidence": [{"session": "deps-1", "ordinal": 1}], "reason": "Turn 1 states both changes with versions and reasons."}]'''
+verdict = "confirm"
+
+[expect]
+calls = 1
+proposals = 1
+validation_failures = 0
+confirmed = 1
+rejected = 0
+applied = 1
+prompt_contains = ["Dependencies"]
+prompt_excludes = ["pottery class"]
+
+[[expect.note]]
+path = "notes/Dependencies.md"
+contains = ["markdown-lite upgraded"]
+excludes = []

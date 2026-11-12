@@ -1,0 +1,260 @@
+protocol = "HIPPOCAMP_V1"
+entry_note = "notes/START HERE.md"
+
+[[context]]
+task = "the grid thumbnails look blurry on my phone, which sizes do we generate"
+expected = ["notes/Thumbnail pipeline.md"]
+
+[[context]]
+task = "users want to upload bigger videos, where is the file size cap set"
+expected = ["notes/Upload API.md"]
+
+[[context]]
+task = "the share link opens a blank page in safari"
+expected = ["notes/Sharing links.md"]
+
+[[context]]
+task = "how long do we keep the nightly backups and how do i restore one"
+expected = ["notes/Backups.md"]
+
+[[context]]
+task = "add a column to the albums table"
+expected = ["notes/Database migrations.md"]
+
+[[context]]
+task = "cut the release for this week"
+expected = ["notes/Release process.md"]
+
+[[context]]
+task = "the github actions run takes 14 minutes, speed it up"
+expected = ["notes/CI.md"]
+
+[[context]]
+task = "search results miss photos that were uploaded today"
+expected = ["notes/Search index.md"]
+
+[[context]]
+task = "people keep getting signed out on the phone and have to type their code again"
+expected = ["notes/Auth sessions.md", "notes/Mobile app.md"]
+
+[[context]]
+task = "the ios app crashes on launch after the last update"
+expected = ["notes/Mobile app.md"]
+
+[[context]]
+task = "move the original photos from local disk to an s3 bucket"
+expected = ["notes/Storage backends.md"]
+
+[[context]]
+task = "the pager went off at 3am, what am i supposed to do"
+expected = ["notes/On-call.md"]
+
+[[context]]
+task = "how should i name things in new code, is there a convention"
+expected = ["notes/Style guide.md"]
+
+[[context]]
+task = "the thumbnail worker queue is stuck again"
+expected = ["notes/Thumbnail pipeline.md", "notes/Incidents/2026-10-14 thumbnail backlog.md"]
+
+[[context]]
+task = "why did we pick postgres 17 and can self-hosters stay on 15"
+expected = ["notes/Decisions/Use Postgres 17.md"]
+
+[[context]]
+task = "i am new here, where do i start with tern"
+expected = ["notes/START HERE.md"]
+
+[[context]]
+task = "add a dark mode toggle to the web gallery"
+expected = []
+
+[[context]]
+task = "translate the settings screen into spanish and german"
+expected = []
+
+[[context]]
+task = "write a script that exports photo metadata as a csv file"
+expected = []
+
+[[context]]
+task = "fix the typo in the license section of the readme"
+expected = []
+
+[[recall]]
+query = "kept for 30 days after the retention change"
+kind = "verbatim"
+expected = [{ session = "eval-01", ordinal = 7 }]
+
+[[recall]]
+query = "still kept for 14 days"
+kind = "verbatim"
+expected = [{ session = "eval-01", ordinal = 1 }]
+
+[[recall]]
+query = "writes 320 and 1280 pixels"
+kind = "verbatim"
+expected = [{ session = "eval-02", ordinal = 6 }]
+
+[[recall]]
+query = "120 MB video of their trip"
+kind = "verbatim"
+expected = [{ session = "eval-03", ordinal = 0 }]
+
+[[recall]]
+query = "no longer run on deploy"
+kind = "verbatim"
+expected = [{ session = "eval-04", ordinal = 8 }]
+
+[[recall]]
+query = "week-long logins are too risky"
+kind = "verbatim"
+expected = [{ session = "eval-05", ordinal = 0 }]
+
+[[recall]]
+query = "release was skipped again because nobody remembered"
+kind = "verbatim"
+expected = [{ session = "eval-06", ordinal = 0 }]
+
+[[recall]]
+query = "7 days is too short for holiday albums"
+kind = "verbatim"
+expected = [{ session = "eval-07", ordinal = 4 }]
+
+[[recall]]
+query = "photos uploaded today don't show up in search"
+kind = "verbatim"
+expected = [{ session = "eval-08", ordinal = 0 }]
+
+[[recall]]
+query = "uploads from today are searchable"
+kind = "verbatim"
+expected = [{ session = "eval-08", ordinal = 10 }]
+
+[[recall]]
+query = "deploy/backup.env:5:BACKUP_KEY_FILE=/etc/tern/repo.key"
+kind = "tool"
+expected = [{ session = "eval-01", ordinal = 3 }]
+
+[[recall]]
+query = '"chunk_threshold_bytes":8388608'
+kind = "tool"
+expected = [{ session = "eval-03", ordinal = 11 }]
+
+[[recall]]
+query = "docs=48211 lag=6h12m"
+kind = "tool"
+expected = [{ session = "eval-08", ordinal = 2 }]
+
+[[recall]]
+query = "tern release check --dry-run"
+kind = "tool"
+expected = [{ session = "eval-06", ordinal = 9 }]
+
+[[recall]]
+query = "keyed on the hash of package-lock.json"
+kind = "codex"
+expected = [{ session = "codex-01900000-e7a1-7000-8000-000000000001", ordinal = 4 }]
+
+[[recall]]
+query = "run: npm ci"
+kind = "codex"
+expected = [{ session = "codex-01900000-e7a1-7000-8000-000000000001", ordinal = 3 }]
+
+[[recall]]
+query = "the phones have denser screens so the generated image sizes should go up"
+kind = "paraphrase"
+expected = [{ session = "eval-02", ordinal = 3 }]
+
+[[recall]]
+query = "agreed to take the startup step out and apply the database changes manually"
+kind = "paraphrase"
+expected = [{ session = "eval-04", ordinal = 5 }]
+
+[[recall]]
+query = "we got extra storage funding so raise how long dumps are retained to a month"
+kind = "paraphrase"
+expected = [{ session = "eval-01", ordinal = 4 }]
+
+[[recall]]
+query = "the search data is hours out of date and needs a complete rebuild"
+kind = "paraphrase"
+expected = [{ session = "eval-08", ordinal = 3 }]
+
+[dreaming]
+last_success = "2026-10-31T00:00:00Z"
+now = "2026-11-08T00:00:00Z"
+
+[[dreaming.error]]
+note = "notes/Backups.md"
+kind = "findable"
+stale = "kept for 14 days"
+fixed = ["kept for 30 days"]
+
+[[dreaming.error]]
+note = "notes/Thumbnail pipeline.md"
+kind = "findable"
+stale = "256 and 1024 pixels"
+fixed = ["320 and 1280 pixels"]
+
+[[dreaming.error]]
+note = "notes/Upload API.md"
+kind = "findable"
+stale = "limit is 50 MB per file"
+fixed = ["limit is 200 MB per file"]
+
+[[dreaming.error]]
+note = "notes/Database migrations.md"
+kind = "unfindable"
+stale = "Migrations run automatically on deploy"
+fixed = ["run them by hand"]
+
+[[dreaming.error]]
+note = "notes/Auth sessions.md"
+kind = "findable"
+stale = "last 7 days"
+fixed = ["24 hours"]
+
+[[dreaming.error]]
+note = "notes/Release process.md"
+kind = "findable"
+stale = "every second Tuesday"
+fixed = ["every Thursday"]
+
+[[dreaming.error]]
+note = "notes/Release process.md"
+kind = "long"
+stale = "soak on the beta channel for three days"
+fixed = ["soak on the beta channel for five days"]
+
+[[dreaming.keep]]
+note = "notes/Backups.md"
+text = "Backups are encrypted with the repository key."
+
+[[dreaming.keep]]
+note = "notes/Thumbnail pipeline.md"
+text = "Thumbnails are stored as WebP."
+
+[[dreaming.keep]]
+note = "notes/Upload API.md"
+text = "Uploads over 8 MB use chunked upload."
+
+[[dreaming.keep]]
+note = "notes/Database migrations.md"
+text = "Every migration has a down step."
+
+[[dreaming.keep]]
+note = "notes/Auth sessions.md"
+text = "Two-factor login uses TOTP codes."
+
+[[dreaming.keep]]
+note = "notes/Release process.md"
+text = "Every release gets a changelog entry."
+
+[[dreaming.keep]]
+note = "notes/Sharing links.md"
+text = "Share links expire after 30 days by default."
+
+[[dreaming.keep]]
+note = "notes/Search index.md"
+text = "The search index is rebuilt with `tern reindex`."

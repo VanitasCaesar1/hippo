@@ -1,0 +1,582 @@
+{
+  "protocol": "HIPPOCAMP_V1",
+  "generated": "2026-11-08T11:00:00Z",
+  "counts": {
+    "listed": 15,
+    "first_party": 2,
+    "other_owners": 13
+  },
+  "packs": [
+    {
+      "name": "glossary-terms",
+      "version": "1.0.0",
+      "description": "Adds the terms sessions define to the glossary note.",
+      "authors": [
+        "Ada"
+      ],
+      "owner": "ada",
+      "owner_id": 1001,
+      "maintainers": [
+        "ada"
+      ],
+      "first_party": false,
+      "license": "MIT",
+      "repo": "https://github.com/ada/hippocamp-packs",
+      "repo_id": 7001,
+      "path": "glossary-terms",
+      "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "pack_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "glossary-terms",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": false
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [],
+      "review": {
+        "id": "01JCA5ZB3K9V7Q2M4N6P8R0T1W",
+        "at": "2026-11-08T11:00:00Z",
+        "verdict": "confirm"
+      }
+    },
+    {
+      "name": "decision-log",
+      "version": "1.0.0",
+      "description": "Synthetic fixture pack decision-log.",
+      "authors": [
+        "Ada"
+      ],
+      "owner": "ada",
+      "owner_id": 1001,
+      "maintainers": [
+        "ada"
+      ],
+      "first_party": false,
+      "license": "MIT",
+      "repo": "https://github.com/ada/hippocamp-packs",
+      "repo_id": 7001,
+      "path": "decision-log",
+      "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "pack_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "decision-log",
+          "reads": [
+            "sessions",
+            "notes"
+          ],
+          "per_note": false
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [],
+      "review": {
+        "id": "01JCA5ZB3K9V7Q2M4N6P8R0T1W",
+        "at": "2026-11-08T11:00:00Z",
+        "verdict": "confirm"
+      }
+    },
+    {
+      "name": "review-dates",
+      "version": "1.0.0",
+      "description": "Synthetic fixture pack review-dates.",
+      "authors": [
+        "Grace"
+      ],
+      "owner": "grace",
+      "owner_id": 1002,
+      "maintainers": [
+        "grace",
+        "linus"
+      ],
+      "first_party": false,
+      "license": "MIT",
+      "repo": "https://github.com/grace/hippocamp-packs",
+      "repo_id": 7002,
+      "path": "review-dates",
+      "commit": "cccccccccccccccccccccccccccccccccccccccc",
+      "pack_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "review-dates",
+          "reads": [
+            "sessions",
+            "notes"
+          ],
+          "per_note": false
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [],
+      "review": {
+        "id": "01JCA5ZB3K9V7Q2M4N6P8R0T1W",
+        "at": "2026-11-08T11:00:00Z",
+        "verdict": "confirm"
+      }
+    },
+    {
+      "name": "stale-links",
+      "version": "1.0.0",
+      "description": "Synthetic fixture pack stale-links.",
+      "authors": [
+        "Hippocamp-demo"
+      ],
+      "owner": "hippocamp-demo",
+      "owner_id": 9001,
+      "maintainers": [
+        "hippocamp-demo"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/hippocamp-demo/hippocamp-packs",
+      "repo_id": 7003,
+      "path": "stale-links",
+      "commit": "dddddddddddddddddddddddddddddddddddddddd",
+      "pack_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "stale-links",
+          "reads": [
+            "sessions",
+            "notes"
+          ],
+          "per_note": false
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [],
+      "review": {
+        "id": "01JCA5ZB3K9V7Q2M4N6P8R0T1W",
+        "at": "2026-11-08T11:00:00Z",
+        "verdict": "confirm"
+      }
+    },
+    {
+      "name": "handoff-check",
+      "version": "1.0.0",
+      "description": "Synthetic fixture pack handoff-check.",
+      "authors": [
+        "Hippocamp-demo"
+      ],
+      "owner": "hippocamp-demo",
+      "owner_id": 9001,
+      "maintainers": [
+        "hippocamp-demo"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/hippocamp-demo/hippocamp-packs",
+      "repo_id": 7003,
+      "path": "handoff-check",
+      "commit": "ffffffffffffffffffffffffffffffffffffffff",
+      "pack_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "handoff-check",
+          "reads": [
+            "sessions",
+            "notes"
+          ],
+          "per_note": false
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [],
+      "review": {
+        "id": "01JCA5ZB3K9V7Q2M4N6P8R0T1W",
+        "at": "2026-11-08T11:00:00Z",
+        "verdict": "confirm"
+      }
+    },
+    {
+      "name": "night-ink",
+      "version": "1.1.0",
+      "description": "Synthetic fixture theme night-ink.",
+      "authors": [
+        "Grace"
+      ],
+      "owner": "grace",
+      "owner_id": 1002,
+      "maintainers": [
+        "grace"
+      ],
+      "first_party": false,
+      "license": "MIT",
+      "repo": "https://github.com/grace/hippocamp-themes",
+      "repo_id": 7002,
+      "path": "themes/night-ink",
+      "commit": "6666666666666666666666666666666666666666",
+      "pack_hash": "6666666666666666666666666666666666666666666666666666666666666666",
+      "kind": "theme",
+      "passes": [],
+      "theme_contract": 1,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "theme.css",
+          "bytes": 577,
+          "sha256": "0ecd1a20f20ac84a06287d4ad67a15ad106deef4a3d2a3c79bf38242f87449a6"
+        }
+      ],
+      "review": {
+        "id": "01JCA5ZB3K9V7Q2M4N6P8R0T1W",
+        "at": "2026-11-08T11:00:00Z",
+        "verdict": "confirm"
+      }
+    },
+    {
+      "name": "desk-only",
+      "version": "1.0.0",
+      "description": "Synthetic fixture theme desk-only.",
+      "authors": [
+        "Grace"
+      ],
+      "owner": "grace",
+      "owner_id": 1002,
+      "maintainers": [
+        "grace"
+      ],
+      "first_party": false,
+      "license": "MIT",
+      "repo": "https://github.com/grace/hippocamp-themes",
+      "repo_id": 7002,
+      "path": "themes/desk-only",
+      "commit": "2222222222222222222222222222222222222222",
+      "pack_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "kind": "theme",
+      "passes": [],
+      "theme_contract": null,
+      "desktop_theme_format": 1,
+      "files": [
+        {
+          "path": "desktop-theme.json",
+          "bytes": 120,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+      ],
+      "review": {
+        "id": "01JCA5ZB3K9V7Q2M4N6P8R0T1W",
+        "at": "2026-11-08T11:00:00Z",
+        "verdict": "confirm"
+      }
+    },
+    {
+      "name": "future-theme",
+      "version": "1.0.0",
+      "description": "Synthetic fixture theme future-theme.",
+      "authors": [
+        "Grace"
+      ],
+      "owner": "grace",
+      "owner_id": 1002,
+      "maintainers": [
+        "grace"
+      ],
+      "first_party": false,
+      "license": "MIT",
+      "repo": "https://github.com/grace/hippocamp-themes",
+      "repo_id": 7002,
+      "path": "themes/future-theme",
+      "commit": "3333333333333333333333333333333333333333",
+      "pack_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+      "kind": "theme",
+      "passes": [],
+      "theme_contract": 2,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "theme.css",
+          "bytes": 64,
+          "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      ],
+      "review": {
+        "id": "01JCA5ZB3K9V7Q2M4N6P8R0T1W",
+        "at": "2026-11-08T11:00:00Z",
+        "verdict": "confirm"
+      }
+    },
+    {
+      "name": "bad-hash",
+      "version": "1.0.0",
+      "description": "Synthetic fixture theme bad-hash.",
+      "authors": [
+        "Grace"
+      ],
+      "owner": "grace",
+      "owner_id": 1002,
+      "maintainers": [
+        "grace"
+      ],
+      "first_party": false,
+      "license": "MIT",
+      "repo": "https://github.com/grace/hippocamp-themes",
+      "repo_id": 7002,
+      "path": "themes/bad-hash",
+      "commit": "4444444444444444444444444444444444444444",
+      "pack_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+      "kind": "theme",
+      "passes": [],
+      "theme_contract": 1,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "theme.css",
+          "bytes": 32,
+          "sha256": "9d9d56051b7344b869e54a8ecebf1b39f21fe2449222bbdd135e9a608b216738"
+        }
+      ],
+      "review": {
+        "id": "01JCA5ZB3K9V7Q2M4N6P8R0T1W",
+        "at": "2026-11-08T11:00:00Z",
+        "verdict": "confirm"
+      }
+    },
+    {
+      "name": "bad-rules",
+      "version": "1.0.0",
+      "description": "Synthetic fixture theme bad-rules.",
+      "authors": [
+        "Grace"
+      ],
+      "owner": "grace",
+      "owner_id": 1002,
+      "maintainers": [
+        "grace"
+      ],
+      "first_party": false,
+      "license": "MIT",
+      "repo": "https://github.com/grace/hippocamp-themes",
+      "repo_id": 7002,
+      "path": "themes/bad-rules",
+      "commit": "5555555555555555555555555555555555555555",
+      "pack_hash": "5555555555555555555555555555555555555555555555555555555555555555",
+      "kind": "theme",
+      "passes": [],
+      "theme_contract": 1,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "theme.css",
+          "bytes": 63,
+          "sha256": "f31a7f7c310dc58440b32397c3561fc9ceb48c346e5edc180d36025b3ac46fc8"
+        }
+      ],
+      "review": {
+        "id": "01JCA5ZB3K9V7Q2M4N6P8R0T1W",
+        "at": "2026-11-08T11:00:00Z",
+        "verdict": "confirm"
+      }
+    },
+    {
+      "name": "copyleft-notes",
+      "version": "1.0.0",
+      "description": "Synthetic fixture pack copyleft-notes.",
+      "authors": [
+        "Ada"
+      ],
+      "owner": "ada",
+      "owner_id": 1001,
+      "maintainers": [
+        "ada"
+      ],
+      "first_party": false,
+      "license": "GPL-3.0-only",
+      "repo": "https://github.com/ada/hippocamp-packs",
+      "repo_id": 7001,
+      "path": "copyleft-notes",
+      "commit": "0000000000000000000000000000000000000000",
+      "pack_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "copyleft-notes",
+          "reads": [
+            "sessions",
+            "notes"
+          ],
+          "per_note": false
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [],
+      "review": {
+        "id": "01JCA5ZB3K9V7Q2M4N6P8R0T1W",
+        "at": "2026-11-08T11:00:00Z",
+        "verdict": "confirm"
+      }
+    },
+    {
+      "name": "-oops",
+      "version": "1.0.0",
+      "description": "Synthetic fixture pack -oops.",
+      "authors": [
+        "Ada"
+      ],
+      "owner": "ada",
+      "owner_id": 1001,
+      "maintainers": [
+        "ada"
+      ],
+      "first_party": false,
+      "license": "MIT",
+      "repo": "https://github.com/ada/hippocamp-packs",
+      "repo_id": 7001,
+      "path": "-oops",
+      "commit": "1111111111111111111111111111111111111111",
+      "pack_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "oops",
+          "reads": [
+            "notes"
+          ],
+          "per_note": false
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [],
+      "review": {
+        "id": "01JCA5ZB3K9V7Q2M4N6P8R0T1W",
+        "at": "2026-11-08T11:00:00Z",
+        "verdict": "confirm"
+      }
+    },
+    {
+      "name": "short-hash",
+      "version": "1.0.0",
+      "description": "Synthetic fixture pack short-hash.",
+      "authors": [
+        "Ada"
+      ],
+      "owner": "ada",
+      "owner_id": 1001,
+      "maintainers": [
+        "ada"
+      ],
+      "first_party": false,
+      "license": "MIT",
+      "repo": "https://github.com/ada/hippocamp-packs",
+      "repo_id": 7001,
+      "path": "short-hash",
+      "commit": "2222222222222222222222222222222222222222",
+      "pack_hash": "222222222222222222222222222222222222222222222222222222222222222",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "short-hash",
+          "reads": [
+            "sessions",
+            "notes"
+          ],
+          "per_note": false
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [],
+      "review": {
+        "id": "01JCA5ZB3K9V7Q2M4N6P8R0T1W",
+        "at": "2026-11-08T11:00:00Z",
+        "verdict": "confirm"
+      }
+    },
+    {
+      "name": "twin",
+      "version": "1.0.0",
+      "description": "Synthetic fixture pack twin.",
+      "authors": [
+        "Ada"
+      ],
+      "owner": "ada",
+      "owner_id": 1001,
+      "maintainers": [
+        "ada"
+      ],
+      "first_party": false,
+      "license": "MIT",
+      "repo": "https://github.com/ada/hippocamp-packs",
+      "repo_id": 7001,
+      "path": "twin",
+      "commit": "3333333333333333333333333333333333333333",
+      "pack_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "twin",
+          "reads": [
+            "sessions",
+            "notes"
+          ],
+          "per_note": false
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [],
+      "review": {
+        "id": "01JCA5ZB3K9V7Q2M4N6P8R0T1W",
+        "at": "2026-11-08T11:00:00Z",
+        "verdict": "confirm"
+      }
+    },
+    {
+      "name": "twin",
+      "version": "1.0.0",
+      "description": "Synthetic fixture pack twin.",
+      "authors": [
+        "Grace"
+      ],
+      "owner": "grace",
+      "owner_id": 1002,
+      "maintainers": [
+        "grace"
+      ],
+      "first_party": false,
+      "license": "MIT",
+      "repo": "https://github.com/grace/hippocamp-packs",
+      "repo_id": 7002,
+      "path": "twin",
+      "commit": "4444444444444444444444444444444444444444",
+      "pack_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "twin",
+          "reads": [
+            "sessions",
+            "notes"
+          ],
+          "per_note": false
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [],
+      "review": {
+        "id": "01JCA5ZB3K9V7Q2M4N6P8R0T1W",
+        "at": "2026-11-08T11:00:00Z",
+        "verdict": "confirm"
+      }
+    }
+  ]
+}

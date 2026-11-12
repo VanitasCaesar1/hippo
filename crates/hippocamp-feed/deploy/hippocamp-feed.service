@@ -1,0 +1,35 @@
+# hippocamp-feed: the web server. Install at /etc/systemd/system/hippocamp-feed.service.
+# It listens on loopback only; Caddy (see Caddyfile) is the public side.
+# It does not run `hippocamp-feed migrate`: the operator does that by hand, after
+# a backup.
+
+[Unit]
+Description=hippocamp feed (web server)
+After=network-online.target
+Wants=network-online.target
+# Five failed starts within five minutes stop the retries. This is what
+# happens when the database needs `hippocamp-feed migrate`: after fixing it, run
+# `systemctl reset-failed hippocamp-feed` and start the service again.
+# These two settings belong in [Unit], not [Service].
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+User=hippocamp-feed
+Group=hippocamp-feed
+# Every setting is an environment variable; see env.example.
+EnvironmentFile=/etc/hippocamp-feed/env
+ExecStart=/usr/local/bin/hippocamp-feed serve
+Restart=on-failure
+RestartSec=5
+# Creates /var/lib/hippocamp-feed owned by the service user. With
+# ProtectSystem=strict it is also the one place the service can write.
+StateDirectory=hippocamp-feed
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

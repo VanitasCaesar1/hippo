@@ -1,0 +1,8 @@
+protocol = "HIPPOCAMP_V1"
+name = "high-contrast"
+repo = "https://github.com/VanitasCaesar1/hippocamp"
+repo_id = 1449612131
+owner_id = 94681960
+path = "packs/high-contrast"
+commit = "942988ffb5c79018c3625be4c377dfd869df5ca8"
+maintainers = ["VanitasCaesar1"]

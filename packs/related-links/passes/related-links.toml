@@ -1,0 +1,6 @@
+protocol = "HIPPOCAMP_V1"
+prompt = "prompts/related-links.md"
+reads = ["sessions", "notes"]
+reviewer = "personas/related-links-reviewer.md"
+input_budget_bytes = 200000
+per_note = false

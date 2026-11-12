@@ -1,0 +1,64 @@
+name: registry
+
+on:
+  pull_request:
+    paths:
+      - "registry/**"
+      - "packs/**"
+      - "crates/hippocamp-registry/**"
+      - "crates/hippocamp-core/**"
+      - "Cargo.lock"
+      - "brand/**"
+  schedule:
+    # Mondays at 06:00 UTC (GitHub reads cron in UTC).
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # An outside pull request may change exactly one file, an entry.
+      - name: Outside pull requests change one entry
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.author_association != 'OWNER' &&
+          github.event.pull_request.author_association != 'MEMBER' &&
+          github.event.pull_request.author_association != 'COLLABORATOR'
+        run: |
+          changed=$(git diff --name-only origin/main...HEAD)
+          echo "$changed"
+          if [ "$(printf '%s\n' "$changed" | wc -l)" -ne 1 ]; then
+            echo "an outside pull request must change exactly one file" >&2
+            exit 1
+          fi
+          case "$changed" in
+            registry/packs/*) ;;
+            *)
+              echo "the file must be under registry/packs/" >&2
+              exit 1
+              ;;
+          esac
+      - name: Check the registry
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          status=0
+          cargo run -p hippocamp-registry --locked -- check > check.txt || status=$?
+          cat check.txt
+          { echo '```'; cat check.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+      - name: Build the index
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: cargo run -p hippocamp-registry --locked -- build --out registry/out

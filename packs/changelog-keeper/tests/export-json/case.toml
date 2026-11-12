@@ -1,0 +1,27 @@
+protocol = "HIPPOCAMP_V1"
+pass = "changelog-keeper"
+about = "A shipped command option is appended under Pending, and a note the filter leaves out is not read"
+
+[[session]]
+id = "changelog-1"
+notes = ["notes/CHANGELOG.md", "notes/Release plan.md"]
+handoff = "Shipped the JSON option for the export command; see [[CHANGELOG]]."
+
+[model]
+reply = '''[{"note": "notes/CHANGELOG.md", "kind": "append", "old": "", "new": "\n- `sample-cli export` takes a `--json` option that prints the rows as a JSON array. (changelog-1, turn 1)\n", "evidence": [{"session": "changelog-1", "ordinal": 1}], "reason": "Turn 1 says the option shipped and works."}]'''
+verdict = "confirm"
+
+[expect]
+calls = 1
+proposals = 1
+validation_failures = 0
+confirmed = 1
+rejected = 0
+applied = 1
+prompt_contains = ["CHANGELOG"]
+prompt_excludes = ["Quarterly heron census"]
+
+[[expect.note]]
+path = "notes/CHANGELOG.md"
+contains = ["takes a `--json` option"]
+excludes = []

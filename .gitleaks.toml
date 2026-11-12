@@ -1,0 +1,7 @@
+# These fixtures hold fake secrets on purpose: they test redaction. The
+# other fixtures, the agent-written eval set among them, are scanned.
+[extend]
+useDefault = true
+
+[allowlist]
+paths = ['''^fixtures/(redaction|claude-code|codex)/''']

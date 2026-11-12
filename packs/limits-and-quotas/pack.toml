@@ -1,0 +1,6 @@
+protocol = "HIPPOCAMP_V1"
+name = "limits-and-quotas"
+version = "1.0.0"
+description = "Appends rate limits, quotas and usage caps that sessions ran into to a limits or quotas note, quoting the error."
+authors = ["Vanitas Caesar"]
+license = "MIT"

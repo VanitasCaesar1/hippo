@@ -1,0 +1,7 @@
+protocol = "HIPPOCAMP_V1"
+prompt = "prompts/faq.md"
+reads = ["sessions", "notes", "turns"]
+reviewer = "personas/faq-reviewer.md"
+input_budget_bytes = 200000
+per_note = true
+note_paths = ["**/FAQ*.md"]

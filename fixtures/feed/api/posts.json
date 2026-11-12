@@ -1,0 +1,252 @@
+{
+  "page": 1,
+  "posts": [
+    {
+      "author": null,
+      "comments": 0,
+      "created_at": "2026-11-08T10:00:00Z",
+      "edited_at": null,
+      "id": 1,
+      "kind": "pack",
+      "link": null,
+      "pack": {
+        "description": "Adds the terms sessions define to the glossary note.",
+        "evidence": {
+          "measurements": 3,
+          "median_benefit": 0.222,
+          "pack_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "score": 0.133,
+          "version": "1.0.0"
+        },
+        "first_party": false,
+        "install": {
+          "command": "hippocamp add glossary-terms --registry ../../fixtures/feed/registry-index.json",
+          "deep_link": "hippocamp://add?pack=glossary-terms&version=1.0.0&sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "kind": "passes",
+        "license": "MIT",
+        "listed": true,
+        "maintainers": [
+          "ada"
+        ],
+        "name": "glossary-terms",
+        "owner": "ada",
+        "pack_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "passes": [
+          {
+            "name": "glossary-terms",
+            "reads": [
+              "sessions",
+              "notes",
+              "turns"
+            ]
+          }
+        ],
+        "source": "https://github.com/ada/hippocamp-packs/tree/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/glossary-terms",
+        "version": "1.0.0"
+      },
+      "state": "visible",
+      "title": "glossary-terms: Adds the terms sessions define to the glossary note.",
+      "url": "https://feed.example/p/1",
+      "votes": 2
+    },
+    {
+      "author": null,
+      "comments": 0,
+      "created_at": "2026-11-08T10:00:00Z",
+      "edited_at": null,
+      "id": 2,
+      "kind": "pack",
+      "link": null,
+      "pack": {
+        "description": "Synthetic fixture pack decision-log.",
+        "evidence": null,
+        "first_party": false,
+        "install": {
+          "command": "hippocamp add decision-log --registry ../../fixtures/feed/registry-index.json",
+          "deep_link": "hippocamp://add?pack=decision-log&version=1.0.0&sha256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "kind": "passes",
+        "license": "MIT",
+        "listed": true,
+        "maintainers": [
+          "ada"
+        ],
+        "name": "decision-log",
+        "owner": "ada",
+        "pack_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "passes": [
+          {
+            "name": "decision-log",
+            "reads": [
+              "sessions",
+              "notes"
+            ]
+          }
+        ],
+        "source": "https://github.com/ada/hippocamp-packs/tree/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/decision-log",
+        "version": "1.0.0"
+      },
+      "state": "visible",
+      "title": "decision-log: Synthetic fixture pack decision-log.",
+      "url": "https://feed.example/p/2",
+      "votes": 1
+    },
+    {
+      "author": "grace",
+      "comments": 4,
+      "created_at": "2026-11-08T05:00:00Z",
+      "edited_at": null,
+      "id": 9,
+      "kind": "discussion",
+      "link": "https://example.com/dreaming",
+      "pack": null,
+      "state": "visible",
+      "title": "What does dreaming change in your notes?",
+      "url": "https://feed.example/p/9",
+      "votes": 3
+    },
+    {
+      "author": "linus",
+      "comments": 0,
+      "created_at": "2026-11-08T06:00:00Z",
+      "edited_at": null,
+      "id": 10,
+      "kind": "discussion",
+      "link": null,
+      "pack": null,
+      "state": "visible",
+      "title": "Ask hippocamp: how do you review a pack?",
+      "url": "https://feed.example/p/10",
+      "votes": 1
+    },
+    {
+      "author": null,
+      "comments": 0,
+      "created_at": "2026-11-08T10:00:00Z",
+      "edited_at": null,
+      "id": 5,
+      "kind": "pack",
+      "link": null,
+      "pack": {
+        "description": "Synthetic fixture pack handoff-check.",
+        "evidence": null,
+        "first_party": true,
+        "install": {
+          "command": "hippocamp add handoff-check --registry ../../fixtures/feed/registry-index.json",
+          "deep_link": "hippocamp://add?pack=handoff-check&version=1.0.0&sha256=ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        },
+        "kind": "passes",
+        "license": "MIT",
+        "listed": true,
+        "maintainers": [
+          "hippocamp-demo"
+        ],
+        "name": "handoff-check",
+        "owner": "hippocamp-demo",
+        "pack_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "passes": [
+          {
+            "name": "handoff-check",
+            "reads": [
+              "sessions",
+              "notes"
+            ]
+          }
+        ],
+        "source": "https://github.com/hippocamp-demo/hippocamp-packs/tree/ffffffffffffffffffffffffffffffffffffffff/handoff-check",
+        "version": "1.0.0"
+      },
+      "state": "visible",
+      "title": "handoff-check: Synthetic fixture pack handoff-check.",
+      "url": "https://feed.example/p/5",
+      "votes": 0
+    },
+    {
+      "author": null,
+      "comments": 0,
+      "created_at": "2026-11-08T10:00:00Z",
+      "edited_at": null,
+      "id": 4,
+      "kind": "pack",
+      "link": null,
+      "pack": {
+        "description": "Synthetic fixture pack stale-links.",
+        "evidence": null,
+        "first_party": true,
+        "install": {
+          "command": "hippocamp add stale-links --registry ../../fixtures/feed/registry-index.json",
+          "deep_link": "hippocamp://add?pack=stale-links&version=1.0.0&sha256=dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        },
+        "kind": "passes",
+        "license": "MIT",
+        "listed": true,
+        "maintainers": [
+          "hippocamp-demo"
+        ],
+        "name": "stale-links",
+        "owner": "hippocamp-demo",
+        "pack_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "passes": [
+          {
+            "name": "stale-links",
+            "reads": [
+              "sessions",
+              "notes"
+            ]
+          }
+        ],
+        "source": "https://github.com/hippocamp-demo/hippocamp-packs/tree/dddddddddddddddddddddddddddddddddddddddd/stale-links",
+        "version": "1.0.0"
+      },
+      "state": "visible",
+      "title": "stale-links: Synthetic fixture pack stale-links.",
+      "url": "https://feed.example/p/4",
+      "votes": 0
+    },
+    {
+      "author": null,
+      "comments": 0,
+      "created_at": "2026-11-08T10:00:00Z",
+      "edited_at": null,
+      "id": 3,
+      "kind": "pack",
+      "link": null,
+      "pack": {
+        "description": "Synthetic fixture pack review-dates.",
+        "evidence": null,
+        "first_party": false,
+        "install": {
+          "command": "hippocamp add review-dates --registry ../../fixtures/feed/registry-index.json",
+          "deep_link": "hippocamp://add?pack=review-dates&version=1.0.0&sha256=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        },
+        "kind": "passes",
+        "license": "MIT",
+        "listed": true,
+        "maintainers": [
+          "grace",
+          "linus"
+        ],
+        "name": "review-dates",
+        "owner": "grace",
+        "pack_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "passes": [
+          {
+            "name": "review-dates",
+            "reads": [
+              "sessions",
+              "notes"
+            ]
+          }
+        ],
+        "source": "https://github.com/grace/hippocamp-packs/tree/cccccccccccccccccccccccccccccccccccccccc/review-dates",
+        "version": "1.0.0"
+      },
+      "state": "visible",
+      "title": "review-dates: Synthetic fixture pack review-dates.",
+      "url": "https://feed.example/p/3",
+      "votes": 0
+    }
+  ],
+  "sort": "front"
+}

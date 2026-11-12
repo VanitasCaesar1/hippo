@@ -1,0 +1,56 @@
+# The repository root's deny.toml, plus what GPUI needs.
+[graph]
+# GPUI builds for macOS only here; Linux and Windows back ends are not linked.
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"]
+
+[licenses]
+version = 2
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",
+  "Unicode-DFS-2016",
+  "Zlib",
+  "Unlicense",
+]
+exceptions = [
+  # MPL-2.0 is copyleft per file. cbindgen is a build tool
+  # of Zed's gpui_apple crate: it generates a header and is not linked into the app.
+  { allow = ["MPL-2.0"], crate = "cbindgen" },
+  # option-ext is linked, through Zed's font-kit fork. An
+  # MIT app may include unmodified MPL-2.0 files while their source stays
+  # available, which crates.io provides.
+  { allow = ["MPL-2.0"], crate = "option-ext" },
+]
+
+[advisories]
+version = 2
+ignore = [
+  { id = "RUSTSEC-2024-0449", reason = "unsafe-libyaml via serde_yaml_ng (hippocamp-core); parser replacement is an open question" },
+  # paste is unmaintained; GPUI's macro stack pulls it in
+  # and the app cannot replace it.
+  { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained; pulled in by GPUI" },
+  # rustybuzz is unmaintained; GPUI's text stack pulls it in.
+  { id = "RUSTSEC-2026-0206", reason = "rustybuzz is unmaintained; pulled in by GPUI's text stack" },
+  # ttf-parser is unmaintained; GPUI's text stack pulls it in.
+  { id = "RUSTSEC-2026-0192", reason = "ttf-parser is unmaintained; pulled in by GPUI's text stack" },
+]
+
+[bans]
+multiple-versions = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+# GPUI at one Zed commit, the two forks Zed patches in (app/Cargo.toml) and
+# Zed's font-kit fork.
+allow-git = [
+  "https://github.com/zed-industries/zed",
+  "https://github.com/zed-industries/async-process.git",
+  "https://github.com/zed-industries/async-task.git",
+  "https://github.com/zed-industries/font-kit",
+]

@@ -1,0 +1,35 @@
+# hippocamp-feed-backup: one backup of the database. Install at
+# /etc/systemd/system/hippocamp-feed-backup.service. The timer starts it nightly;
+# the operator also starts it by hand before every upgrade:
+#   systemctl start hippocamp-feed-backup.service
+
+[Unit]
+Description=hippocamp feed backup (one dated copy of the database)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=hippocamp-feed
+Group=hippocamp-feed
+# Only FEED_DB is read from this file.
+EnvironmentFile=/etc/hippocamp-feed/env
+# Same protections as hippocamp-feed.service. Under ProtectSystem=strict the two
+# paths below are opened for writing: the backup directory, and the database
+# directory, because reading a WAL-mode database needs write access to its
+# -wal and -shm side files. Both directories must exist before this unit
+# runs; a missing path stops the unit with an error.
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
+MemoryMax=512M
+ReadWritePaths=/var/backups/hippocamp-feed /var/lib/hippocamp-feed
+# Writes one copy, checks it, and deletes copies older than 14 days.
+ExecStart=/usr/local/bin/hippocamp-feed backup --dir /var/backups/hippocamp-feed --keep-days 14
+# Off-site copy: left commented out until the operator chooses a target.
+# The line below is an rclone example: it copies the newest backup to a
+# remote named "offsite" (an encrypted rclone remote), then deletes remote
+# files older than 14 days. In a unit file, "$" is written "$$". If it fails,
+# the unit fails, and the failure shows in `systemctl status`.
+#ExecStartPost=/bin/sh -c 'f=$$(ls -1t /var/backups/hippocamp-feed/feed-*.sqlite | head -n 1) && rclone --config /etc/hippocamp-feed/rclone.conf copy "$$f" offsite:hippocamp-feed && rclone --config /etc/hippocamp-feed/rclone.conf delete --min-age 14d offsite:hippocamp-feed'

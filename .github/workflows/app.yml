@@ -1,0 +1,51 @@
+name: app
+
+# Hippocamp.app lives in its own Cargo workspace, app/. It builds on macOS only and
+# is checked here, apart from the engine's ci.yml, so engine pull requests do
+# not wait for a macOS build of GPUI.
+on:
+  pull_request:
+    paths: ["app/**", ".github/workflows/app.yml"]
+  push:
+    branches: [main]
+    paths: ["app/**", "crates/**", "Cargo.toml", "Cargo.lock", ".github/workflows/app.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --locked
+
+  deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # As in ci.yml: cargo-deny built from crates.io once and cached, since
+      # the action's container download often failed.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-deny
+          key: cargo-deny-0.20.2-${{ runner.os }}
+      - run: command -v cargo-deny || cargo install --locked cargo-deny --version 0.20.2
+      - run: cargo deny --manifest-path app/Cargo.toml check

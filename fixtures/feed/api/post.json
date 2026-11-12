@@ -1,0 +1,127 @@
+{
+  "comments": [],
+  "measurements": [
+    {
+      "benefit": 0.333,
+      "created_at": "2026-11-07T10:00:00Z",
+      "eval_set": "3f2a9c01b7d4",
+      "hippocamp": "0.1.0",
+      "id": 4,
+      "member": "ada",
+      "model": "claude",
+      "net_with": 0.583,
+      "net_without": 0.25,
+      "pack_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "report_url": null,
+      "revisions": 0,
+      "runs": 3,
+      "status": "maintainer",
+      "updated_at": "2026-11-07T10:00:00Z",
+      "version": "1.0.0"
+    },
+    {
+      "benefit": 0.319,
+      "created_at": "2026-11-07T08:00:00Z",
+      "eval_set": "3f2a9c01b7d4",
+      "hippocamp": "0.1.0",
+      "id": 3,
+      "member": "alan",
+      "model": "claude",
+      "net_with": 0.625,
+      "net_without": 0.306,
+      "pack_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "report_url": null,
+      "revisions": 0,
+      "runs": 3,
+      "status": "counted",
+      "updated_at": "2026-11-07T08:00:00Z",
+      "version": "1.0.0"
+    },
+    {
+      "benefit": 0.125,
+      "created_at": "2026-11-07T06:00:00Z",
+      "eval_set": "3f2a9c01b7d4",
+      "hippocamp": "0.1.0",
+      "id": 2,
+      "member": "linus",
+      "model": "claude",
+      "net_with": 0.361,
+      "net_without": 0.236,
+      "pack_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "report_url": null,
+      "revisions": 0,
+      "runs": 3,
+      "status": "counted",
+      "updated_at": "2026-11-07T06:00:00Z",
+      "version": "1.0.0"
+    },
+    {
+      "benefit": 0.222,
+      "created_at": "2026-11-07T04:00:00Z",
+      "eval_set": "3f2a9c01b7d4",
+      "hippocamp": "0.1.0",
+      "id": 1,
+      "member": "grace",
+      "model": "claude",
+      "net_with": 0.472,
+      "net_without": 0.25,
+      "pack_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "report_url": null,
+      "revisions": 0,
+      "runs": 3,
+      "status": "counted",
+      "updated_at": "2026-11-07T04:00:00Z",
+      "version": "1.0.0"
+    }
+  ],
+  "post": {
+    "author": null,
+    "body": "",
+    "comments": 0,
+    "created_at": "2026-11-08T10:00:00Z",
+    "edited_at": null,
+    "id": 1,
+    "kind": "pack",
+    "link": null,
+    "pack": {
+      "description": "Adds the terms sessions define to the glossary note.",
+      "evidence": {
+        "measurements": 3,
+        "median_benefit": 0.222,
+        "pack_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "score": 0.133,
+        "version": "1.0.0"
+      },
+      "first_party": false,
+      "install": {
+        "command": "hippocamp add glossary-terms --registry ../../fixtures/feed/registry-index.json",
+        "deep_link": "hippocamp://add?pack=glossary-terms&version=1.0.0&sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "kind": "passes",
+      "license": "MIT",
+      "listed": true,
+      "maintainers": [
+        "ada"
+      ],
+      "name": "glossary-terms",
+      "owner": "ada",
+      "pack_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "passes": [
+        {
+          "name": "glossary-terms",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ]
+        }
+      ],
+      "source": "https://github.com/ada/hippocamp-packs/tree/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/glossary-terms",
+      "version": "1.0.0"
+    },
+    "state": "visible",
+    "title": "glossary-terms: Adds the terms sessions define to the glossary note.",
+    "url": "https://feed.example/p/1",
+    "votes": 2
+  }
+}

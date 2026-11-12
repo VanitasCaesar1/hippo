@@ -1,0 +1,7 @@
+:root {
+  --hp-text: #111111;
+}
+
+.hp-item {
+  display: none;
+}

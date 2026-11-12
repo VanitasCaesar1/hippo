@@ -1,0 +1,9 @@
+protocol = "HIPPOCAMP_V1"
+name = "high-contrast"
+kind = "theme"
+version = "1.0.0"
+description = "Text and controls at a contrast of at least 7:1."
+authors = ["Vanitas Caesar"]
+license = "MIT"
+theme_contract = 1
+desktop_theme_format = 1

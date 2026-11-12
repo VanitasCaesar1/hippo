@@ -1,0 +1,20 @@
+[book]
+title = "hippocamp"
+authors = ["Vanitas Caesar"]
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+
+# The theme is hippocamp's web theme contract (docs/themes.md): no
+# JavaScript, no fonts, no search, no print page, no request to another host.
+[output.html]
+additional-css = ["theme/docs.css"]
+no-section-label = true
+
+[output.html.print]
+enable = false
+
+[output.html.search]
+enable = false

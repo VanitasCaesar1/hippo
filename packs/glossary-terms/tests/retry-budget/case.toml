@@ -1,0 +1,27 @@
+protocol = "HIPPOCAMP_V1"
+pass = "glossary-terms"
+about = "A term defined in a session is appended to the glossary, and a note the filter leaves out is not read"
+
+[[session]]
+id = "retry-budget"
+notes = ["notes/Glossary.md", "notes/Meeting notes.md"]
+handoff = "Defined the retry budget; see [[Glossary]]."
+
+[model]
+reply = '''[{"note": "notes/Glossary.md", "kind": "append", "old": "", "new": "\n- **Retry budget**: the number of times one job may be retried before it moves to the dead-letter queue (2026-11-01). (retry-budget, turn 1)\n", "evidence": [{"session": "retry-budget", "ordinal": 1}], "reason": "Turn 1 defines the term and the glossary lacks it."}]'''
+verdict = "confirm"
+
+[expect]
+calls = 1
+proposals = 1
+validation_failures = 0
+confirmed = 1
+rejected = 0
+applied = 1
+prompt_contains = ["Glossary"]
+prompt_excludes = ["lantern festival"]
+
+[[expect.note]]
+path = "notes/Glossary.md"
+contains = ["**Retry budget**"]
+excludes = []

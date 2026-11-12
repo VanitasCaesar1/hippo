@@ -1,0 +1,47 @@
+{
+  "name": "Paper",
+  "author": "Vanitas Caesar",
+  "themes": [
+    {
+      "name": "Paper",
+      "appearance": "light",
+      "style": {
+        "background": "#e9e1cf",
+        "editor.background": "#f4eddc",
+        "title_bar.background": "#e9e1cf",
+        "status_bar.background": "#e9e1cf",
+        "tab.active_background": "#f4eddc",
+        "elevated_surface.background": "#f4eddc",
+        "panel.background": "#e8dfc9",
+        "surface.background": "#e8dfc9",
+        "tab_bar.background": "#e8dfc9",
+        "tab.inactive_background": "#e8dfc9",
+        "text": "#2b2620",
+        "text.muted": "#5a5144",
+        "text.placeholder": "#6b6050",
+        "text.accent": "#5a2d0c",
+        "border": "#cbbfa6",
+        "border.variant": "#d9cfb8",
+        "border.focused": "#5a2d0c",
+        "border.selected": "#5a2d0c",
+        "scrollbar.thumb.background": "#7a6a55",
+        "ghost_element.hover": "#ddd3bb",
+        "element.hover": "#ddd3bb",
+        "ghost_element.selected": "#d6c8a8",
+        "element.selected": "#d6c8a8",
+        "search.match_background": "#f0dc8c",
+        "deleted": "#8a1c14",
+        "deleted.background": "#f0d4c8",
+        "created": "#2f5d2a",
+        "created.background": "#dde8c8",
+        "success": "#2f5d2a",
+        "error": "#8a1c14",
+        "warning": "#7a4a00"
+      },
+      "hippocamp": {
+        "font_family": "Georgia",
+        "font_size": 14
+      }
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+/* Paper: warm greys and browns on a cream page, a serif face and slightly
+   larger text, for a low-glare light scheme. */
+:root {
+  --hp-page-bg: #e9e1cf;
+  --hp-content-bg: #f4eddc;
+  --hp-text: #2b2620;
+  --hp-muted: #5a5144;
+  --hp-link: #5a2d0c;
+  --hp-link-visited: #6b4a6b;
+  --hp-bar-bg: #4a3f33;
+  --hp-bar-text: #f4eddc;
+  --hp-bar-focus: #f4eddc;
+  --hp-vote: #7a6a55;
+  --hp-focus: #5a2d0c;
+  --hp-rule: #cbbfa6;
+  --hp-code-bg: #e8dfc9;
+  --hp-input-bg: #faf5e8;
+  --hp-input-text: #2b2620;
+  --hp-input-border: #7a6a55;
+  --hp-error: #8a1c14;
+  --hp-font: Georgia, "Times New Roman", serif;
+  --hp-size-title: 1rem;
+  --hp-size-text: 0.9375rem;
+  --hp-size-meta: 0.8125rem;
+  --hp-line: 1.5;
+  --hp-color-scheme: light;
+}

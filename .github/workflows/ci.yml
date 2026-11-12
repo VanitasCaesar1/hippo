@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  # gitleaks-action lists a pull request's commits through the API.
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      # Repository-level checks run once, on Linux.
+      - uses: gitleaks/gitleaks-action@v2
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+      # cargo-deny is built from crates.io once and cached. Its action
+      # downloaded a release tarball in a container build, which failed often
+      # (GitHub answered 504).
+      - uses: actions/cache@v4
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          path: ~/.cargo/bin/cargo-deny
+          key: cargo-deny-0.20.2-${{ runner.os }}
+      - if: matrix.os == 'ubuntu-latest'
+        run: command -v cargo-deny || cargo install --locked cargo-deny --version 0.20.2
+      - if: matrix.os == 'ubuntu-latest'
+        run: cargo deny check

@@ -1,0 +1,16 @@
+{
+  "name": "hippocamp",
+  "owner": {
+    "name": "VanitasCaesar1",
+    "url": "https://github.com/VanitasCaesar1"
+  },
+  "description": "hippocamp for Claude Code: one brain for all your coding agents.",
+  "plugins": [
+    {
+      "name": "hippocamp",
+      "source": "./plugin",
+      "description": "Your notes at session start when hippocamp is set up, and /hippocamp:setup, /hippocamp:ask and /hippocamp:day.",
+      "category": "productivity"
+    }
+  ]
+}

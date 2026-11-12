@@ -1,0 +1,6 @@
+{"synthetic": true}
+{"type": "user", "sessionId": "index-timing-1", "timestamp": "2026-11-01T10:00:00.000Z", "message": {"role": "user", "content": "Time the nightly index rebuild on the sample corpus and write the number in Measurements."}}
+{"type": "assistant", "sessionId": "index-timing-1", "timestamp": "2026-11-01T10:00:10.000Z", "message": {"role": "assistant", "content": [{"type": "text", "text": "I'll run the rebuild benchmark on the 5,000-note corpus in release mode."}]}}
+{"type": "assistant", "sessionId": "index-timing-1", "timestamp": "2026-11-01T10:00:20.000Z", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_m1", "name": "Bash", "input": {"command": "cargo bench --bench rebuild"}}]}}
+{"type": "user", "sessionId": "index-timing-1", "timestamp": "2026-11-01T10:00:30.000Z", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_m1", "content": "rebuild/5000-notes time: [41.2 s 42.0 s 42.9 s] (10 runs, release build)"}]}}
+{"type": "assistant", "sessionId": "index-timing-1", "timestamp": "2026-11-01T10:00:40.000Z", "message": {"role": "assistant", "content": [{"type": "text", "text": "The rebuild takes 42.0 s median over 10 runs on the 5,000-note corpus."}]}}

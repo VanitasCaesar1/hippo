@@ -1,0 +1,9 @@
+target/
+**/*.rs.bk
+.DS_Store
+.hippocamp/
+*.sqlite
+*.sqlite-*
+registry/out/
+docs/site/book/
+docs/site/out/

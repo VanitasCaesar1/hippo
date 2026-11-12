@@ -1,0 +1,23 @@
+# Summary
+
+[Introduction](introduction.md)
+
+- [Install](install.md)
+- [Quick start](quick-start.md)
+- [Concepts](concepts.md)
+- [Architecture](architecture.md)
+- [Packs](packs.md)
+  - [Writing a pack](writing-packs.md)
+  - [First-party packs](first-party-packs.md)
+  - [The registry](registry.md)
+  - [Themes](themes.md)
+- [Commands](commands.md)
+- [Configuration](configuration.md)
+- [Sharing a brain in a team](sharing.md)
+- [Scheduling on macOS](scheduling.md)
+- [Measuring with hippocamp eval](eval.md)
+- [Troubleshooting with hippocamp doctor](troubleshooting.md)
+- [Security and privacy](security.md)
+- [Roadmap](roadmap.md)
+- [Limits and known gaps](limits.md)
+- [Contributing and licence](contributing.md)

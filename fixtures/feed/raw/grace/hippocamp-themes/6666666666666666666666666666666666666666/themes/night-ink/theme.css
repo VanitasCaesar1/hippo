@@ -1,0 +1,25 @@
+:root {
+  --hp-link: #0b3d91;
+  --hp-link-visited: #4b2a8a;
+}
+@media (prefers-color-scheme: light) {
+  :root { --hp-content-bg: #fafafa; }
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hp-page-bg: #000000;
+    --hp-content-bg: #101010;
+    --hp-text: #202020;
+    --hp-muted: #b0b0b0;
+    --hp-link: #eeeeee;
+    --hp-link-visited: #b0b0b0;
+    --hp-error: #ff9a90;
+    --hp-code-bg: #202020;
+    --hp-input-bg: #202020;
+    --hp-input-text: #eeeeee;
+    --hp-input-border: #909090;
+    --hp-vote: #909090;
+    --hp-focus: #a9bdf0;
+    --hp-color-scheme: dark;
+  }
+}

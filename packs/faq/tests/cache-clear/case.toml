@@ -1,0 +1,27 @@
+protocol = "HIPPOCAMP_V1"
+pass = "faq"
+about = "A user question and its established answer are appended, and a note the filter leaves out is not read"
+
+[[session]]
+id = "cache-clear-1"
+notes = ["notes/FAQ.md", "notes/Orchid care.md"]
+handoff = "Answered the cache question; see [[FAQ]]."
+
+[model]
+reply = '''[{"note": "notes/FAQ.md", "kind": "append", "old": "", "new": "\n## Asked in sessions\n- **Does clearing the thumbnail cache delete my original photos?** No. The cache holds only generated previews; originals are stored separately and are not touched. (2026-11-01, cache-clear-1, turns 0-1)\n", "evidence": [{"session": "cache-clear-1", "ordinal": 0}, {"session": "cache-clear-1", "ordinal": 1}], "reason": "Turn 0 asks the question and turn 1 gives the answer the user accepted in turn 2."}]'''
+verdict = "confirm"
+
+[expect]
+calls = 1
+proposals = 1
+validation_failures = 0
+confirmed = 1
+rejected = 0
+applied = 1
+prompt_contains = ["FAQ"]
+prompt_excludes = ["phalaenopsis"]
+
+[[expect.note]]
+path = "notes/FAQ.md"
+contains = ["thumbnail cache delete my original photos"]
+excludes = []

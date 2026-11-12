@@ -1,0 +1,7 @@
+// Synthetic code whose names and numbers look sensitive but are not.
+type Session = { token: string; tokens: 15 };
+const apiKey = process.env.API_KEY;
+const auth = headers.get("Authorization");
+const orderNumber = 5123456789;
+const tokenizer_mode = "whitespace_only_split";
+const password_hint = "ask the maintainer";

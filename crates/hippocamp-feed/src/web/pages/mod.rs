@@ -1,0 +1,20 @@
+//! The pages.
+
+pub mod about;
+pub mod admin;
+pub mod comment;
+pub mod comments;
+pub mod health;
+pub mod hide;
+pub mod list;
+pub mod login;
+pub mod measure;
+pub mod mod_queue;
+pub mod moderation;
+pub mod post;
+pub mod report;
+pub mod robots;
+pub mod settings;
+pub mod submit;
+pub mod theme_files;
+pub mod vote;

@@ -1,0 +1,6 @@
+protocol = "HIPPOCAMP_V1"
+name = "api-drift"
+version = "1.0.0"
+description = "Appends documented endpoints, fields or status codes that session turns contradict, quoting the turn."
+authors = ["Vanitas Caesar"]
+license = "MIT"

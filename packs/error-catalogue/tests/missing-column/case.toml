@@ -1,0 +1,27 @@
+protocol = "HIPPOCAMP_V1"
+pass = "error-catalogue"
+about = "A matching entry is appended, and a note the filter leaves out is not read"
+
+[[session]]
+id = "errors-1"
+notes = ["notes/Errors.md", "notes/Choir rota.md"]
+handoff = "Fixed the missing column error in the report job; see [[Errors]]."
+
+[model]
+reply = '''[{"note": "notes/Errors.md", "kind": "append", "old": "", "new": "\n- 2026-11-01: `no such column: region`. Cause: the report query ran before the schema upgrade added the column. Fix: run the upgrade step before the report job; the rerun passed. (errors-1, turn 1)\n", "evidence": [{"session": "errors-1", "ordinal": 1}], "reason": "Turn 1 quotes the message, gives the cause and the fix, and says the rerun passes."}]'''
+verdict = "confirm"
+
+[expect]
+calls = 1
+proposals = 1
+validation_failures = 0
+confirmed = 1
+rejected = 0
+applied = 1
+prompt_contains = ["Errors"]
+prompt_excludes = ["village choir"]
+
+[[expect.note]]
+path = "notes/Errors.md"
+contains = ["no such column: region"]
+excludes = []

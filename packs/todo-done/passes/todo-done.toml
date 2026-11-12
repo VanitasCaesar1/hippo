@@ -1,0 +1,7 @@
+protocol = "HIPPOCAMP_V1"
+prompt = "prompts/todo-done.md"
+reads = ["sessions", "notes", "turns"]
+reviewer = "personas/todo-done-reviewer.md"
+input_budget_bytes = 200000
+per_note = true
+note_paths = ["**/TODO*.md", "**/Tasks*.md", "**/Backlog*.md"]

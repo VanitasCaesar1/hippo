@@ -1,0 +1,6 @@
+protocol = "HIPPOCAMP_V1"
+name = "open-questions"
+version = "1.0.0"
+description = "Appends questions sessions raised and left open, and answers to questions the note lists."
+authors = ["Vanitas Caesar"]
+license = "MIT"

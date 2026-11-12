@@ -1,0 +1,45 @@
+/* High contrast: every text pair of the contract at 7:1 or more, in the
+   light scheme and in the dark scheme. */
+:root {
+  --hp-page-bg: #ffffff;
+  --hp-content-bg: #ffffff;
+  --hp-text: #000000;
+  --hp-muted: #3d3d3d;
+  --hp-link: #0000cc;
+  --hp-link-visited: #4b0082;
+  --hp-bar-bg: #000000;
+  --hp-bar-text: #ffffff;
+  --hp-bar-focus: #ffff66;
+  --hp-vote: #000000;
+  --hp-focus: #0000cc;
+  --hp-rule: #595959;
+  --hp-code-bg: #eeeeee;
+  --hp-input-bg: #ffffff;
+  --hp-input-text: #000000;
+  --hp-input-border: #000000;
+  --hp-error: #8b0000;
+  --hp-color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hp-page-bg: #000000;
+    --hp-content-bg: #000000;
+    --hp-text: #ffffff;
+    --hp-muted: #cccccc;
+    --hp-link: #99ccff;
+    --hp-link-visited: #d9b3ff;
+    --hp-bar-bg: #262626;
+    --hp-bar-text: #ffffff;
+    --hp-bar-focus: #ffff66;
+    --hp-vote: #cccccc;
+    --hp-focus: #ffff66;
+    --hp-rule: #808080;
+    --hp-code-bg: #1a1a1a;
+    --hp-input-bg: #1a1a1a;
+    --hp-input-text: #ffffff;
+    --hp-input-border: #ffffff;
+    --hp-error: #ff9999;
+    --hp-color-scheme: dark;
+  }
+}

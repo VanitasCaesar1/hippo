@@ -1,0 +1,27 @@
+protocol = "HIPPOCAMP_V1"
+pass = "decision-log"
+about = "A decision with its reason and rejected options is appended, and a note the filter leaves out is not read"
+
+[[session]]
+id = "decision-1"
+notes = ["notes/Decision log.md", "notes/Meeting notes.md"]
+handoff = "Settled where the sample app keeps its cache; see [[Decision log]]."
+
+[model]
+reply = '''[{"note": "notes/Decision log.md", "kind": "append", "old": "", "new": "\n- 2026-11-01: The sample app keeps its cache in a local SQLite file. Why: several workers write at once and SQLite serialises them. Rejected: a JSON file (corrupts under concurrent writes) and Redis (one more service to run). (decision-1, turn 1)\n", "evidence": [{"session": "decision-1", "ordinal": 1}], "reason": "Turn 1 states the decision, the reason and both rejected options."}]'''
+verdict = "confirm"
+
+[expect]
+calls = 1
+proposals = 1
+validation_failures = 0
+confirmed = 1
+rejected = 0
+applied = 1
+prompt_contains = ["Decision log"]
+prompt_excludes = ["lantern festival"]
+
+[[expect.note]]
+path = "notes/Decision log.md"
+contains = ["SQLite file"]
+excludes = []
