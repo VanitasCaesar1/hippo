@@ -1,6 +1,6 @@
 # Limits and known gaps
 
-hippo is early software at version 0.4.0. This page lists what you should expect to go wrong or be missing.
+hippo is early software at version 0.4.1. This page lists what you should expect to go wrong or be missing.
 
 ## Scope
 

@@ -1,6 +1,6 @@
 {
   "name": "opencode-plugin-hippo",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "hippo for OpenCode: hippo's start block in each top-level session's system prompt, and tools to search past agent sessions and show a day's work.",
   "keywords": [
     "opencode-plugin",

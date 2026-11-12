@@ -7,7 +7,7 @@
 #   plugins/opencode/e2e/run.sh <opencode binary> <hippo binary> [plugin spec]
 #
 # The plugin spec defaults to this folder; pass a package spec such as
-# "github:VanitasCaesar1/hippo#v0.4.0::path:plugins/opencode" to check an
+# "github:VanitasCaesar1/hippo#v0.4.1::path:plugins/opencode" to check an
 # install from GitHub (that one needs the network). Everything this script
 # writes is under a new temporary folder, which is its HOME, HIPPO_HOME
 # and XDG_* folders; it prints that folder at the end. It never touches

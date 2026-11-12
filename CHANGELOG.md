@@ -4,6 +4,8 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-12
+
 ### Added
 
 - **More of OpenCode.** How a run ended: an assistant step's error and a run's `idle` outcome become the turns hippo already reads for Claude Code (`API Error: …`, `Failed to authenticate: …`, `[Request interrupted by user]`), so Fleet shows an OpenCode session that stopped on an error, a limit, a failed sign-in or a stop, and Incidents lists the errors. Attachments: a line per attached file or tool file with its name, type, size and path, never the bytes. A finished sub-agent call's result carries the sub-agent's tokens and tool calls, which Fleet shows as it does Claude Code's. A completed compaction is a summary turn the session view shows as the earlier conversation's summary. Cost is not recorded: hippo has no cost field, and Claude Code and Codex record no price. Every OpenCode session is read once more on the next ingest. See the [design](docs/designs/opencode-adapter.md#added-in-041).
@@ -67,7 +69,8 @@ The first release. hippo reads what your coding agents did, keeps your notes tru
 - **Hippo.app**, a macOS window over the same files. Built from source in `app/`; no binary is released. Checked on synthetic data, not in daily use.
 - **Docs** at [vanitascaesar1.github.io/hippo](https://vanitascaesar1.github.io/hippo/), including [Sharing a brain in a team](docs/site/src/sharing.md), tried with two people and one git remote.
 
-[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/VanitasCaesar1/hippo/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/VanitasCaesar1/hippo/compare/v0.2.0...v0.2.1
