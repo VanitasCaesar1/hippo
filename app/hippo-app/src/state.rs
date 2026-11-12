@@ -542,13 +542,19 @@ fn fleet_at(
     let roots = hippo_core::adapters::transcript_roots(cfg);
     let snap = hippo_core::usage::Snapshot::read(&cfg.home, &roots, now, offset)
         .map_err(|e| e.to_string())?;
-    Ok(hippo_view::fleet::build(&hippo_view::fleet::Inputs {
+    let mut fleet = hippo_view::fleet::build(&hippo_view::fleet::Inputs {
         now,
         offset,
         roots: &roots,
         rollup,
         usage: &snap,
-    }))
+    });
+    // The kept rules each session started with.
+    if let Some(r) = rollup {
+        let lessons = hippo_core::lessons::list(&cfg.home).unwrap_or_default();
+        hippo_view::fleet::serve_rules(&mut fleet.rows, r, &lessons);
+    }
+    Ok(fleet)
 }
 
 /// Today's fleet, now: what the fleet's 30-second refresh reads.

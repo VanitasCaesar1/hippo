@@ -4,6 +4,15 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Added
+
+- **Fleet Pulse.** Hippo.app's Fleet opens on a new view: counts and a histogram of the fleet's tool calls by account up to a now line; the sessions that need you, quoted, with Open thread, T3 Code and Terminal (one large card when only one does); a ranked Next up (an account that runs dry before its reset, an unverified claim, a destructive command, a correction that is a rule candidate); working sessions as waveforms of their 2-minute activity with sub-agents and the current call; and a rail of each account's drain, burn rate and empty time, memory today and what tonight's pass will read. Rows and Lanes stay a click away. The engine gained what it reads, all computed at read time: 2-minute activity beats, usage drain and burn rate, the kept rules a session started with (`hippo fleet --json` shows them), correction and destructive marks, the nightly forecast and the ranking. See the [design](docs/designs/fleet-pulse.md).
+
+### Fixed
+
+- The day's incidents went missing from Lanes east of UTC: incident times were compared as text against a local midnight.
+- A plan waiting for approval now says its last line in Fleet and the sidebar.
+
 ## [0.4.1] - 2026-11-12
 
 ### Added

@@ -29,6 +29,7 @@ pub mod palette;
 pub mod pane;
 pub mod picker;
 pub mod proposal_tab;
+pub mod pulse_ui;
 pub mod rail;
 pub mod reach_ui;
 pub mod replay_ui;
@@ -129,6 +130,8 @@ pub struct Shell {
     pub(crate) fleet_ui: fleet::FleetUi,
     /// Fleet's Lanes view: the day shown, its zoom, the scrubber.
     pub(crate) replay: replay_ui::ReplayUi,
+    /// Fleet's Pulse view.
+    pub(crate) pulse: pulse_ui::PulseUi,
     /// Fleet's rows take ↑ ↓ ↩ when it shows and nothing else has focus.
     pub(crate) fleet_focus: FocusHandle,
     /// Incidents: the list's selection and filters, the marks
@@ -322,6 +325,7 @@ impl Shell {
             recent_questions,
             fleet_ui: Default::default(),
             replay: Default::default(),
+            pulse: Default::default(),
             fleet_focus: cx.focus_handle(),
             incidents_ui: incidents_ui::IncidentsUi::new(&saved, cx),
             inbox: lessons::InboxUi::new(cx),

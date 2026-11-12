@@ -264,6 +264,22 @@ impl Shell {
                 .child(lanes)
                 .into_any_element();
         }
+        // Pulse, the default.
+        if self.pulse.on {
+            let pulse = self.render_pulse(&fleet, look, window, cx);
+            return div()
+                .id("fleet-keys")
+                .key_context("Fleet")
+                .track_focus(&self.fleet_focus)
+                .on_key_down(cx.listener(|this, e: &gpui::KeyDownEvent, window, cx| {
+                    if this.pulse_key(&e.keystroke, window, cx) {
+                        cx.stop_propagation();
+                    }
+                }))
+                .size_full()
+                .child(pulse)
+                .into_any_element();
+        }
         let width = f32::from(window.viewport_size().width);
         // Below 900 points the accounts are one menu button and the filter
         // field shows only after `/`.
@@ -613,7 +629,7 @@ impl Shell {
             .items_center()
             .gap(look.px(10.))
             .pb(look.px(12.))
-            .child(self.replay_switch(look, cx))
+            .child(self.fleet_view_switch(look, cx))
             .child(
                 div()
                     .flex()
