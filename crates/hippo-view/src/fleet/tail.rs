@@ -489,7 +489,18 @@ fn claude_waiting(v: &Value, ts: OffsetDateTime, answered: &HashSet<String>) -> 
                     let asked = block
                         .pointer("/input/questions/0/question")
                         .and_then(Value::as_str)
-                        .map(|q| cut(q.trim(), 120));
+                        .map(|q| cut(q.trim(), 120))
+                        .or_else(|| {
+                            // A plan's last line, where plans say what
+                            // they ask (`Plan ready: … Approve?`).
+                            let plan = block.pointer("/input/plan").and_then(Value::as_str)?;
+                            let line = plan.lines().rev().find(|l| !l.trim().is_empty())?;
+                            let line = line
+                                .trim()
+                                .trim_start_matches(['#', '*', '-', ' '])
+                                .trim_end_matches(['*', ' ']);
+                            (!line.is_empty()).then(|| cut(line, 120))
+                        });
                     return Some(Waiting {
                         at: ts,
                         asked,
@@ -1002,7 +1013,17 @@ mod tests {
             json!([{"type": "tool_use", "id": "p1", "name": "ExitPlanMode", "input": {"plan": "1. do"}}]),
             Some("tool_use"),
         );
-        assert!(tail(&[plan]).waiting.unwrap().plan);
+        assert!(tail(std::slice::from_ref(&plan)).waiting.unwrap().plan);
+        let plan = assistant(
+            T1,
+            json!([{"type": "tool_use", "id": "p2", "name": "ExitPlanMode",
+                "input": {"plan": "## Plan\n\n1. Add the store\n\n**Plan ready: 2 steps. Approve?**\n"}}]),
+            Some("tool_use"),
+        );
+        assert_eq!(
+            tail(&[plan]).waiting.unwrap().asked.as_deref(),
+            Some("Plan ready: 2 steps. Approve?")
+        );
     }
 
     #[test]
