@@ -4,5 +4,5 @@ repo = "https://github.com/VanitasCaesar1/hippocamp"
 repo_id = 1454849249
 owner_id = 94681960
 path = "packs/incident-timeline"
-commit = "cbb05ad8dc4ecd33a66218ee00e1da45ffbdd942"
+commit = "dd642d6c88ccac9492062aeed6abca27fdba17f9"
 maintainers = ["VanitasCaesar1"]

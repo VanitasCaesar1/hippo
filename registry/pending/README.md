@@ -2,7 +2,7 @@
 
 An entry here is not listed: `check` and `build` do not read this folder. It waits for a change its fresh-context review asked for.
 
-- `incident-timeline`: its template has an imperative line that an agent reading an unedited copy would take as an instruction, and its test fixture folds three moments into one entry that the pack's own reviewer would reject. Reword the template and fix the fixture, then list it again.
+No entry waits here today.
 
 To list an entry once its pack is fixed and the fix is on `main`:
 

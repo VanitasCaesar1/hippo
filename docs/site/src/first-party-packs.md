@@ -72,5 +72,5 @@ None of these packs is measured yet. Each has one fixture test with a stand-in m
 
 `packs/` also holds three theme packs: `high-contrast`, `large-type` and `paper`. A theme pack sets the web theme contract's values, and for two of them a desktop theme. It has no passes and never touches your notes. [Themes](themes.md) says what a theme pack may hold and what each of the three changes. All three are by Vanitas Caesar, version 1.0.0, MIT.
 
-In [the registry](registry.md), 25 of the 26 first-party packs are listed (22 pass packs and 3 theme packs), each with its fresh-context review in `registry/reviews/`. The 26th, `incident-timeline`, waits in `registry/pending/`: its review asked for a change to its template and its test first.
+In [the registry](registry.md), all 26 first-party packs are listed (23 pass packs and 3 theme packs), each with its fresh-context review in `registry/reviews/`.
 

@@ -114,7 +114,7 @@ curl -i http://127.0.0.1:8080/api/v1/posts/999999
 
 ## Variant: seed from the repository's own registry
 
-The fixture lists 15 invented packs. To seed from this repository's first-party packs instead, build the index offline from the registry. It then holds the 25 listed first-party packs: 22 pass packs and the 3 theme packs `high-contrast`, `large-type` and `paper`.
+The fixture lists 15 invented packs. To seed from this repository's first-party packs instead, build the index offline from the registry. It then holds the 26 first-party packs: 23 pass packs and the 3 theme packs `high-contrast`, `large-type` and `paper`.
 
 ```sh
 cargo run -p hippocamp-registry -- build --offline --out /tmp/hippocamp-registry
