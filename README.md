@@ -9,13 +9,31 @@
 
 <p align="center"><b>One brain for all your coding agents.</b></p>
 
-Your Claude Code sessions start from the same plain-Markdown notes and write back to them, and at night a second, fresh-context reviewer checks every proposed change to those notes against what your agents actually did. Underneath, hippo indexes every Claude Code, Codex and DeepSeek Harness (`dsh`) session on your machine, so you can search them, see your agents' day, and share it.
+hippo keeps your project's notes and the corrections you already made as plain Markdown in your repo, and a new agent session starts from them, whichever agent runs it. It learns from the Claude Code, Codex and DeepSeek Harness (`dsh`) history already on your machine, and at night a second, fresh-context reviewer checks every proposed change to the notes against what your agents actually did. It is local and MIT, built by one person to keep their own agents on the same page.
 
-<p align="center"><img src="docs/assets/card.png" width="600" alt="A card dated Tuesday 3 March 2026: My agents did 3 hours 18 minutes of work on Tuesday, with threads, sub-agents, pull requests, waits and corrections"></p>
+## One correction, every agent
+
+```text
+13:32  Claude Code          you: "dont point previews at the production database again, staging only"
+       Inbox                Use the staging database for previews, never production   [keep]
+15:08  notes/START HERE.md  + - **Use the staging database for previews, never production.** ... *(lesson kept 2026-11-12)*
+next   Codex                $ hippo brief --task "Run a preview of the album page against the database"
+                            required: notes/START HERE.md
+                            rules:
+                            - Run previews and manual checks against the staging database (npm run preview -- --db staging), never production.
+```
+
+You correct one agent once, keep the rule hippo proposes, and it is a line in a note every later session starts from. The notes are files in your repo, so git shares them with your team's agents.
+
+| Agent | How it gets the notes |
+|---|---|
+| Claude Code | At session start, through `hippo hooks install` or the plugin. |
+| DeepSeek Harness (`dsh`) | At session start, through [its plugin](plugins/dsh/README.md). |
+| Codex | Indexed and searchable. It runs `hippo brief --task "<task>"` when your instructions ask it to; nothing is injected automatically. |
 
 <p align="center"><img src="docs/assets/first-run.gif" width="700" alt="hippo, then hippo start --yes, on synthetic history: what it found, then the last active day"></p>
 
-<p align="center"><sub>Both from synthetic data. The card shows numbers and a date, never a project, title or path.</sub></p>
+<p align="center"><sub>The lines above and the recording are from synthetic data.</sub></p>
 
 ## Install
 
