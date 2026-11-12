@@ -508,8 +508,11 @@ pub fn pages(
         ),
     ));
     if let Some(main) = landing {
-        out.push((
-            "index.html".to_owned(),
+        // A landing file that is a whole document is the page as it is;
+        // otherwise it is a fragment the site frame wraps.
+        let html = if is_whole_page(main) {
+            main.to_owned()
+        } else {
             page(
                 &Frame {
                     title: "One brain for all your coding agents",
@@ -520,8 +523,9 @@ pub fn pages(
                 settings,
                 &generated,
                 main,
-            ),
-        ));
+            )
+        };
+        out.push(("index.html".to_owned(), html));
     }
     for (pack, listed) in rows {
         out.push((
@@ -532,9 +536,35 @@ pub fn pages(
     out
 }
 
+/// Whether a landing file is a whole HTML document (it starts with a
+/// doctype, after any leading comment or blank line) rather than a fragment.
+fn is_whole_page(text: &str) -> bool {
+    let mut rest = text.trim_start();
+    while let Some(after) = rest.strip_prefix("<!--") {
+        match after.find("-->") {
+            Some(end) => rest = after[end + 3..].trim_start(),
+            None => return false,
+        }
+    }
+    rest.get(..9)
+        .is_some_and(|head| head.eq_ignore_ascii_case("<!doctype"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_landing_with_a_doctype_is_a_whole_page() {
+        assert!(is_whole_page("<!doctype html>\n<html></html>"));
+        assert!(is_whole_page("  <!DOCTYPE html><html></html>"));
+        assert!(is_whole_page("<!-- note -->\n<!doctype html>"));
+        assert!(!is_whole_page(
+            "<!-- The landing page: a fragment -->\n<div>hi</div>"
+        ));
+        assert!(!is_whole_page("<div>hi</div>"));
+        assert!(!is_whole_page("<!-- unclosed"));
+    }
 
     #[test]
     fn escape_covers_the_five_characters_and_nothing_else() {

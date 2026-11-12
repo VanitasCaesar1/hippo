@@ -1,49 +1,275 @@
-<!-- The landing page: a fragment that
-     hippo-registry build --landing wraps in the site's page frame. No
-     script, no web font, nothing from another host. -->
-<div class="hp-md">
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 473 387" fill="currentColor" class="hp-mark" aria-hidden="true"><g transform="translate(0,387) scale(0.1,-0.1)"><path d="M2167 3229 c-294 -28 -582 -125 -766 -257 -41 -30 -81 -56 -87 -59 -19 -7 -144 45 -248 103 -176 98 -282 107 -364 31 -59 -55 -90 -196 -63 -280 29 -85 144 -147 304 -162 42 -4 77 -9 77 -11 0 -2 -24 -41 -54 -87 -270 -414 -391 -1001 -241 -1174 52 -60 62 -32 68 202 13 470 192 876 528 1200 202 195 395 288 719 347 138 25 453 31 560 10 269 -53 448 -177 528 -369 31 -73 31 -73 -43 -73 -205 0 -478 -48 -637 -112 -116 -47 -298 -146 -298 -163 0 -35 32 -31 261 38 390 118 871 141 1289 62 124 -24 350 -84 390 -105 122 -63 155 -177 148 -512 -5 -198 -7 -218 -31 -285 -105 -293 -387 -427 -892 -426 -566 1 -953 119 -1134 345 -100 124 -141 229 -189 478 -4 21 -14 36 -24 38 -26 5 -42 -66 -41 -183 1 -207 104 -400 288 -542 76 -58 76 -58 68 -98 -33 -166 5 -213 212 -266 220 -55 287 -39 320 75 19 65 6 62 180 41 66 -8 201 -15 301 -15 181 0 181 0 197 -60 30 -106 80 -130 237 -112 118 14 177 34 227 76 38 34 38 34 41 129 4 96 4 96 68 138 131 85 236 233 280 394 25 91 31 469 10 593 -39 226 -100 286 -363 358 -220 61 -362 86 -573 105 -97 9 -140 17 -140 25 0 7 -2 19 -5 27 -5 11 9 14 69 14 258 2 372 356 150 464 -72 34 -113 24 -184 -48 -32 -32 -89 -75 -128 -96 -70 -37 -70 -37 -139 14 -206 157 -514 223 -876 188z m1287 -185 c58 -57 6 -194 -80 -210 -46 -9 -162 14 -173 34 -7 13 6 26 67 63 43 26 95 65 117 87 47 46 49 47 69 26z m-2463 -134 c47 -27 113 -62 147 -77 61 -28 61 -28 31 -62 -29 -32 -35 -34 -113 -38 -101 -7 -215 11 -258 41 -32 21 -33 24 -33 90 0 124 67 138 226 46z m1490 -1774 c35 -13 99 -32 142 -42 77 -18 77 -18 77 -51 0 -38 5 -37 -96 -18 -180 34 -221 59 -198 119 8 20 0 20 75 -8z m1395 -61 c21 -54 -15 -77 -151 -99 -97 -15 -100 -15 -110 26 -6 23 -3 28 17 32 12 3 66 16 118 29 119 30 119 30 126 12z M2736 2889 c-50 -59 -24 -172 45 -194 30 -10 78 14 94 46 58 112 -62 240 -139 148z M2193 2865 c-52 -36 -54 -141 -4 -194 68 -73 159 -11 149 101 -9 88 -84 136 -145 93z M3895 2333 c-87 -17 -125 -56 -125 -128 0 -150 273 -228 351 -101 65 107 -82 256 -226 229z M2522 2308 c-142 -25 -228 -180 -145 -263 82 -81 251 -33 312 88 54 109 -31 199 -167 175z"/></g></svg>
-<h1>hippo</h1>
-<p><b>One brain for all your coding agents.</b></p>
-<p>Your Claude Code sessions start from the same plain-Markdown notes and write back to them, and at night a second, fresh-context reviewer checks every proposed change to those notes against what your agents actually did. Underneath, hippo indexes every Claude Code and Codex session on your machine, so you can search them, see your agents' day, and share it.</p>
+<!doctype html>
+<!-- The landing page, a whole page that hippo-registry build --landing copies as
+     it is. No script, no web font, nothing loaded from another host. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hippo: one brain for all your coding agents</title>
+<meta name="description" content="hippo finds every Claude Code and Codex session on your Mac and shows your day. Open source, MIT, local.">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; style-src &#39;self&#39;; img-src &#39;self&#39; data:">
+<link rel="stylesheet" href="landing.css">
+</head>
+<body>
 
-<figure>
-<img src="assets/card.png" width="1200" height="675" alt="A card dated Tuesday 3 March 2026: My agents did 3 hours 18 minutes of work on Tuesday, with threads, sub-agents, pull requests, waits and corrections">
-<figcaption><code>hippo card</code>, from synthetic data: numbers and a date, never a project, title or path.</figcaption>
-</figure>
+<!-- the mascot, once; reused with <use> -->
+<svg width="0" height="0" class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="hippo" viewBox="58 59 383 248">
+    <g transform="translate(0,387) scale(0.1,-0.1)" fill="currentColor"><path d="M2167 3229 c-294 -28 -582 -125 -766 -257 -41 -30 -81 -56 -87 -59 -19 -7 -144 45 -248 103 -176 98 -282 107 -364 31 -59 -55 -90 -196 -63 -280 29 -85 144 -147 304 -162 42 -4 77 -9 77 -11 0 -2 -24 -41 -54 -87 -270 -414 -391 -1001 -241 -1174 52 -60 62 -32 68 202 13 470 192 876 528 1200 202 195 395 288 719 347 138 25 453 31 560 10 269 -53 448 -177 528 -369 31 -73 31 -73 -43 -73 -205 0 -478 -48 -637 -112 -116 -47 -298 -146 -298 -163 0 -35 32 -31 261 38 390 118 871 141 1289 62 124 -24 350 -84 390 -105 122 -63 155 -177 148 -512 -5 -198 -7 -218 -31 -285 -105 -293 -387 -427 -892 -426 -566 1 -953 119 -1134 345 -100 124 -141 229 -189 478 -4 21 -14 36 -24 38 -26 5 -42 -66 -41 -183 1 -207 104 -400 288 -542 76 -58 76 -58 68 -98 -33 -166 5 -213 212 -266 220 -55 287 -39 320 75 19 65 6 62 180 41 66 -8 201 -15 301 -15 181 0 181 0 197 -60 30 -106 80 -130 237 -112 118 14 177 34 227 76 38 34 38 34 41 129 4 96 4 96 68 138 131 85 236 233 280 394 25 91 31 469 10 593 -39 226 -100 286 -363 358 -220 61 -362 86 -573 105 -97 9 -140 17 -140 25 0 7 -2 19 -5 27 -5 11 9 14 69 14 258 2 372 356 150 464 -72 34 -113 24 -184 -48 -32 -32 -89 -75 -128 -96 -70 -37 -70 -37 -139 14 -206 157 -514 223 -876 188z m1287 -185 c58 -57 6 -194 -80 -210 -46 -9 -162 14 -173 34 -7 13 6 26 67 63 43 26 95 65 117 87 47 46 49 47 69 26z m-2463 -134 c47 -27 113 -62 147 -77 61 -28 61 -28 31 -62 -29 -32 -35 -34 -113 -38 -101 -7 -215 11 -258 41 -32 21 -33 24 -33 90 0 124 67 138 226 46z m1490 -1774 c35 -13 99 -32 142 -42 77 -18 77 -18 77 -51 0 -38 5 -37 -96 -18 -180 34 -221 59 -198 119 8 20 0 20 75 -8z m1395 -61 c21 -54 -15 -77 -151 -99 -97 -15 -100 -15 -110 26 -6 23 -3 28 17 32 12 3 66 16 118 29 119 30 119 30 126 12z M2736 2889 c-50 -59 -24 -172 45 -194 30 -10 78 14 94 46 58 112 -62 240 -139 148z M2193 2865 c-52 -36 -54 -141 -4 -194 68 -73 159 -11 149 101 -9 88 -84 136 -145 93z M3895 2333 c-87 -17 -125 -56 -125 -128 0 -150 273 -228 351 -101 65 107 -82 256 -226 229z M2522 2308 c-142 -25 -228 -180 -145 -263 82 -81 251 -33 312 88 54 109 -31 199 -167 175z"/></g>
+  </symbol>
+</svg>
 
-<h2>Install</h2>
-<p>macOS (Apple silicon or Intel), one line, no <code>sudo</code> (installs to <code>~/.local/bin</code>):</p>
-<pre class="hp-code"><code>curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippo/main/install.sh | sh</code></pre>
-<p>Inside Claude Code, <code>/plugin marketplace add VanitasCaesar1/hippo</code> then <code>/plugin install hippo@hippo</code>. On Linux, or with Rust, <code>cargo install --locked --git https://github.com/VanitasCaesar1/hippo hippo</code>. <a href="docs/install.html">More on installing</a>.</p>
+<header class="wrap top">
+  <a class="brand" href="index.html" aria-current="page" aria-label="hippo">
+    <svg viewBox="0 0 383 248" aria-hidden="true"><use href="#hippo"/></svg>
+    hippo
+  </a>
+  <nav aria-label="Site">
+    <a class="hide-s" href="docs/index.html">Docs</a>
+    <a class="hide-s" href="packs.html">Packs</a>
+    <a class="hide-s" href="#install">Install</a>
+    <a class="hide-s" href="#limits">Limits</a>
+    <a class="gh" href="https://github.com/VanitasCaesar1/hippo">
+      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38v-1.4c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.72 1.22 1.88.87 2.33.66.07-.52.28-.87.5-1.07-1.77-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0Z"/></svg>
+      GitHub
+    </a>
+  </nav>
+</header>
 
-<h2>The first two minutes</h2>
-<ol>
-<li><code>hippo</code> lists the agent history it finds. Nothing is written yet.</li>
-<li><code>hippo start --yes</code> indexes it (history only, nothing sent), then shows your last active day.</li>
-<li><code>hippo card</code> turns that day into a 1200 x 675 PNG to share.</li>
-</ol>
-<p>The overview gives the day's sessions and sub-agents, the agents' work time, how long they waited on you, the pull requests they merged, the times you corrected them, the busiest sessions, and four commands to try next.</p>
+<main>
 
-<h2>What it does</h2>
-<ol>
-<li><b>Search every past session.</b> <code>hippo ask --sources-only "&lt;question&gt;"</code> ranks the sessions that dealt with it; <code>hippo recall</code> searches every turn.</li>
-<li><b>See the day.</b> <code>hippo</code>, <code>fleet</code>, <code>incidents</code>, <code>xray</code>, and <code>card</code> for one image.</li>
-<li><b>A shared brain your agents start from and write back to.</b> <code>init</code> sets up a notes folder, <code>hooks install</code> gives every Claude Code session its notes, <code>brief</code> gives any agent a start block.</li>
-<li><b>Kept true at night.</b> <code>dream</code> checks notes against transcripts; a second reviewer confirms every change, and <code>revert</code> undoes any of them.</li>
-<li><b>Packs you copy and own.</b> <code>hippo add</code> copies passes, prompts and personas into your workspace after a review. They are files, never code.</li>
-</ol>
+<section class="hero">
+  <div class="wrap">
+    <h1><span class="hl">One brain</span> for all your coding agents.</h1>
+    <p class="sub"><b>hippo</b> finds every Claude Code and Codex session on your Mac and shows your day: what ran, what needs you, what went wrong.</p>
 
-<h2>How it differs</h2>
-<ul>
-<li>Your notes are plain Markdown files in your own folder. The index is a local SQLite file.</li>
-<li>No change lands without a fresh-context review.</li>
-<li>Every change can be undone.</li>
-</ul>
+    <div class="cmd">
+      <div class="line" tabindex="0" aria-label="Install command"><span class="p">$</span><span class="c">curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippo/main/install.sh | sh</span></div>
+      <span class="tip" aria-hidden="true">click, then ⌘C</span>
+    </div>
+    <p class="fine">
+      <span>macOS, Apple silicon or Intel. No sudo.</span>
+      <span>Open source, MIT.</span>
+      <a href="#install">Claude Code plugin and Linux</a>
+    </p>
 
-<h2>What leaves your machine</h2>
-<p>hippo's own code makes no network calls. Data leaves only through the model command (by default <code>claude -p</code>, under your login), which dreaming, written answers from <code>ask</code>, pack reviews and a few named checks run, and through <code>git</code>, when you fetch a pack. Everything else, including <code>hippo</code>, <code>start</code>, <code>card</code>, <code>recall</code> and <code>ask --sources-only</code>, is local. <a href="docs/security.html">Security and privacy</a>.</p>
+    <div class="stage">
+      <div class="peek" aria-hidden="true"><svg viewBox="0 0 383 248"><use href="#hippo"/></svg></div>
+      <a class="win" href="assets/app-home.png">
+        <img src="assets/app-home.png" width="1200" height="800" alt="The hippo Mac app, Home: one agent needs you, overnight note changes, corrections, repeated failures, and usage left per account.">
+      </a>
+    </div>
+  </div>
+</section>
 
-<h2>Read on</h2>
-<p><a href="docs/index.html">Docs</a> · <a href="docs/limits.html">What it does not do yet</a> · <a href="packs.html">Packs</a> · <a href="https://github.com/VanitasCaesar1/hippo">GitHub</a></p>
-</div>
+<section class="features">
+  <div class="wrap">
+
+    <div class="feature">
+      <div>
+        <p class="tag">$ hippo</p>
+        <h2>Your day, read from your agents' history.</h2>
+        <p class="lede">Sessions, sub-agents, hours of agent work, how long agents waited on you, and each time you corrected one.</p>
+      </div>
+      <a class="win term" href="assets/cli-overview.png">
+        <img src="assets/cli-overview.png" width="1646" height="1076" loading="lazy" alt="Terminal output of the hippo command: 36 sessions, 6 sub-agents, 3h 18m of agent work today, and the busiest sessions.">
+      </a>
+    </div>
+
+    <div class="feature">
+      <div>
+        <p class="tag">Fleet</p>
+        <h2>What every agent is doing right now.</h2>
+        <p class="lede">Which one needs you, and which account still has usage left.</p>
+      </div>
+      <a class="win" href="assets/app-fleet.png">
+        <img src="assets/app-fleet.png" width="1200" height="800" loading="lazy" alt="Fleet: sessions grouped into needs you, working and to review, with project, claims and state.">
+      </a>
+    </div>
+
+    <div class="feature">
+      <div>
+        <p class="tag">Incidents</p>
+        <h2>What went wrong, in your own words.</h2>
+        <p class="lede">Each incident quotes you, and names the agent and the step.</p>
+      </div>
+      <a class="win" href="assets/app-incidents.png">
+        <img src="assets/app-incidents.png" width="1200" height="800" loading="lazy" alt="Incidents: a list of quoted corrections such as &quot;no, why did you force push&quot;, each with its agent, step and cause.">
+      </a>
+    </div>
+
+    <div class="pair">
+      <div class="panel">
+        <p class="tag">Ask</p>
+        <h3>Has an agent already solved this?</h3>
+        <p>Ranks your past sessions and notes against the question.</p>
+        <div class="cmd">
+          <div class="line" tabindex="0"><span class="p">$</span><span class="c">hippo ask "&lt;question&gt;"</span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <p class="tag">X-ray</p>
+        <h3>Does "tests pass" hold?</h3>
+        <p>Shows what context a session was given, what it searched for and used, and whether its claims hold.</p>
+        <div class="cmd">
+          <div class="line" tabindex="0"><span class="p">$</span><span class="c">hippo xray &lt;session&gt;</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div>
+        <p class="tag">Memory</p>
+        <h2>One set of notes for every session.</h2>
+        <p class="lede">Plain Markdown. Every session starts from the same notes and writes back.</p>
+      </div>
+      <a class="win" href="assets/app-memory.png">
+        <img src="assets/app-memory.png" width="1200" height="800" loading="lazy" alt="Memory: a map of shared notes sized by how many sessions read each one.">
+      </a>
+    </div>
+
+    <div class="feature">
+      <div>
+        <p class="tag">Inbox</p>
+        <h2>Your corrections, proposed as rules.</h2>
+        <p class="lede">Repeated failures too. Keep the ones you want.</p>
+      </div>
+      <a class="win" href="assets/app-inbox.png">
+        <img src="assets/app-inbox.png" width="1200" height="800" loading="lazy" alt="Inbox: corrections, repeated failures and note changes waiting for review.">
+      </a>
+    </div>
+
+  </div>
+</section>
+
+<section class="share">
+  <div class="wrap">
+    <p class="tag">$ hippo card</p>
+    <h2>Your day as one image.</h2>
+    <p class="lede">Made to share. Numbers and a date only.</p>
+    <figure>
+      <img src="assets/card.png" width="1200" height="675" loading="lazy" alt="A hippo card: My agents did 3 hours 18 minutes of work on Tuesday. 36 threads and 4 sub-agents.">
+      <figcaption>1200 &times; 675 PNG</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="band">
+  <div class="wrap">
+    <h2>How it stays <span class="accent">honest</span></h2>
+    <p class="lede">Every night, hippo checks your notes against what agents actually did.</p>
+    <div class="cells">
+      <div class="cell">
+        <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="4"/><path d="M3 23c0-3.9 3.1-7 7-7 1.4 0 2.7.4 3.8 1.1"/><path d="M16 21l3 3 6-7"/></svg>
+        <h3>A second reviewer</h3>
+        <p>A fresh-context reviewer must confirm each change.</p>
+      </div>
+      <div class="cell">
+        <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h14v22l-3.5-2.5L14 25l-3.5-2.5L7 25z"/><path d="M11 9h6M11 14h6"/></svg>
+        <h3>Receipts</h3>
+        <p>Every change has a receipt.</p>
+      </div>
+      <div class="cell">
+        <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6L4 11l5 5"/><path d="M4 11h12a7 7 0 0 1 0 14h-5"/></svg>
+        <h3>Revert</h3>
+        <p>One command reverts it.</p>
+      </div>
+      <div class="cell">
+        <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="14" cy="7" rx="9" ry="3.5"/><path d="M5 7v14c0 1.9 4 3.5 9 3.5s9-1.6 9-3.5V7"/><path d="M5 14c0 1.9 4 3.5 9 3.5s9-1.6 9-3.5"/></svg>
+        <h3>Local</h3>
+        <p>The index is a SQLite file on your disk. Data leaves only through your own <code>claude -p</code> login, for nightly checks and written answers.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap packs">
+    <p class="count" aria-hidden="true">26</p>
+    <div>
+      <h2>Reviewed packs.</h2>
+      <p class="lede">Copied in as text, never code.</p>
+      <ul class="chips">
+        <li>changelog</li>
+        <li>decision log</li>
+        <li>runbooks</li>
+        <li class="more">+ 23 more</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="limits" id="limits">
+  <div class="wrap">
+    <h2>Honest limits</h2>
+    <ul>
+      <li>Claude Code and Codex only.</li>
+      <li>macOS binaries only.</li>
+      <li>Not measured whether it makes agents better.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="install limits" id="install">
+  <div class="wrap">
+    <h2>Install</h2>
+    <p class="more"><a href="docs/install.html">More on installing</a> · <a href="docs/limits.html">What it does not do yet</a></p>
+    <div class="rows">
+      <div class="row">
+        <p class="k k0">macOS<span>Apple silicon or Intel. No sudo.</span></p>
+        <div>
+          <div class="cmd">
+            <div class="line" tabindex="0"><span class="p">$</span><span class="c">curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippo/main/install.sh | sh</span></div>
+            <span class="tip" aria-hidden="true">click, then ⌘C</span>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <p class="k k0">Claude Code plugin<span>Two commands, inside Claude Code.</span></p>
+        <div>
+          <div class="cmd">
+            <div class="line" tabindex="0"><span class="c">/plugin marketplace add VanitasCaesar1/hippo</span></div>
+            <span class="tip" aria-hidden="true">click, then ⌘C</span>
+          </div>
+          <div class="cmd">
+            <div class="line" tabindex="0"><span class="c">/plugin install hippo@hippo</span></div>
+            <span class="tip" aria-hidden="true">click, then ⌘C</span>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <p class="k k0">Linux<span>Builds from source with cargo.</span></p>
+        <div>
+          <div class="cmd">
+            <div class="line" tabindex="0"><span class="p">$</span><span class="c">cargo install --locked --git https://github.com/VanitasCaesar1/hippo hippo</span></div>
+            <span class="tip" aria-hidden="true">click, then ⌘C</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="#" aria-label="hippo, back to top">
+      <svg viewBox="0 0 383 248" aria-hidden="true"><use href="#hippo"/></svg>
+      hippo
+    </a>
+    <nav aria-label="Footer">
+      <a href="docs/index.html">Docs</a>
+      <a href="packs.html">Packs</a>
+      <a href="themes.html">Themes</a>
+      <a href="https://github.com/VanitasCaesar1/hippo">GitHub</a>
+      <span>MIT licensed</span>
+      <span>A Rust CLI and a macOS app</span>
+    </nav>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -510,15 +510,17 @@ fn build_writes_the_site_and_a_pack_page_holds_every_file() {
     assert!(page.contains("review 01JCA5ZB3K9V7Q2M4N6P8R0T1W: confirm, 2026-11-06"));
 }
 
-/// The landing page: the fragment in the page
-/// frame, its links relative, and no `index.html` without `--landing`.
+/// The landing page: a whole page copied as it is, its links relative,
+/// and no `index.html` without `--landing`.
 #[test]
 fn the_landing_page_is_the_index_and_links_inside_the_site() {
     let (repo, out) = site_repo();
     let landing = fs::read_to_string(out.join("index.html")).unwrap();
-    assert!(landing.contains("<title>One brain for all your coding agents | hippo</title>"));
-    assert!(landing.contains("One brain for all your coding agents.</b>"));
+    // The landing file is a whole page, so it is copied as it is.
+    assert!(landing.contains("<title>hippo: one brain for all your coding agents</title>"));
+    assert!(landing.contains("One brain</span> for all your coding agents."));
     assert!(landing.contains("src=\"assets/card.png\""));
+    assert!(landing.contains("href=\"landing.css\""));
     for href in [
         "packs.html",
         "docs/index.html",
@@ -679,6 +681,11 @@ fn a_theme_pack_needs_a_licence_and_obeys_the_theme_rules() {
 fn the_pages_use_only_contract_classes_and_properties() {
     let (_repo, out) = site_repo();
     for (path, html) in pages(&out) {
+        // The landing page is a whole page with its own stylesheet; the
+        // contract covers the pages a theme pack restyles.
+        if html.contains("href=\"landing.css\"") {
+            continue;
+        }
         let body_pages: Vec<String> = hippo_theme::PAGES
             .iter()
             .map(|name| format!("hp-page-{name}"))

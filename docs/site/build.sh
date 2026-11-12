@@ -5,6 +5,7 @@
 #   index.html               the landing page (docs/site/landing.html)
 #   packs.html, themes.html  the registry's lists; packs/<name>.html, index.json
 #   hippo.css, registry.css, icon.svg
+#   landing.css              the landing page's own stylesheet
 #   assets/                  docs/assets/ (the card image)
 #   docs/                    the docs (mdBook)
 #
@@ -33,6 +34,7 @@ done
 
 mkdir -p "$out/assets"
 cp "$root"/docs/assets/* "$out/assets/"
+cp "$root/docs/site/landing.css" "$out/landing.css"
 
 mdbook build "$root/docs/site" -d "$out/docs"
 
