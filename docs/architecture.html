@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self' data:">
+<title>Architecture | hippo</title>
+<link rel="icon" type="image/svg+xml" href="../icon.svg">
+<link rel="stylesheet" href="../hippo.css">
+<link rel="stylesheet" href="theme/docs-752f7011.css">
+</head>
+<body class="hp-page hp-page-docs">
+<a class="hp-skip" href="#main">Skip to the content</a>
+<div class="hp-content">
+<header class="hp-topbar"><a class="hp-home" href="../index.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 473 387" fill="currentColor" class="hp-mark" aria-hidden="true"><g transform="translate(0,387) scale(0.1,-0.1)"><path d="M2167 3229 c-294 -28 -582 -125 -766 -257 -41 -30 -81 -56 -87 -59 -19 -7 -144 45 -248 103 -176 98 -282 107 -364 31 -59 -55 -90 -196 -63 -280 29 -85 144 -147 304 -162 42 -4 77 -9 77 -11 0 -2 -24 -41 -54 -87 -270 -414 -391 -1001 -241 -1174 52 -60 62 -32 68 202 13 470 192 876 528 1200 202 195 395 288 719 347 138 25 453 31 560 10 269 -53 448 -177 528 -369 31 -73 31 -73 -43 -73 -205 0 -478 -48 -637 -112 -116 -47 -298 -146 -298 -163 0 -35 32 -31 261 38 390 118 871 141 1289 62 124 -24 350 -84 390 -105 122 -63 155 -177 148 -512 -5 -198 -7 -218 -31 -285 -105 -293 -387 -427 -892 -426 -566 1 -953 119 -1134 345 -100 124 -141 229 -189 478 -4 21 -14 36 -24 38 -26 5 -42 -66 -41 -183 1 -207 104 -400 288 -542 76 -58 76 -58 68 -98 -33 -166 5 -213 212 -266 220 -55 287 -39 320 75 19 65 6 62 180 41 66 -8 201 -15 301 -15 181 0 181 0 197 -60 30 -106 80 -130 237 -112 118 14 177 34 227 76 38 34 38 34 41 129 4 96 4 96 68 138 131 85 236 233 280 394 25 91 31 469 10 593 -39 226 -100 286 -363 358 -220 61 -362 86 -573 105 -97 9 -140 17 -140 25 0 7 -2 19 -5 27 -5 11 9 14 69 14 258 2 372 356 150 464 -72 34 -113 24 -184 -48 -32 -32 -89 -75 -128 -96 -70 -37 -70 -37 -139 14 -206 157 -514 223 -876 188z m1287 -185 c58 -57 6 -194 -80 -210 -46 -9 -162 14 -173 34 -7 13 6 26 67 63 43 26 95 65 117 87 47 46 49 47 69 26z m-2463 -134 c47 -27 113 -62 147 -77 61 -28 61 -28 31 -62 -29 -32 -35 -34 -113 -38 -101 -7 -215 11 -258 41 -32 21 -33 24 -33 90 0 124 67 138 226 46z m1490 -1774 c35 -13 99 -32 142 -42 77 -18 77 -18 77 -51 0 -38 5 -37 -96 -18 -180 34 -221 59 -198 119 8 20 0 20 75 -8z m1395 -61 c21 -54 -15 -77 -151 -99 -97 -15 -100 -15 -110 26 -6 23 -3 28 17 32 12 3 66 16 118 29 119 30 119 30 126 12z M2736 2889 c-50 -59 -24 -172 45 -194 30 -10 78 14 94 46 58 112 -62 240 -139 148z M2193 2865 c-52 -36 -54 -141 -4 -194 68 -73 159 -11 149 101 -9 88 -84 136 -145 93z M3895 2333 c-87 -17 -125 -56 -125 -128 0 -150 273 -228 351 -101 65 107 -82 256 -226 229z M2522 2308 c-142 -25 -228 -180 -145 -263 82 -81 251 -33 312 88 54 109 -31 199 -167 175z"/></g></svg><span class="hp-name">hippo</span></a><nav class="hp-nav" aria-label="Site"><a href="index.html" class="hp-nav-current" aria-current="page">docs</a><span class="hp-sep"> | </span><a href="../packs.html">packs</a><span class="hp-sep"> | </span><a href="../themes.html">themes</a><span class="hp-sep"> | </span><a href="https://github.com/VanitasCaesar1/hippo">github</a></nav></header>
+<main class="hp-main" id="main">
+<details class="docs-toc">
+<summary>Contents</summary>
+<ol class="chapter"><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="introduction.html">Introduction</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="install.html">Install</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="quick-start.html">Quick start</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="concepts.html">Concepts</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="architecture.html">Architecture</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="packs.html">Packs</a></span><ol class="section"><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="writing-packs.html">Writing a pack</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="first-party-packs.html">First-party packs</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="registry.html">The registry</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="themes.html">Themes</a></span></li></ol><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="commands.html">Commands</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="configuration.html">Configuration</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="sharing.html">Sharing a brain in a team</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="scheduling.html">Scheduling on macOS</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="eval.html">Measuring with hippo eval</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="troubleshooting.html">Troubleshooting with hippo doctor</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="security.html">Security and privacy</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="roadmap.html">Roadmap</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="limits.html">Limits and known gaps</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="contributing.html">Contributing and licence</a></span></li></ol>
+</details>
+<div class="hp-md">
+<h1 id="architecture"><a class="header" href="#architecture">Architecture</a></h1>
+<p>This page is for someone who wants to know how hippo works inside before reading the code or changing it. The pages it links say the same things in more detail, one feature at a time.</p>
+<h2 id="files-are-the-contract"><a class="header" href="#files-are-the-contract">Files are the contract</a></h2>
+<p>hippo is a command-line program (<code>hippo</code>), a desktop app for macOS (<code>Hippo.app</code>) and a set of plain files. Everything a person or an agent needs to read is a file: Markdown notes, JSON records, TOML settings and pass files. The one exception is the SQLite index, and it can be rebuilt from the transcripts at any time with <code>hippo ingest --full</code>. Changing the shape of a record, a pass file, a pack manifest or a report is a change to the contract, not a refactor.</p>
+<p>There are two places on disk:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Place</th><th>What it holds</th><th>Shared?</th></tr>
+</thead>
+<tbody>
+<tr><td><code>$HIPPO_HOME</code> (default <code>~/.hippo/</code>)</td><td><code>config.toml</code>, the index (<code>index.sqlite</code>), the rollup (<code>rollup.sqlite</code>), usage figures, lessons, logs</td><td>Never: it belongs to one machine</td></tr>
+<tr><td>The workspace</td><td>The notes under <code>notes_dir</code>, and <code>.hippo/</code> beside them</td><td>Partly, through git (<a href="#what-is-shared-and-what-is-per-person">below</a>)</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="the-layers"><a class="header" href="#the-layers">The layers</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Layer</th><th>What it is</th><th>Kept in</th></tr>
+</thead>
+<tbody>
+<tr><td>Transcripts</td><td>What agents said and did, turn by turn</td><td>The agents’ own files, read by <code>hippo ingest</code> into the index</td></tr>
+<tr><td>Notes</td><td>Markdown files people and agents edit</td><td><code>notes_dir</code></td></tr>
+<tr><td>Wiki</td><td>The <code>[[links]]</code> between notes</td><td>The notes</td></tr>
+<tr><td>Injected context</td><td>The block an agent gets at the start of a session</td><td>Printed by <code>hippo context</code> and the hooks; never stored</td></tr>
+</tbody>
+</table>
+</div>
+<p>Reading goes up the layers: an agent starts from the injected context, which is built from notes, and notes are kept true against transcripts. Dreaming is the only thing that writes notes on its own, and only through a second reviewer (<a href="#dreaming">below</a>).</p>
+<h2 id="the-code"><a class="header" href="#the-code">The code</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Part</th><th>What it does</th></tr>
+</thead>
+<tbody>
+<tr><td><code>crates/hippo-core</code></td><td>The engine: adapters, redaction, the index, records, notes and links, context, dreaming, packs, lessons, incidents, the rollup</td></tr>
+<tr><td><code>crates/hippo</code></td><td>The command-line program and its tests, including the end-to-end runs on synthetic history</td></tr>
+<tr><td><code>crates/hippo-view</code></td><td>What the desktop app’s panels show, computed from the engine, with no window code</td></tr>
+<tr><td><code>crates/hippo-registry</code></td><td>Checks the pack registry’s entries, reviews a pack and builds the registry index</td></tr>
+<tr><td><code>crates/hippo-theme</code></td><td>The web theme contract: the base stylesheet, built-in themes and the checks for custom CSS</td></tr>
+<tr><td><code>crates/hippo-feed</code></td><td>A community site for packs; built and tested, not deployed</td></tr>
+<tr><td><code>app/</code></td><td><code>Hippo.app</code>, its own Cargo workspace, macOS only</td></tr>
+</tbody>
+</table>
+</div>
+<p>The engine makes no network calls of its own. Data leaves the machine only through two kinds of child process: the model command, and <code>git</code> fetching a pack (<a href="security.html">Security and privacy</a>).</p>
+<h2 id="invariants"><a class="header" href="#invariants">Invariants</a></h2>
+<p>Four rules hold everywhere in the engine, and the code refers to them by number:</p>
+<ol>
+<li><strong>No note is written by dreaming without a confirming receipt.</strong> A write needs a receipt that names the proposal, whose <code>proposal_hash</code> matches the proposal file, whose verdict is <code>confirm</code>, and whose <code>before_hash</code> equals the note’s current hash. In code, the write function takes a value that only those checks can produce.</li>
+<li><strong>No raw transcript text reaches the index.</strong> Redaction is the only way to make text the index accepts. Reasoning blocks are never indexed.</li>
+<li><strong>A proposal’s note path is checked before review.</strong> As written, it is relative, has no <code>..</code>, and names a visible <code>.md</code> file below <code>notes_dir</code>; after links are resolved it is still a regular file inside <code>notes_dir</code> and not under <code>.hippo/</code>. A proposal that fails is reported and never reviewed.</li>
+<li><strong>A model run is isolated and leaves no transcript.</strong> hippo runs a model only through the argv in <code>model_command</code>, with the prompt on stdin. The default runs <code>claude -p</code> with no tools, no settings files, no MCP servers and no saved session, from a scratch working directory under <code>$HIPPO_HOME/model-runs/</code>, which ingest never reads. A test checks that such a run cannot read a file in its working directory or the workspace.</li>
+</ol>
+<h2 id="the-index-and-redaction"><a class="header" href="#the-index-and-redaction">The index and redaction</a></h2>
+<p><code>hippo ingest</code> finds transcripts under <code>transcript_roots</code> (Claude Code, Codex, DeepSeek Harness, OpenCode, Muse Code and Command Code), parses each with an adapter, and writes turns into <code>index.sqlite</code>, a full-text index of every turn. A file whose hash has not changed is skipped. OpenCode keeps every session in one SQLite database, which hippo opens read-only and reads session by session: a session whose change stamp has not moved is skipped, so an ingest reads only what changed. Before any text is written, redaction replaces keys, tokens, emails and a few other patterns with <code>[redacted:&lt;kind&gt;]</code>. Each adapter has a test that plants a fake secret of every kind and checks that none reaches the index. Reasoning blocks are never indexed. Redaction is pattern matching, so it is a safeguard and not a guarantee.</p>
+<p>After indexing, ingest brings the <strong>rollup</strong> up to date: <code>rollup.sqlite</code> holds per-session facts computed from the index (work time, edits, pull requests, waits, claims and their evidence, incidents). It is a cache. When its format changes, the old file is deleted and rebuilt at the next ingest. The overview, <code>fleet</code>, <code>incidents</code>, <code>xray</code>, <code>card</code> and the app read it.</p>
+<h2 id="sessions-and-which-ones-belong-to-a-workspace"><a class="header" href="#sessions-and-which-ones-belong-to-a-workspace">Sessions, and which ones belong to a workspace</a></h2>
+<p>A session is one run of an agent, and the workspace keeps a JSON record of it in <code>.hippo/sessions/&lt;id&gt;.json</code>.</p>
+<ul>
+<li>A <strong>declared</strong> record is written by the Claude Code hooks (<code>SessionStart</code>, <code>UserPromptSubmit</code>, <code>SessionEnd</code>) or by <code>hippo session start</code> and <code>end</code>. It holds the task, the bytes of context the session was given, the notes it touched and a handoff.</li>
+<li>A <strong>derived</strong> record is written by ingest for a session with no declared record, but only when that session belongs to the workspace: it ran inside the workspace’s folder or one of its git worktrees, or it read, edited or cited one of its notes. Every other session is indexed in <code>$HIPPO_HOME</code>, where search and the overview see it, and leaves nothing in the workspace. Ingest removes records an older version wrote for other projects, and says how many.</li>
+</ul>
+<p>A handoff names notes with <code>[[links]]</code>. Dreaming reads handoffs to learn which notes a session’s work bears on.</p>
+<h2 id="context"><a class="header" href="#context">Context</a></h2>
+<p><code>hippo context</code> (and the <code>session-start</code> and <code>prompt</code> hooks) build the injected block from the entry note, the required notes, a session line, up to five relevant notes for the task, and linter counts, within <code>budget_bytes</code>. Optional parts are left out whole when they do not fit; when the required parts alone do not fit, the command fails rather than grow silently (<a href="concepts.html#the-context-budget">Concepts</a>). <code>hippo brief</code> builds a start block for any agent, adding past sessions that already did part of the task.</p>
+<h2 id="dreaming"><a class="header" href="#dreaming">Dreaming</a></h2>
+<p><code>hippo dream</code> runs over a window of time, from the last successful run to now, in chunks of 24 hours. Each chunk runs the passes of every pack in the workspace. A pass is a TOML file that names a prompt, what the pass may read (<code>sessions</code>, <code>notes</code>, <code>turns</code>, <code>human_confirmed</code>), an input budget and the reviewer persona. A pass only ever sees the notes that the chunk’s sessions touched or cited.</p>
+<ol>
+<li><strong>Propose.</strong> hippo builds the prompt, marks every piece of transcript and note text as untrusted data, and runs the model command. The model replies with proposals: a <code>replace</code> or an <code>append</code> on one note, with evidence that names transcript turns.</li>
+<li><strong>Validate.</strong> Before any review, each proposal is checked in code: the note exists and was in the prompt, the evidence turns exist, a <code>replace</code> names text that occurs once and quotes its evidence, the change is not larger than half the note. A proposal that fails is reported and goes no further.</li>
+<li><strong>Review.</strong> A valid proposal goes to a second model run, the reviewer. Its system prompt is the persona file, and it sees only the note, the change and the evidence turns, never the first run’s reasoning. It answers <code>confirm</code> or <code>reject</code>; anything else is a rejection. For a pass outside the core pack, the persona is one that ships inside hippo, not the pack’s own.</li>
+<li><strong>Apply.</strong> Only a confirming receipt lets the change through (in code, <code>notes::apply</code> takes a value that only a confirming receipt can produce). The note must be unchanged since the prompt was built.</li>
+</ol>
+<p>The window advances only when a chunk completes, so a failed run is picked up where it stopped. Every run writes a report in <code>.hippo/reports/</code>.</p>
+<p>The <strong>lessons</strong> pass runs after dreaming (or with <code>hippo lessons scan</code>). It finds corrections a person gave and failures that repeat, drafts a rule for each, and has a second run review the draft. A confirmed lesson waits in the Inbox until a person keeps or dismisses it; keeping writes it into a note with a receipt.</p>
+<h2 id="receipts-snapshots-and-revert"><a class="header" href="#receipts-snapshots-and-revert">Receipts, snapshots and revert</a></h2>
+<p>Every reviewed proposal gets a receipt in <code>.hippo/receipts/</code>: who reviewed it, the verdict, hashes of the note before and after, and how the reviewer was invoked. Before a confirmed change is applied, the note is copied to <code>.hippo/snapshots/&lt;proposal&gt;/</code>. <code>hippo revert &lt;receipt&gt;</code> restores the note from that snapshot and writes a revert receipt; it refuses when the note was edited since, unless forced. Reverted text is shown to later <code>verify</code> runs as confirmed by a human, so the same change is not proposed again. A snapshot exists only on the machine that dreamed the change; elsewhere, git’s history is the undo.</p>
+<h2 id="signals-read-from-the-transcripts"><a class="header" href="#signals-read-from-the-transcripts">Signals read from the transcripts</a></h2>
+<p>Some views read the rollup with rules and no model:</p>
+<ul>
+<li><strong>Claims.</strong> <code>xray</code> lists what an agent said it did (tests pass, pushed, merged, deployed) beside the evidence: a run of the check after the last edit that could change it, CI on the pushed head, or the output of a wrapper, a background task or a delegated session. A check claimed with no such run is listed as a hint to check, not counted as an incident, because the rule is not precise enough for that.</li>
+<li><strong>Incidents.</strong> Corrections, blocked and failed steps, work redone by another session, collisions between sessions and destructive commands, each with the step that caused it when a rule can say.</li>
+</ul>
+<h2 id="packs-and-their-review"><a class="header" href="#packs-and-their-review">Packs and their review</a></h2>
+<p>A pack is a directory of passes, prompts, reviewer personas, note templates and fixture tests. It holds no code, and hippo runs nothing a pack contains. <code>hippo add</code> copies a pack into <code>.hippo/packs/</code>, and from then on the files belong to the workspace; <code>origin.json</code> records where they came from, so updates can be shown as a diff and never overwrite local edits silently.</p>
+<p>Before a pack is written, it is reviewed once in a fresh context: a persona that ships inside hippo reads the pack’s files as untrusted data and confirms only a pack that does what its README says and nothing else. The verdict goes into <code>origin.json</code>; a rejection stops the add. Listed packs are reviewed the same way in the <a href="registry.html">registry</a>, with the review stored under <code>registry/reviews/</code> and pinned to exactly the content it read.</p>
+<p>Themes for the desktop app and the web pages are packs too: a <code>theme.json</code> and a <code>theme.css</code> instead of passes (<a href="themes.html">Themes</a>).</p>
+<h2 id="what-is-shared-and-what-is-per-person"><a class="header" href="#what-is-shared-and-what-is-per-person">What is shared and what is per person</a></h2>
+<p>A team shares a workspace through git; nothing syncs live and there are no accounts. Each person’s dreaming learns from their own sessions.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>In the workspace</th><th>Shared or per person</th></tr>
+</thead>
+<tbody>
+<tr><td>Notes, <code>.hippo/hippo.toml</code>, <code>.hippo/packs/</code></td><td>Shared</td></tr>
+<tr><td><code>.hippo/proposals/</code>, <code>receipts/</code>, <code>reviews/</code></td><td>Shared: a teammate can see why a note changed</td></tr>
+<tr><td><code>.hippo/sessions/</code>, <code>snapshots/</code>, <code>reports/</code>, <code>dream-state.json</code>, the session log</td><td>Per person, ignored by the rules <code>hippo init</code> writes</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>hippo doctor</code> warns when git tracks a per-person file and names the commands that fix it. hippo itself never commits or pushes. <a href="sharing.html">Sharing a brain in a team</a> has the details.</p>
+<h2 id="proposing-a-change"><a class="header" href="#proposing-a-change">Proposing a change</a></h2>
+<p>New designs are written for public readers under <code>docs/designs/</code> before code, as the <a href="contributing.html">contributing guide</a> says. A change to any record format, the pack format, the registry index or the security model starts there.</p>
+
+</div>
+<nav class="docs-pager" aria-label="Pages">
+<a rel="prev" href="concepts.html">&lt; Concepts</a>
+<span class="hp-sep"> | </span>
+<a rel="next" href="packs.html">Packs &gt;</a>
+</nav>
+</main>
+<footer class="hp-footer">hippo documentation | <a href="https://github.com/VanitasCaesar1/hippo/tree/main/docs/site/src">source</a></footer>
+</div>
+</body>
+</html>

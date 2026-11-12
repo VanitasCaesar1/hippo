@@ -1,0 +1,2499 @@
+{
+  "protocol": "HIPPO_V1",
+  "generated": "2026-11-12T08:10:54.853825Z",
+  "counts": {
+    "listed": 26,
+    "first_party": 26,
+    "other_owners": 0
+  },
+  "packs": [
+    {
+      "name": "adr-status",
+      "version": "1.0.0",
+      "description": "Appends a dated status update to a decision record when a later session reversed, replaced or revisited the decision.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/adr-status",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "c34561652175c8f41fecd4d1cced7fbd05d900386fad7be23f9bcb1727c60d8b",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "adr-status",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns",
+            "human_confirmed"
+          ],
+          "per_note": true,
+          "note_types": [
+            "decision"
+          ],
+          "note_paths": null
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2324,
+          "sha256": "77626f43e214d642c90d9e2749d427ee33dd186f7dffd28589f8c33ae1c2ec6d"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 239,
+          "sha256": "5642f6cf12e9a6b5ab439ed9abbb3da8159b99c1c7d88f293e0383192e9c2e71"
+        },
+        {
+          "path": "passes/adr-status.toml",
+          "bytes": 228,
+          "sha256": "d853991fc81494c78d52954f689d70c6c6655983f4208b8a91aa2752c26bda00"
+        },
+        {
+          "path": "personas/adr-status-reviewer.md",
+          "bytes": 1822,
+          "sha256": "0780c1a51bd2bf93ab286d01919920d88a0a3471e8dd33f82b39769eb498a7dd"
+        },
+        {
+          "path": "prompts/adr-status.md",
+          "bytes": 2406,
+          "sha256": "3657cd0484c469d63d1e94b931d97353aeb0d8eac69cc9b06e5ba336ef6166e8"
+        },
+        {
+          "path": "templates/Decision record.md",
+          "bytes": 342,
+          "sha256": "7e597e5e383d0aabd95bc5e27809eaa34c5a35f4ac0e651ad5fc44340c31afee"
+        },
+        {
+          "path": "tests/record-replaced/case.toml",
+          "bytes": 1096,
+          "sha256": "3cc351ee45ba60158d5ee0a7d63f8b2a070fabd9a7a58187e9535aab4c8dc7a9"
+        },
+        {
+          "path": "tests/record-replaced/notes/Release plan.md",
+          "bytes": 79,
+          "sha256": "a600acb49008a6f81e60f8d96aebe49739d3c11d841a2bb67e03becf15aee27f"
+        },
+        {
+          "path": "tests/record-replaced/notes/Use SQLite for the cache.md",
+          "bytes": 200,
+          "sha256": "72b6576547d76bc5841d49b188fa7da50429b0d30e76787249b673d9b4bf6190"
+        },
+        {
+          "path": "tests/record-replaced/transcripts/record-replaced.jsonl",
+          "bytes": 585,
+          "sha256": "3b43c610f3ad4ca2363fcb796db940d859489926a5c968c08e9b090a24db7729"
+        }
+      ],
+      "review": {
+        "id": "01M77CKPKKJYBYN1DBC6DKHP7E",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:05:08.729284Z"
+      }
+    },
+    {
+      "name": "api-drift",
+      "version": "1.0.0",
+      "description": "Appends documented endpoints, fields or status codes that session turns contradict, quoting the turn.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/api-drift",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "22c29f0cad688d26d5a08994f82df775cf3499d86797674a26a3c7a585b61f9a",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "api-drift",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/API*.md",
+            "**/api/**",
+            "**/Endpoints*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2047,
+          "sha256": "752786191f51df168db18fed8d48187830c0e5fdda1a6265e36ecd719b09e44e"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 222,
+          "sha256": "354a2c2ac515885f83d05bc04229f30884b782bf74205adcd4c29a8425aa1e0a"
+        },
+        {
+          "path": "passes/api-drift.toml",
+          "bytes": 242,
+          "sha256": "8d91517f244a5fa9a7dd98fff8f770a8950fa2120254155be5597197c78b9a98"
+        },
+        {
+          "path": "personas/api-drift-reviewer.md",
+          "bytes": 1722,
+          "sha256": "edeb802ae854000a563e0d7166182b87a1bba38519942f0e420b919b389c45cb"
+        },
+        {
+          "path": "prompts/api-drift.md",
+          "bytes": 2317,
+          "sha256": "5c6b1fc46bcebf6e3e6a2c32e814ce859c237e9920298eb93549dd6e9119fe33"
+        },
+        {
+          "path": "templates/API.md",
+          "bytes": 260,
+          "sha256": "7657016d613c786c3a4e200a823fefe7ef2b1c4a55ec82cef4a403e6925fa624"
+        },
+        {
+          "path": "tests/status-code/case.toml",
+          "bytes": 984,
+          "sha256": "d97f664082a3c2f80d672ab3b4b6db141de3f7e3a55e592fdf81c5f3e0ae9571"
+        },
+        {
+          "path": "tests/status-code/notes/API.md",
+          "bytes": 112,
+          "sha256": "51bcbc684274b361424845253195fafccf76ecaef2dd4edeaa24ab49b3f3cae0"
+        },
+        {
+          "path": "tests/status-code/notes/Meeting notes.md",
+          "bytes": 60,
+          "sha256": "a99fd555c12a7b445872d32e7db2aec79155f32e3726c114c8173d3df942b6a5"
+        },
+        {
+          "path": "tests/status-code/transcripts/status-code.jsonl",
+          "bytes": 506,
+          "sha256": "60c646dd3de6ac91789148ba6b586e00ff634e8836e6fa0dec5b979d41cce213"
+        }
+      ],
+      "review": {
+        "id": "01M77CM1P0EAN8HRR6F01CQGKJ",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:05:20.458546Z"
+      }
+    },
+    {
+      "name": "changelog-keeper",
+      "version": "1.0.0",
+      "description": "Appends the user-visible changes sessions shipped to a changelog note, under a final Pending section.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/changelog-keeper",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "1f880ed624e697ba0fb6ad4be1729302968a8817d351287e134f8dfe345fb4cf",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "changelog-keeper",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/CHANGELOG.md",
+            "**/Changelog*.md",
+            "**/Release notes*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2097,
+          "sha256": "a2614b48d3fda25c4db07d97d5e48247f6e89b39aea37d8275beea34b2077042"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 229,
+          "sha256": "1a5ac50e6d973de4f8905762d52263a843a5dd03a4bdc8264d98a63074789b13"
+        },
+        {
+          "path": "passes/changelog-keeper.toml",
+          "bytes": 272,
+          "sha256": "8b9bff36f87ec32caaf8b6bbb23c00c3c0472eba68b9011131fb4d7f1919432f"
+        },
+        {
+          "path": "personas/changelog-keeper-reviewer.md",
+          "bytes": 1662,
+          "sha256": "8d0a0947e3bceb4816c6f877e53fcc53b422ae2396e323a9945ae9a83ebba409"
+        },
+        {
+          "path": "prompts/changelog-keeper.md",
+          "bytes": 2013,
+          "sha256": "58252d8edba5c56e869b1b659f4149bf4e84a5027e473a7f7bca1d2b41c04192"
+        },
+        {
+          "path": "templates/CHANGELOG.md",
+          "bytes": 244,
+          "sha256": "6bbeaf09e82c3a0513ac623bb9fdee6b637dfdd5b7fef789c764310fb607634d"
+        },
+        {
+          "path": "tests/export-json/case.toml",
+          "bytes": 930,
+          "sha256": "b471a426a54ee63397638cb53db77a1018656b496a0b7c16a740625839292dbb"
+        },
+        {
+          "path": "tests/export-json/notes/CHANGELOG.md",
+          "bytes": 106,
+          "sha256": "965ce257842fd6f3c2ce111947537a6c221d9b1debac29d6868ce906fb7482a7"
+        },
+        {
+          "path": "tests/export-json/notes/Release plan.md",
+          "bytes": 62,
+          "sha256": "a97e35447f7d7bdfd7bc17acc13f3a3329dcc316c18114582a4ba28692608b59"
+        },
+        {
+          "path": "tests/export-json/transcripts/changelog-1.jsonl",
+          "bytes": 495,
+          "sha256": "b17f0c313d038a560cda44b7e27f8f08610c45e9388c47b505169164eba3743f"
+        }
+      ],
+      "review": {
+        "id": "01M77CMDBHWM6WZ2CXEZT26XB9",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:05:34.013357Z"
+      }
+    },
+    {
+      "name": "decision-log",
+      "version": "1.0.0",
+      "description": "Appends the decisions sessions made, with the reason and the rejected options, to a decision log note.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/decision-log",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "35b9e4da57afc68a7fe2662f7b9efb7a537584f512db8576acd33332099f5204",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "decision-log",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/Decision log*.md",
+            "**/Decisions.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 1977,
+          "sha256": "77f86a9a3ae8e5d1ebb3c2be6887f9136f0466fce121f1313459b400e6e105b0"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 226,
+          "sha256": "dac2673e5c06ea6331cbcd4fa257475e6565dc45a88930c262d5bdf41609ba9c"
+        },
+        {
+          "path": "passes/decision-log.toml",
+          "bytes": 243,
+          "sha256": "7ac26d83d2afc7ed1a022f91bf430f8abcf17354fd6417db76944eabe46353a0"
+        },
+        {
+          "path": "personas/decision-log-reviewer.md",
+          "bytes": 1607,
+          "sha256": "42158562a474dd32e58d91c30f30c2f615ff21facf42a774d8f3ff96ccf82f2c"
+        },
+        {
+          "path": "prompts/decision-log.md",
+          "bytes": 2118,
+          "sha256": "451440e56ed03b52eded6fd67a572724a1c87412c95ee5d8a38de3d3eadd8c26"
+        },
+        {
+          "path": "templates/Decision log.md",
+          "bytes": 222,
+          "sha256": "68741801e09a8f294f71aabbf9a739c994844e015d0faa6ef3c814cb60f2607d"
+        },
+        {
+          "path": "tests/cache-store/case.toml",
+          "bytes": 1094,
+          "sha256": "a82f2a065b0b87607b0863f4be518ca35da404340c88c52512d8f84ad823354e"
+        },
+        {
+          "path": "tests/cache-store/notes/Decision log.md",
+          "bytes": 145,
+          "sha256": "608c1213cb13489416bb9e671cfa275e8458728e0c425c4e30daea0b0a138ab7"
+        },
+        {
+          "path": "tests/cache-store/notes/Meeting notes.md",
+          "bytes": 60,
+          "sha256": "a99fd555c12a7b445872d32e7db2aec79155f32e3726c114c8173d3df942b6a5"
+        },
+        {
+          "path": "tests/cache-store/transcripts/decision-1.jsonl",
+          "bytes": 603,
+          "sha256": "a1fe975e3a7a0793cd49920aaf3005c1d20d5e790b1faff4d064c1b7d86e937c"
+        }
+      ],
+      "review": {
+        "id": "01M77CMTB5Q077F1NP7W1096CX",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:05:46.25974Z"
+      }
+    },
+    {
+      "name": "dependency-changes",
+      "version": "1.0.0",
+      "description": "Appends the packages sessions added, removed or upgraded, with versions and the reason, to a dependencies note.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/dependency-changes",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "a0dc35a05069dafc36949272a7c17fe690408f6cc2ed1228a29113cf241a1c04",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "dependency-changes",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/Dependencies*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 1974,
+          "sha256": "b215adfe171091422edaa9701e20679a31b41efea84059db2c257940ecc0a30e"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 241,
+          "sha256": "ac05d2203810d71782307d0fcfdec71ed443f69395fcf1a654ea8ec05f055a83"
+        },
+        {
+          "path": "passes/dependency-changes.toml",
+          "bytes": 236,
+          "sha256": "4e2a719c13c256d904a9809faf1449c1528ff574a808dd83d427ad4ce692d493"
+        },
+        {
+          "path": "personas/dependency-changes-reviewer.md",
+          "bytes": 1728,
+          "sha256": "ab1e2ffe7719a0b455b9475b26ac8466b24579fbe672e05f0f236e87a0bc78c5"
+        },
+        {
+          "path": "prompts/dependency-changes.md",
+          "bytes": 2455,
+          "sha256": "5df3b2944af07bbd6eef090ce779968e8a78bd1a2bd9d366f967beb2dcd2ef35"
+        },
+        {
+          "path": "templates/Dependencies.md",
+          "bytes": 220,
+          "sha256": "3c51cef2d3e2b74a03e4622d64fc12b7674bf96a9d0b488de219893ee8901e1e"
+        },
+        {
+          "path": "tests/upgrade-parser/case.toml",
+          "bytes": 1022,
+          "sha256": "4b87366acf84450307aab27846da7207aac378aa96dd6ef04b37e097e0c162f0"
+        },
+        {
+          "path": "tests/upgrade-parser/notes/Dependencies.md",
+          "bytes": 149,
+          "sha256": "c35be35ea6f2e92624be1f5aa9223c5ac3f18c5cc3a198b5560d8fd1f58ff5b4"
+        },
+        {
+          "path": "tests/upgrade-parser/notes/Pottery class.md",
+          "bytes": 55,
+          "sha256": "d26cb8477ab9d14cab0e2860872e8e2d016e2ef01abfee2939908456cb443914"
+        },
+        {
+          "path": "tests/upgrade-parser/transcripts/deps-1.jsonl",
+          "bytes": 557,
+          "sha256": "fda3969a4b9db0d9f9cfbf83a7b15842a642160b01ea52caa22c0b4ccb2f43a9"
+        }
+      ],
+      "review": {
+        "id": "01M77CN6A6G89T5E0Q9J5RQEK2",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:05:54.560288Z"
+      }
+    },
+    {
+      "name": "deploy-log",
+      "version": "1.0.1",
+      "description": "Appends the deploys sessions ran or watched, with what, where, when and outcome, to a deploy log note.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/deploy-log",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "355ff0728b485120a1b309ea65866eb14737602b455edd64d9e62c4f7e3d9327",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "deploy-log",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/Deploys*.md",
+            "**/Deploy log*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 1966,
+          "sha256": "96d7547e3887161d81981686f3160ab82dc3c36e20139f53f4430a60c94bac20"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 224,
+          "sha256": "5b4781cf260973d42263922a9266a88dd1b22b49c23e599b6e0ddd9a79e54605"
+        },
+        {
+          "path": "passes/deploy-log.toml",
+          "bytes": 236,
+          "sha256": "c5e22744abfa063438e621a3e8b156af9665308b8caf38b808854c6fa919c9ca"
+        },
+        {
+          "path": "personas/deploy-log-reviewer.md",
+          "bytes": 2046,
+          "sha256": "062bde3310f17b08f56ba07e2c70493d2d9bc8d070248fe91b7a42eb7d2ce837"
+        },
+        {
+          "path": "prompts/deploy-log.md",
+          "bytes": 2956,
+          "sha256": "d3071a4d61670a0307ed9e3d48b9aa810413d90bcd55d96f5d1782b093a5aecb"
+        },
+        {
+          "path": "templates/Deploy log.md",
+          "bytes": 209,
+          "sha256": "e7ad9dffb4a3750ac31286e261cea0cb87323d2b352328afd5ca92608545d11d"
+        },
+        {
+          "path": "tests/staging-release/case.toml",
+          "bytes": 1016,
+          "sha256": "1c06d394cb5a2762ad7e569ec3894c1943841b5f052d81f2a3526b98d1212313"
+        },
+        {
+          "path": "tests/staging-release/notes/Book club.md",
+          "bytes": 51,
+          "sha256": "9d962d8355fdd181d446b99870212605f1226f9d2664a046660c102e27ff9fcf"
+        },
+        {
+          "path": "tests/staging-release/notes/Deploy log.md",
+          "bytes": 167,
+          "sha256": "2345719cd613c55c8aae2cef85037ec72d10a9cae1e801d9f6582c8433db27ba"
+        },
+        {
+          "path": "tests/staging-release/transcripts/deploy-1.jsonl",
+          "bytes": 1085,
+          "sha256": "048525be8fdd8f3f110e371b61200b21e5e699dede3bd3f7486fdc5c4cb94307"
+        }
+      ],
+      "review": {
+        "id": "01M77CNED8GVRZ611JGVBG2YT1",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:06:07.836198Z"
+      }
+    },
+    {
+      "name": "env-and-config",
+      "version": "1.0.0",
+      "description": "Appends the variables, flags and settings sessions introduced, renamed or removed, by name and never by value, to an environment note.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/env-and-config",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "82b794cd35c71da9b461cce4bcdba008aa976872976782bea2f3397c8bd6e8d1",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "env-and-config",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/Environment*.md",
+            "**/Config*.md",
+            "**/Env vars*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2166,
+          "sha256": "5b5d973d0cd411420dab29ff0143008d86a55ab4801e402be8da8dd949f416c3"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 260,
+          "sha256": "4958606b88ddbe78fc23ff0a33e88fd7d483054304490690c74c422219ce8c61"
+        },
+        {
+          "path": "passes/env-and-config.toml",
+          "bytes": 263,
+          "sha256": "bb45ce1281c584f3f74a0a635d6833572665c987956317ed0641debd4a659907"
+        },
+        {
+          "path": "personas/env-and-config-reviewer.md",
+          "bytes": 1862,
+          "sha256": "2c5de010a967a14e56e5984a5f60ec5f1ee35e461fc9bfc6637bae3755c7945d"
+        },
+        {
+          "path": "prompts/env-and-config.md",
+          "bytes": 2514,
+          "sha256": "4513c383008277ca9791e7fe903d7d4295a2cfc67b15b7fe8d0493615178b0f8"
+        },
+        {
+          "path": "templates/Environment.md",
+          "bytes": 243,
+          "sha256": "0a0455a9f1b0066c2ee6460d39b6e6ddfbd999dc4b9e97f22557e5879b73405a"
+        },
+        {
+          "path": "tests/rename-timeout/case.toml",
+          "bytes": 1065,
+          "sha256": "15265bf72d77a6d5c04f592e1fea4ad0764d6f014da12294a455cde60c511d0c"
+        },
+        {
+          "path": "tests/rename-timeout/notes/Bake sale.md",
+          "bytes": 47,
+          "sha256": "466ea945139ffac5c062899cdb257849703e332015fcdda16e8a6a2ed80ec7f7"
+        },
+        {
+          "path": "tests/rename-timeout/notes/Environment.md",
+          "bytes": 149,
+          "sha256": "99fa13e4661d7f1990a570a79b29402ba1cdbc17529f24293fc56f6b08bd30be"
+        },
+        {
+          "path": "tests/rename-timeout/transcripts/config-1.jsonl",
+          "bytes": 618,
+          "sha256": "b843718c1591de2cb805d84c89ce2ba1bd83251402b376d07939ba075307968b"
+        }
+      ],
+      "review": {
+        "id": "01M77CNVC229RNC1XBVEZ5441M",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:06:19.885439Z"
+      }
+    },
+    {
+      "name": "error-catalogue",
+      "version": "1.0.0",
+      "description": "Appends the error messages sessions hit and the fix that worked to an errors or troubleshooting note.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/error-catalogue",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "5f98a61ea4763189705ab202abb4e2a23f21337336429c28ae790ea5e063f68d",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "error-catalogue",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/Errors*.md",
+            "**/Troubleshooting*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2064,
+          "sha256": "d39ba12da67abb9b2ea675b88741faf1f416a55f18ad60409bade328133244c9"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 228,
+          "sha256": "4fc04512f7aa0d9a95e933ae3dce0e7983a63b58c0afa639dd3eec89ff71be96"
+        },
+        {
+          "path": "passes/error-catalogue.toml",
+          "bytes": 250,
+          "sha256": "4b1e12e443aa5783880cc753b0acabc00b3319773b1cef702f77f4130ea3f0e1"
+        },
+        {
+          "path": "personas/error-catalogue-reviewer.md",
+          "bytes": 1697,
+          "sha256": "c7639205ef34c13fdb834dd284003af308fd3df4d899ffa57032fd06e84b94b3"
+        },
+        {
+          "path": "prompts/error-catalogue.md",
+          "bytes": 2453,
+          "sha256": "804d49b12ca509bf1b42b4b9e62eae313a78921046aeaa4d4dce5a2ac15a6a72"
+        },
+        {
+          "path": "templates/Errors.md",
+          "bytes": 204,
+          "sha256": "d7214f005bae33f4c7f0e6ac6bbf03afb1db5204ff72a67ede4fd996de6fb1cf"
+        },
+        {
+          "path": "tests/missing-column/case.toml",
+          "bytes": 1009,
+          "sha256": "d262f0e0353187bdf8eddbd6fe7856b56e19267574ab7da006c81ebb04d90dd9"
+        },
+        {
+          "path": "tests/missing-column/notes/Choir rota.md",
+          "bytes": 53,
+          "sha256": "b73dbc6ef3ee3414833fa5a14d2020860bdd908953d10a5ace5240c7acc40c67"
+        },
+        {
+          "path": "tests/missing-column/notes/Errors.md",
+          "bytes": 168,
+          "sha256": "b274109c091416ee49d344332b628edd408a2e2951088cf4fa8f55689566f901"
+        },
+        {
+          "path": "tests/missing-column/transcripts/errors-1.jsonl",
+          "bytes": 594,
+          "sha256": "c3504f98409531d9a125934b5bedf091428f6f4cae5f6e5fbe3d5622c44089a2"
+        }
+      ],
+      "review": {
+        "id": "01M77CP753XC1F51N6YPPM09A1",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:06:29.798249Z"
+      }
+    },
+    {
+      "name": "faq",
+      "version": "1.0.0",
+      "description": "Appends questions users asked in sessions and the answer the session established to a FAQ note.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/faq",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "53041eb500d55c27633fe9f92e761280d231931bc6a5105b3e56be0705664d85",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "faq",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/FAQ*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2049,
+          "sha256": "5e6680d8a9c55d77535cced297d2a67af1d3cc588595a4c17692909167869717"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 210,
+          "sha256": "0a7614183bca36096ae11ceaf8a9a19ed668b07c44820ccb85ab164205d6b093"
+        },
+        {
+          "path": "passes/faq.toml",
+          "bytes": 197,
+          "sha256": "4212e2faa874ce0ccdab94c5170aa395dca1a2ce29feb27a9853f09051db8b04"
+        },
+        {
+          "path": "personas/faq-reviewer.md",
+          "bytes": 1779,
+          "sha256": "f589c8ec80291f684e63085ef53871a105293abb6d32a77111bab4500d28b192"
+        },
+        {
+          "path": "prompts/faq.md",
+          "bytes": 2462,
+          "sha256": "3d4c367d34813135d3e05b5c785d3c4910111b83b966e9528bcfc34f1e61a52b"
+        },
+        {
+          "path": "templates/FAQ.md",
+          "bytes": 204,
+          "sha256": "54e4ba55ea8947aa2d80e33e8b801b831fd614930c11920913e72d23a231a827"
+        },
+        {
+          "path": "tests/cache-clear/case.toml",
+          "bytes": 1088,
+          "sha256": "513019e338e013252d5d47cb4e3d026ef5a9e47d9edf15bab449bd8ba0d04f3b"
+        },
+        {
+          "path": "tests/cache-clear/notes/FAQ.md",
+          "bytes": 80,
+          "sha256": "ab93cea9faebca853c77f34b65aecd6183ff7299a909c16b6154bbe8c91112b7"
+        },
+        {
+          "path": "tests/cache-clear/notes/Orchid care.md",
+          "bytes": 67,
+          "sha256": "0c8fbc624848d5c6983ae00c3f28fbc016ec2ed9c5629f5de254b72c19ff3d13"
+        },
+        {
+          "path": "tests/cache-clear/transcripts/cache-clear-1.jsonl",
+          "bytes": 705,
+          "sha256": "c75d51dbabbe67da6d8f786716914b472247851d3248ba81c305f0b0d05b7c44"
+        }
+      ],
+      "review": {
+        "id": "01M77CPGT8TDHGHQNJERH26TFM",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:06:42.815876Z"
+      }
+    },
+    {
+      "name": "glossary-terms",
+      "version": "1.0.0",
+      "description": "Appends terms sessions defined or used in a fixed sense that the glossary lacks.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/glossary-terms",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "bef18772cde648d060bf0810c447e14cba74725143edde98b182edd375bdda3b",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "glossary-terms",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/Glossary*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 1968,
+          "sha256": "4aea23c6741a048edf7a5fb5a65aa1659ecee81d579f41b83f7ab9f270ff2759"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 206,
+          "sha256": "d216bed060f3f5232b85ae01509b0526a85333f8360902095d4a7dd1a9f7b018"
+        },
+        {
+          "path": "passes/glossary-terms.toml",
+          "bytes": 224,
+          "sha256": "f6276fe00a4964bdb2bb5e2458aa34426b5195d3d3e7aafb18fe868b4f22e6e0"
+        },
+        {
+          "path": "personas/glossary-terms-reviewer.md",
+          "bytes": 1710,
+          "sha256": "3c4c30225a9d7bfb9e3aa3c13c338c24d0f0618d7b715cd5c7cdf7e6549cb42c"
+        },
+        {
+          "path": "prompts/glossary-terms.md",
+          "bytes": 2205,
+          "sha256": "6dabec0ac3f64d0d3726677c8d5612880dd43970c7c480abbe24f142f2e8f711"
+        },
+        {
+          "path": "templates/Glossary.md",
+          "bytes": 257,
+          "sha256": "89f7fff3d85bc168c11d64dbd0ea21192743d079df5980052083ef002e57af88"
+        },
+        {
+          "path": "tests/retry-budget/case.toml",
+          "bytes": 940,
+          "sha256": "78ce079424728d74ac6378c2e95c50d542687494f3a2e09834619107fb1e7181"
+        },
+        {
+          "path": "tests/retry-budget/notes/Glossary.md",
+          "bytes": 112,
+          "sha256": "4ac032a5acd5274118c341178807c01475ca518ceb135d5749b2724503a79cba"
+        },
+        {
+          "path": "tests/retry-budget/notes/Meeting notes.md",
+          "bytes": 60,
+          "sha256": "a99fd555c12a7b445872d32e7db2aec79155f32e3726c114c8173d3df942b6a5"
+        },
+        {
+          "path": "tests/retry-budget/transcripts/retry-budget.jsonl",
+          "bytes": 528,
+          "sha256": "ac601a8b3fce347a293fccdff6bf49c08cee1610c665272dfc7c114a929e7879"
+        }
+      ],
+      "review": {
+        "id": "01M77CPXMXJAJXCFSJPQAFQT06",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:06:57.120275Z"
+      }
+    },
+    {
+      "name": "gotchas",
+      "version": "1.0.0",
+      "description": "Appends surprising behaviour that cost a session time and is not an error to a gotchas or pitfalls note.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/gotchas",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "83d07a9949dd6b577ce2083b1632cc81ded38f014926046a39dec2a4a7e8231b",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "gotchas",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/Gotchas*.md",
+            "**/Pitfalls*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2081,
+          "sha256": "38a1caa50284eee14d35a2603af1416dea5b5dbccf837a5c353cd55624dabf8c"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 223,
+          "sha256": "f679c9bdda256a4c026e87a413a9cc1debd0f0d2c62731a81351adce9dd25983"
+        },
+        {
+          "path": "passes/gotchas.toml",
+          "bytes": 228,
+          "sha256": "8e0d5c1eb6e3a1944603af983873a15766381ed087476a7dd8fae9e23d1bb0ef"
+        },
+        {
+          "path": "personas/gotchas-reviewer.md",
+          "bytes": 1803,
+          "sha256": "059f242a84e6fd85735d31ac460a0f761aad549f54a6025ffc0b8b54735c7686"
+        },
+        {
+          "path": "prompts/gotchas.md",
+          "bytes": 2307,
+          "sha256": "c28d35dedefb7095f28293296b4afce98ae6f889ee1ec871c72f0fcafbe13b74"
+        },
+        {
+          "path": "templates/Gotchas.md",
+          "bytes": 243,
+          "sha256": "b0728f4cbe897ee91ac64f4f4de7e9c5cc040488f5094bd04b887c2cb18dd626"
+        },
+        {
+          "path": "tests/sort-stability/case.toml",
+          "bytes": 1059,
+          "sha256": "388da71d2bac72db81161e437a0e1548d80f13c2957c2d333d7f7baf9e78f360"
+        },
+        {
+          "path": "tests/sort-stability/notes/Allotment news.md",
+          "bytes": 59,
+          "sha256": "3fc86ec8a70cca599502868b1a5bcff336380d8e8db17b1fcdb06a8e6378d9f6"
+        },
+        {
+          "path": "tests/sort-stability/notes/Gotchas.md",
+          "bytes": 173,
+          "sha256": "bbcf16ebd53adc6cd71191f79c7a987db2155833debba6462a201d857b53e369"
+        },
+        {
+          "path": "tests/sort-stability/transcripts/gotchas-1.jsonl",
+          "bytes": 664,
+          "sha256": "1a1d26b07a423873f0a4296d2a4e20c2ed5ca9f97e373045d598f960ee0df119"
+        }
+      ],
+      "review": {
+        "id": "01M77CQBHRE14RW7FNQHK0ZQ85",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:07:08.340193Z"
+      }
+    },
+    {
+      "name": "high-contrast",
+      "version": "1.0.0",
+      "description": "Text and controls at a contrast of at least 7:1.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/high-contrast",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "06079e09efdae5825b91d69089470ba4de4ec57387d195ae8241a54284310bef",
+      "kind": "theme",
+      "passes": [],
+      "theme_contract": 1,
+      "desktop_theme_format": 1,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2242,
+          "sha256": "c7b1aada4752c55cc55c2d947b4bfabb2c0f2ece70171762fc7a6db99fce0778"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 232,
+          "sha256": "f93b54d30a088820383c61d44745ce15bef9a5038a878fcfdd5796adf174b337"
+        },
+        {
+          "path": "theme.css",
+          "bytes": 1124,
+          "sha256": "80c89ef072bad0e29cc7614a7fbe665650b56a233354ffa40fef955089a27c45"
+        },
+        {
+          "path": "theme.json",
+          "bytes": 2746,
+          "sha256": "cbc6efbbe972559603dd517ac91cffd342406845ec5fdcea4abe6fccafe2ba8a"
+        }
+      ],
+      "review": {
+        "id": "01M77CQPEM3QAQ9P1MYXFRS0K0",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:07:34.378301Z"
+      }
+    },
+    {
+      "name": "incident-timeline",
+      "version": "1.0.1",
+      "description": "Appends timeline entries from sessions that worked on an incident.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/incident-timeline",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "e9cbaf73d327ddd34eb30f3b6c396a3359a5dfcbf6e24dbdb971a07921096ea8",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "incident-timeline",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/Incidents/**",
+            "**/Incident*.md",
+            "**/Postmortem*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2036,
+          "sha256": "1dd6d870968dd128fb8ecd52c8a700bb0cb746360d4afc52d99cbf34d090ad48"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 195,
+          "sha256": "dcc5d75aff17801b7d6f7bbf5914ee9cbfbdc36a10551e9ef7d838853c948bdf"
+        },
+        {
+          "path": "passes/incident-timeline.toml",
+          "bytes": 270,
+          "sha256": "c2c618a8d149aef3b540d55da3350ea331b7a7ccc114fdf893b0141dd93a80da"
+        },
+        {
+          "path": "personas/incident-timeline-reviewer.md",
+          "bytes": 1989,
+          "sha256": "b2b9b2644c8613c7b66ab58be9e42979ada39e85f19c4bd7be164d2e81f92bb7"
+        },
+        {
+          "path": "prompts/incident-timeline.md",
+          "bytes": 2654,
+          "sha256": "c53b1d099f0bc3da1685f8b07541d50c6baae7eea5405247bf518079dcf968ca"
+        },
+        {
+          "path": "templates/Incident timeline.md",
+          "bytes": 273,
+          "sha256": "4934bcbf70e94c6c6d63db87aa23765c64227f7ee86ef52ff05fdebc8b78aa6a"
+        },
+        {
+          "path": "tests/queue-stall/case.toml",
+          "bytes": 1293,
+          "sha256": "b352678807aaf8987dbbe65eff39bb2dcf64e9bef36f6e120da9fd28836a30e4"
+        },
+        {
+          "path": "tests/queue-stall/notes/Incident timeline.md",
+          "bytes": 60,
+          "sha256": "bec58a044428a64a2df1f939528a1814f1765a7bb40aff1fb610975756400bdb"
+        },
+        {
+          "path": "tests/queue-stall/notes/Meeting notes.md",
+          "bytes": 60,
+          "sha256": "a99fd555c12a7b445872d32e7db2aec79155f32e3726c114c8173d3df942b6a5"
+        },
+        {
+          "path": "tests/queue-stall/transcripts/queue-stall.jsonl",
+          "bytes": 587,
+          "sha256": "8cefbf4220736c48cc36fa5a7043e17708944497b693bdf388fa4c4d2bbbf5fb"
+        }
+      ],
+      "review": {
+        "id": "01M77CRFWNRSTSRX3J5T1HEMQW",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:07:46.483391Z"
+      }
+    },
+    {
+      "name": "large-type",
+      "version": "1.0.0",
+      "description": "A larger base size and line height for reading.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/large-type",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "dd079e97cda3c5da5c752a0b0f7b615f91fefea5402f80da7536f0c371d80df6",
+      "kind": "theme",
+      "passes": [],
+      "theme_contract": 1,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 1780,
+          "sha256": "f57629af3a53fb2194f8164688026d1aa7a7da2beaefa84570a603ab4cef82e8"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 203,
+          "sha256": "51c2cfecdda174e10827c01c7e686e724cc61cdef17c39365f63857e536df4bc"
+        },
+        {
+          "path": "theme.css",
+          "bytes": 884,
+          "sha256": "0f460ffbf3f511cdeba7af85a6c5a3cd81f22c518ddc92ea8e30203d3dac72d8"
+        }
+      ],
+      "review": {
+        "id": "01M77CRVN9GVJY1ZQ4T5T6B7Q6",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:07:57.778515Z"
+      }
+    },
+    {
+      "name": "limits-and-quotas",
+      "version": "1.0.0",
+      "description": "Appends rate limits, quotas and usage caps that sessions ran into to a limits or quotas note, quoting the error.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/limits-and-quotas",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "685a326ec6cbc693a5a6344d4d6e9c9f1e0a81d5d347a5426eb62bbeaab1de39",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "limits-and-quotas",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/Limits*.md",
+            "**/Quotas*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2139,
+          "sha256": "5ddc91923253f1ceccc0757bdb6cb37f6f83414469d24a23b728805e11a19700"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 241,
+          "sha256": "18a2b5518f759e8989cde6c41345839c9ac415fab5a82a9f4a8931e970604fd2"
+        },
+        {
+          "path": "passes/limits-and-quotas.toml",
+          "bytes": 245,
+          "sha256": "9e9caf5281c395aac8abdb9a03d98df8bd15a2414f7830005853cdc23ef70a72"
+        },
+        {
+          "path": "personas/limits-and-quotas-reviewer.md",
+          "bytes": 1778,
+          "sha256": "df5a5457a937e3c9dd86542c6950857e61610dcf1c77985cd37b5cadd1640155"
+        },
+        {
+          "path": "prompts/limits-and-quotas.md",
+          "bytes": 2514,
+          "sha256": "67984a3e51e3cc1340c3a0da3ae2d32f21535c46b924a9ebc3343a28b9642d1c"
+        },
+        {
+          "path": "templates/Limits.md",
+          "bytes": 225,
+          "sha256": "c71fae90ae9a86bce9ab0c7346b90be5dce0815f3c12bc1d47364029a4a9bb39"
+        },
+        {
+          "path": "tests/geocode-429/case.toml",
+          "bytes": 1115,
+          "sha256": "6ba7edda996698f2d5fa27c662dcb4856fb772c73dbf9996c57b22f14df35d53"
+        },
+        {
+          "path": "tests/geocode-429/notes/Lichen guide.md",
+          "bytes": 68,
+          "sha256": "c4a97668831c83c26d3246ea66f4bb980c43952edbbcbc189f0ed7a90717ca62"
+        },
+        {
+          "path": "tests/geocode-429/notes/Limits.md",
+          "bytes": 41,
+          "sha256": "140a23c867ecc2de889bcb67dd1d9e66ab8fea195f89bc52a85b37213c918345"
+        },
+        {
+          "path": "tests/geocode-429/transcripts/geocode-429-1.jsonl",
+          "bytes": 1029,
+          "sha256": "b384d02f35d82b1ea54de8ebc31df2c6e79d11be358f866324662716b0533078"
+        }
+      ],
+      "review": {
+        "id": "01M77CS6QQP2SZ6BKQP6T1PRMK",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:08:08.998214Z"
+      }
+    },
+    {
+      "name": "measurements",
+      "version": "1.0.0",
+      "description": "Appends new measured values from tool output, with the date and conditions, to a benchmarks or measurements note.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/measurements",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "8bb33444189f8d7f1313f4ae5d1851e1f3e9f580c2fce1b9deee686c80bbbab3",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "measurements",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/Benchmarks*.md",
+            "**/Measurements*.md",
+            "**/Performance*.md",
+            "**/Metrics*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2387,
+          "sha256": "181c94fd1c733323fa9bc9e8c85b7ee6c6490b12a0b3093ef2cf09612fb95fe7"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 237,
+          "sha256": "3f40ca48476444b46c97967c0467983479594f833d049d5eb55e3f6217426337"
+        },
+        {
+          "path": "passes/measurements.toml",
+          "bytes": 285,
+          "sha256": "b8d0ce71315ad33f3fc31608bba0f00ee237a54311ec47439e37e746e0885d7a"
+        },
+        {
+          "path": "personas/measurements-reviewer.md",
+          "bytes": 1871,
+          "sha256": "604d40f23790303bd32e26d51435ad7b4f7214582892ff2ead9960bffbf5c631"
+        },
+        {
+          "path": "prompts/measurements.md",
+          "bytes": 2539,
+          "sha256": "762a3ce5dfdae96257333371f1270e1fde8cd4e9481de14337d61ee7400c0964"
+        },
+        {
+          "path": "templates/Measurements.md",
+          "bytes": 302,
+          "sha256": "84894e0b19a084b249032a4f712b852c07218d7f576f9c0598237fddfb15a407"
+        },
+        {
+          "path": "tests/index-timing/case.toml",
+          "bytes": 1019,
+          "sha256": "d3d2e6df6d1ceec9854b050318bb613e0b3e2db03884ad2065f48c39a39db98b"
+        },
+        {
+          "path": "tests/index-timing/notes/Kayak routes.md",
+          "bytes": 70,
+          "sha256": "882503d3001344be4135379db20139d466327048a017231d6be724946b531fbf"
+        },
+        {
+          "path": "tests/index-timing/notes/Measurements.md",
+          "bytes": 127,
+          "sha256": "37a5d1bc594205d7ea481e3415c088640ff291c3822cd902db0c1d7f3833322d"
+        },
+        {
+          "path": "tests/index-timing/transcripts/index-timing-1.jsonl",
+          "bytes": 1246,
+          "sha256": "fbdd279d546c1ce78d7478cb363ffed3ee0c14381fe5723ff4c5b52496395b94"
+        }
+      ],
+      "review": {
+        "id": "01M77CSHPWT8N4FG7TVCRK4CZP",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:08:23.21712Z"
+      }
+    },
+    {
+      "name": "migration-log",
+      "version": "1.0.1",
+      "description": "Appends each database migration a session ran, with its environment and outcome, to a migrations note.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/migration-log",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "fa58939109e592f720df217434f9d00682e1cd43e6d128853d0e6d12f8b9e92a",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "migration-log",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/Migrations*.md",
+            "**/Migration log*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2049,
+          "sha256": "33bc6d7859bc1429a8b6646e85919a8b70f59bb19d6a18c9a93834a835f77939"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 227,
+          "sha256": "8a216ee18267e8b93b8a7a0eaedf89853ecb5f563e004b9fa903165b77b70b8e"
+        },
+        {
+          "path": "passes/migration-log.toml",
+          "bytes": 248,
+          "sha256": "12217c55db3ebd25060ca89589e7393d8cc4154a0e108bca1172126f1e03da8f"
+        },
+        {
+          "path": "personas/migration-log-reviewer.md",
+          "bytes": 2091,
+          "sha256": "1571ceef640e51d0c1c9d6086cd92bd667e039b83cd9c11e0307b3ac12576bfb"
+        },
+        {
+          "path": "prompts/migration-log.md",
+          "bytes": 2958,
+          "sha256": "0094a2a138cb7c3c210438d588655d62cdbb0413a6dfe48d2804b4db487a7058"
+        },
+        {
+          "path": "templates/Migrations.md",
+          "bytes": 221,
+          "sha256": "6b56e34d5a5b0e0ca12a84d9e81dbafc9469fbf7755ec5da7257decc97f565b2"
+        },
+        {
+          "path": "tests/add-orders-index/case.toml",
+          "bytes": 991,
+          "sha256": "f918138a5962c7fbe11d00f91e4d48b97064a1791831c9326b6c967c335e9e8f"
+        },
+        {
+          "path": "tests/add-orders-index/notes/Garden plan.md",
+          "bytes": 54,
+          "sha256": "2fbb854b027ec2814f0250697bc66ced392c2613450a1b47de28a6b45bc2d24e"
+        },
+        {
+          "path": "tests/add-orders-index/notes/Migrations.md",
+          "bytes": 165,
+          "sha256": "6b65aa14ea822eaf2ad381db34f0a7da60bdb3e1389f5545b57bb9a60a3aa140"
+        },
+        {
+          "path": "tests/add-orders-index/transcripts/migrate-1.jsonl",
+          "bytes": 1061,
+          "sha256": "67fdfccd85f6903b97886ec78155306c3f89c4e6a760055f6dd4198cde4b90c1"
+        }
+      ],
+      "review": {
+        "id": "01M77CSZKDSZW95SXHEB7YGR71",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:08:34.122246Z"
+      }
+    },
+    {
+      "name": "onboarding-gaps",
+      "version": "1.0.0",
+      "description": "Appends setup facts sessions had to discover: commands, variable names, ports and accounts.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/onboarding-gaps",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "83917a71d831a25d124057d2c6ee0de44752e2a5bbf60f96003d47e12e7478bd",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "onboarding-gaps",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/Onboarding*.md",
+            "**/Getting started*.md",
+            "**/Setup*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2024,
+          "sha256": "d3de73cc13538d20f318c9a3202f4b0f409872ff4ffac01f8955f9225e18b3cb"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 218,
+          "sha256": "584718662d8290db1debdc0079ca9f05fa3ce78c07add9f660c7b23b14cda2a3"
+        },
+        {
+          "path": "passes/onboarding-gaps.toml",
+          "bytes": 270,
+          "sha256": "3cc46e6351fdbe3d99bddad7ad09032f70c9bd7437559a05d6fdb9bbca415eb9"
+        },
+        {
+          "path": "personas/onboarding-gaps-reviewer.md",
+          "bytes": 1751,
+          "sha256": "ae42a066f8897773a22f92ead09a4bad4e54d3681d7bf1d3af7557b4fb27fe84"
+        },
+        {
+          "path": "prompts/onboarding-gaps.md",
+          "bytes": 2517,
+          "sha256": "e0377b38ee2f633b7dd80fbefbfb7456cea17bb43a2edfeb45c597f92263ddce"
+        },
+        {
+          "path": "templates/Onboarding.md",
+          "bytes": 284,
+          "sha256": "ee493870c28bb7bd4d189792adefe4dfff8c34acec792d83a1d4a3879b07c571"
+        },
+        {
+          "path": "tests/local-port/case.toml",
+          "bytes": 969,
+          "sha256": "a32c0f61b829d3d8f44da2ef2c0ea6746684ab053f5fbefa416febe8a4adc8e1"
+        },
+        {
+          "path": "tests/local-port/notes/Meeting notes.md",
+          "bytes": 60,
+          "sha256": "a99fd555c12a7b445872d32e7db2aec79155f32e3726c114c8173d3df942b6a5"
+        },
+        {
+          "path": "tests/local-port/notes/Onboarding.md",
+          "bytes": 125,
+          "sha256": "afffe3e9194eef331b43c5549438fa260f930d15a4a6a6fffcac433325b6428c"
+        },
+        {
+          "path": "tests/local-port/transcripts/local-port.jsonl",
+          "bytes": 739,
+          "sha256": "18b7153decdfc762e0ffacf2c985122c2a9109827bd67ec0413a87d2aab96ece"
+        }
+      ],
+      "review": {
+        "id": "01M77CTA80J34YABBBR00R69E2",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:08:56.207528Z"
+      }
+    },
+    {
+      "name": "open-questions",
+      "version": "1.0.0",
+      "description": "Appends questions sessions raised and left open, and answers to questions the note lists.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/open-questions",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "828f8addf016cbafcfa73af3e59296f31c5ccd05f517ebbfe3027bb13ef7d0aa",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "open-questions",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/Open questions*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2052,
+          "sha256": "29d39739b9fd5e42b0f80ca322c4e43233a82df7965b0eb0f8797e2f2fa2e8cf"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 215,
+          "sha256": "566f82715edd280c2d85bf0d2444eab6c835cb57f219c2154af842192ba7d73c"
+        },
+        {
+          "path": "passes/open-questions.toml",
+          "bytes": 230,
+          "sha256": "8854f3b117ba0750678bc326a9be4d64a996ffb65256c808dd81623a0e6bef15"
+        },
+        {
+          "path": "personas/open-questions-reviewer.md",
+          "bytes": 1772,
+          "sha256": "66f0120be3170fd6021450fad8e07df7d4737ef99c8ee489a8e0ca2fc7c750c0"
+        },
+        {
+          "path": "prompts/open-questions.md",
+          "bytes": 2469,
+          "sha256": "fb4bb342bab7b3a7ea580fbec9bf0a9f7346753622f7ee4da5c54d91661260e3"
+        },
+        {
+          "path": "templates/Open questions.md",
+          "bytes": 294,
+          "sha256": "139dc3d7ab53bc6b64ee10dab1036fd8a1526d67e4d0ee1c426c65327235ae73"
+        },
+        {
+          "path": "tests/region-answer/case.toml",
+          "bytes": 990,
+          "sha256": "e70afe1261dfd913579d097480205c7fc0f9fc62a3c429ce102197776ef4674d"
+        },
+        {
+          "path": "tests/region-answer/notes/Meeting notes.md",
+          "bytes": 60,
+          "sha256": "a99fd555c12a7b445872d32e7db2aec79155f32e3726c114c8173d3df942b6a5"
+        },
+        {
+          "path": "tests/region-answer/notes/Open questions.md",
+          "bytes": 104,
+          "sha256": "b61dfb3373a5978f800d00ec1dd83cc9e6b4e7ad346de833450f17a5c0cd9c13"
+        },
+        {
+          "path": "tests/region-answer/transcripts/region-answer.jsonl",
+          "bytes": 516,
+          "sha256": "276617e47873684e4afd86bf41b0f94c93d2d6c36ca9d831947a7b20a481351a"
+        }
+      ],
+      "review": {
+        "id": "01M77CTZSSS1CASP69XNRBKTGH",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:09:08.919486Z"
+      }
+    },
+    {
+      "name": "paper",
+      "version": "1.0.0",
+      "description": "A warm, low-glare light scheme.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/paper",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "f153a3748ace7d919e4d17ffbc6b3317417a01dc4445f5550505878c11836404",
+      "kind": "theme",
+      "passes": [],
+      "theme_contract": 1,
+      "desktop_theme_format": 1,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 1957,
+          "sha256": "3d6fa83f8163f287dfc57bfbd6762a52f94f0793add659e3ca4db0744d745e85"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 207,
+          "sha256": "8d31773ee175760225ae3c5114fa5a078147e6be8c472e929cc7858a631f083e"
+        },
+        {
+          "path": "theme.css",
+          "bytes": 737,
+          "sha256": "05710384939fa6adea2c7585faf95393f62f6cec01106f360f6296b9ff3ad8fd"
+        },
+        {
+          "path": "theme.json",
+          "bytes": 1425,
+          "sha256": "2e3e4bfcc43328a7fb176df39372258376be247158b83d6a84532b08bb4bc701"
+        }
+      ],
+      "review": {
+        "id": "01M77CVC5GFY9AVW33JBM34H3R",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:09:29.939722Z"
+      }
+    },
+    {
+      "name": "related-links",
+      "version": "1.0.0",
+      "description": "Appends Related lines linking notes that a session's handoff connects but that do not link each other.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/related-links",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "28d2f915251ae3051e849c0e141e199a29ab95a3233ced9eb96d67a2849dc83a",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "related-links",
+          "reads": [
+            "sessions",
+            "notes"
+          ],
+          "per_note": false,
+          "note_types": null,
+          "note_paths": null
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2205,
+          "sha256": "beb0925ebe4d5507fac0689ab6e1068b0756d861025aa88f01f3f5ccc762f8e7"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 227,
+          "sha256": "8a2ab4dea86c94bfca4f557ec0c388657bb93fc8acb74d45792094532e58faf6"
+        },
+        {
+          "path": "passes/related-links.toml",
+          "bytes": 181,
+          "sha256": "45fbbbb6bbc177f8211197b837b5d5877522601ed99bad0971ccdee9cf09d5cd"
+        },
+        {
+          "path": "personas/related-links-reviewer.md",
+          "bytes": 1697,
+          "sha256": "cbbbba80ee05d1ada7530df3ace4e2d1670c59cb053208951ca9dcef3f60b752"
+        },
+        {
+          "path": "prompts/related-links.md",
+          "bytes": 2021,
+          "sha256": "8e2717f857ff95082354e5a44a247dfcab03ade9a5cb84d81105a03956d44eef"
+        },
+        {
+          "path": "tests/deploy-and-rollback/case.toml",
+          "bytes": 947,
+          "sha256": "54676b51b0d3a136278ed920bfe6ee934084c0ec8358b6e4a0f70a0294a2f393"
+        },
+        {
+          "path": "tests/deploy-and-rollback/notes/Archive.md",
+          "bytes": 45,
+          "sha256": "2f2468f1e08043b3ce1e10cd4a9e8b68bef9ace2a8c83bb1234dc6ac8858c4d1"
+        },
+        {
+          "path": "tests/deploy-and-rollback/notes/Deploy plan.md",
+          "bytes": 51,
+          "sha256": "77a83880b83ab5357a713115c1fbc2596652d33c60bfc7d82dcdf90ebefc5502"
+        },
+        {
+          "path": "tests/deploy-and-rollback/notes/Rollback steps.md",
+          "bytes": 64,
+          "sha256": "514628aa702604d17f6f3225dfd947f8d1cacc47a3820246d16b91419bac91c1"
+        },
+        {
+          "path": "tests/deploy-and-rollback/transcripts/related-1.jsonl",
+          "bytes": 508,
+          "sha256": "f9c2e2cfe5f05308ea7fcc74ee234c29c5d3c9d61f97675255dd438f17214bb1"
+        }
+      ],
+      "review": {
+        "id": "01M77CW0TYWFK0A4QFW78DRBGT",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:09:44.81153Z"
+      }
+    },
+    {
+      "name": "runbook-check",
+      "version": "1.0.1",
+      "description": "Appends runbook steps that failed, were skipped or needed another command when a session followed the runbook.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/runbook-check",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "82df92e31edd3c032d65e0b700e38134e9669a7f33f3bbcf8674e847834e6428",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "runbook-check",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/Runbook*.md",
+            "**/Runbooks/**",
+            "**/Playbook*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2053,
+          "sha256": "600c8dbc8ffadd9ad4957ec5effc5163b723726da6d3eac0e6862ba7dc8bc64d"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 235,
+          "sha256": "964a4995a42bd64c70306eaf9c06b9d36723cf818b25be31bb7c3d598b002320"
+        },
+        {
+          "path": "passes/runbook-check.toml",
+          "bytes": 258,
+          "sha256": "1983aa9ee0ec9b2f55109b93cb63b22ead06e5f207fc11c54e741b3028d34ab9"
+        },
+        {
+          "path": "personas/runbook-check-reviewer.md",
+          "bytes": 1952,
+          "sha256": "3102b4fc09fbc65019e571d8798be6a0946e63fef022fcfbbb129dac16fcf4ad"
+        },
+        {
+          "path": "prompts/runbook-check.md",
+          "bytes": 2709,
+          "sha256": "355c0bb467e96d015e258e10b22336471a52c9e0b26ab610a611b3e889ca8e45"
+        },
+        {
+          "path": "templates/Runbook.md",
+          "bytes": 261,
+          "sha256": "f7d77fd9c2c9128f592a587c0e8e059365676f74cb3ddb7493642571400ca177"
+        },
+        {
+          "path": "tests/queue-clear/case.toml",
+          "bytes": 1085,
+          "sha256": "639ee93701d02813326766312218fe46134d3b275e2066aabf452c9d58d5c682"
+        },
+        {
+          "path": "tests/queue-clear/notes/Meeting notes.md",
+          "bytes": 60,
+          "sha256": "a99fd555c12a7b445872d32e7db2aec79155f32e3726c114c8173d3df942b6a5"
+        },
+        {
+          "path": "tests/queue-clear/notes/Runbook.md",
+          "bytes": 150,
+          "sha256": "d3d0dbf2c331854cf4b3892c994347613634692c54d828b1fb85873c88f1468f"
+        },
+        {
+          "path": "tests/queue-clear/transcripts/queue-clear.jsonl",
+          "bytes": 930,
+          "sha256": "239e28d91db6be2f982dce04bca16bc499e267a8425928840f81b1c9ffa58936"
+        }
+      ],
+      "review": {
+        "id": "01M77CWF98P7T0SQQV30916WW1",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:10:04.256207Z"
+      }
+    },
+    {
+      "name": "schema-notes",
+      "version": "1.0.0",
+      "description": "Appends tables, columns and fields that sessions added, renamed or dropped to a schema or data model note.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/schema-notes",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "6ffc39f78a66a3ff12de9705342bc004f0b0f3a2f35200b9cfeb403df2c8789d",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "schema-notes",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/Schema*.md",
+            "**/Data model*.md",
+            "**/Database*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2165,
+          "sha256": "f11128e71f9f0bd99ccf4b447dfb1d27a7f49cabb96938c326cf7e2487004997"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 230,
+          "sha256": "d02b2d26c629fb71cb91aa8bd343565f1edbeaca8d6850956589faeb114a5cec"
+        },
+        {
+          "path": "passes/schema-notes.toml",
+          "bytes": 258,
+          "sha256": "b239a34ff9025d9083170a6d1c5bf871cc2500749506c692cd7c90d162bb4d7f"
+        },
+        {
+          "path": "personas/schema-notes-reviewer.md",
+          "bytes": 1817,
+          "sha256": "b6125d5b0aabb7db929984eae1c6a162d4f525cb772b1bb14aa7cfb18a6a9300"
+        },
+        {
+          "path": "prompts/schema-notes.md",
+          "bytes": 2411,
+          "sha256": "3828e9a1f989d08ed31fcbb1dabe993d3fbb85ee192d1960a30f832e5bc81f6f"
+        },
+        {
+          "path": "templates/Schema.md",
+          "bytes": 214,
+          "sha256": "d032d2279fe6c6544ffa01202dcdb23fa9cd80312bfa3c8c3fb0c95cf19e3f53"
+        },
+        {
+          "path": "tests/invoice-note/case.toml",
+          "bytes": 1043,
+          "sha256": "b3b8c245ad8a8e8b262660a34a5a6ea1f1abef92c434a3d1839949b81faace03"
+        },
+        {
+          "path": "tests/invoice-note/notes/Schema.md",
+          "bytes": 108,
+          "sha256": "e71873ea7d92f3414f2f2eb4a863bbf455b08c1f8c4c2fc9bea052bdf6d92d7b"
+        },
+        {
+          "path": "tests/invoice-note/notes/Tide tables.md",
+          "bytes": 66,
+          "sha256": "ca1ad99c5986b83e2ec5c678b598c60d06d4744f49955789981fa4b9ab278d3c"
+        },
+        {
+          "path": "tests/invoice-note/transcripts/invoice-note-1.jsonl",
+          "bytes": 1343,
+          "sha256": "b02386dec0f9f2fa4daf6c3bfaf45c038bdec69a54af2610625db512e726e622"
+        }
+      ],
+      "review": {
+        "id": "01M77CX28X84AV1FD5K70E1N5R",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:10:15.071621Z"
+      }
+    },
+    {
+      "name": "security-log",
+      "version": "1.0.0",
+      "description": "Appends security-relevant changes sessions made (auth, permissions, secret handling, advisories) to a security note, never secrets.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/security-log",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "8ff339203440b08c22acc50eeeaf91262bfa2746d1f43ab8f18d9180cf992aff",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "security-log",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/Security*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2361,
+          "sha256": "a96edbe77f8f3197c3a53ff60900bbeb05d05cc7787863e0eb15c0838a1075e1"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 255,
+          "sha256": "2193e0938513bc901041af4eaba954167abb0080c36594cd152ed3af08dd6e1f"
+        },
+        {
+          "path": "passes/security-log.toml",
+          "bytes": 220,
+          "sha256": "4ec2a865c380961155ad48d34038586720a67ba74ce12eb4bdf7afc0ace143a6"
+        },
+        {
+          "path": "personas/security-log-reviewer.md",
+          "bytes": 1894,
+          "sha256": "520ae42f4fce7f3a79ab36c2d7b0003cda85d9f70be9c10999929392161f1d3a"
+        },
+        {
+          "path": "prompts/security-log.md",
+          "bytes": 2792,
+          "sha256": "0fb897940ae9734fee20eef03eff2952a0b1b01bcc4577ee4954231273ff4686"
+        },
+        {
+          "path": "templates/Security log.md",
+          "bytes": 296,
+          "sha256": "a0456bb3c55b959915802074a5387244b07d79278bc80ea79f5bd77fe8c9ca92"
+        },
+        {
+          "path": "tests/session-expiry/case.toml",
+          "bytes": 1156,
+          "sha256": "e99e2e96a46c5d87a7d6fe3deddebf4580376a77d524f04f8c8940cd5c87e4ae"
+        },
+        {
+          "path": "tests/session-expiry/notes/Bread starter.md",
+          "bytes": 65,
+          "sha256": "d2ed3a0f690d13fdc4c5b5688285c6cee43d52ac4fd684b4f3b3a0ab2ab81f96"
+        },
+        {
+          "path": "tests/session-expiry/notes/Security log.md",
+          "bytes": 120,
+          "sha256": "951a3e6e9e151ae5bc80c6618c1a4f38a26153d2aae596285f20c67089955b03"
+        },
+        {
+          "path": "tests/session-expiry/transcripts/session-expiry-1.jsonl",
+          "bytes": 614,
+          "sha256": "5d61b410b9f8ac90663f17291cdc0fbb8b524757146589df712e956dabae5e76"
+        }
+      ],
+      "review": {
+        "id": "01M77CXCT0Z5QEQ19X8X3PDT7R",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:10:26.429908Z"
+      }
+    },
+    {
+      "name": "test-commands",
+      "version": "1.0.1",
+      "description": "Appends the build, test and lint commands sessions ran successfully, which the note lacks, to a testing or build note.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/test-commands",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "9b4e48f2c9912f7e54d338ec11e559b61d2c7b86c370d734da122bc5870034e4",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "test-commands",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/Testing*.md",
+            "**/How to test*.md",
+            "**/Build*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2084,
+          "sha256": "1168bd1a1677226e6d69bfc2222f8832463657cab9afdfecfe6c75d11aea128a"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 243,
+          "sha256": "156afc2d6e5e6bea75e1d04c19fed74f8fe0a61d3a757eca417143837310e2c4"
+        },
+        {
+          "path": "passes/test-commands.toml",
+          "bytes": 259,
+          "sha256": "8f014620a31c8cd6a4c9c00a17bc22fae016ec1b7f4703b4de258c9898545743"
+        },
+        {
+          "path": "personas/test-commands-reviewer.md",
+          "bytes": 2074,
+          "sha256": "7b79003fece88a12de7cc1f3ddf7db5dc54fd23093e5323e14478670e85d1739"
+        },
+        {
+          "path": "prompts/test-commands.md",
+          "bytes": 2949,
+          "sha256": "aa0b56f452f8ee579717cc04e8014ad215b1e7d13b698a7a400a3ee55620d81e"
+        },
+        {
+          "path": "templates/Testing.md",
+          "bytes": 218,
+          "sha256": "2b19f18b7ec14e0a2a4f71d6acccdef7c198177b9597c132a09f6032b452b435"
+        },
+        {
+          "path": "tests/run-lint/case.toml",
+          "bytes": 955,
+          "sha256": "8ee5d691459e95420886f1782abeb9d79ba087bf48d233e1759b7909dc45bcac"
+        },
+        {
+          "path": "tests/run-lint/notes/Fete planning.md",
+          "bytes": 52,
+          "sha256": "6854e10e327abca9a3470f33c3fae874ce43dc3da9359875cba2e1f70e69e302"
+        },
+        {
+          "path": "tests/run-lint/notes/Testing.md",
+          "bytes": 118,
+          "sha256": "d83bc8e78a65c642c1863c86f3997132bb4551de2bbd8d031a556db5fae00610"
+        },
+        {
+          "path": "tests/run-lint/transcripts/testing-1.jsonl",
+          "bytes": 995,
+          "sha256": "b4a0c79cfa59a3512c19571dae2d49582bd963d5b202d097802cb3c6edaea887"
+        }
+      ],
+      "review": {
+        "id": "01M77CXQXSBX625G47A6VJN108",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:10:39.911267Z"
+      }
+    },
+    {
+      "name": "todo-done",
+      "version": "1.0.0",
+      "description": "Appends Done lines for listed tasks that sessions completed to a TODO, tasks or backlog note, and never adds tasks.",
+      "authors": [
+        "Vanitas Caesar"
+      ],
+      "owner": "VanitasCaesar1",
+      "maintainers": [
+        "VanitasCaesar1"
+      ],
+      "first_party": true,
+      "license": "MIT",
+      "repo": "https://github.com/VanitasCaesar1/hippo",
+      "repo_id": 1454849249,
+      "owner_id": 94681960,
+      "path": "packs/todo-done",
+      "commit": "c2590adf628f4586f75f2d6a44d0c246a011bec9",
+      "pack_hash": "7446978afdbe6369c1fcce3990a29c6f64a0e1a07937f85c6db6dce68a810ca5",
+      "kind": "passes",
+      "passes": [
+        {
+          "name": "todo-done",
+          "reads": [
+            "sessions",
+            "notes",
+            "turns"
+          ],
+          "per_note": true,
+          "note_types": null,
+          "note_paths": [
+            "**/TODO*.md",
+            "**/Tasks*.md",
+            "**/Backlog*.md"
+          ]
+        }
+      ],
+      "theme_contract": null,
+      "desktop_theme_format": null,
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "7f0ecf3f6578ca8a0a288ef3d4fb6a007c7d0faf0276eab36a1e7447c08cdefd"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2197,
+          "sha256": "b04ab3b66e873de4a7bfe3fff854ed3f9407cea3d6e7799716d71eecc054d886"
+        },
+        {
+          "path": "pack.toml",
+          "bytes": 236,
+          "sha256": "37c69dcf021f57f1734e458e3ebd5242afd12d967e12017b7932a549dd9ba82b"
+        },
+        {
+          "path": "passes/todo-done.toml",
+          "bytes": 244,
+          "sha256": "bfe41b3af0ab2939c08a82d862d0371ed714e05c272404b74b5882fa17dac6ed"
+        },
+        {
+          "path": "personas/todo-done-reviewer.md",
+          "bytes": 1694,
+          "sha256": "26066c5c2471a448da76b7dc53b417750f337bb8b8c51c818594bae09a450680"
+        },
+        {
+          "path": "prompts/todo-done.md",
+          "bytes": 2374,
+          "sha256": "f2e09b8c0abd03630068167c05aaf689810dbf88ba76538bbc565c113657ad5b"
+        },
+        {
+          "path": "templates/TODO.md",
+          "bytes": 275,
+          "sha256": "b70ead876163f67d2ab5808b9d1fb32c33316839df5795d2a91b2e1dd120fae8"
+        },
+        {
+          "path": "tests/retry-limit/case.toml",
+          "bytes": 940,
+          "sha256": "1f6e78631b0ee7707e08a4fb64465dfbe0065bfabd4824bdb24a50e007018dd2"
+        },
+        {
+          "path": "tests/retry-limit/notes/Pottery glazes.md",
+          "bytes": 66,
+          "sha256": "e349f6e9e275ca449b5e9fa409b81c703e06e78f72295be5b1edde4722c1da5a"
+        },
+        {
+          "path": "tests/retry-limit/notes/TODO.md",
+          "bytes": 81,
+          "sha256": "888ca1849104cd34a6e86b42b589c4ca261b53c6fe3f9135b0f06c32dad49870"
+        },
+        {
+          "path": "tests/retry-limit/transcripts/retry-limit-1.jsonl",
+          "bytes": 663,
+          "sha256": "c6da7097829166e2effae9f9e6123cbc7570ea3995c9d7bae9796271b4c35e13"
+        }
+      ],
+      "review": {
+        "id": "01M77CY54KW35222BHZKRE17QG",
+        "verdict": "confirm",
+        "at": "2026-11-12T08:10:54.853825Z"
+      }
+    }
+  ]
+}

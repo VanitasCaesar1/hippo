@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self' data:">
+<title>Commands | hippo</title>
+<link rel="icon" type="image/svg+xml" href="../icon.svg">
+<link rel="stylesheet" href="../hippo.css">
+<link rel="stylesheet" href="theme/docs-752f7011.css">
+</head>
+<body class="hp-page hp-page-docs">
+<a class="hp-skip" href="#main">Skip to the content</a>
+<div class="hp-content">
+<header class="hp-topbar"><a class="hp-home" href="../index.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 473 387" fill="currentColor" class="hp-mark" aria-hidden="true"><g transform="translate(0,387) scale(0.1,-0.1)"><path d="M2167 3229 c-294 -28 -582 -125 -766 -257 -41 -30 -81 -56 -87 -59 -19 -7 -144 45 -248 103 -176 98 -282 107 -364 31 -59 -55 -90 -196 -63 -280 29 -85 144 -147 304 -162 42 -4 77 -9 77 -11 0 -2 -24 -41 -54 -87 -270 -414 -391 -1001 -241 -1174 52 -60 62 -32 68 202 13 470 192 876 528 1200 202 195 395 288 719 347 138 25 453 31 560 10 269 -53 448 -177 528 -369 31 -73 31 -73 -43 -73 -205 0 -478 -48 -637 -112 -116 -47 -298 -146 -298 -163 0 -35 32 -31 261 38 390 118 871 141 1289 62 124 -24 350 -84 390 -105 122 -63 155 -177 148 -512 -5 -198 -7 -218 -31 -285 -105 -293 -387 -427 -892 -426 -566 1 -953 119 -1134 345 -100 124 -141 229 -189 478 -4 21 -14 36 -24 38 -26 5 -42 -66 -41 -183 1 -207 104 -400 288 -542 76 -58 76 -58 68 -98 -33 -166 5 -213 212 -266 220 -55 287 -39 320 75 19 65 6 62 180 41 66 -8 201 -15 301 -15 181 0 181 0 197 -60 30 -106 80 -130 237 -112 118 14 177 34 227 76 38 34 38 34 41 129 4 96 4 96 68 138 131 85 236 233 280 394 25 91 31 469 10 593 -39 226 -100 286 -363 358 -220 61 -362 86 -573 105 -97 9 -140 17 -140 25 0 7 -2 19 -5 27 -5 11 9 14 69 14 258 2 372 356 150 464 -72 34 -113 24 -184 -48 -32 -32 -89 -75 -128 -96 -70 -37 -70 -37 -139 14 -206 157 -514 223 -876 188z m1287 -185 c58 -57 6 -194 -80 -210 -46 -9 -162 14 -173 34 -7 13 6 26 67 63 43 26 95 65 117 87 47 46 49 47 69 26z m-2463 -134 c47 -27 113 -62 147 -77 61 -28 61 -28 31 -62 -29 -32 -35 -34 -113 -38 -101 -7 -215 11 -258 41 -32 21 -33 24 -33 90 0 124 67 138 226 46z m1490 -1774 c35 -13 99 -32 142 -42 77 -18 77 -18 77 -51 0 -38 5 -37 -96 -18 -180 34 -221 59 -198 119 8 20 0 20 75 -8z m1395 -61 c21 -54 -15 -77 -151 -99 -97 -15 -100 -15 -110 26 -6 23 -3 28 17 32 12 3 66 16 118 29 119 30 119 30 126 12z M2736 2889 c-50 -59 -24 -172 45 -194 30 -10 78 14 94 46 58 112 -62 240 -139 148z M2193 2865 c-52 -36 -54 -141 -4 -194 68 -73 159 -11 149 101 -9 88 -84 136 -145 93z M3895 2333 c-87 -17 -125 -56 -125 -128 0 -150 273 -228 351 -101 65 107 -82 256 -226 229z M2522 2308 c-142 -25 -228 -180 -145 -263 82 -81 251 -33 312 88 54 109 -31 199 -167 175z"/></g></svg><span class="hp-name">hippo</span></a><nav class="hp-nav" aria-label="Site"><a href="index.html" class="hp-nav-current" aria-current="page">docs</a><span class="hp-sep"> | </span><a href="../packs.html">packs</a><span class="hp-sep"> | </span><a href="../themes.html">themes</a><span class="hp-sep"> | </span><a href="https://github.com/VanitasCaesar1/hippo">github</a></nav></header>
+<main class="hp-main" id="main">
+<details class="docs-toc">
+<summary>Contents</summary>
+<ol class="chapter"><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="introduction.html">Introduction</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="install.html">Install</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="quick-start.html">Quick start</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="concepts.html">Concepts</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="architecture.html">Architecture</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="packs.html">Packs</a></span><ol class="section"><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="writing-packs.html">Writing a pack</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="first-party-packs.html">First-party packs</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="registry.html">The registry</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="themes.html">Themes</a></span></li></ol><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="commands.html">Commands</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="configuration.html">Configuration</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="sharing.html">Sharing a brain in a team</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="scheduling.html">Scheduling on macOS</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="eval.html">Measuring with hippo eval</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="troubleshooting.html">Troubleshooting with hippo doctor</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="security.html">Security and privacy</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="roadmap.html">Roadmap</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="limits.html">Limits and known gaps</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="contributing.html">Contributing and licence</a></span></li></ol>
+</details>
+<div class="hp-md">
+<h1 id="commands"><a class="header" href="#commands">Commands</a></h1>
+<p><code>hippo</code> has 28 commands, in the groups <code>hippo --help</code> shows. Run <code>hippo &lt;command&gt; --help</code> for the same flags in short form.</p>
+<p>Run <code>hippo</code> with no arguments first. With no <code>config.toml</code> it prints what <code>hippo detect</code> finds and offers to index that history (history only, no notes folder, nothing sent anywhere). On a terminal it asks <code>Index it now? [Y/n]</code>; with no terminal it prints <code>run hippo start --yes to index it</code> and exits 0. Once hippo is set up, <code>hippo</code> on its own runs an incremental ingest when the last one is older than <code>ingest_interval_minutes</code>, then shows the last active day: its sessions, merged pull requests, corrections, and four commands to try next.</p>
+<p>Commands read <code>$HIPPO_HOME/config.toml</code> (by default <code>~/.hippo/config.toml</code>) and work on the one workspace named there, never on the current directory. Before setup they print <code>hippo is not set up yet</code> and exit 1, naming <code>hippo</code> as the way to start. The exceptions are <code>detect</code>, <code>start</code>, <code>eval</code> without <code>--with-model</code>, <code>packs check</code>, <code>packs test</code>, <code>schedule uninstall</code> and <code>schedule status</code>, which read no configuration (<code>init</code> writes it). A history-only setup has no workspace; commands that need notes say so.</p>
+<p>Unless a command says otherwise, an error prints to stderr and the exit code is 1. Set <code>RUST_LOG</code> (for example <code>RUST_LOG=debug</code>) to change the log level; the default is <code>warn</code>, and logs go to stderr.</p>
+<p><strong>Start here</strong></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Command</th><th>What it does</th></tr>
+</thead>
+<tbody>
+<tr><td><code>hippo</code></td><td>On its own: find your agents’ history and index it; once set up, show the last active day</td></tr>
+<tr><td><a href="#hippo-start"><code>start</code></a></td><td>Find your agents’ history and index it (history only)</td></tr>
+<tr><td><a href="#hippo-detect"><code>detect</code></a></td><td>List the agent history on this machine, before anything is indexed</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Every day</strong></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Command</th><th>What it does</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="#hippo-ask"><code>ask</code></a></td><td>Has any agent already solved this? Ranked sources, and an answer that cites them</td></tr>
+<tr><td><a href="#hippo-recall"><code>recall</code></a></td><td>Search every indexed turn</td></tr>
+<tr><td><a href="#hippo-fleet"><code>fleet</code></a></td><td>Today’s sessions and headroom per profile</td></tr>
+<tr><td><a href="#hippo-incidents"><code>incidents</code></a></td><td>What went wrong, which agent did it, at which step</td></tr>
+<tr><td><a href="#hippo-xray"><code>xray</code></a></td><td>What context a session was given and used</td></tr>
+<tr><td><a href="#hippo-show"><code>show</code></a></td><td>Print a session, a day, a proposal or a note’s receipts</td></tr>
+<tr><td><a href="#hippo-resume"><code>resume</code></a></td><td>Print the command that resumes a session, with a short handoff</td></tr>
+<tr><td><a href="#hippo-brief"><code>brief</code></a></td><td>The start block for a new agent on a task</td></tr>
+<tr><td><a href="#hippo-card"><code>card</code></a></td><td>The day as one image to share: numbers and a date, no names</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Notes and dreaming</strong></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Command</th><th>What it does</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="#hippo-context"><code>context</code></a></td><td>Print the context block</td></tr>
+<tr><td><a href="#hippo-dream"><code>dream</code></a></td><td>Run the dreaming passes once</td></tr>
+<tr><td><a href="#hippo-lessons"><code>lessons</code></a></td><td>Corrections and repeated failures proposed as rules</td></tr>
+<tr><td><a href="#hippo-review"><code>review</code></a></td><td>Mark applied dreaming changes as read and right</td></tr>
+<tr><td><a href="#hippo-revert"><code>revert</code></a></td><td>Undo an applied change</td></tr>
+<tr><td><a href="#hippo-eval"><code>eval</code></a></td><td>Measure on an eval set</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Packs</strong></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Command</th><th>What it does</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="#hippo-add"><code>add</code></a></td><td>Add a pack from a path or git, after a review</td></tr>
+<tr><td><a href="#hippo-packs"><code>packs</code></a></td><td>Check, test, list, diff, update and remove packs</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Setup and checks</strong></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Command</th><th>What it does</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="#hippo-init"><code>init</code></a></td><td>Write <code>config.toml</code> and the workspace’s <code>.hippo/</code></td></tr>
+<tr><td><a href="#hippo-ingest"><code>ingest</code></a></td><td>Index the transcripts</td></tr>
+<tr><td><a href="#hippo-config"><code>config</code></a></td><td>Show or change one setting</td></tr>
+<tr><td><a href="#hippo-doctor"><code>doctor</code></a></td><td>Check the setup</td></tr>
+<tr><td><a href="#hippo-schedule"><code>schedule</code></a></td><td>Schedule ingest and dreaming</td></tr>
+<tr><td><a href="#hippo-hooks"><code>hooks</code></a></td><td>Install or check the three Claude Code hooks</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Run by hippo itself.</strong> Hooks and jobs call these. You rarely type them.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Command</th><th>What it does</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="#hippo-hook"><code>hook</code></a></td><td>Run as a Claude Code hook</td></tr>
+<tr><td><a href="#hippo-session"><code>session</code></a></td><td>Start or end a declared session</td></tr>
+<tr><td><a href="#hippo-log"><code>log</code></a></td><td>Write the session log</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="hippo-start"><a class="header" href="#hippo-start">hippo start</a></h2>
+<pre><code class="language-text">hippo start [--yes] [--add-root &lt;path&gt;]...
+</code></pre>
+<p>Finds your agents’ history and indexes it, history only: no notes folder is needed and nothing is sent anywhere. It prints what it found, asks <code>Index it now? [Y/n]</code> on a terminal, writes a history-only <code>config.toml</code>, ingests with progress, then shows the last active day. It never adopts a workspace from the current directory. When hippo is already set up it says so and shows the day.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--yes</code></td><td>Index the history without asking.</td></tr>
+<tr><td><code>--add-root &lt;path&gt;</code></td><td>Another folder of transcripts to read, absolute or under <code>~/</code>. Repeatable.</td></tr>
+</tbody>
+</table>
+</div>
+<p>With no terminal and no <code>--yes</code> it prints <code>run hippo start --yes to index it</code> and exits 0. When it finds no history it names the folders it looked in and exits 0.</p>
+<h2 id="hippo-detect"><a class="header" href="#hippo-detect">hippo detect</a></h2>
+<pre><code class="language-text">hippo detect [--json]
+</code></pre>
+<p>Lists the agent history on this machine without indexing anything and without a configuration: each folder with its files (for OpenCode, the sessions in its database), size and newest day. <code>--json</code> prints one JSON object. hippo reads Claude Code and Codex transcripts, DeepSeek Harness (dsh) session logs and OpenCode’s database. It also reports Cursor and Gemini folders when it sees them, as agents with no adapter: hippo does not read them.</p>
+<h2 id="hippo-ask"><a class="header" href="#hippo-ask">hippo ask</a></h2>
+<pre><code class="language-text">hippo ask &lt;question&gt; [--sources-only] [--limit &lt;n&gt;] [--json]
+</code></pre>
+<p>Has any agent already solved this? It ranks the indexed sessions that match the question, then asks the model for an answer that cites them.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--sources-only</code></td><td>Skip the model: print the ranked sources only. Local.</td></tr>
+<tr><td><code>--limit &lt;n&gt;</code></td><td>The most sources to list. Default 6.</td></tr>
+<tr><td><code>--json</code></td><td>Print the result as one JSON object.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Without <code>--sources-only</code> it runs your <code>model_command</code> (<a href="security.html#when-data-leaves-your-machine">Security and privacy</a>).</p>
+<h2 id="hippo-fleet"><a class="header" href="#hippo-fleet">hippo fleet</a></h2>
+<pre><code class="language-text">hippo fleet [--json]
+</code></pre>
+<p>Today’s sessions: live, stopped at a usage limit, or finished, and the headroom left on each Claude profile. With no session today it says so and names <code>hippo show day &lt;date&gt;</code>. <code>--json</code> prints one JSON object.</p>
+<h2 id="hippo-incidents"><a class="header" href="#hippo-incidents">hippo incidents</a></h2>
+<pre><code class="language-text">hippo incidents [--days &lt;n&gt;] [--all] [--json]
+</code></pre>
+<p>What went wrong, which agent did it, at which step, and why when a rule says so.</p>
+<p>A check an agent said passed with no run of it after its last edit is listed apart, after the incidents, under <code>Hints to check: a check claimed with no run after the last edit</code>. It is a hint, not an incident: the rule is not yet precise enough to count, so these rows are not counted anywhere. The check counts a run that came through a wrapper script, a remote sandbox, a background task, CI on the pushed head, or a session the agent delegated to; <code>hippo xray &lt;session&gt;</code> shows the evidence it found. <code>--json</code> lists them with the incidents, kind <code>unverified</code>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--days &lt;n&gt;</code></td><td>Days to cover, 1 to 14. Default 7.</td></tr>
+<tr><td><code>--all</code></td><td>Also list destructive commands that nothing harmful followed.</td></tr>
+<tr><td><code>--json</code></td><td>Print one JSON array.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="hippo-xray"><a class="header" href="#hippo-xray">hippo xray</a></h2>
+<pre><code class="language-text">hippo xray &lt;session&gt; [--json]
+hippo xray --fleet [--days &lt;n&gt;] [--json]
+hippo xray unrequire &lt;note&gt; [--yes]
+</code></pre>
+<p>Shows what context a session was given and used, what it searched for, and the evidence for its claims. <code>&lt;session&gt;</code> is a full id or a unique prefix, as <code>hippo fleet</code> prints it.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--fleet</code></td><td>The fleet’s use of its context over the last days, with tips to tune it.</td></tr>
+<tr><td><code>--days &lt;n&gt;</code></td><td>Days the fleet stats cover, 1 to 30. Default 7.</td></tr>
+<tr><td><code>--json</code></td><td>Print one JSON object.</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>xray unrequire</code> removes a note from <code>required_notes</code> in <code>.hippo/hippo.toml</code>. It prints the change and writes it only with <code>--yes</code>.</p>
+<h2 id="hippo-resume"><a class="header" href="#hippo-resume">hippo resume</a></h2>
+<pre><code class="language-text">hippo resume &lt;id&gt; [--on &lt;profile&gt;] [--json]
+</code></pre>
+<p>Prints the command that resumes a session, with a short handoff. <code>&lt;id&gt;</code> is a full id or a unique prefix of any indexed top-level session, not only today’s.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--on &lt;profile&gt;</code></td><td>Resume on this Claude profile instead (<code>default</code>, <code>work</code>, …). The command copies the transcript there first, never over a file.</td></tr>
+<tr><td><code>--json</code></td><td>Print one JSON object.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="hippo-brief"><a class="header" href="#hippo-brief">hippo brief</a></h2>
+<pre><code class="language-text">hippo brief --task &lt;text&gt; [--off &lt;id&gt;]... [--json]
+</code></pre>
+<p>The start block for a new agent on a task: required and relevant notes, past sessions and kept rules. <code>--off &lt;id&gt;</code> leaves out the part with that id (repeatable; <code>--json</code> lists the ids). <code>--json</code> prints the parts and the block as one JSON object.</p>
+<h2 id="hippo-card"><a class="header" href="#hippo-card">hippo card</a></h2>
+<pre><code class="language-text">hippo card [--day &lt;YYYY-MM-DD&gt;] [--week] [--out &lt;path&gt;]
+</code></pre>
+<p>Your agents’ day as one 1200 x 675 PNG to share, and the same words on stdout. It shows the work time the overview shows, the threads and sub-agents, the pull requests merged, how long the agents waited on you and over how many questions, and how many times you corrected them. Nothing else: no project, session title, path, repository, account or profile name is ever drawn or printed, only numbers and a date. It reads the index and the rollup, calls no model and sends nothing anywhere.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--day &lt;date&gt;</code></td><td>The day, in local time. Default: the day the overview shows (today, or the last day with a session).</td></tr>
+<tr><td><code>--week</code></td><td>The seven days that end on that day. Work time, wait and questions are summed day by day; threads, sub-agents, pull requests and corrections are counted once over the seven days.</td></tr>
+<tr><td><code>--out &lt;path&gt;</code></td><td>Where to write the PNG. Default: <code>$HIPPO_HOME/cards/card-&lt;date&gt;.png</code> (<code>card-week-&lt;date&gt;.png</code>), or the system temporary folder when that folder is inside a git repository.</td></tr>
+</tbody>
+</table>
+</div>
+<p>A day with no session prints the last active day and exits 1. The card is drawn with an embedded subset of DejaVu Sans, so it looks the same on every machine; the font’s licence is <code>LICENSE-DejaVu.txt</code> beside the binary in a release.</p>
+<h2 id="hippo-init"><a class="header" href="#hippo-init">hippo init</a></h2>
+<pre><code class="language-text">hippo init [--workspace &lt;path&gt;] [--notes-dir &lt;dir&gt;] [--entry-note &lt;file&gt;] [--add-root &lt;path&gt;]... [--force]
+</code></pre>
+<p>Writes <code>$HIPPO_HOME/config.toml</code> and, if it does not exist, the workspace’s <code>.hippo/</code>. With no flags and outside a workspace it writes a history-only configuration, the same one <code>hippo start</code> writes.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--workspace &lt;path&gt;</code></td><td>The workspace. Default: the current directory when it holds <code>.hippo/</code> or the notes flags are given. It must be a directory. hippo stores its canonical path.</td></tr>
+<tr><td><code>--notes-dir &lt;dir&gt;</code></td><td>The notes directory, relative to the workspace, without <code>..</code>. Needed to create <code>.hippo/</code>.</td></tr>
+<tr><td><code>--entry-note &lt;file&gt;</code></td><td>The entry note, relative to the workspace, without <code>..</code>. Needed to create <code>.hippo/</code>.</td></tr>
+<tr><td><code>--add-root &lt;path&gt;</code></td><td>Another folder of transcripts to read, absolute or under <code>~/</code>. Repeatable.</td></tr>
+<tr><td><code>--force</code></td><td>Overwrite <code>config.toml</code> and the files <code>init</code> writes under <code>.hippo/</code> (including the core pack).</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>--notes-dir</code> and <code>--entry-note</code> must be given together. Without <code>--force</code>, <code>init</code> refuses (exit 1, naming the path) if <code>config.toml</code> exists, or if you give the two flags for a workspace that already has a <code>.hippo/</code>. It checks everything before it writes anything. It prints <code>wrote &lt;path&gt;</code> or <code>kept &lt;path&gt;</code> for each path. If <code>.hippo/</code> exists and you give neither flag, it keeps <code>.hippo/</code> and writes only <code>config.toml</code>. In a workspace that is already set up (its <code>config.toml</code> names this workspace), <code>init</code> with no flags does not refuse: it only adds the git rules below and says so.</p>
+<p>Whenever it writes or keeps a workspace, <code>init</code> adds the lines that are missing (and only those) to <code>.hippo/.gitignore</code> (<code>snapshots/</code>, <code>sessions/</code>, <code>reports/</code>, <code>dream-state.json</code>), the workspace’s <code>.gitignore</code> (<code>/&lt;log_path&gt;</code>) and its <code>.gitattributes</code> (<code>/&lt;notes_dir&gt;/**/*.md merge=union</code>), printing <code>updated &lt;path&gt;</code> for a file that gained lines. See <a href="sharing.html">Sharing a brain in a team</a>.</p>
+<p>If the notes folder does not exist, <code>init</code> creates it (<code>created &lt;dir&gt;/ (it did not exist)</code>). If the entry note does not exist, it writes a starter entry note you can edit (<code>wrote &lt;note&gt; (a starter entry note: edit it)</code>). It never overwrites a file. When you add a workspace to a history-only setup whose index already holds sessions, it prints <code>&lt;n&gt; sessions are indexed (sub-agents included): run hippo ingest --full to give the ones that belong to this workspace a session record</code>.</p>
+<h2 id="hippo-add"><a class="header" href="#hippo-add">hippo add</a></h2>
+<pre><code class="language-text">hippo add &lt;source&gt; [--registry &lt;index.json&gt;] [--dry-run]
+</code></pre>
+<p>Copies a pack into <code>.hippo/packs/&lt;name&gt;/</code> after checking it and having it reviewed in a fresh context. <code>&lt;source&gt;</code> is a path (<code>./dir</code>, <code>../dir</code>, <code>/dir</code>, <code>~/dir</code>) or an https git URL, <code>https://host/repo[//dir][@ref]</code>, or the name of a pack listed in a registry index.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--registry &lt;index.json&gt;</code></td><td>The <code>index.json</code> that <code>hippo-registry build</code> wrote. Required for a bare name; <code>hippo packs diff</code> and <code>hippo packs update</code> take it too (<a href="registry.html">The registry</a>).</td></tr>
+<tr><td><code>--dry-run</code></td><td>Validate and print the summary; write nothing and make no model call.</td></tr>
+</tbody>
+</table>
+</div>
+<p>It prints the summary (<code>pack</code>, <code>source</code>, a <code>pass</code> line for each pass, a <code>template</code> line for each template, <code>files</code>), then <code>review &lt;id&gt; &lt;verdict&gt;: &lt;notes&gt;</code>, then <code>wrote .hippo/packs/&lt;name&gt;/</code>. Exit 1 when the pack does not validate, when its name or a pass name is already used, when the reviewer rejects it, and when the review cannot run. <a href="packs.html#using-a-pack">Packs</a> shows the output and what each step does.</p>
+<h2 id="hippo-ingest"><a class="header" href="#hippo-ingest">hippo ingest</a></h2>
+<pre><code class="language-text">hippo ingest [--full]
+</code></pre>
+<p>Walks <code>transcript_roots</code>, indexes every transcript whose content changed, and creates a derived session record for every transcript that has no declared one and belongs to the workspace: the session ran inside the workspace’s folder (or one of its git worktrees), or read, edited or cited one of its notes. Other projects’ sessions are indexed but leave nothing in the workspace. Output: <code>indexed &lt;n&gt; files, skipped &lt;m&gt;, derived &lt;k&gt; sessions</code>; when it removed records of other projects’ sessions (a workspace written by an older version is cleaned once), a second line says how many and why. If another ingest is running it prints <code>ingest already running</code> and exits 0.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--full</code></td><td>Build a new index from every transcript and swap it in. Use it to rebuild the index from scratch, or to give already-indexed sessions their records after you add a workspace.</td></tr>
+<tr><td><code>--progress</code></td><td>Write one JSON line per file to stderr as it is read.</td></tr>
+</tbody>
+</table>
+</div>
+<p>A transcript that fails to parse is recorded, skipped until it changes, and shown by <code>hippo doctor</code>. A line that is not valid JSON is skipped with a warning. Redaction runs before any text is indexed (<a href="security.html">Security and privacy</a>).</p>
+<h2 id="hippo-recall"><a class="header" href="#hippo-recall">hippo recall</a></h2>
+<pre><code class="language-text">hippo recall &lt;query&gt; [--limit &lt;n&gt;] [--json] [--raw]
+</code></pre>
+<p>Searches every indexed turn: user text, assistant text, tool calls and tool results. Results are ranked by relevance, newer turns first among equals.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>&lt;query&gt;</code></td><td>A phrase to find. hippo quotes it, so words must appear together in order.</td></tr>
+<tr><td><code>--limit &lt;n&gt;</code></td><td>The most turns to print. Default 20, at most 200.</td></tr>
+<tr><td><code>--json</code></td><td>One JSON object per line: <code>session</code>, <code>tool</code>, <code>ts</code>, <code>role</code>, <code>tool_name</code>, <code>snippet</code>, <code>score</code>.</td></tr>
+<tr><td><code>--raw</code></td><td>Pass the query to the index as written, in SQLite FTS5 syntax. A syntax error exits 1 with the index’s message.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Text output is one line per turn: <code>&lt;session&gt; &lt;tool&gt; &lt;ts&gt; &lt;role&gt; [&lt;tool_name&gt;] &lt;snippet&gt;</code>. The snippet has line breaks and runs of spaces folded into single spaces. <code>&lt;tool_name&gt;</code> appears only for tool turns. With no index, the command fails; run <code>hippo ingest</code> first.</p>
+<h2 id="hippo-context"><a class="header" href="#hippo-context">hippo context</a></h2>
+<pre><code class="language-text">hippo context [--task &lt;text&gt;] [--session &lt;id&gt;] [--budget &lt;bytes&gt;] [--parts required|optional|all] [--json]
+</code></pre>
+<p>Prints the context block described in <a href="concepts.html#the-context-budget">The context budget</a>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--task &lt;text&gt;</code></td><td>The task. Adds the relevant-notes part.</td></tr>
+<tr><td><code>--session &lt;id&gt;</code></td><td>A declared or derived session id. Adds the session line. An unknown id exits 1 with <code>no session &lt;id&gt;</code>.</td></tr>
+<tr><td><code>--budget &lt;bytes&gt;</code></td><td>The limit. Default: <code>budget_bytes</code> from <code>.hippo/hippo.toml</code>.</td></tr>
+<tr><td><code>--parts</code></td><td><code>required</code>, <code>optional</code> or <code>all</code> (the default).</td></tr>
+<tr><td><code>--json</code></td><td>Print one JSON line instead of the block.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Parts that did not fit go to stderr as <code>omitted: &lt;part&gt; (&lt;bytes&gt;)</code>. If the required parts exceed the budget, the command prints <code>context over budget: &lt;required&gt; &gt; &lt;budget&gt;</code> and exits 1.</p>
+<p>With <code>--json</code> the command prints one line with the block and how it was built: <code>text</code> (the block), <code>bytes</code> (its size), <code>budget</code>, <code>omitted</code> (a list of <code>{"part", "bytes"}</code> for each part that did not fit, which <code>--json</code> does not also print to stderr), <code>required</code> (the notes the block’s <code>required:</code> part names, as paths relative to the workspace) and <code>relevant</code> (the notes its <code>relevant:</code> part lists, in order, as paths). Each is empty when its part was not compiled or was omitted.</p>
+<pre><code class="language-text">$ hippo context --task "how long do we keep the nightly backups" --json
+{"budget":25600,"bytes":400,"omitted":[],"relevant":["notes/Search index.md","notes/Backups.md"],"required":[],"text":"# START HERE\n\nTern is an open-source, ... \nlinter: overdue=0 dangling=0\n"}
+</code></pre>
+<p>(The <code>text</code> is shortened here.)</p>
+<h2 id="hippo-show"><a class="header" href="#hippo-show">hippo show</a></h2>
+<pre><code class="language-text">hippo show session &lt;id&gt; [--json]
+hippo show proposal &lt;id&gt; [--json]
+hippo show note &lt;path&gt; [--json]
+hippo show day [YYYY-MM-DD] [--offset +01:00] [--json]
+</code></pre>
+<p>Read-only. It prints what the desktop work needs to show: a session’s turns, a dreaming proposal with its receipts and evidence, and a note’s lint findings and receipts. It needs an index (run <code>hippo ingest</code> first). Text output folds each text onto one line; with <code>--json</code> each record is printed compact, as its file holds it.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Subcommand</th><th>Text output</th><th><code>--json</code></th></tr>
+</thead>
+<tbody>
+<tr><td><code>session &lt;id&gt;</code></td><td>The session’s log line, then one line per indexed turn: <code>&lt;ordinal&gt; &lt;role&gt; [&lt;tool_name&gt;] &lt;text&gt;</code>.</td><td>The session record as its file holds it (<code>null</code> when there is none), then one object per turn: <code>ordinal</code>, <code>role</code>, <code>ts</code>, <code>tool_name</code>, <code>text</code>.</td></tr>
+<tr><td><code>proposal &lt;id&gt;</code></td><td>The proposal (<code>proposal &lt;id&gt; &lt;pass&gt; &lt;note&gt; &lt;kind&gt;</code>, then <code>old:</code>, <code>new:</code> and <code>reason:</code>), one <code>receipt</code> line for each receipt, and one <code>evidence</code> line for each cited turn.</td><td>One object with <code>proposal</code>, <code>receipts</code> and <code>evidence</code>.</td></tr>
+<tr><td><code>note &lt;path&gt;</code></td><td>One <code>lint &lt;kind&gt; &lt;detail&gt;</code> line for each finding, then one <code>receipt</code> line for each change receipt that names the note. A note with neither prints nothing.</td><td>One object with <code>note</code>, <code>lint</code> and <code>receipts</code>.</td></tr>
+<tr><td><code>day [date]</code></td><td>The day’s totals (<code>2026-03-03: 3 sessions, 4 agents, 210 turns, 12 edits, 1 pull request</code>), one line per top-level session with a turn that day (<code>&lt;title&gt; · &lt;turns&gt; turns · &lt;edits&gt; edits · &lt;ending&gt; · &lt;id&gt;</code>, most turns first; the ending is <code>completed</code>, <code>usage limit</code>, <code>rate-limited</code>, <code>interrupted</code> or <code>still open</code>), then one line per failure along the way. The day is today when left out, in the <code>--offset</code> time zone (UTC by default). It reads the rollup <code>hippo ingest</code> writes (<code>$HIPPO_HOME/rollup.sqlite</code>, a cache rebuilt from the index); without one it exits 1 saying to run <code>hippo ingest</code>.</td><td>One object with <code>date</code>, <code>sessions</code>, <code>agents</code>, <code>turns</code>, <code>edits</code>, <code>pulls</code>, <code>events</code> and <code>rows</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>&lt;path&gt;</code> is relative to the workspace. An unknown session id exits 1 with <code>no session &lt;id&gt;</code>; an unknown proposal id exits 1 with <code>no proposal &lt;id&gt;</code>.</p>
+<pre><code class="language-text">$ hippo show session eval-01
+- 09:12 claude-code eval-01 — check how long backups are kept — ended 09:15 — turns 13 — notes: [[Backups]] — handoff: no — dreaming: 1 confirmed, 0 rejected
+0 user can you check how long nightly backups are kept? i think the cron job prunes old dumps
+1 assistant Looking at the prune job now. Nightly backups are still kept for 14 days in the config I remember.
+...
+$ hippo show proposal 01M6X6VZNF8X666HVGCVJZD4FE
+proposal 01M6X6VZNF8X666HVGCVJZD4FE consolidate notes/Backups.md replace
+old: Nightly backups are kept for 14 days.
+new: Backups are now kept for 30 days after the retention change.
+reason: stub
+receipt 01M6X6VZNTGPYXYWFBCW5RQFXH confirm consolidate-reviewer applied 2026-11-08T09:12:13.258708Z stub
+receipt 01M6X6VZSSTVQA135WF8HE5VW3 revert human applied 2026-11-08T09:12:13.363188Z 
+evidence eval-01 7 assistant Backups are now kept for 30 days after the retention change.
+$ hippo show note notes/Backups.md
+receipt 01M6X6VZNTGPYXYWFBCW5RQFXH confirm 01M6X6VZNF8X666HVGCVJZD4FE 2026-11-08T09:12:13.258708Z
+receipt 01M6X6VZSSTVQA135WF8HE5VW3 revert 01M6X6VZNF8X666HVGCVJZD4FE 2026-11-08T09:12:13.363188Z
+</code></pre>
+<p>(That run used the synthetic eval set and a stand-in model.)</p>
+<h2 id="hippo-session"><a class="header" href="#hippo-session">hippo session</a></h2>
+<pre><code class="language-text">hippo session start --tool &lt;claude-code|codex|dsh|opencode|muse|command-code&gt; --session &lt;id&gt; [--task &lt;text&gt;]
+hippo session end --session &lt;id&gt; [--note &lt;path&gt;]... [--handoff &lt;file&gt;|-] [--no-change &lt;reason&gt;]
+</code></pre>
+<p>Both subcommands print nothing on success.</p>
+<p><code>start</code> writes a declared session record, or reopens an existing declared one with the same id (its <code>ended</code> is cleared, and everything else, including the task, is kept). An id that is not 1 to 128 letters, digits, <code>_</code> or <code>-</code> exits 1 with <code>invalid session id</code>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag of <code>end</code></th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--session &lt;id&gt;</code></td><td>The declared session to end. A missing or derived id exits 1 with <code>no declared session &lt;id&gt;</code>.</td></tr>
+<tr><td><code>--note &lt;path&gt;</code></td><td>A note the session touched, relative to the workspace. Repeatable.</td></tr>
+<tr><td><code>--handoff &lt;file&gt;</code></td><td>A Markdown handoff naming notes with <code>[[...]]</code> links. A file path, or <code>-</code> to read stdin.</td></tr>
+<tr><td><code>--no-change &lt;reason&gt;</code></td><td>Why the session changed no note.</td></tr>
+</tbody>
+</table>
+</div>
+<p>If you give neither <code>--note</code> nor <code>--handoff</code> nor <code>--no-change</code>, the session records the reason <code>unspecified</code>.</p>
+<h2 id="hippo-config"><a class="header" href="#hippo-config">hippo config</a></h2>
+<pre><code class="language-text">hippo config show
+hippo config set &lt;key&gt; &lt;value&gt; [--yes]
+hippo config unset &lt;key&gt; [--yes]
+hippo config add &lt;key&gt; &lt;value&gt; [--yes]
+hippo config remove &lt;key&gt; &lt;value&gt; [--yes]
+</code></pre>
+<p>Shows or changes one setting in <code>config.toml</code> or <code>.hippo/hippo.toml</code>. It prints the change and writes it only with <code>--yes</code>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Subcommand</th><th>Does</th></tr>
+</thead>
+<tbody>
+<tr><td><code>show</code></td><td>Prints the settings the desktop app’s Manage reads.</td></tr>
+<tr><td><code>set</code></td><td>Sets <code>ingest_interval_minutes</code>, <code>dream_at</code>, <code>budget_bytes</code>, <code>lessons</code> (<code>on</code> or <code>off</code>), <code>snapshot_keep_days</code> or <code>model_command</code>.</td></tr>
+<tr><td><code>unset</code></td><td>Removes a key’s line, so its default applies.</td></tr>
+<tr><td><code>add</code>, <code>remove</code></td><td>Add or remove a value of a list: <code>transcript_roots</code>, <code>exclude_roots</code>, <code>required_notes</code>, <code>passes_off</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>model_command</code> takes a JSON array of strings or words separated by spaces, and is written as a one-line array:</p>
+<pre><code class="language-sh">hippo config set model_command '["claude","-p","--output-format","json"]' --yes
+hippo config unset model_command --yes
+</code></pre>
+<p>The second command restores the default.</p>
+<h2 id="hippo-hooks"><a class="header" href="#hippo-hooks">hippo hooks</a></h2>
+<pre><code class="language-text">hippo hooks install [--agent &lt;claude-code|codex&gt;] [--workspace &lt;dir&gt;]
+hippo hooks uninstall [--agent &lt;claude-code|codex&gt;] [--workspace &lt;dir&gt;]
+hippo hooks status [--agent &lt;claude-code|codex&gt;] [--workspace &lt;dir&gt;]
+</code></pre>
+<p>Adds, removes or checks hippo’s three hooks (<code>SessionStart</code>, <code>UserPromptSubmit</code>, <code>SessionEnd</code>). For Claude Code, the default, they go in the workspace’s <code>.claude/settings.json</code> (<code>--workspace</code> names another workspace). With <code>--agent codex</code> they go in <code>$CODEX_HOME/hooks.json</code> (<code>~/.codex/hooks.json</code>), which Codex runs for every session; the hooks themselves act only for sessions in the workspace. <code>install</code> adds each once and keeps everything else in the file. <code>uninstall</code> removes only hippo’s three. <code>status</code> says which of the three are there.</p>
+<p>Codex runs a new hook only after you trust it: it lists hippo’s hooks for review the next time it starts, or use <code>/hooks</code>. hippo never writes that trust for you.</p>
+<h2 id="hippo-hook"><a class="header" href="#hippo-hook">hippo hook</a></h2>
+<pre><code class="language-text">hippo hook session-start [--plugin] [--agent &lt;claude-code|codex&gt;]
+hippo hook prompt [--agent &lt;claude-code|codex&gt;]
+hippo hook session-end [--agent &lt;claude-code|codex&gt;]
+</code></pre>
+<p>For Claude Code hooks, and with <code>--agent codex</code> for Codex hooks (below). Each reads the hook’s JSON on stdin (it needs <code>session_id</code>; <code>prompt</code> also needs <code>prompt</code>). See <a href="quick-start.html#6-add-the-claude-code-hooks">Quick start</a> for the settings to add. A hook always exits 0. On any error it prints <code>hippo hook: &lt;error&gt;</code> on one line to stderr.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Subcommand</th><th>Does</th></tr>
+</thead>
+<tbody>
+<tr><td><code>session-start</code></td><td>Starts a declared Claude Code session and prints the required parts of the context.</td></tr>
+<tr><td><code>session-start --plugin</code></td><td>The Claude Code plugin’s hook (<a href="install.html#in-claude-code">Install</a>): prints the required parts read-only, with no session record, and prints nothing at all, not even an error, when there is no notes folder, the session is outside the workspace, or a settings file already runs <code>hippo hook session-start</code>.</td></tr>
+<tr><td><code>prompt</code></td><td>On the first prompt of a session only: records it as the task and prints the relevant notes and linter counts, within what is left of the budget. Later prompts print nothing.</td></tr>
+<tr><td><code>session-end</code></td><td>Ends the session with no notes, no handoff and no reason (recorded as <code>unspecified</code>).</td></tr>
+</tbody>
+</table>
+</div>
+<p>With <code>--agent codex</code> each reads Codex’s hook input and does nothing at all unless hippo has a workspace and the input’s <code>cwd</code> is in it. The session id is <code>codex-&lt;session_id&gt;</code>, the id the Codex adapter gives the same session. <code>session-start</code> and <code>prompt</code> print the same parts as JSON Codex reads (<code>{"hookSpecificOutput": {"hookEventName": …, "additionalContext": …}}</code>); <code>prompt</code> passes over a sub-agent’s prompt (one with an <code>agent_id</code>). <code>session-end</code> records the last assistant message of the session’s transcript as a derived handoff, or ends it <code>unspecified</code> when the transcript cannot be read.</p>
+<h2 id="hippo-log"><a class="header" href="#hippo-log">hippo log</a></h2>
+<pre><code class="language-text">hippo log [--stdout]
+</code></pre>
+<p>Writes the session log to <code>log_path</code> and prints the path. With <code>--stdout</code> it prints the log and writes nothing. The log lists sessions newest first, grouped by day, with their task, turn count, notes, whether a handoff exists, and how many dreaming changes were confirmed and rejected. A session with no indexed transcript, such as a declared one whose transcript is not under <code>transcript_roots</code>, shows <code>?</code> for its turns.</p>
+<h2 id="hippo-doctor"><a class="header" href="#hippo-doctor">hippo doctor</a></h2>
+<pre><code class="language-text">hippo doctor [--model]
+</code></pre>
+<p>Prints a table <code>check | status | detail</code>, one row per check. Status is <code>ok</code>, <code>warn</code> or <code>problem</code>. Exits 1 if any row is a problem, else 0. A healthy new setup passes: a schedule or a dreaming run that does not exist yet is an <code>ok</code> row whose detail starts <code>not set up yet:</code>. See <a href="troubleshooting.html">Troubleshooting</a>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--model</code></td><td>Also send one word through <code>model_command</code> to check that it answers. This is one model call. A nightly check should pass it (<a href="scheduling.html#a-nightly-check">Scheduling</a>).</td></tr>
+</tbody>
+</table>
+</div>
+<p>Without <code>--model</code> the <code>model</code> row says <code>not checked</code>, or warns when the program is not on <code>PATH</code>.</p>
+<p>The <code>git</code> row reads git (it never writes through it): when the workspace is in a git work tree, it warns when git tracks a per-person file (<code>.hippo/sessions/</code>, <code>reports/</code>, <code>snapshots/</code>, <code>dream-state.json</code>, the session log), naming them and the two commands that stop tracking them, or when one is not ignored, naming <code>hippo init</code>. See <a href="sharing.html">Sharing a brain in a team</a>.</p>
+<h2 id="hippo-dream"><a class="header" href="#hippo-dream">hippo dream</a></h2>
+<pre><code class="language-text">hippo dream [--pass &lt;name&gt;] [--dry-run] [--no-lessons]
+</code></pre>
+<p>Runs the dreaming passes over the window since the last success. See <a href="concepts.html#dreaming">Dreaming</a>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--pass &lt;name&gt;</code></td><td>Run only the pass with this file name, without <code>.toml</code>, such as <code>verify</code>. An unknown name exits 2 with <code>no pass named &lt;name&gt;</code>.</td></tr>
+<tr><td><code>--dry-run</code></td><td>Ingest, run the model and the reviewer, and write only the report. No proposal, receipt, snapshot, note or <code>dream-state.json</code> is written.</td></tr>
+<tr><td><code>--no-lessons</code></td><td>Skip the <a href="#hippo-lessons">lessons</a> pass that follows dreaming.</td></tr>
+</tbody>
+</table>
+</div>
+<p>On success it prints one line: the report’s path, then the counts of the run.</p>
+<pre><code class="language-text">/home/you/work/.hippo/reports/2026-11-08-dream.md: 9 chunks, 1 proposals, 0 validation failures, 1 confirmed, 0 rejected, 1 applied
+</code></pre>
+<p>It prints each pass’s skip reason (<code>consolidate: no note to work on</code>) and, when nothing was proposed, what dreaming needs: notes that the window’s sessions touched. The window is the last 24 hours on a first run.</p>
+<p>Exit codes: 0 on success; 2 when the run fails, for example when the model cannot be reached. A failed run still writes its report, with <code>status: failed</code>.</p>
+<h2 id="hippo-lessons"><a class="header" href="#hippo-lessons">hippo lessons</a></h2>
+<pre><code class="language-text">hippo lessons [--all] [--json]
+hippo lessons scan [--days &lt;n&gt;] [--dry-run] [--candidates] [--json]
+hippo lessons keep &lt;id&gt; [--text &lt;text&gt;] [--title &lt;title&gt;]
+hippo lessons dismiss &lt;id&gt;
+hippo lessons propose --question &lt;q&gt; --answer &lt;a&gt; [--note] [--json]
+hippo lessons propose --miss &lt;session&gt;:&lt;turn&gt; [--json]
+</code></pre>
+<p>Corrections and repeated failures, proposed as rules. With no subcommand it lists the lessons waiting in the Inbox; <code>--all</code> lists every lesson and <code>--json</code> prints one JSON object.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Subcommand</th><th>Does</th></tr>
+</thead>
+<tbody>
+<tr><td><code>scan</code></td><td>Runs the lessons pass: finds candidates, drafts rules, reviews them. Calls the model, except with <code>--candidates</code>, which only lists what the pass would draft. <code>--days</code> looks back 1 to 30 days (default 7); <code>--dry-run</code> writes no record. Exits 1 when it tried to draft a lesson and every draft failed. <code>hippo dream</code> runs this pass afterwards unless you pass <code>--no-lessons</code>.</td></tr>
+<tr><td><code>keep &lt;id&gt;</code></td><td>Writes a pending lesson into its note, with <code>--text</code> and <code>--title</code> to edit it first. It gets a receipt, so <code>hippo revert</code> undoes it.</td></tr>
+<tr><td><code>dismiss &lt;id&gt;</code></td><td>Dismisses a pending lesson. It returns only if it recurs in 3 more sessions.</td></tr>
+<tr><td><code>propose</code></td><td>Proposes a rule, or with <code>--note</code> a new note, from an Ask answer. <code>--miss</code> instead proposes a rule saying where a search that found nothing would have found its answer.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="hippo-review"><a class="header" href="#hippo-review">hippo review</a></h2>
+<pre><code class="language-text">hippo review --ok &lt;receipt&gt;...
+</code></pre>
+<p>Marks applied dreaming changes as read and right. <code>&lt;receipt&gt;</code> is the id of a confirm receipt. <code>--ok</code> is the only mark there is.</p>
+<h2 id="hippo-revert"><a class="header" href="#hippo-revert">hippo revert</a></h2>
+<pre><code class="language-text">hippo revert &lt;receipt&gt; [--force]
+</code></pre>
+<p>Restores a note from the snapshot of an applied change and writes a revert receipt. <code>&lt;receipt&gt;</code> is the id of the confirm receipt (the file name in <code>.hippo/receipts/</code> without <code>.json</code>, also listed under <code>## Applied</code> in the report).</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--force</code></td><td>Restore the snapshot even if the note was edited after the change.</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-text">restored notes/Topic A.md from .hippo/snapshots/01M6X4WX5356BKSXXW2CDBY5Z8/notes/Topic A.md; revert receipt 01M6X4WX8PG69HNXDWZAQK7H5X
+</code></pre>
+<p>Exit 1 when the id is not a receipt id, when the note was edited since the change (without <code>--force</code>), and when the receipt is not an applied confirm receipt, its snapshot is outside <code>.hippo/snapshots/</code>, or the snapshot does not match its recorded hash (even with <code>--force</code>).</p>
+<h2 id="hippo-eval"><a class="header" href="#hippo-eval">hippo eval</a></h2>
+<pre><code class="language-text">hippo eval &lt;set&gt; [--with-model]
+</code></pre>
+<p>Measures context, recall and dreaming on an eval set directory and prints a Markdown report. See <a href="eval.html">Measuring with hippo eval</a>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>&lt;set&gt;</code></td><td>The eval set directory, <code>fixtures/eval</code> in the repository.</td></tr>
+<tr><td><code>--with-model</code></td><td>Also run the dreaming suite with the <code>model_command</code> from your <code>config.toml</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Exit 1 after printing the report if a suite failed. Without <code>--with-model</code> it reads no configuration and runs no model.</p>
+<h2 id="hippo-schedule"><a class="header" href="#hippo-schedule">hippo schedule</a></h2>
+<pre><code class="language-text">hippo schedule install [--job ingest|dream]
+hippo schedule uninstall [--job ingest|dream]
+hippo schedule status
+</code></pre>
+<p>Schedules ingest and dreaming. On macOS it manages two launchd jobs; see <a href="scheduling.html">Scheduling</a>. On any other system it writes nothing and prints what to copy. <code>--job</code> limits <code>install</code> and <code>uninstall</code> to one job.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Subcommand</th><th>On macOS</th><th>Elsewhere</th></tr>
+</thead>
+<tbody>
+<tr><td><code>install</code></td><td>Writes both jobs to <code>~/Library/LaunchAgents</code> and loads them. Prints <code>installed &lt;path&gt;</code> per job.</td><td>Prints a crontab block and a systemd user timer pair for the same two jobs, with the commands that enable them.</td></tr>
+<tr><td><code>uninstall</code></td><td>Unloads both jobs and removes their files. Prints <code>removed &lt;path&gt;</code> or <code>&lt;path&gt; was not installed</code>.</td><td>Prints the commands that remove what you added.</td></tr>
+<tr><td><code>status</code></td><td>Prints <code>&lt;label&gt;: launchctl print exit status &lt;n&gt;</code> for each job.</td><td>Prints the commands that check cron and systemd.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Exit 0 elsewhere. Without a notes folder, <code>install</code> schedules the ingest job only.</p>
+<h2 id="hippo-packs"><a class="header" href="#hippo-packs">hippo packs</a></h2>
+<pre><code class="language-text">hippo packs check &lt;dir&gt;
+hippo packs test &lt;dir&gt; [--case &lt;name&gt;]
+hippo packs list
+hippo packs diff &lt;name&gt; [--ref &lt;ref&gt;]
+hippo packs update &lt;name&gt; [--ref &lt;ref&gt;] [--keep-local] [--accept-reads]
+hippo packs remove &lt;name&gt; [--force]
+</code></pre>
+<p><code>check</code> and <code>test</code> read only the pack directory <code>&lt;dir&gt;</code>: no configuration and no workspace, and <code>test</code> uses a stand-in model, never your <code>model_command</code>. <code>check</code> validates the pack and prints <code>skipped</code>, <code>error</code> and <code>warning</code> lines, then <code>ok &lt;name&gt; &lt;version&gt;</code>; it exits 1 on any error and 0 with warnings alone. <code>test</code> runs the pack’s fixture tests, prints <code>ok &lt;pack&gt;/&lt;case&gt;</code> or <code>FAIL &lt;pack&gt;/&lt;case&gt;: &lt;reason&gt;</code> for each, and exits 1 on any failure. <code>--case &lt;name&gt;</code> runs one case.</p>
+<p><code>list</code>, <code>diff</code>, <code>update</code> and <code>remove</code> read <code>config.toml</code> and work on <code>.hippo/packs/</code> of the workspace. They finish an interrupted update first.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Subcommand</th><th>Does</th></tr>
+</thead>
+<tbody>
+<tr><td><code>list</code></td><td>One line for each installed pack: name, version, state (<code>builtin</code>, <code>local</code>, <code>clean</code> or <code>edited:&lt;n&gt;</code>) and source (<code>path:&lt;path&gt;</code> or <code>git:&lt;url&gt;//&lt;dir&gt;@&lt;commit&gt;</code>).</td></tr>
+<tr><td><code>diff &lt;name&gt;</code></td><td>Prints what an update would change, as <code>take</code>, <code>keep</code> or <code>conflict</code> for each file, then a diff of what the source changed. Writes nothing and makes no model call.</td></tr>
+<tr><td><code>update &lt;name&gt;</code></td><td>Applies that update after a review. Refuses a result that does not validate, a pass name another pack uses, a pass that now reads or works on more (unless <code>--accept-reads</code>) and a conflict (unless <code>--keep-local</code>, which keeps your file).</td></tr>
+<tr><td><code>remove &lt;name&gt;</code></td><td>Deletes <code>.hippo/packs/&lt;name&gt;/</code>. Refuses <code>core</code>, and a pack with no <code>origin.json</code> unless <code>--force</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>--ref &lt;ref&gt;</code> reads another branch, tag or commit of a git source. <code>diff</code>, <code>update</code> and <code>remove</code> exit 1 on a refusal. <a href="packs.html#using-a-pack">Packs</a> shows the output of each, and <a href="writing-packs.html">Writing a pack</a> gives the rules for <code>check</code> and <code>test</code>.</p>
+
+</div>
+<nav class="docs-pager" aria-label="Pages">
+<a rel="prev" href="themes.html">&lt; Themes</a>
+<span class="hp-sep"> | </span>
+<a rel="next" href="configuration.html">Configuration &gt;</a>
+</nav>
+</main>
+<footer class="hp-footer">hippo documentation | <a href="https://github.com/VanitasCaesar1/hippo/tree/main/docs/site/src">source</a></footer>
+</div>
+</body>
+</html>

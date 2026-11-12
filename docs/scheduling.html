@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self' data:">
+<title>Scheduling on macOS | hippo</title>
+<link rel="icon" type="image/svg+xml" href="../icon.svg">
+<link rel="stylesheet" href="../hippo.css">
+<link rel="stylesheet" href="theme/docs-752f7011.css">
+</head>
+<body class="hp-page hp-page-docs">
+<a class="hp-skip" href="#main">Skip to the content</a>
+<div class="hp-content">
+<header class="hp-topbar"><a class="hp-home" href="../index.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 473 387" fill="currentColor" class="hp-mark" aria-hidden="true"><g transform="translate(0,387) scale(0.1,-0.1)"><path d="M2167 3229 c-294 -28 -582 -125 -766 -257 -41 -30 -81 -56 -87 -59 -19 -7 -144 45 -248 103 -176 98 -282 107 -364 31 -59 -55 -90 -196 -63 -280 29 -85 144 -147 304 -162 42 -4 77 -9 77 -11 0 -2 -24 -41 -54 -87 -270 -414 -391 -1001 -241 -1174 52 -60 62 -32 68 202 13 470 192 876 528 1200 202 195 395 288 719 347 138 25 453 31 560 10 269 -53 448 -177 528 -369 31 -73 31 -73 -43 -73 -205 0 -478 -48 -637 -112 -116 -47 -298 -146 -298 -163 0 -35 32 -31 261 38 390 118 871 141 1289 62 124 -24 350 -84 390 -105 122 -63 155 -177 148 -512 -5 -198 -7 -218 -31 -285 -105 -293 -387 -427 -892 -426 -566 1 -953 119 -1134 345 -100 124 -141 229 -189 478 -4 21 -14 36 -24 38 -26 5 -42 -66 -41 -183 1 -207 104 -400 288 -542 76 -58 76 -58 68 -98 -33 -166 5 -213 212 -266 220 -55 287 -39 320 75 19 65 6 62 180 41 66 -8 201 -15 301 -15 181 0 181 0 197 -60 30 -106 80 -130 237 -112 118 14 177 34 227 76 38 34 38 34 41 129 4 96 4 96 68 138 131 85 236 233 280 394 25 91 31 469 10 593 -39 226 -100 286 -363 358 -220 61 -362 86 -573 105 -97 9 -140 17 -140 25 0 7 -2 19 -5 27 -5 11 9 14 69 14 258 2 372 356 150 464 -72 34 -113 24 -184 -48 -32 -32 -89 -75 -128 -96 -70 -37 -70 -37 -139 14 -206 157 -514 223 -876 188z m1287 -185 c58 -57 6 -194 -80 -210 -46 -9 -162 14 -173 34 -7 13 6 26 67 63 43 26 95 65 117 87 47 46 49 47 69 26z m-2463 -134 c47 -27 113 -62 147 -77 61 -28 61 -28 31 -62 -29 -32 -35 -34 -113 -38 -101 -7 -215 11 -258 41 -32 21 -33 24 -33 90 0 124 67 138 226 46z m1490 -1774 c35 -13 99 -32 142 -42 77 -18 77 -18 77 -51 0 -38 5 -37 -96 -18 -180 34 -221 59 -198 119 8 20 0 20 75 -8z m1395 -61 c21 -54 -15 -77 -151 -99 -97 -15 -100 -15 -110 26 -6 23 -3 28 17 32 12 3 66 16 118 29 119 30 119 30 126 12z M2736 2889 c-50 -59 -24 -172 45 -194 30 -10 78 14 94 46 58 112 -62 240 -139 148z M2193 2865 c-52 -36 -54 -141 -4 -194 68 -73 159 -11 149 101 -9 88 -84 136 -145 93z M3895 2333 c-87 -17 -125 -56 -125 -128 0 -150 273 -228 351 -101 65 107 -82 256 -226 229z M2522 2308 c-142 -25 -228 -180 -145 -263 82 -81 251 -33 312 88 54 109 -31 199 -167 175z"/></g></svg><span class="hp-name">hippo</span></a><nav class="hp-nav" aria-label="Site"><a href="index.html" class="hp-nav-current" aria-current="page">docs</a><span class="hp-sep"> | </span><a href="../packs.html">packs</a><span class="hp-sep"> | </span><a href="../themes.html">themes</a><span class="hp-sep"> | </span><a href="https://github.com/VanitasCaesar1/hippo">github</a></nav></header>
+<main class="hp-main" id="main">
+<details class="docs-toc">
+<summary>Contents</summary>
+<ol class="chapter"><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="introduction.html">Introduction</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="install.html">Install</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="quick-start.html">Quick start</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="concepts.html">Concepts</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="architecture.html">Architecture</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="packs.html">Packs</a></span><ol class="section"><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="writing-packs.html">Writing a pack</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="first-party-packs.html">First-party packs</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="registry.html">The registry</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="themes.html">Themes</a></span></li></ol><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="commands.html">Commands</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="configuration.html">Configuration</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="sharing.html">Sharing a brain in a team</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="scheduling.html">Scheduling on macOS</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="eval.html">Measuring with hippo eval</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="troubleshooting.html">Troubleshooting with hippo doctor</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="security.html">Security and privacy</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="roadmap.html">Roadmap</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="limits.html">Limits and known gaps</a></span></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="contributing.html">Contributing and licence</a></span></li></ol>
+</details>
+<div class="hp-md">
+<h1 id="scheduling"><a class="header" href="#scheduling">Scheduling</a></h1>
+<p>On macOS, <code>hippo schedule</code> installs two launchd jobs for the current user. There is no background process of hippo’s own: launchd starts the command, the command exits.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Job label</th><th>Runs</th><th>When</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dev.hippo.ingest</code></td><td><code>hippo ingest</code></td><td>Once when loaded, then every <code>ingest_interval_minutes</code> (10 by default), at background priority</td></tr>
+<tr><td><code>dev.hippo.dream</code></td><td><code>hippo dream</code></td><td>Daily at <code>dream_at</code> (<code>03:30</code> by default). It does not run when loaded.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="install"><a class="header" href="#install">Install</a></h2>
+<pre><code class="language-sh">hippo schedule install
+</code></pre>
+<pre><code class="language-text">installed /Users/you/Library/LaunchAgents/dev.hippo.ingest.plist
+installed /Users/you/Library/LaunchAgents/dev.hippo.dream.plist
+</code></pre>
+<p>For each job, <code>install</code> writes <code>~/Library/LaunchAgents/&lt;label&gt;.plist</code>, unloads any earlier version, and loads the new one with <code>launchctl bootstrap gui/&lt;your user id&gt;</code>. Running it again is safe and is how you apply a changed <code>ingest_interval_minutes</code> or <code>dream_at</code>.</p>
+<p>The jobs run the absolute path of the <code>hippo</code> binary that ran <code>install</code>, with the environment of the shell that ran it:</p>
+<ul>
+<li><code>PATH</code> and <code>HOME</code>, always;</li>
+<li><code>HIPPO_HOME</code> and <code>CLAUDE_CONFIG_DIR</code>, when they are set and not empty. launchd starts jobs with almost no environment. Without <code>CLAUDE_CONFIG_DIR</code>, the dreaming job’s <code>claude</code> would use the default profile, which may not be signed in.</li>
+</ul>
+<p>Output of both jobs, standard output and standard error, goes to <code>$HIPPO_HOME/logs/&lt;label&gt;.log</code>.</p>
+<p>If you install from a shell where <code>claude</code> is not on <code>PATH</code>, dreaming cannot find it. Install from the shell where you normally run <code>claude</code>.</p>
+<h2 id="check"><a class="header" href="#check">Check</a></h2>
+<pre><code class="language-sh">hippo schedule status
+</code></pre>
+<pre><code class="language-text">dev.hippo.ingest: launchctl print exit status 0
+dev.hippo.dream: launchctl print exit status 0
+</code></pre>
+<p><code>status</code> prints the exit status of <code>launchctl print</code> for each job. 0 means launchd knows the job. Any other number means it does not. <code>hippo doctor</code> has a <code>launchd</code> row that is a problem when either job’s file is missing from <code>~/Library/LaunchAgents</code>.</p>
+<h2 id="uninstall"><a class="header" href="#uninstall">Uninstall</a></h2>
+<pre><code class="language-sh">hippo schedule uninstall
+</code></pre>
+<p>Unloads both jobs and deletes their files. It prints <code>removed &lt;path&gt;</code> for each, or <code>&lt;path&gt; was not installed</code>.</p>
+<h2 id="a-nightly-check"><a class="header" href="#a-nightly-check">A nightly check</a></h2>
+<p><code>hippo doctor</code> does not call the model unless you ask. A nightly check should run:</p>
+<pre><code class="language-sh">hippo doctor --model
+</code></pre>
+<p>It sends one word through <code>model_command</code> and reports a model that is signed out or unreachable. Its exit code is 1 on any problem. Without a schedule installed, a new setup passes <code>hippo doctor</code>: that row is <code>ok</code> and starts <code>not set up yet:</code>.</p>
+<h2 id="the-removable-volume-prompt"><a class="header" href="#the-removable-volume-prompt">The removable-volume prompt</a></h2>
+<p>If your workspace or your transcripts are on an external volume, macOS asks the first time a launchd job reads them: access to “files on a removable volume”. Until someone answers, that run waits, and no other ingest starts, because ingest holds a lock. <code>hippo doctor</code> then reports a stale index and says a launchd job may be waiting on this prompt.</p>
+<p>macOS stores the answer for the binary’s path: a rebuilt <code>~/.cargo/bin/hippo</code> runs without asking again, but installing to a new path may ask again.</p>
+<p>To get the prompt while you are at the Mac, run:</p>
+<pre><code class="language-sh">launchctl kickstart gui/$UID/dev.hippo.ingest
+</code></pre>
+<p>and click Allow.</p>
+<h2 id="other-systems"><a class="header" href="#other-systems">Other systems</a></h2>
+<p>On Linux and other systems, <code>hippo schedule install</code> writes nothing. It prints, for the same two jobs, a crontab block to add with <code>crontab -e</code> and a systemd user timer pair (a <code>.service</code> and a <code>.timer</code> for each job, to save under <code>~/.config/systemd/user/</code>), with the commands that enable the timers. Choose one. The jobs use the same binary path, environment, interval, time and log files as on macOS, and <code>--job ingest</code> or <code>--job dream</code> prints one job only. Without a notes folder it prints the ingest job only.</p>
+<p><code>hippo schedule status</code> prints the commands that check cron and systemd, <code>crontab -l | grep hippo</code> and <code>systemctl --user list-timers 'hippo-*'</code>, because hippo cannot see them. <code>hippo schedule uninstall</code> prints the commands that remove what you added. All three exit 0. Off macOS, <code>hippo doctor</code> cannot see cron or systemd either: an index older than three ingest intervals is a warning that names <code>hippo schedule</code>, not a problem.</p>
+
+</div>
+<nav class="docs-pager" aria-label="Pages">
+<a rel="prev" href="sharing.html">&lt; Sharing a brain in a team</a>
+<span class="hp-sep"> | </span>
+<a rel="next" href="eval.html">Measuring with hippo eval &gt;</a>
+</nav>
+</main>
+<footer class="hp-footer">hippo documentation | <a href="https://github.com/VanitasCaesar1/hippo/tree/main/docs/site/src">source</a></footer>
+</div>
+</body>
+</html>
