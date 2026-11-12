@@ -35,17 +35,20 @@ pub enum Tool {
     /// `opencode`
     #[serde(rename = "opencode")]
     OpenCode,
+    /// `muse`: Muse Code.
+    Muse,
 }
 
 impl Tool {
-    /// `claude-code`, `codex`, `dsh` or `opencode`, as records and the index
-    /// write it.
+    /// `claude-code`, `codex`, `dsh`, `opencode` or `muse`, as records and
+    /// the index write it.
     pub fn as_str(self) -> &'static str {
         match self {
             Tool::ClaudeCode => "claude-code",
             Tool::Codex => "codex",
             Tool::Dsh => "dsh",
             Tool::OpenCode => "opencode",
+            Tool::Muse => "muse",
         }
     }
 }
@@ -631,7 +634,13 @@ mod tests {
 
     #[test]
     fn tool_names_match_their_serde_names() {
-        for tool in [Tool::ClaudeCode, Tool::Codex, Tool::Dsh, Tool::OpenCode] {
+        for tool in [
+            Tool::ClaudeCode,
+            Tool::Codex,
+            Tool::Dsh,
+            Tool::OpenCode,
+            Tool::Muse,
+        ] {
             let json = serde_json::to_string(&tool).unwrap();
             assert_eq!(json, format!("\"{}\"", tool.as_str()));
         }

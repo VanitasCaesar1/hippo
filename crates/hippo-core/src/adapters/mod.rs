@@ -11,6 +11,7 @@
 pub mod claude_code;
 pub mod codex;
 pub mod dsh;
+pub mod muse;
 pub mod opencode;
 
 use std::fs::File;
@@ -121,6 +122,7 @@ pub fn all() -> Vec<Box<dyn Adapter>> {
         Box::new(codex::Codex),
         Box::new(dsh::Dsh),
         Box::new(opencode::OpenCode),
+        Box::new(muse::Muse),
     ]
 }
 
@@ -282,8 +284,8 @@ mod tests {
     /// The turns of each adapter's synthetic transcripts, parsed with
     /// `fixtures/` as the root: Claude Code's two files, then Codex's, then
     /// dsh's normal session, then OpenCode's, from a database built from
-    /// the fixture's SQL.
-    fn fixture_turns() -> [(&'static str, Vec<RawTurn>); 4] {
+    /// the fixture's SQL, then Muse's.
+    fn fixture_turns() -> [(&'static str, Vec<RawTurn>); 5] {
         let root = Path::new(FIXTURES);
         let claude_code = [
             "claude-code/synthetic.jsonl",
@@ -309,11 +311,15 @@ mod tests {
         assert!(opencode::OpenCode.file_matches(&db));
         let path = opencode::session_path(&db, "ses_1111synthetic0000000001");
         let opencode = opencode::OpenCode.parse(dir.path(), &path).unwrap().turns;
+        let path = root.join("muse/2026/11/01/01a1d0f0-0000-7000-8000-000000000001/session.jsonl");
+        assert!(muse::Muse.file_matches(&path));
+        let muse = muse::Muse.parse(&root.join("muse"), &path).unwrap().turns;
         [
             ("claude-code", claude_code),
             ("codex", codex),
             ("dsh", dsh),
             ("opencode", opencode),
+            ("muse", muse),
         ]
     }
 

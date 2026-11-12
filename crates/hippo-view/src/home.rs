@@ -947,13 +947,18 @@ pub fn build(inp: &Inputs<'_>) -> Home {
     let claude = inp
         .profiles
         .iter()
-        .filter(|p| !matches!(p.as_str(), "codex" | "dsh" | "opencode"))
+        .filter(|p| !matches!(p.as_str(), "codex" | "dsh" | "opencode" | "muse"))
         .count();
-    let others: Vec<&str> = [("codex", "Codex"), ("dsh", "dsh"), ("opencode", "OpenCode")]
-        .into_iter()
-        .filter(|(p, _)| inp.profiles.iter().any(|q| q == p))
-        .map(|(_, name)| name)
-        .collect();
+    let others: Vec<&str> = [
+        ("codex", "Codex"),
+        ("dsh", "dsh"),
+        ("opencode", "OpenCode"),
+        ("muse", "Muse Code"),
+    ]
+    .into_iter()
+    .filter(|(p, _)| inp.profiles.iter().any(|q| q == p))
+    .map(|(_, name)| name)
+    .collect();
     let tools = match (claude, others.as_slice()) {
         (0, []) => "your agents".to_owned(),
         (0, others) => crate::text::and_list(others),

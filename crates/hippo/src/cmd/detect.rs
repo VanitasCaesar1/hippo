@@ -88,6 +88,8 @@ fn expected(pattern: &str) -> &'static str {
         "DeepSeek Harness (dsh) keeps its sessions in ~/.dsh/sessions, or $DSH_HOME/sessions"
     } else if pattern.contains("opencode") {
         "OpenCode keeps its sessions in ~/.local/share/opencode/opencode.db, or $XDG_DATA_HOME/opencode"
+    } else if pattern.contains("muse") {
+        "Muse Code keeps its sessions in ~/.local/share/muse/sessions, or $XDG_DATA_HOME/muse/sessions"
     } else {
         "a folder of agent transcripts"
     }

@@ -131,6 +131,7 @@ pub fn detect(patterns: &[String], hippo_home: &Path, user_home: Option<&Path>) 
                 path,
             };
             let (mut claude, mut codex, mut dsh, mut opencode) = (0u64, 0u64, 0u64, 0u64);
+            let mut muse = 0u64;
             let entries = WalkDir::new(&dir.path)
                 .into_iter()
                 .filter_entry(|e| !e.path().starts_with(&model_runs) && adapters::descend(e));
@@ -157,6 +158,7 @@ pub fn detect(patterns: &[String], hippo_home: &Path, user_home: Option<&Path>) 
                     "codex" => codex += n,
                     "dsh" => dsh += n,
                     "opencode" => opencode += n.max(1),
+                    "muse" => muse += n,
                     _ => claude += n,
                 }
                 dir.files += n;
@@ -166,9 +168,11 @@ pub fn detect(patterns: &[String], hippo_home: &Path, user_home: Option<&Path>) 
                     dir.oldest = Some(dir.oldest.map_or(at, |o| o.min(at)));
                 }
             }
-            if claude + codex + dsh + opencode > 0 {
-                dir.tool = if opencode > 0 && claude + codex + dsh == 0 {
+            if claude + codex + dsh + opencode + muse > 0 {
+                dir.tool = if opencode > 0 && claude + codex + dsh + muse == 0 {
                     "opencode"
+                } else if muse > claude.max(codex).max(dsh) {
+                    "muse"
                 } else if dsh > claude.max(codex) {
                     "dsh"
                 } else if codex > claude {
@@ -206,6 +210,13 @@ fn tool_of(path: &Path) -> &'static str {
         "dsh"
     } else if path.file_name().is_some_and(|n| n == "opencode") {
         "opencode"
+    } else if path.file_name().is_some_and(|n| n == "sessions")
+        && path
+            .parent()
+            .and_then(Path::file_name)
+            .is_some_and(|n| n == "muse")
+    {
+        "muse"
     } else {
         "claude-code"
     }

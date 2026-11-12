@@ -36,6 +36,7 @@ impl Agent {
             (None, "codex") => "codex".into(),
             (None, "dsh") => "dsh".into(),
             (None, "opencode") => "opencode".into(),
+            (None, "muse") => "muse".into(),
             _ => self.display.clone(),
         }
     }

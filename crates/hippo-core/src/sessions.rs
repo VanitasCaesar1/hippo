@@ -159,7 +159,7 @@ pub fn derive(
 fn derived_record(id: &str, tool: Tool, started: OffsetDateTime, turns: &[Turn]) -> Session {
     let ended = turns.last().map_or(started, |turn| turn.ts);
     let handoff = match tool {
-        Tool::Codex | Tool::Dsh | Tool::OpenCode => turns
+        Tool::Codex | Tool::Dsh | Tool::OpenCode | Tool::Muse => turns
             .iter()
             .rev()
             .find(|turn| turn.role == Role::Assistant)

@@ -82,6 +82,7 @@ pub fn default_transcript_roots() -> Vec<String> {
         "~/.codex/sessions".into(),
         crate::adapters::dsh::DEFAULT_ROOT.into(),
         crate::adapters::opencode::default_root(),
+        crate::adapters::muse::default_root(),
     ]
 }
 
@@ -634,6 +635,14 @@ pub fn init_in(home: &Path, options: InitOptions) -> Result<InitReport> {
                     &format!("\"{}\"", toml_escape(&opencode)),
                 );
             }
+            // So does Muse's.
+            let muse = crate::adapters::muse::default_root();
+            if muse != crate::adapters::muse::DEFAULT_ROOT {
+                config = config.replace(
+                    &format!("\"{}\"", crate::adapters::muse::DEFAULT_ROOT),
+                    &format!("\"{}\"", toml_escape(&muse)),
+                );
+            }
             if !options.add_roots.is_empty() {
                 config = with_roots(&config, &options.add_roots, &config_path)?;
             }
@@ -833,6 +842,7 @@ mod tests {
                 "~/.codex/sessions".into(),
                 "~/.dsh/sessions".into(),
                 crate::adapters::opencode::default_root(),
+                crate::adapters::muse::default_root(),
             ],
             exclude_roots: Vec::new(),
             model_command: [
@@ -1293,8 +1303,8 @@ mod tests {
         assert_eq!(config.workspace, None);
         assert!(matches!(Workspace::load(&config), Err(Error::NoWorkspace)));
         assert_eq!(Workspace::load_optional(&config).unwrap(), None);
-        assert_eq!(config.transcript_roots.len(), 5);
-        assert_eq!(config.transcript_roots[4], "/Volumes/Old/claude");
+        assert_eq!(config.transcript_roots.len(), 6);
+        assert_eq!(config.transcript_roots[5], "/Volumes/Old/claude");
 
         // Another root is added in place, once, keeping the file's comments.
         for _ in 0..2 {
@@ -1305,7 +1315,7 @@ mod tests {
             init_in(home.path(), more).unwrap();
         }
         let config = Config::load_in(home.path()).unwrap();
-        assert_eq!(config.transcript_roots.len(), 6);
+        assert_eq!(config.transcript_roots.len(), 7);
         assert!(read(&config_path).unwrap().contains("# `dream_at`"));
 
         // Choosing a notes folder later fills in the workspace, without force.
@@ -1314,7 +1324,7 @@ mod tests {
         assert_eq!(report.workspace.as_deref(), Some(root.as_path()));
         let config = Config::load_in(home.path()).unwrap();
         assert_eq!(config.workspace.as_deref(), Some(root.as_path()));
-        assert_eq!(config.transcript_roots.len(), 6);
+        assert_eq!(config.transcript_roots.len(), 7);
         assert_eq!(Workspace::load(&config).unwrap().root, root);
         let text = read(&config_path).unwrap();
         assert!(!text.contains(NO_WORKSPACE_LINE), "{text}");

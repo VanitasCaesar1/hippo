@@ -6,9 +6,10 @@ The text lives in `ROADMAP.md` at the root of the repository, and the docs site 
 
 ## What is built
 
-- The core and CLI: an index of Claude Code, Codex, DeepSeek Harness (`dsh`) and OpenCode transcripts, `recall` and `ask`, the overview, `fleet`, `incidents`, `xray` and `card`.
+- The core and CLI: an index of Claude Code, Codex, DeepSeek Harness (`dsh`), OpenCode and Muse Code transcripts, `recall` and `ask`, the overview, `fleet`, `incidents`, `xray` and `card`.
 - An adapter for DeepSeek Harness (`dsh`): its session logs, compressed or not, with sub-agents and forks ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/dsh-adapter.md)).
 - An adapter for OpenCode: OpenCode 2's SQLite database, read-only and session by session, with sub-agents and forks ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/opencode-adapter.md)).
+- An adapter for Muse Code: its session logs, as Muse 1.4.18 writes them ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/muse-adapter.md)).
 - Notes, context and Claude Code hooks.
 - Dreaming with a fresh-context reviewer, receipts, snapshots and revert, and its schedule: launchd on macOS, printed cron and systemd lines elsewhere.
 - `hippo eval` with a synthetic question set.

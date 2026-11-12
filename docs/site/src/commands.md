@@ -325,7 +325,7 @@ receipt 01M6X6VZSSTVQA135WF8HE5VW3 revert 01M6X6VZNF8X666HVGCVJZD4FE 2026-11-08T
 ## hippo session
 
 ```text
-hippo session start --tool <claude-code|codex|dsh|opencode> --session <id> [--task <text>]
+hippo session start --tool <claude-code|codex|dsh|opencode|muse> --session <id> [--task <text>]
 hippo session end --session <id> [--note <path>]... [--handoff <file>|-] [--no-change <reason>]
 ```
 

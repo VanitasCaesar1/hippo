@@ -204,7 +204,7 @@ impl<'a> Resolver<'a> {
     /// directory whose encoded name is the transcript's project directory
     /// (the one after `projects/`); for `codex`, the rollout's `cwd`; for
     /// `dsh`, the log header's `cwd`; for `opencode`, the session's
-    /// `directory`.
+    /// `directory`; for `muse`, the log's `workspace_root`.
     pub fn session_dir(&self, tool: &str, transcript: &Path) -> Option<PathBuf> {
         match tool {
             "claude-code" => {
@@ -216,6 +216,7 @@ impl<'a> Resolver<'a> {
             "codex" => codex_cwd(transcript),
             "dsh" => crate::adapters::dsh::header(transcript).and_then(|h| h.cwd),
             "opencode" => crate::adapters::opencode::info(transcript).and_then(|i| i.directory),
+            "muse" => crate::adapters::muse::workspace_root(transcript),
             _ => None,
         }
     }

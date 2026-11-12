@@ -641,6 +641,7 @@ mod tests {
                 Some("codex") => Tool::Codex,
                 Some("dsh") => Tool::Dsh,
                 Some("opencode") => Tool::OpenCode,
+                Some("muse") => Tool::Muse,
                 _ => return Err(bad(&format!("no tool in the header {header:?}"))),
             };
             let started = head.next().ok_or_else(|| bad("no start"))?;
