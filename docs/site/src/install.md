@@ -4,13 +4,13 @@ hippo is one binary. Install it with the script, with Cargo, or build it from a 
 
 ## With the install script
 
-On macOS (Apple silicon or Intel):
+On macOS (Apple silicon or Intel) and Linux (x86_64 or arm64):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippo/main/install.sh | sh
 ```
 
-The script picks the binary for your machine from the latest [release](https://github.com/VanitasCaesar1/hippo/releases), checks its SHA-256, and copies it to `~/.local/bin`, without `sudo`. If that folder is not on your `PATH`, it prints the line that adds it. Set `HIPPO_INSTALL_DIR` to install somewhere else, or `HIPPO_VERSION` to pick a release. Prebuilt Linux binaries are not published yet: on Linux, install with Cargo.
+The script picks the binary for your machine from the latest [release](https://github.com/VanitasCaesar1/hippo/releases), checks its SHA-256, and copies it to `~/.local/bin`, without `sudo`. If that folder is not on your `PATH`, it prints the line that adds it. Set `HIPPO_INSTALL_DIR` to install somewhere else, or `HIPPO_VERSION` to pick a release. The Linux binaries are static (musl), so they need no system libraries.
 
 ## With Cargo
 

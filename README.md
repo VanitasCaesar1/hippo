@@ -19,7 +19,7 @@ Your Claude Code sessions start from the same plain-Markdown notes and write bac
 
 ## Install
 
-macOS (Apple silicon or Intel), one line, no `sudo` (installs to `~/.local/bin`):
+macOS (Apple silicon or Intel) or Linux (x86_64 or arm64), one line, no `sudo` (installs to `~/.local/bin`):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippo/main/install.sh | sh
@@ -32,7 +32,7 @@ Inside Claude Code, as a plugin (then run `/hippo:setup`):
 /plugin install hippo@hippo
 ```
 
-On Linux, or anywhere with Rust 1.89 or later: `cargo install --locked --git https://github.com/VanitasCaesar1/hippo hippo`. Prebuilt Linux binaries are not published yet.
+With Rust 1.89 or later: `cargo install --locked --git https://github.com/VanitasCaesar1/hippo hippo`.
 
 ## The first two minutes
 
@@ -71,7 +71,7 @@ Everything else, including `hippo`, `start`, `card`, `recall`, `ask --sources-on
 
 - **Claude Code and Codex only.** OpenCode and Cursor folders are detected, not read. Only Claude Code gets the notes at session start through hooks; a Codex session is indexed and searchable, and can run `hippo brief` itself if your instructions ask it to.
 - **Scheduling** is launchd on macOS. Elsewhere `hippo schedule install` prints cron and systemd lines for you to install.
-- **Linux is not tested yet.** This release publishes macOS binaries only; on Linux, `cargo install` builds it, and the tests have not run on Linux for this version. It is used and tested on macOS on Apple silicon (the Intel build passes the first-run check under Rosetta).
+- **Linux is tested in CI, not in daily use.** The release has static Linux binaries (x86_64 and arm64) and the test suite passes on Linux in CI, but hippo is used day to day on macOS on Apple silicon (the Intel build passes the first-run check under Rosetta).
 - **The desktop app**, Hippo.app in [`app/`](app/README.md), is macOS only, built from source, and early: checked on synthetic data, not in daily use.
 - **Whether dreaming makes an agent's work better is not measured.** `hippo eval` measures a small, invented question set, not your notes.
 - **No pack by another author exists.** The 26 first-party packs in [`packs/`](packs/) await their registry review against this repository.

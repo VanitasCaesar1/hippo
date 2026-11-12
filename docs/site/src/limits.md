@@ -12,7 +12,7 @@ hippo is early software at version 0.1.0. This page lists what you should expect
 - **Hooks only for Claude Code.** Codex sessions are always derived records: no task, no declared notes. Nothing should depend on a Codex session being declared.
 - **Scheduling is installed only on macOS** (launchd). Elsewhere `hippo schedule install` prints cron and systemd lines for you to install; hippo cannot see whether they run.
 - **Not on crates.io.** Install with the install script, the Claude Code plugin's setup, or `cargo install --git` ([Install](install.md)).
-- **Linux is not tested yet.** This release publishes macOS binaries only; on Linux, `cargo install` builds it, and the tests have not run on Linux for this version. It is used and tested on macOS on Apple silicon (the Intel build passes the first-run check under Rosetta).
+- **Linux is tested in CI, not in daily use.** The release has static Linux binaries (x86_64 and arm64) and the test suite passes on Linux in CI, but hippo is used day to day on macOS on Apple silicon (the Intel build passes the first-run check under Rosetta).
 
 ## Search
 
