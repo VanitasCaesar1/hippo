@@ -612,28 +612,6 @@ impl Shell {
         }
     }
 
-    /// `Rows | Lanes`.
-    pub(super) fn replay_switch(&self, look: &Look, cx: &mut Context<Self>) -> gpui::Div {
-        let on = self.replay.lanes;
-        kit::segmented(look)
-            .child(
-                kit::segment(look, "fleet-rows", Some("list"), "Rows", !on).on_click(cx.listener(
-                    |this, _, _, cx| {
-                        this.replay.lanes = false;
-                        cx.notify();
-                    },
-                )),
-            )
-            .child(
-                kit::segment(look, "fleet-lanes", Some("calendar-clock"), "Lanes", on)
-                    .tooltip(super::tooltip::Tooltip::text("The day as lanes (L)"))
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.replay.lanes = true;
-                        cx.notify();
-                    })),
-            )
-    }
-
     pub(super) fn render_lanes(
         &mut self,
         look: &Look,
@@ -814,7 +792,7 @@ impl Shell {
                 cx.notify();
             })))
         });
-        let switch = self.replay_switch(look, cx);
+        let switch = self.fleet_view_switch(look, cx);
         let nav = |cx: &mut Context<Self>,
                    id: &'static str,
                    icon: &str,
