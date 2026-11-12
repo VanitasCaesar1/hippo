@@ -520,7 +520,7 @@ fn the_landing_page_is_the_index_and_links_inside_the_site() {
     assert!(landing.contains(
         "<title>hippo: what your coding agents did, read from their history on this machine</title>"
     ));
-    assert!(landing.contains("<h1>See what your coding agents did"));
+    assert!(landing.contains("<h1>See what your coding agents did</h1>"));
     assert!(landing.contains("src=\"assets/card-site.png\""));
     assert!(landing.contains("href=\"landing.css\""));
     for href in [
