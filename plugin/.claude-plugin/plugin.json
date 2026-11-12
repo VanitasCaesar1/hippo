@@ -1,6 +1,6 @@
 {
   "name": "hippo",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "One brain for all your coding agents. Gives a session hippo's start block when hippo is set up with a notes folder, and adds /hippo:setup, /hippo:ask and /hippo:day.",
   "author": {
     "name": "VanitasCaesar1",

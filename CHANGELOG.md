@@ -4,9 +4,11 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-12
+
 ### Added
 
-- **A DeepSeek Harness (`dsh`) plugin**, `plugins/dsh/` (`dsh-plugin-hippo`). A new dsh session in hippo's workspace starts with the same start block a Claude Code session gets, and the model can call `hippo_ask` (`hippo ask --sources-only`, with each source's session id) and `hippo_day` (`hippo show day`). It only runs the `hippo` binary. Install it with `dsh plugin --profile <profile> add "github:VanitasCaesar1/hippo#<commit>&path:/plugins/dsh"`; it is not on npm. See the [design](docs/designs/dsh-plugin.md) and [README](plugins/dsh/README.md).
+- **A DeepSeek Harness (`dsh`) plugin**, `plugins/dsh/` (`dsh-plugin-hippo`). A new dsh session in hippo's workspace starts with the same start block a Claude Code session gets, and the model can call `hippo_ask` (`hippo ask --sources-only`, with each source's session id) and `hippo_day` (`hippo show day`). It only runs the `hippo` binary. Install it with `dsh plugin --profile <profile> add "github:VanitasCaesar1/hippo#v0.2.1&path:/plugins/dsh"`; it is not on npm. See the [design](docs/designs/dsh-plugin.md) and [README](plugins/dsh/README.md).
 
 ### Fixed
 
@@ -46,6 +48,7 @@ The first release. hippo reads what your coding agents did, keeps your notes tru
 - **Hippo.app**, a macOS window over the same files. Built from source in `app/`; no binary is released. Checked on synthetic data, not in daily use.
 - **Docs** at [vanitascaesar1.github.io/hippo](https://vanitascaesar1.github.io/hippo/), including [Sharing a brain in a team](docs/site/src/sharing.md), tried with two people and one git remote.
 
-[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/VanitasCaesar1/hippo/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/VanitasCaesar1/hippo/releases/tag/v0.1.0

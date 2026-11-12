@@ -14,7 +14,7 @@ You need hippo installed and set up (`hippo start`, then `hippo init --notes-dir
 The plugin is not on npm. Install it from GitHub, pinned to a commit of this repository, into the dsh profile you use (`web` for `dsh web`):
 
 ```sh
-dsh plugin --profile web add "github:VanitasCaesar1/hippo#<commit>&path:/plugins/dsh"
+dsh plugin --profile web add "github:VanitasCaesar1/hippo#v0.2.1&path:/plugins/dsh"
 ```
 
 or from a clone of this repository:
