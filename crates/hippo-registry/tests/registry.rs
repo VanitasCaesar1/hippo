@@ -517,9 +517,11 @@ fn the_landing_page_is_the_index_and_links_inside_the_site() {
     let (repo, out) = site_repo();
     let landing = fs::read_to_string(out.join("index.html")).unwrap();
     // The landing file is a whole page, so it is copied as it is.
-    assert!(landing.contains("<title>hippo: one brain for all your coding agents</title>"));
-    assert!(landing.contains("One brain</span> for all your coding agents."));
-    assert!(landing.contains("src=\"assets/card.png\""));
+    assert!(landing.contains(
+        "<title>hippo: what your coding agents did, read from their history on this machine</title>"
+    ));
+    assert!(landing.contains("<h1>See what your coding agents did"));
+    assert!(landing.contains("src=\"assets/card-site.png\""));
     assert!(landing.contains("href=\"landing.css\""));
     for href in [
         "packs.html",
@@ -565,8 +567,10 @@ fn no_page_runs_script_or_reaches_another_host() {
                 let value = part.split('"').next().unwrap();
                 links += 1;
                 let relative = !value.contains(':') && !value.starts_with("//");
+                // The landing page's canonical link names the site itself.
+                let own_site = value.starts_with("https://vanitascaesar1.github.io/hippo/");
                 assert!(
-                    relative || value.starts_with("https://github.com/"),
+                    relative || own_site || value.starts_with("https://github.com/"),
                     "{path}: {value}"
                 );
             }
