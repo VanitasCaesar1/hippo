@@ -1,12 +1,14 @@
 //! Adapters: one tool's transcript files into sessions and turns.
 //!
-//! Both adapters walk every transcript root and claim files by name, so a
-//! root may hold either tool's files: Codex takes `rollout-*.jsonl`, and
-//! Claude Code takes every other `*.jsonl`. Every transcript belongs to
-//! the one configured workspace.
+//! The adapters walk every transcript root and claim files by name, so a
+//! root may hold any tool's files: Codex takes `rollout-*.jsonl`, dsh takes
+//! its session logs (`session.v<N>.jsonl`, optionally `.zstd`, in a
+//! session folder of a project folder), and Claude Code takes every other
+//! `*.jsonl`. Every transcript belongs to the one configured workspace.
 
 pub mod claude_code;
 pub mod codex;
+pub mod dsh;
 
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
@@ -89,7 +91,11 @@ pub trait Adapter {
 
 /// The adapters ingest runs, in order.
 pub fn all() -> Vec<Box<dyn Adapter>> {
-    vec![Box::new(claude_code::ClaudeCode), Box::new(codex::Codex)]
+    vec![
+        Box::new(claude_code::ClaudeCode),
+        Box::new(codex::Codex),
+        Box::new(dsh::Dsh),
+    ]
 }
 
 /// The configured `transcript_roots` with `~` expanded and globs matched:
@@ -157,9 +163,19 @@ fn invalid_data(path: &Path, what: &str) -> Error {
 /// partly written last line, is skipped with a warning that names the file
 /// and the line number and quotes none of the content. Only a failure to
 /// open or read the file is an error.
-fn each_json_line(path: &Path, mut visit: impl FnMut(Value)) -> Result<()> {
+fn each_json_line(path: &Path, visit: impl FnMut(Value)) -> Result<()> {
+    let file = File::open(path).map_err(|err| Error::io_at(path, err))?;
+    each_json_line_in(BufReader::with_capacity(1 << 18, file), path, visit)
+}
+
+/// [`each_json_line`] over lines already open: `path` only names them in
+/// warnings and errors.
+fn each_json_line_in(
+    mut reader: impl BufRead,
+    path: &Path,
+    mut visit: impl FnMut(Value),
+) -> Result<()> {
     let at = |err| Error::io_at(path, err);
-    let mut reader = BufReader::with_capacity(1 << 18, File::open(path).map_err(at)?);
     let mut line = Vec::new();
     for number in 1usize.. {
         line.clear();
@@ -229,8 +245,9 @@ mod tests {
     }
 
     /// The turns of each adapter's synthetic transcripts, parsed with
-    /// `fixtures/` as the root: Claude Code's two files, then Codex's.
-    fn fixture_turns() -> [(&'static str, Vec<RawTurn>); 2] {
+    /// `fixtures/` as the root: Claude Code's two files, then Codex's, then
+    /// dsh's normal session.
+    fn fixture_turns() -> [(&'static str, Vec<RawTurn>); 3] {
         let root = Path::new(FIXTURES);
         let claude_code = [
             "claude-code/synthetic.jsonl",
@@ -246,7 +263,12 @@ mod tests {
         let path = root.join("codex/rollout-synthetic.jsonl");
         assert!(codex::Codex.file_matches(&path));
         let codex = codex::Codex.parse(root, &path).unwrap().turns;
-        [("claude-code", claude_code), ("codex", codex)]
+        let dsh_root = root.join("dsh");
+        let path = dsh_root
+            .join("--home-synthetic-shop--/11111111-1111-4111-8111-111111111111/session.v4.jsonl");
+        assert!(dsh::Dsh.file_matches(&path));
+        let dsh = dsh::Dsh.parse(&dsh_root, &path).unwrap().turns;
+        [("claude-code", claude_code), ("codex", codex), ("dsh", dsh)]
     }
 
     #[test]

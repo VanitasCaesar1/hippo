@@ -77,7 +77,11 @@ pub struct Config {
 /// The `transcript_roots` a configuration has when it sets none, and where
 /// `hippo detect` looks without one.
 pub fn default_transcript_roots() -> Vec<String> {
-    vec!["~/.claude*/projects".into(), "~/.codex/sessions".into()]
+    vec![
+        "~/.claude*/projects".into(),
+        "~/.codex/sessions".into(),
+        crate::adapters::dsh::DEFAULT_ROOT.into(),
+    ]
 }
 
 /// The argv `model_command` has when the configuration does not set it.
@@ -815,7 +819,11 @@ mod tests {
         Config {
             home: PathBuf::new(),
             workspace: Some(workspace.to_path_buf()),
-            transcript_roots: vec!["~/.claude*/projects".into(), "~/.codex/sessions".into()],
+            transcript_roots: vec![
+                "~/.claude*/projects".into(),
+                "~/.codex/sessions".into(),
+                "~/.dsh/sessions".into(),
+            ],
             exclude_roots: Vec::new(),
             model_command: [
                 "claude",
@@ -1275,8 +1283,8 @@ mod tests {
         assert_eq!(config.workspace, None);
         assert!(matches!(Workspace::load(&config), Err(Error::NoWorkspace)));
         assert_eq!(Workspace::load_optional(&config).unwrap(), None);
-        assert_eq!(config.transcript_roots.len(), 3);
-        assert_eq!(config.transcript_roots[2], "/Volumes/Old/claude");
+        assert_eq!(config.transcript_roots.len(), 4);
+        assert_eq!(config.transcript_roots[3], "/Volumes/Old/claude");
 
         // Another root is added in place, once, keeping the file's comments.
         for _ in 0..2 {
@@ -1287,7 +1295,7 @@ mod tests {
             init_in(home.path(), more).unwrap();
         }
         let config = Config::load_in(home.path()).unwrap();
-        assert_eq!(config.transcript_roots.len(), 4);
+        assert_eq!(config.transcript_roots.len(), 5);
         assert!(read(&config_path).unwrap().contains("# `dream_at`"));
 
         // Choosing a notes folder later fills in the workspace, without force.
@@ -1296,7 +1304,7 @@ mod tests {
         assert_eq!(report.workspace.as_deref(), Some(root.as_path()));
         let config = Config::load_in(home.path()).unwrap();
         assert_eq!(config.workspace.as_deref(), Some(root.as_path()));
-        assert_eq!(config.transcript_roots.len(), 4);
+        assert_eq!(config.transcript_roots.len(), 5);
         assert_eq!(Workspace::load(&config).unwrap().root, root);
         let text = read(&config_path).unwrap();
         assert!(!text.contains(NO_WORKSPACE_LINE), "{text}");

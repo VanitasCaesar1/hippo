@@ -25,7 +25,7 @@ pub const LINE: &str =
 pub const JOBS: [(&str, &str); 3] = [
     (
         "Reads",
-        "Every Claude Code and Codex session on this Mac, from every profile, in one place you can search.",
+        "Every Claude Code, Codex and DeepSeek Harness session on this Mac, from every profile, in one place you can search.",
     ),
     (
         "Keeps true",
@@ -186,19 +186,22 @@ pub fn found(d: &Detected, now: OffsetDateTime, offset: UtcOffset) -> Found {
     let mut rows = Vec::new();
     let mut claude_profiles = 0;
     let mut codex_files = 0;
+    let mut dsh_files = 0;
     for root in &d.roots {
         let dirs: Vec<&Dir> = root.dirs.iter().collect();
         if dirs.is_empty() {
             continue;
         }
         let tool = dirs[0].tool;
-        let name = if tool == "codex" {
-            "Codex"
-        } else {
-            "Claude Code"
+        let name = match tool {
+            "codex" => "Codex",
+            "dsh" => "dsh",
+            _ => "Claude Code",
         };
         if tool == "codex" {
             codex_files += dirs.iter().map(|d| d.files).sum::<u64>();
+        } else if tool == "dsh" {
+            dsh_files += dirs.iter().map(|d| d.files).sum::<u64>();
         } else {
             claude_profiles += dirs.iter().filter(|d| d.files > 0).count();
         }
@@ -210,7 +213,7 @@ pub fn found(d: &Detected, now: OffsetDateTime, offset: UtcOffset) -> Found {
             now,
             offset,
         ));
-        if tool != "codex" && dirs.len() > 1 {
+        if tool == "claude-code" && dirs.len() > 1 {
             let mut sorted = dirs.clone();
             sorted.sort_by(|a, b| b.files.cmp(&a.files).then(a.path.cmp(&b.path)));
             for dir in sorted {
@@ -253,13 +256,21 @@ pub fn found(d: &Detected, now: OffsetDateTime, offset: UtcOffset) -> Found {
         };
         total.latest = format!("{} {} → {end}", o.day(), month(o));
     }
-    let tools = match (claude_profiles, codex_files > 0) {
-        (0, true) => "Codex".to_owned(),
-        (0, false) => "Your agents".to_owned(),
-        (1, false) => "Claude Code".to_owned(),
-        (1, true) => "Claude Code and Codex".to_owned(),
-        (n, false) => format!("Claude Code on {n} profiles"),
-        (n, true) => format!("Claude Code on {n} profiles, and Codex"),
+    let others: Vec<&str> = [("Codex", codex_files), ("dsh", dsh_files)]
+        .into_iter()
+        .filter(|(_, files)| *files > 0)
+        .map(|(name, _)| name)
+        .collect();
+    let tools = match (claude_profiles, others.as_slice()) {
+        (0, []) => "Your agents".to_owned(),
+        (0, others) => crate::text::and_list(others),
+        (1, others) => crate::text::and_list(&[&["Claude Code"], others].concat()),
+        (n, []) => format!("Claude Code on {n} profiles"),
+        (n, [one]) => format!("Claude Code on {n} profiles, and {one}"),
+        (n, others) => format!(
+            "Claude Code on {n} profiles, {}",
+            crate::text::and_list(others)
+        ),
     };
     let since = span
         .map(|(o, _)| {
@@ -307,9 +318,15 @@ pub fn empty(d: &Detected) -> Vec<Looked> {
         .roots
         .iter()
         .map(|root| {
-            let codex = root.pattern.contains(".codex");
+            let source = if root.pattern.contains(".codex") {
+                "Codex"
+            } else if root.pattern.contains(".dsh") {
+                "dsh"
+            } else {
+                "Claude Code"
+            };
             Looked {
-                source: if codex { "Codex" } else { "Claude Code" }.into(),
+                source: source.into(),
                 place: root.pattern.clone(),
                 state: match root.dirs.len() {
                     0 => "no folder".into(),

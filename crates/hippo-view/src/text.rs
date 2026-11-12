@@ -104,3 +104,23 @@ mod tests {
         assert_eq!(twenty_four("13pm, 4amp, x5pm"), "13pm, 4amp, x5pm");
     }
 }
+
+/// Names as a list: `a`, `a and b`, `a, b and c`.
+pub fn and_list(names: &[&str]) -> String {
+    match names {
+        [] => String::new(),
+        [one] => (*one).to_owned(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+    }
+}
+
+#[cfg(test)]
+mod and_list_tests {
+    #[test]
+    fn names_join_with_commas_and_one_and() {
+        assert_eq!(super::and_list(&[]), "");
+        assert_eq!(super::and_list(&["a"]), "a");
+        assert_eq!(super::and_list(&["a", "b"]), "a and b");
+        assert_eq!(super::and_list(&["a", "b", "c"]), "a, b and c");
+    }
+}

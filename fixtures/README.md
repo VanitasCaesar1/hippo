@@ -11,6 +11,7 @@ Everything here is synthetic: invented for these tests, and copied from no real 
 | `redaction/` | `leaks.txt`, `expected.txt` and `code.txt` | `redact.rs` tests, the transcript fixtures |
 | `claude-code/` | Claude Code transcripts: session `stub-1` and one nested sub-agent transcript | adapter and ingest tests |
 | `codex/` | One Codex rollout | adapter and ingest tests |
+| `dsh/` | DeepSeek Harness session logs, one compressed | adapter, ingest, doctor and first-run tests |
 | `eval/` | A synthetic eval set: notes, transcripts and the questions and answers of `set.toml` | `hippo eval`, `crates/hippo/tests/eval.rs` |
 | `feed/` | The feed's registry fixtures: two index files and the raw `theme.css` files (see below) | `hippo-feed`'s `registry.rs` tests and, later, `tests/registry.rs` |
 | `feed/api/` | Golden files of the read-only API: `posts.json` (the front list) and `post.json` (the post of `glossary-terms`), written from the actual output with `HIPPO_UPDATE_GOLDEN=1` and checked by hand; the server's address is written `https://feed.example` | `hippo-feed`'s `tests/api.rs` |
@@ -18,10 +19,12 @@ Everything here is synthetic: invented for these tests, and copied from no real 
 
 ## Transcripts
 
-Every `*.jsonl` fixture begins with the line `{"synthetic": true}`, which both parsers skip. Tests point `transcript_roots` at `fixtures/claude-code` and `fixtures/codex` (not `fixtures/eval`, whose transcripts belong to the eval set), so the layout mirrors the real roots:
+Every `*.jsonl` fixture begins with the line `{"synthetic": true}`, which every parser skips. Tests point `transcript_roots` at `fixtures/claude-code` and `fixtures/codex` (not `fixtures/eval`, whose transcripts belong to the eval set), so the layout mirrors the real roots:
 
 - `claude-code/` stands for a project directory under `~/.claude/projects/`. `claude-code/synthetic.jsonl` is the top-level transcript of session `stub-1`; `claude-code/stub-1/subagents/agent-a1.jsonl` is a nested sub-agent transcript, session `stub-1-agent-a1`.
 - `codex/rollout-synthetic.jsonl` stands for a rollout under `~/.codex/sessions/`. Its name starts with `rollout-`: that is how the Codex adapter claims it and how the Claude Code adapter leaves it alone.
+
+- `dsh/` stands for a dsh session root, `~/.dsh/sessions/`: project folders (`--home-synthetic-shop--`) holding one folder per session. Session `1111…` is a normal session with every leak, a failed check and a refused write, and an older `session.v3.jsonl` beside its `session.v4.jsonl` that is never read; `2222…` is its sub-agent, `6666…` a sub-agent of that, and `3333…` a fork, Zstandard-compressed in several frames like dsh's own, whose inherited history comes first; `4444…` stops mid-call at an approval; `5555…`, in another project, is in format 9, which hippo does not read. Each file's first line is the synthetic marker, before dsh's header line. The shapes follow the session logs dsh records for its own snapshot tests.
 
 Between them they carry every line of `redaction/leaks.txt` in text blocks, tool inputs and tool outputs, so the ingest tests can check that no leak reaches the index.
 

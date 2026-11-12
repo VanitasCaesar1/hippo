@@ -870,8 +870,10 @@ impl Shell {
                         &[
                             ("Works with ", false),
                             ("Claude Code", true),
-                            (" and ", false),
+                            (", ", false),
                             ("Codex", true),
+                            (" and ", false),
+                            ("DeepSeek Harness", true),
                             (" today. OpenCode and Cursor are planned.", false),
                         ],
                         look,

@@ -578,6 +578,7 @@ mod tests {
             let tool = match head.next() {
                 Some("claude-code") => Tool::ClaudeCode,
                 Some("codex") => Tool::Codex,
+                Some("dsh") => Tool::Dsh,
                 _ => return Err(bad(&format!("no tool in the header {header:?}"))),
             };
             let started = head.next().ok_or_else(|| bad("no start"))?;

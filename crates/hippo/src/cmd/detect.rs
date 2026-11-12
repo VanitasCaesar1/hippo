@@ -78,6 +78,8 @@ fn expected(pattern: &str) -> &'static str {
         "Claude Code keeps its sessions in ~/.claude/projects, or ~/.claude-<profile>/projects"
     } else if pattern.contains(".codex") {
         "Codex keeps its sessions in ~/.codex/sessions"
+    } else if pattern.contains(".dsh") {
+        "DeepSeek Harness (dsh) keeps its sessions in ~/.dsh/sessions, or $DSH_HOME/sessions"
     } else {
         "a folder of agent transcripts"
     }

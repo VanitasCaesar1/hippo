@@ -100,9 +100,15 @@ else
   cp "$root"/fixtures/eval/transcripts/codex/*.jsonl "$home/.codex/sessions/"
 fi
 
+# DeepSeek Harness (dsh) logs: one project of the synthetic fixtures, a
+# compressed fork among them.
+mkdir -p "$home/.dsh/sessions"
+cp -R "$root/fixtures/dsh/--home-synthetic-shop--" "$home/.dsh/sessions/"
+
 # Before setup: one command, and every other command says how to start.
 run "$home" 02-hippo-before-setup 0
 has "Looking for agent history" "nothing is sent anywhere" "hippo start --yes"
+has "~/.dsh/sessions 5 files"
 [ ! -e "$home/.hippo/config.toml" ] || fail "hippo alone wrote config.toml without a yes"
 
 run "$home" 03-help 0 --help
@@ -137,6 +143,7 @@ id=$(printf '%s\n' "$out" | sed -n 's/^  hippo xray \([^ ]*\) .*/\1/p' | head -n
 # A healthy new setup passes doctor and sends nothing.
 run "$home" 07-doctor 0 doctor
 lacks "| problem |"
+has "dsh logs | ok"
 
 # The card: numbers and a date, a PNG.
 run "$home" 07-card 0 card --out "$tmp/card.png"

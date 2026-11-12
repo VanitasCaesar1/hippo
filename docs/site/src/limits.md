@@ -4,12 +4,12 @@ hippo is early software at version 0.1.0. This page lists what you should expect
 
 ## Scope
 
-- **Two tools.** Only Claude Code and Codex transcripts are read. There are no adapters for other agents.
+- **Three tools.** Only Claude Code and Codex transcripts and DeepSeek Harness (dsh) session logs are read. There are no adapters for other agents.
 - **One workspace per configuration.** `config.toml` names one workspace.
 - **Sharing a brain is through git.** Several people can commit one workspace; `hippo init` keeps per-person state out of git. Nothing syncs live, each person's dreaming learns only from their own sessions, and `hippo revert` works only on the machine that dreamed the change (git is the undo elsewhere). See [Sharing a brain in a team](sharing.md).
 - **The desktop app is macOS only and early.** Hippo.app (in `app/`, built from source) has been checked on synthetic data, not in daily use. Everything it shows is also on the command line.
 - **The feed is not live.** The `hippo-feed` crate and its deployment files exist. Nothing is deployed, so there is no feed to sign in to, vote on or read.
-- **Hooks only for Claude Code.** Codex sessions are always derived records: no task, no declared notes. Nothing should depend on a Codex session being declared.
+- **Hooks only for Claude Code.** Codex and dsh sessions are always derived records: no task, no declared notes. Nothing should depend on a Codex or dsh session being declared.
 - **Scheduling is installed only on macOS** (launchd). Elsewhere `hippo schedule install` prints cron and systemd lines for you to install; hippo cannot see whether they run.
 - **Not on crates.io.** Install with the install script, the Claude Code plugin's setup, or `cargo install --git` ([Install](install.md)).
 - **Linux is tested in CI, not in daily use.** The release has static Linux binaries (x86_64 and arm64) and the test suite passes on Linux in CI, but hippo is used day to day on macOS on Apple silicon (the Intel build passes the first-run check under Rosetta).
@@ -20,6 +20,8 @@ hippo is early software at version 0.1.0. This page lists what you should expect
 - **Context ranking is by title and headings.** The relevant-notes part scores a note by whether words of the task appear in its title or headings. A note whose title does not contain the task's words may be missed.
 - **Lone surrogates.** A transcript line holding half of a UTF-16 surrogate pair, such as `\ud83d` with no partner, is rejected by the JSON parser and its turns are not indexed. hippo logs a warning.
 - **Codex tool calls are unconfirmed.** The mapping of Codex tool calls and their results follows the OpenAI Responses API schema, but the Codex rollouts checked so far contained no tool calls. Messages were checked against a real rollout. If a rollout's tool calls do not appear in `hippo recall`, that is a bug worth reporting.
+- **dsh is a developer preview.** DeepSeek Harness says its log format will change. hippo reads log formats 3 and 4; a log in any other format is not read, and `hippo doctor`'s `dsh logs` row names it. Only dsh's JSONL storage is read, and only the newest generation of each session. A compressed (`.zstd`) log is read whole each time it changes.
+- **What hippo leaves out of a dsh log.** Why a turn ended (`turn/end`), token counts and rate limits, team mode, workflows, jobs and `plugin:` records are not read. dsh's core tools are stored under Claude Code's names (`bash` as `Bash`, `read` as `Read`, …), and a failed result is written the way hippo reads a failure (`Exit code N`, `<tool_use_error>`), so `recall` shows those spellings. See the [design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/dsh-adapter.md).
 - **Index size.** The index of a large transcript history can reach several gigabytes under `$HIPPO_HOME`. `hippo ingest --full` is the only maintenance it needs.
 
 ## Redaction

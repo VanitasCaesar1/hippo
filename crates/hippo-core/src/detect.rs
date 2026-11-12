@@ -24,11 +24,11 @@ pub struct Dir {
     pub path: PathBuf,
     /// The directory with the home directory written `~`.
     pub display: String,
-    /// `claude-code` or `codex`: the tool whose files it holds, or, with
+    /// `claude-code`, `codex` or `dsh`: the tool whose files it holds, or, with
     /// none, the tool its path suggests.
     pub tool: &'static str,
     /// The Claude Code profile: `default` for `~/.claude`, `work` for
-    /// `~/.claude-work`; `None` for Codex and other paths.
+    /// `~/.claude-work`; `None` for Codex, dsh and other paths.
     pub profile: Option<String>,
     /// Transcript files an ingest would read (sub-agent transcripts count,
     /// as they do in the index).
@@ -133,7 +133,7 @@ pub fn detect(patterns: &[String], hippo_home: &Path, user_home: Option<&Path>) 
                 excluded: false,
                 path,
             };
-            let (mut claude, mut codex) = (0u64, 0u64);
+            let (mut claude, mut codex, mut dsh) = (0u64, 0u64, 0u64);
             let entries = WalkDir::new(&dir.path)
                 .into_iter()
                 .filter_entry(|e| !e.path().starts_with(&model_runs));
@@ -146,6 +146,7 @@ pub fn detect(patterns: &[String], hippo_home: &Path, user_home: Option<&Path>) 
                 };
                 match adapter.tool().as_str() {
                     "codex" => codex += 1,
+                    "dsh" => dsh += 1,
                     _ => claude += 1,
                 }
                 let Ok(meta) = entry.metadata() else {
@@ -159,8 +160,10 @@ pub fn detect(patterns: &[String], hippo_home: &Path, user_home: Option<&Path>) 
                     dir.oldest = Some(dir.oldest.map_or(at, |o| o.min(at)));
                 }
             }
-            if claude + codex > 0 {
-                dir.tool = if codex > claude {
+            if claude + codex + dsh > 0 {
+                dir.tool = if dsh > claude.max(codex) {
+                    "dsh"
+                } else if codex > claude {
                     "codex"
                 } else {
                     "claude-code"
@@ -191,6 +194,8 @@ pub fn detect(patterns: &[String], hippo_home: &Path, user_home: Option<&Path>) 
 fn tool_of(path: &Path) -> &'static str {
     if path.components().any(|c| c.as_os_str() == ".codex") {
         "codex"
+    } else if path.components().any(|c| c.as_os_str() == ".dsh") {
+        "dsh"
     } else {
         "claude-code"
     }
@@ -244,7 +249,8 @@ mod tests {
         let work = home.join(".claude-work/projects/-w/abc/subagents");
         let codex = home.join(".codex/sessions/2026/11/09");
         let empty = home.join(".claude-empty/projects");
-        for d in [&claude, &work, &codex, &empty] {
+        let dsh = home.join(".dsh/sessions/--w--/s1");
+        for d in [&claude, &work, &codex, &empty, &dsh] {
             fs::create_dir_all(d).unwrap();
         }
         fs::write(claude.join("a.jsonl"), "12345").unwrap();
@@ -252,6 +258,10 @@ mod tests {
         fs::write(work.join("agent-1.jsonl"), "1").unwrap();
         fs::write(work.join("../../b.jsonl"), "12").unwrap();
         fs::write(codex.join("rollout-2026-11-09T01-00-00-x.jsonl"), "123").unwrap();
+        // A dsh session: only its newest generation is a transcript.
+        fs::write(dsh.join("session.v4.jsonl.zstd"), "1234").unwrap();
+        fs::write(dsh.join("session.v3.jsonl"), "older").unwrap();
+        fs::write(dsh.join("session.lock"), "").unwrap();
         // A model run under $HIPPO_HOME is never counted.
         let hippo = home.join(".claude-hippo");
         fs::create_dir_all(hippo.join("projects/model-runs")).unwrap();
@@ -262,9 +272,10 @@ mod tests {
         let patterns = [
             format!("{}/.claude*/projects", home.display()),
             format!("{}/.codex/sessions", home.display()),
+            format!("{}/.dsh/sessions", home.display()),
         ];
         let found = detect(&patterns, &hippo.join("projects"), Some(home));
-        assert_eq!(found.roots.len(), 2);
+        assert_eq!(found.roots.len(), 3);
         assert_eq!(found.roots[0].pattern, "~/.claude*/projects");
         let rows: Vec<(&str, Option<&str>, u64, u64)> = found
             .dirs()
@@ -278,11 +289,13 @@ mod tests {
                 ("~/.claude-hippo/projects", Some("hippo"), 0, 0),
                 ("~/.claude-work/projects", Some("work"), 2, 3),
                 ("~/.codex/sessions", None, 1, 3),
+                ("~/.dsh/sessions", None, 1, 4),
             ]
         );
         assert_eq!(found.roots[1].dirs[0].tool, "codex");
-        assert_eq!(found.files(), 4);
-        assert_eq!(found.bytes(), 11);
+        assert_eq!(found.roots[2].dirs[0].tool, "dsh");
+        assert_eq!(found.files(), 5);
+        assert_eq!(found.bytes(), 15);
         assert!(found.span().is_some());
         let gemini = found.unsupported.iter().find(|u| u.name == "Gemini");
         assert!(gemini.is_some());

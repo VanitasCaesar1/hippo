@@ -10,6 +10,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
+use hippo_core::adapters::dsh;
 use hippo_core::index::Index;
 use hippo_core::resume::{self, Target};
 use hippo_core::rollup::{self, Ending, Rollup, SessionFacts};
@@ -99,7 +100,7 @@ impl State {
 pub struct Row {
     pub id: String,
     pub title: String,
-    /// `claude-code` or `codex`.
+    /// `claude-code`, `codex` or `dsh`.
     pub tool: String,
     pub profile: Option<String>,
     pub project: Option<String>,
@@ -669,6 +670,13 @@ pub struct Inputs<'a> {
 
 /// A transcript's place: the top-level session it belongs to.
 fn session_of(path: &Path) -> Option<(String, &'static str, bool)> {
+    if dsh::is_log(path) {
+        let h = dsh::header(path)?;
+        return Some(match dsh::parent_id(path, &h) {
+            Some(parent) => (parent, "dsh", false),
+            None => (dsh::session_id(path, &h), "dsh", true),
+        });
+    }
     let stem = path.file_stem()?.to_str()?;
     if stem.starts_with("rollout-") {
         let uuid = stem.get(stem.len().checked_sub(36)?..)?;
@@ -686,9 +694,13 @@ fn session_of(path: &Path) -> Option<(String, &'static str, bool)> {
 }
 
 /// The time of the newest turn in a transcript's last [`TAIL_BYTES`]: a
-/// Claude Code `user` or `assistant` record, or a Codex `response_item`.
+/// Claude Code `user` or `assistant` record, or a Codex `response_item`;
+/// for a dsh log, its newest message, call or result.
 /// Title and summary records a client writes later do not count.
 pub fn last_turn_at(path: &Path) -> Option<OffsetDateTime> {
+    if dsh::is_log(path) {
+        return dsh::last_turn_at(path);
+    }
     let mut file = File::open(path).ok()?;
     let len = file.metadata().ok()?.len();
     let from = len.saturating_sub(TAIL_BYTES);
@@ -741,8 +753,12 @@ pub fn build(inp: &Inputs<'_>) -> Fleet {
 
     // Transcripts written today, by top-level session.
     let mut found: BTreeMap<String, Found> = BTreeMap::new();
-    for t in usage::transcripts(inp.roots, start.unix_timestamp()) {
-        let Some((id, tool, own)) = session_of(&t.path) else {
+    let today_files = usage::transcripts(inp.roots, start.unix_timestamp())
+        .into_iter()
+        .map(|t| t.path)
+        .chain(dsh::logs_since(inp.roots, start.unix_timestamp()));
+    for path in today_files {
+        let Some((id, tool, own)) = session_of(&path) else {
             continue;
         };
         let f = found.entry(id).or_insert(Found {
@@ -751,9 +767,9 @@ pub fn build(inp: &Inputs<'_>) -> Fleet {
             files: Vec::new(),
         });
         if own {
-            f.path = Some(t.path.clone());
+            f.path = Some(path.clone());
         }
-        f.files.push(t.path);
+        f.files.push(path);
     }
 
     // The rollup's sessions of the day, and the last week's for the

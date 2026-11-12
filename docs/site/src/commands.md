@@ -88,7 +88,7 @@ With no terminal and no `--yes` it prints `run hippo start --yes to index it` an
 hippo detect [--json]
 ```
 
-Lists the agent history on this machine without indexing anything and without a configuration: each folder with its files, size and newest day. `--json` prints one JSON object. hippo reads Claude Code and Codex transcripts. It also reports OpenCode and Cursor folders when it sees them, as agents with no adapter: hippo does not read them.
+Lists the agent history on this machine without indexing anything and without a configuration: each folder with its files, size and newest day. `--json` prints one JSON object. hippo reads Claude Code and Codex transcripts and DeepSeek Harness (dsh) session logs. It also reports OpenCode and Cursor folders when it sees them, as agents with no adapter: hippo does not read them.
 
 ## hippo ask
 
@@ -325,7 +325,7 @@ receipt 01M6X6VZSSTVQA135WF8HE5VW3 revert 01M6X6VZNF8X666HVGCVJZD4FE 2026-11-08T
 ## hippo session
 
 ```text
-hippo session start --tool <claude-code|codex> --session <id> [--task <text>]
+hippo session start --tool <claude-code|codex|dsh> --session <id> [--task <text>]
 hippo session end --session <id> [--note <path>]... [--handoff <file>|-] [--no-change <reason>]
 ```
 

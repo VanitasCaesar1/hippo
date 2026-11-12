@@ -56,4 +56,4 @@ If your workspace or your transcripts are on an external volume, the first launc
 
 ## Next
 
-Run `hippo`. It finds the history your agents left on this machine, indexes it and shows the last active day. Then go to the [Quick start](quick-start.md).
+Run `hippo`. It finds the history your agents left on this machine (Claude Code, Codex and DeepSeek Harness), indexes it and shows the last active day. Then go to the [Quick start](quick-start.md).

@@ -830,3 +830,174 @@ fn a_sub_task_with_no_end_is_not_running_for_days() {
     assert!(t(1).running(&State::Live));
     assert!(!t(30).running(&State::Live));
 }
+
+/// A dsh log at `<root>/--w-app--/<id>/session.v4.jsonl`: a header, then
+/// `events` as `(type, minutes ago, data)`.
+fn dsh_log(
+    root: &Path,
+    id: &str,
+    parent: Option<&str>,
+    now: OffsetDateTime,
+    events: &[(&str, i64, serde_json::Value)],
+) {
+    let ms = |t: OffsetDateTime| (t.unix_timestamp_nanos() / 1_000_000) as i64;
+    let mut header = json!({"type": "session", "version": 4, "id": id,
+        "createdAt": ms(now - Duration::hours(1)), "cwd": "/w/app", "isSeeded": false, "delegationDepth": 0});
+    if let Some(p) = parent {
+        header["parentSession"] = json!(p);
+        header["origin"] = json!("subagent");
+        header["delegationDepth"] = json!(1);
+    }
+    let mut lines = vec![r#"{"synthetic": true}"#.to_owned(), header.to_string()];
+    for (seq, (kind, ago, data)) in events.iter().enumerate() {
+        lines.push(
+            json!({"type": kind, "seq": seq, "time": ms(now - Duration::seconds(*ago * 60)), "data": data})
+                .to_string(),
+        );
+    }
+    let path = root.join("--w-app--").join(id).join("session.v4.jsonl");
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(path, lines.join("\n") + "\n").unwrap();
+}
+
+fn dsh_user(text: &str) -> serde_json::Value {
+    json!({"content": [{"type": "text", "text": text}], "source": {"kind": "user"}, "role": "user"})
+}
+
+fn dsh_reply(blocks: serde_json::Value) -> serde_json::Value {
+    json!({"turn": 1, "step": 1, "message": {"role": "assistant", "content": blocks}, "stream": []})
+}
+
+#[test]
+fn dsh_sessions_are_live_running_waiting_or_quiet_from_their_logs() {
+    let e = Env::new();
+    let root = e.tmp.path().join(".dsh").join("sessions");
+    let bash = |id: &str| {
+        json!([{"type": "tool-call", "id": id, "name": "bash",
+                "arguments": "{\"command\": \"cargo test --workspace\", \"description\": \"\"}"}])
+    };
+    // Running a test for 4 minutes, its last event 30 seconds ago.
+    dsh_log(
+        &root,
+        "busy",
+        None,
+        e.now,
+        &[
+            ("user/message", 10, dsh_user("Run the tests.")),
+            ("assistant/message", 4, dsh_reply(bash("c1"))),
+            (
+                "tool/call",
+                4,
+                json!({"callId": "c1", "name": "bash", "arguments": "{}"}),
+            ),
+            (
+                "user/message",
+                0,
+                json!({"content": [{"type": "text", "text": "notice"}], "source": {"kind": "runtime-context"}}),
+            ),
+        ],
+    );
+    // Waiting at an approval for 6 minutes.
+    dsh_log(
+        &root,
+        "asks",
+        None,
+        e.now,
+        &[
+            ("user/message", 9, dsh_user("Write the report.")),
+            ("assistant/message", 6, dsh_reply(bash("c2"))),
+            (
+                "tool/call",
+                6,
+                json!({"callId": "c2", "name": "bash", "arguments": "{}"}),
+            ),
+            (
+                "approval/asked",
+                6,
+                json!({"id": "ap1", "toolName": "bash", "callId": "c2",
+                                        "reason": "escalate sandbox to workspace-write"}),
+            ),
+        ],
+    );
+    // Answered approvals and a finished reply 20 minutes ago: quiet.
+    dsh_log(
+        &root,
+        "done",
+        None,
+        e.now,
+        &[
+            ("user/message", 30, dsh_user("Tidy up.")),
+            (
+                "approval/asked",
+                29,
+                json!({"id": "ap2", "toolName": "write"}),
+            ),
+            (
+                "approval/decided",
+                28,
+                json!({"id": "ap2", "outcome": "allowed-once"}),
+            ),
+            (
+                "assistant/message",
+                20,
+                dsh_reply(json!([{"type": "text", "text": "Done."}])),
+            ),
+        ],
+    );
+    // A sub-agent working keeps its quiet parent live, and is no row.
+    dsh_log(
+        &root,
+        "lead",
+        None,
+        e.now,
+        &[("user/message", 15, dsh_user("Delegate."))],
+    );
+    dsh_log(
+        &root,
+        "kid",
+        Some("lead"),
+        e.now,
+        &[("assistant/message", 0, dsh_reply(bash("k1")))],
+    );
+    let snap = Snapshot::default();
+    let fleet = build(&Inputs {
+        now: e.now,
+        offset: ACST,
+        roots: std::slice::from_ref(&root),
+        rollup: None,
+        usage: &snap,
+    });
+    let row = |id: &str| {
+        fleet.row(id).unwrap_or_else(|| {
+            panic!(
+                "no {id} in {:?}",
+                fleet.rows.iter().map(|r| &r.id).collect::<Vec<_>>()
+            )
+        })
+    };
+    assert_eq!(row("dsh-busy").state, State::Live);
+    assert_eq!(row("dsh-busy").activity.as_deref(), Some("cargo test · 4m"));
+    assert_eq!(row("dsh-busy").profile.as_deref(), Some("dsh"));
+    assert_eq!(row("dsh-busy").project.as_deref(), Some("app"));
+    match &row("dsh-asks").state {
+        State::Waiting { asked, plan, .. } => {
+            assert_eq!(
+                asked.as_deref(),
+                Some("Approve Bash? escalate sandbox to workspace-write")
+            );
+            assert!(!plan);
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(
+        matches!(row("dsh-done").state, State::Quiet { .. }),
+        "{:?}",
+        row("dsh-done").state
+    );
+    assert_eq!(row("dsh-lead").state, State::Live);
+    assert!(
+        fleet.row("dsh-lead-agent-kid").is_none(),
+        "sub-agents are not rows"
+    );
+    assert_eq!(fleet.rows.len(), 4);
+}

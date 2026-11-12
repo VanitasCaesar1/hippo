@@ -4,6 +4,11 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Added
+
+- **DeepSeek Harness (`dsh`).** hippo reads dsh session logs, compressed (`.zstd`, dsh's default) or not, from `~/.dsh/sessions`, now one of the default `transcript_roots`. dsh sessions appear in the overview, Fleet, Incidents, the x-ray, `recall`, `ask`, `brief`, lessons and dreaming, with sub-agents and forks under the session that started them, and Fleet shows a call waiting for your approval as waiting. Log formats 3 and 4 are read; another format is refused and named in `hippo doctor`'s new `dsh logs` row. A configuration that lists its own roots adds the folder with `hippo start --add-root ~/.dsh/sessions`. See the [design](docs/designs/dsh-adapter.md).
+- `hippo session start --tool dsh`.
+
 ## [0.1.0] - 2026-11-12
 
 The first release. hippo reads what your coding agents did, keeps your notes true, and briefs every new session. Everything runs on your machine.

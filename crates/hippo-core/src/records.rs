@@ -30,14 +30,17 @@ pub enum Tool {
     ClaudeCode,
     /// `codex`
     Codex,
+    /// `dsh`: DeepSeek Harness.
+    Dsh,
 }
 
 impl Tool {
-    /// `claude-code` or `codex`, as records and the index write it.
+    /// `claude-code`, `codex` or `dsh`, as records and the index write it.
     pub fn as_str(self) -> &'static str {
         match self {
             Tool::ClaudeCode => "claude-code",
             Tool::Codex => "codex",
+            Tool::Dsh => "dsh",
         }
     }
 }
@@ -623,7 +626,7 @@ mod tests {
 
     #[test]
     fn tool_names_match_their_serde_names() {
-        for tool in [Tool::ClaudeCode, Tool::Codex] {
+        for tool in [Tool::ClaudeCode, Tool::Codex, Tool::Dsh] {
             let json = serde_json::to_string(&tool).unwrap();
             assert_eq!(json, format!("\"{}\"", tool.as_str()));
         }

@@ -5,8 +5,8 @@
 # `workspace` (path; left out until a notes folder is chosen, which history alone does not need)
 workspace = "{{workspace}}"
 
-# `transcript_roots` (default `["~/.claude*/projects", "~/.codex/sessions"]`)
-transcript_roots = ["~/.claude*/projects", "~/.codex/sessions"]
+# `transcript_roots` (default `["~/.claude*/projects", "~/.codex/sessions", "~/.dsh/sessions"]`)
+transcript_roots = ["~/.claude*/projects", "~/.codex/sessions", "~/.dsh/sessions"]
 
 # `model_command` (array of strings; default in Model invocation)
 model_command = [

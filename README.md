@@ -9,7 +9,7 @@
 
 <p align="center"><b>One brain for all your coding agents.</b></p>
 
-Your Claude Code sessions start from the same plain-Markdown notes and write back to them, and at night a second, fresh-context reviewer checks every proposed change to those notes against what your agents actually did. Underneath, hippo indexes every Claude Code and Codex session on your machine, so you can search them, see your agents' day, and share it.
+Your Claude Code sessions start from the same plain-Markdown notes and write back to them, and at night a second, fresh-context reviewer checks every proposed change to those notes against what your agents actually did. Underneath, hippo indexes every Claude Code, Codex and DeepSeek Harness (`dsh`) session on your machine, so you can search them, see your agents' day, and share it.
 
 <p align="center"><img src="docs/assets/card.png" width="600" alt="A card dated Tuesday 3 March 2026: My agents did 3 hours 18 minutes of work on Tuesday, with threads, sub-agents, pull requests, waits and corrections"></p>
 
@@ -42,7 +42,7 @@ hippo start --yes      # indexes it (history only, nothing sent), then shows you
 hippo card             # that day as a 1200 x 675 PNG to share, and the same lines as text
 ```
 
-The overview gives the day's sessions and sub-agents, the agents' work time, how long they waited on you, the pull requests they merged, the times you corrected them (the first one quoted), the busiest sessions, and four commands to try next. It reads `~/.claude*/projects` and `~/.codex/sessions`; `hippo start --add-root <dir>` adds another folder.
+The overview gives the day's sessions and sub-agents, the agents' work time, how long they waited on you, the pull requests they merged, the times you corrected them (the first one quoted), the busiest sessions, and four commands to try next. It reads `~/.claude*/projects`, `~/.codex/sessions` and `~/.dsh/sessions`; `hippo start --add-root <dir>` adds another folder.
 
 ## What it does
 
@@ -69,7 +69,7 @@ Everything else, including `hippo`, `start`, `card`, `recall`, `ask --sources-on
 
 ## What it does not do yet
 
-- **Claude Code and Codex only.** OpenCode and Cursor folders are detected, not read. Only Claude Code gets the notes at session start through hooks; a Codex session is indexed and searchable, and can run `hippo brief` itself if your instructions ask it to.
+- **Claude Code, Codex and DeepSeek Harness only.** OpenCode and Cursor folders are detected, not read. Only Claude Code gets the notes at session start through hooks; a Codex or dsh session is indexed and searchable, and can run `hippo brief` itself if your instructions ask it to.
 - **Scheduling** is launchd on macOS. Elsewhere `hippo schedule install` prints cron and systemd lines for you to install.
 - **Linux is tested in CI, not in daily use.** The release has static Linux binaries (x86_64 and arm64) and the test suite passes on Linux in CI, but hippo is used day to day on macOS on Apple silicon (the Intel build passes the first-run check under Rosetta).
 - **The desktop app**, Hippo.app in [`app/`](app/README.md), is macOS only, built from source, and early: checked on synthetic data, not in daily use.

@@ -1,7 +1,7 @@
-//! Claude Code transcripts: every `*.jsonl` other than a Codex rollout under
-//! a transcript root, nested sub-agent transcripts included, each its own
-//! session. A Workflow's `workflows/<run>/journal.jsonl` is not a
-//! transcript and is not read.
+//! Claude Code transcripts: every `*.jsonl` other than a Codex rollout or a
+//! dsh session log under a transcript root, nested sub-agent transcripts
+//! included, each its own session. A Workflow's
+//! `workflows/<run>/journal.jsonl` is not a transcript and is not read.
 //!
 //! Each line is a JSON record. Records of type `user` and `assistant` carry
 //! `sessionId`, `timestamp` and `message.content`; every other type is
@@ -59,7 +59,10 @@ impl Adapter for ClaudeCode {
     }
 
     fn file_matches(&self, path: &Path) -> bool {
-        has_extension_jsonl(path) && !is_rollout(path) && !is_workflow_journal(path)
+        has_extension_jsonl(path)
+            && !is_rollout(path)
+            && !is_workflow_journal(path)
+            && !super::dsh::is_log(path)
     }
 
     fn revision(&self, bytes: &[u8]) -> Option<&'static str> {

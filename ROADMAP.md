@@ -6,7 +6,8 @@ The text lives in `ROADMAP.md` at the root of the repository, and the docs site 
 
 ## What is built
 
-- The core and CLI: an index of Claude Code and Codex transcripts, `recall` and `ask`, the overview, `fleet`, `incidents`, `xray` and `card`.
+- The core and CLI: an index of Claude Code, Codex and DeepSeek Harness (`dsh`) transcripts, `recall` and `ask`, the overview, `fleet`, `incidents`, `xray` and `card`.
+- An adapter for DeepSeek Harness (`dsh`): its session logs, compressed or not, with sub-agents and forks ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/dsh-adapter.md)).
 - Notes, context and Claude Code hooks.
 - Dreaming with a fresh-context reviewer, receipts, snapshots and revert, and its schedule: launchd on macOS, printed cron and systemd lines elsewhere.
 - `hippo eval` with a synthetic question set.
@@ -26,7 +27,6 @@ The text lives in `ROADMAP.md` at the root of the repository, and the docs site 
 
 ## Ideas
 
-- **An adapter for DeepSeek Harness (`dsh`).** Released in August 2026 under MIT, it keeps an append-only session log. Reading that log is a candidate, not started.
 - **Hosted dreaming, live team sync of a shared brain, and private packs.** Not designed in public yet. Today a team shares a brain through git ([Sharing a brain in a team](https://vanitascaesar1.github.io/hippo/docs/sharing.html)).
 
 To suggest something, open an issue. A new feature or contract starts as a design doc in [`docs/designs/`](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/README.md) before any code.

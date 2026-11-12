@@ -27,12 +27,13 @@ pub struct Agent {
 }
 
 impl Agent {
-    /// The name the row shows: `default`, `work`, `codex`, else
+    /// The name the row shows: `default`, `work`, `codex`, `dsh`, else
     /// the folder. Never `claude-`.
     pub fn name(&self) -> String {
         match (&self.profile, self.tool) {
             (Some(p), _) => p.clone(),
             (None, "codex") => "codex".into(),
+            (None, "dsh") => "dsh".into(),
             _ => self.display.clone(),
         }
     }
@@ -41,7 +42,7 @@ impl Agent {
     /// probably a mistyped `CLAUDE_CONFIG_DIR`. It gets no headroom card
     /// and is listed apart in Manage.
     pub fn never_used(&self) -> bool {
-        if self.files > 0 || self.profile.is_none() || self.tool == "codex" {
+        if self.files > 0 || self.profile.is_none() || self.tool != "claude-code" {
             return false;
         }
         let config_dir = if self.dir.file_name().is_some_and(|n| n == "projects") {

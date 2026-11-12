@@ -45,6 +45,7 @@ pub enum Command {
 pub enum ToolName {
     ClaudeCode,
     Codex,
+    Dsh,
 }
 
 pub fn run(command: Command) -> Result<ExitCode> {
@@ -58,6 +59,7 @@ pub fn run(command: Command) -> Result<ExitCode> {
             let tool = match tool {
                 ToolName::ClaudeCode => Tool::ClaudeCode,
                 ToolName::Codex => Tool::Codex,
+                ToolName::Dsh => Tool::Dsh,
             };
             sessions::start(&workspace, tool, &session, task.as_deref())?;
         }

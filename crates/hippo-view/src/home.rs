@@ -944,15 +944,25 @@ pub fn build(inp: &Inputs<'_>) -> Home {
 
     // Status line and health.
     let mut status = Vec::new();
-    let claude = inp.profiles.iter().filter(|p| *p != "codex").count();
-    let codex = inp.profiles.iter().any(|p| p == "codex");
-    let tools = match (claude, codex) {
-        (0, true) => "Codex".to_owned(),
-        (0, false) => "your agents".to_owned(),
-        (1, false) => "Claude Code".to_owned(),
-        (1, true) => "Claude Code and Codex".to_owned(),
-        (n, false) => format!("{n} Claude Code profiles"),
-        (n, true) => format!("{n} Claude Code profiles and Codex"),
+    let claude = inp
+        .profiles
+        .iter()
+        .filter(|p| *p != "codex" && *p != "dsh")
+        .count();
+    let others: Vec<&str> = [("codex", "Codex"), ("dsh", "dsh")]
+        .into_iter()
+        .filter(|(p, _)| inp.profiles.iter().any(|q| q == p))
+        .map(|(_, name)| name)
+        .collect();
+    let tools = match (claude, others.as_slice()) {
+        (0, []) => "your agents".to_owned(),
+        (0, others) => crate::text::and_list(others),
+        (1, others) => crate::text::and_list(&[&["Claude Code"], others].concat()),
+        (n, []) => format!("{n} Claude Code profiles"),
+        (n, others) => {
+            let profiles = format!("{n} Claude Code profiles");
+            crate::text::and_list(&[&[profiles.as_str()], others].concat())
+        }
     };
     status.push(plain("Reading "));
     status.push(strong(tools));

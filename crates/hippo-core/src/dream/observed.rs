@@ -26,7 +26,8 @@
 //! workspace root, a worktree root or a directory directly under the
 //! workspace root whose encoded name is the transcript's project directory
 //! (`/` and every other character that is not a letter or digit become
-//! `-`); for Codex, the `cwd` of the rollout's `session_meta`. A relative
+//! `-`); for Codex, the `cwd` of the rollout's `session_meta`; for dsh, the
+//! `cwd` of the log's header. A relative
 //! path whose directory is unknown does not count, so another project's own
 //! `brain/` is not taken for the workspace's. In user, assistant and other
 //! prose, a relative path also counts when it names a note relative to the
@@ -200,7 +201,8 @@ impl<'a> Resolver<'a> {
 
     /// The directory session paths resolve against: for `claude-code`, the
     /// directory whose encoded name is the transcript's project directory
-    /// (the one after `projects/`); for `codex`, the rollout's `cwd`.
+    /// (the one after `projects/`); for `codex`, the rollout's `cwd`; for
+    /// `dsh`, the log header's `cwd`.
     pub fn session_dir(&self, tool: &str, transcript: &Path) -> Option<PathBuf> {
         match tool {
             "claude-code" => {
@@ -210,6 +212,7 @@ impl<'a> Resolver<'a> {
                 self.encoded.get(project.as_ref()).cloned()
             }
             "codex" => codex_cwd(transcript),
+            "dsh" => crate::adapters::dsh::header(transcript).and_then(|h| h.cwd),
             _ => None,
         }
     }

@@ -44,7 +44,7 @@ Reasoning blocks of the model are never indexed. Tool calls and tool results are
 
 Redaction is best-effort pattern matching. It will miss secrets that do not look like these patterns, and it will redact some harmless text: the `aadhaar` and `phone` patterns can still match some numeric ids. Text already in an index keeps the redaction it had when it was indexed. Do not rely on it as your only protection. The index is local and is never uploaded by hippo.
 
-A derived Codex handoff is redacted in the same way, because it is transcript text written into a record you may commit.
+A derived Codex or dsh handoff is redacted in the same way, because it is transcript text written into a record you may commit.
 
 ## What reaches a model, and how it is isolated
 

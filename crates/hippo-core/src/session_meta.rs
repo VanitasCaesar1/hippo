@@ -16,6 +16,7 @@ use regex::Regex;
 
 use serde_json::Value;
 
+use crate::adapters::dsh;
 use crate::error::Result;
 use crate::index::Index;
 use crate::redact::redact;
@@ -103,9 +104,12 @@ pub fn origins(index: &Index) -> Result<HashMap<String, Origin>> {
         .collect())
 }
 
-/// The origin of session `id`, a `tool` session (`claude-code` or `codex`)
-/// whose transcript is `path`.
+/// The origin of session `id`, a `tool` session (`claude-code`, `codex` or
+/// `dsh`) whose transcript is `path`.
 pub fn origin(id: &str, tool: &str, path: &Path) -> Origin {
+    if tool == "dsh" {
+        return dsh_origin(path);
+    }
     let mut out = Origin::default();
     let Ok(file) = File::open(path) else {
         return out;
@@ -192,6 +196,32 @@ pub fn origin(id: &str, tool: &str, path: &Path) -> Origin {
     out
 }
 
+/// A dsh session's origin, from its log's header and [`dsh::facts`]: the
+/// working directory, the session a sub-agent belongs under, its label as
+/// the description, and the newest title as the name, which dsh writes
+/// itself (not the person). No entrypoint or branch: dsh logs neither.
+fn dsh_origin(path: &Path) -> Origin {
+    let Some(h) = dsh::header(path) else {
+        return Origin::default();
+    };
+    let facts = dsh::facts(path);
+    let clean = |t: Option<String>| {
+        t.map(|t| collapse(redact(&t).as_str()))
+            .filter(|t| !t.is_empty() && t.chars().count() <= 200)
+    };
+    let parent = dsh::parent_id(path, &h);
+    Origin {
+        automated: h.cwd.as_deref().is_some_and(is_temporary),
+        description: clean(facts.label).filter(|_| parent.is_some()),
+        named: clean(facts.title).filter(|_| parent.is_none()),
+        named_by_person: false,
+        cwd: h.cwd,
+        parent,
+        entrypoint: None,
+        branch: None,
+    }
+}
+
 /// How a session ran, as its transcript records it: the git branch, the
 /// model and the reasoning effort, each the newest the transcript names.
 /// Read for one session at a time (the app's session tab), not for a list.
@@ -213,6 +243,18 @@ pub const RUN_TAIL_BYTES: u64 = 1 << 20;
 /// A detached `HEAD` and Claude Code's `<synthetic>` model are not values.
 /// Reads only; a missing or unreadable transcript gives nothing.
 pub fn run_facts(tool: &str, path: &Path) -> RunFacts {
+    if tool == "dsh" {
+        let facts = dsh::facts(path);
+        let clean = |v: Option<String>| {
+            v.map(|s| collapse(redact(&s).as_str()))
+                .filter(|s| !s.is_empty())
+        };
+        return RunFacts {
+            branch: None,
+            model: clean(facts.model),
+            effort: clean(facts.effort),
+        };
+    }
     let mut out = RunFacts::default();
     let tail = read_tail(path, RUN_TAIL_BYTES).unwrap_or_default();
     // Newest first; the first line of the tail may be cut and is skipped
@@ -423,6 +465,16 @@ pub struct SubAgentMeta {
 /// 64 KiB is read.
 pub fn sub_agent_meta(path: &Path) -> SubAgentMeta {
     let mut out = SubAgentMeta::default();
+    if dsh::is_log(path) {
+        let facts = dsh::facts(path);
+        let clean = |t: Option<String>, max: usize| {
+            t.map(|t| collapse(redact(&t).as_str()))
+                .filter(|t| !t.is_empty() && t.chars().count() <= max)
+        };
+        out.description = clean(facts.label, 200);
+        out.model = clean(facts.agent_model, 60);
+        return out;
+    }
     let meta = path.with_extension("meta.json");
     let Ok(file) = File::open(meta) else {
         return out;

@@ -149,6 +149,7 @@ fn run_history(cfg: &Config, env: &Env) -> Report {
     let (index_row, index) = index_check(cfg, env);
     checks.push(index_row);
     checks.push(parse_failures_check(index.as_ref()));
+    checks.extend(dsh_logs_check(index.as_ref()));
     checks.push(unindexed_check(cfg, index.as_ref()));
     if let Some(dir) = &env.launch_agents {
         checks.push(launchd_jobs_check(dir, &["dev.hippo.ingest"], cfg));
@@ -217,6 +218,7 @@ fn run_with(cfg: &Config, ws: &Workspace, env: &Env) -> Report {
     let (index_row, index) = index_check(cfg, env);
     checks.push(index_row);
     checks.push(parse_failures_check(index.as_ref()));
+    checks.extend(dsh_logs_check(index.as_ref()));
     checks.push(unindexed_check(cfg, index.as_ref()));
     checks.push(sample_tasks_check(ws));
     checks.push(report_check(ws));
@@ -505,6 +507,64 @@ fn parse_failures_check(index: Option<&Index>) -> Check {
         }
         Err(err) => row("parse failures", Status::Warn, err.to_string()),
     }
+}
+
+/// dsh logs in a format version hippo does not read, from the index's
+/// parse failures: a warning naming the versions and what to do. With
+/// none, an `ok` row when the index holds dsh sessions, else no row.
+fn dsh_logs_check(index: Option<&Index>) -> Option<Check> {
+    let index = index?;
+    let failed = index.failed_files().ok()?;
+    let mut versions: std::collections::BTreeMap<u64, Vec<&str>> = Default::default();
+    for file in &failed {
+        let Some(rest) = file.error.split("dsh log format v").nth(1) else {
+            continue;
+        };
+        let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+        if let Ok(v) = digits.parse() {
+            versions
+                .entry(v)
+                .or_default()
+                .push(file.transcript_path.as_str());
+        }
+    }
+    if versions.is_empty() {
+        let any = index
+            .sources()
+            .ok()?
+            .values()
+            .any(|(tool, _)| tool == "dsh");
+        return any.then(|| {
+            row(
+                "dsh logs",
+                Status::Ok,
+                "every dsh log is in a format hippo reads (v3 or v4)",
+            )
+        });
+    }
+    let total: usize = versions.values().map(Vec::len).sum();
+    let counts: Vec<String> = versions
+        .iter()
+        .map(|(v, paths)| format!("v{v} ({})", paths.len()))
+        .collect();
+    let mut advice = Vec::new();
+    if versions.keys().any(|v| *v < 3) {
+        advice.push("resuming an older session in a current dsh upgrades its log");
+    }
+    if versions.keys().any(|v| *v > 4) {
+        advice.push("a newer log format needs a newer hippo");
+    }
+    let paths: Vec<&str> = versions.values().flatten().copied().collect();
+    Some(row(
+        "dsh logs",
+        Status::Warn,
+        format!(
+            "{total} dsh logs are in a format hippo does not read (it reads v3 and v4): {}; {}: {}",
+            counts.join(", "),
+            advice.join("; "),
+            sample(&paths)
+        ),
+    ))
 }
 
 /// Transcript files an adapter claims that the index has no row for: new
@@ -1891,6 +1951,51 @@ mod tests {
         // Another project's session has no record, and that is no gap.
         assert!(!gaps.contains("indexed-only"), "{gaps}");
         // Warnings only: the report still passes.
+        assert!(!r.has_problem(), "{r}");
+    }
+
+    #[test]
+    fn dsh_logs_in_a_format_hippo_does_not_read_are_named_with_their_versions() {
+        let s = setup();
+        let mut index = ingested(&s, NOW);
+        // No dsh session, no row.
+        assert!(report(&s).check("dsh logs").is_none());
+        let turn = Turn {
+            ordinal: 0,
+            role: Role::User,
+            ts: NOW,
+            tool_name: None,
+            text: redact("hello"),
+        };
+        let source = SessionSource {
+            id: "dsh-s1",
+            tool: Tool::Dsh,
+            transcript_path: Path::new("/d/--p--/s1/session.v4.jsonl"),
+            file_hash: "h1",
+        };
+        index.replace_session(&source, &[turn]).unwrap();
+        assert_eq!(status(&report(&s), "dsh logs"), Status::Ok);
+        for (path, version) in [
+            ("/d/--p--/s2/session.v9.jsonl", 9),
+            ("/d/--p--/s3/session.jsonl", 0),
+        ] {
+            let message = format!("{path}: {}", crate::adapters::dsh::unsupported(version));
+            index
+                .record_failure(Tool::Dsh, Path::new(path), "h", &redact(&message))
+                .unwrap();
+        }
+        let r = report(&s);
+        assert_eq!(status(&r, "dsh logs"), Status::Warn);
+        let d = detail(&r, "dsh logs");
+        for expected in [
+            "2 dsh logs",
+            "v0 (1), v9 (1)",
+            "resuming",
+            "newer hippo",
+            "s2/session.v9.jsonl",
+        ] {
+            assert!(d.contains(expected), "{expected}: {d}");
+        }
         assert!(!r.has_problem(), "{r}");
     }
 

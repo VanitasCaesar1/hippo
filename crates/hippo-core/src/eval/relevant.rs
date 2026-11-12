@@ -288,6 +288,7 @@ pub fn run(ws: &Workspace, index: &Index, rollup: &Rollup, opts: &Options) -> Re
         };
         let cwd = match f.tool.as_str() {
             "codex" => crate::dream::observed::codex_cwd(&f.transcript_path),
+            "dsh" => crate::adapters::dsh::header(&f.transcript_path).and_then(|h| h.cwd),
             _ => transcript_cwd(&f.transcript_path),
         };
         let repo = cwd.and_then(|dir| rank::repo_name(&dir, &ws.root));

@@ -4,4 +4,4 @@
 useDefault = true
 
 [allowlist]
-paths = ['''^fixtures/(redaction|claude-code|codex)/''']
+paths = ['''^fixtures/(redaction|claude-code|codex|dsh)/''']

@@ -121,8 +121,8 @@ pub fn remove_derived(ws: &Workspace, id: &str) -> Result<bool> {
 /// - Otherwise the record is built from the transcript: empty `task`,
 ///   `task_seen` false, `started` as given and `ended` the last turn's
 ///   timestamp, or `started` when there are no turns (a derived session is
-///   never open), both in UTC, no notes touched and no handoff. For Codex,
-///   `handoff` is the last assistant turn's text, redacted like everything
+///   never open), both in UTC, no notes touched and no handoff. For Codex
+///   and dsh, `handoff` is the last assistant turn's text, redacted like everything
 ///   else in the index, with `handoff_derived` true.
 /// - It is written, with [`Session::save`], only when no record exists or
 ///   the existing derived record differs, so an unchanged transcript never
@@ -159,7 +159,7 @@ pub fn derive(
 fn derived_record(id: &str, tool: Tool, started: OffsetDateTime, turns: &[Turn]) -> Session {
     let ended = turns.last().map_or(started, |turn| turn.ts);
     let handoff = match tool {
-        Tool::Codex => turns
+        Tool::Codex | Tool::Dsh => turns
             .iter()
             .rev()
             .find(|turn| turn.role == Role::Assistant)

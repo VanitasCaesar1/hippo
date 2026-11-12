@@ -2,7 +2,8 @@
 //! turn, whether it stopped to ask the person something, and its newest
 //! tool call.
 //!
-//! Read from the file's last [`TAIL_BYTES`], like [`super::last_turn_at`].
+//! Read from the file's last [`TAIL_BYTES`], like [`super::last_turn_at`];
+//! a dsh log from its newest [`DSH_EVENTS`] turn events.
 //! Precision over recall: a tool call that is still running cannot be told
 //! from one waiting at a permission prompt, so neither is "waiting".
 
@@ -11,6 +12,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
+use hippo_core::adapters::dsh;
 use hippo_core::rollup::changes::{self, Lines};
 use serde_json::Value;
 use time::format_description::well_known::Rfc3339;
@@ -292,15 +294,54 @@ fn turn_of(lines: &[&str], side: bool) -> Turn {
     turn
 }
 
-/// Reads the tail of the transcript at `path`.
+/// Reads the tail of the transcript at `path`. A dsh log is read through
+/// [`dsh::as_claude_lines`], and a call waiting for the person's approval
+/// is a wait.
 pub fn read(path: &Path) -> Tail {
+    if dsh::is_log(path) {
+        let Ok(log) = dsh::read(path) else {
+            return Tail::default();
+        };
+        let lines = dsh::as_claude_lines(&log, DSH_EVENTS);
+        let mut tail = of_lines(&lines.iter().map(String::as_str).collect::<Vec<_>>());
+        // dsh's own messages and the calls themselves are events too.
+        if let Some(t) = dsh::newest_turn_at(&log) {
+            tail.last = Some(tail.last.map_or(t, |l| l.max(t)));
+        }
+        if let Some(a) = dsh::pending_approval(&log) {
+            let reason = a
+                .reason
+                .as_deref()
+                .map(|r| hippo_core::redact::redact(r).as_str().to_owned());
+            tail.waiting = Some(Waiting {
+                at: a.at,
+                asked: Some(cut(
+                    &match reason {
+                        Some(r) => format!("Approve {}? {}", a.tool, r.trim()),
+                        None => format!("Approve {}?", a.tool),
+                    },
+                    120,
+                )),
+                plan: false,
+            });
+            tail.last = Some(tail.last.map_or(a.at, |l| l.max(a.at)));
+        }
+        return tail;
+    }
     let Some(lines) = tail_lines(path) else {
         return Tail::default();
     };
     of_lines(&lines.iter().map(String::as_str).collect::<Vec<_>>())
 }
 
+/// How many of a dsh log's newest turn events the tail reads.
+pub const DSH_EVENTS: usize = 400;
+
 fn tail_lines(path: &Path) -> Option<Vec<String>> {
+    if dsh::is_log(path) {
+        let log = dsh::read(path).ok()?;
+        return Some(dsh::as_claude_lines(&log, DSH_EVENTS));
+    }
     let mut file = File::open(path).ok()?;
     let len = file.metadata().ok()?.len();
     let from = len.saturating_sub(TAIL_BYTES);
