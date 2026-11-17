@@ -229,7 +229,8 @@ impl Shell {
         // An arrow (or Tab) engages the view shown, for the key guard. An
         // interceptor sees bound keys before their actions run; element key
         // listeners never see them.
-        // Esc closes the sidebar's overlay before anything else sees it.
+        // Esc closes the sidebar's overlay, then Pulse's sheet or its
+        // stacked focus, before anything else sees it.
         let shell = cx.entity().downgrade();
         subscriptions.push(cx.intercept_keystrokes(move |e, _, cx| {
             if e.keystroke.key == "escape" && !e.keystroke.modifiers.modified() {
@@ -239,8 +240,14 @@ impl Shell {
                         if open {
                             s.sidebar.overlay = false;
                             cx.notify();
+                            return true;
                         }
-                        open
+                        // Then Pulse's sheet, or its focus when stacked.
+                        let closed = s.pulse_escape();
+                        if closed {
+                            cx.notify();
+                        }
+                        closed
                     })
                     .unwrap_or(false);
                 if closed {

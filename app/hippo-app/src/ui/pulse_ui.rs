@@ -1,18 +1,19 @@
 //! Pulse: Fleet's default view (docs/designs/fleet-pulse.md).
 //!
-//! One screen: the header's counts and a histogram of the fleet's tool
-//! calls stacked by account up to a now line; the sessions that need the
-//! person (one large card when exactly one does) and a ranked Next up
-//! list; working sessions as waveforms of their 2-minute activity with
-//! their current call; to review, quiet and settled ones compact; and a
-//! rail of each account's usage drain, memory today and tonight's pass.
+//! A strip of counts and account meters over two panes: the queue (the
+//! sessions that need the person, then Next up) and the selected item
+//! alone in a focus pane. The fleet's lists, Memory today and Tonight
+//! sit in a sheet over the queue (`F`); with nothing in the queue the
+//! focus pane shows the fleet's histogram and today's totals. Below
+//! [`STACK_BELOW`] points the panes stack and `↵` opens an item's focus.
 //!
 //! Today's lanes come from `hippo_view::replay` and the rest from
 //! `hippo_view::pulse`, read on the background executor every 30
-//! seconds while Pulse shows. The tracks, the histogram and the drain
-//! charts are painted on canvases; the time grid and the now line are
-//! one overlay across the lanes. Only a needs-you lane's dot pulses, and
-//! not when the system asks for reduced motion.
+//! seconds while Pulse shows. The activity strips, the sheet's waves,
+//! the histogram and the drain chart are painted on canvases. Only a
+//! waiting row's dot pulses, and not when the system asks for reduced
+//! motion. Pulse writes nothing: its actions open the place where an
+//! item is dealt with.
 
 use std::cell::Cell;
 use std::collections::HashMap;
@@ -20,11 +21,11 @@ use std::rc::Rc;
 
 use gpui::AnimationExt as _;
 use gpui::{
-    Bounds, Context, FontWeight, Hsla, PathBuilder, Pixels, SharedString, Window, canvas, div,
-    fill, point, prelude::*, px, size,
+    Bounds, Context, FontWeight, Hsla, PathBuilder, Pixels, ScrollHandle, SharedString, Window,
+    canvas, div, fill, point, prelude::*, px, size,
 };
 use hippo_core::incidents::Incident;
-use hippo_view::fleet::{Fleet, Row, Shelf, State};
+use hippo_view::fleet::{Fleet, Row, State, Why};
 use hippo_view::pulse::{self, Corrected, Fate, Next, Tonight};
 use hippo_view::replay::{self, Day, Live, MarkKind};
 use time::{Duration, OffsetDateTime};
@@ -35,28 +36,27 @@ use super::theme::Look;
 
 /// How often today's lanes are read again while Pulse shows.
 const REFRESH: Duration = Duration::seconds(30);
-/// From this content width the rail sits beside the lanes; below, its
-/// accounts are a strip on top.
-const RAIL_BESIDE: f32 = 1120.;
-const RAIL_W: f32 = 272.;
-/// The least room the tracks need; below it they are left out.
-const TRACKS_MIN: f32 = 150.;
-/// A lane's track height.
-const TRACK_H: f32 = 24.;
-const SUB_H: f32 = 16.;
-const MINI_H: f32 = 12.;
-/// Next up shows this many until asked for more.
-const NEXT_SHOWN: usize = 4;
-/// At most this many finished sessions are listed to review.
-const REVIEW_SHOWN: usize = 8;
-/// At most this many sub-agents are drawn under a lane.
-const SUBS_SHOWN: usize = 4;
+/// Below this content width the queue and the focus stack.
+pub const STACK_BELOW: f32 = 900.;
+/// From this content width the queue takes [`QUEUE_W`], below it
+/// [`QUEUE_NARROW`].
+const QUEUE_WIDE_FROM: f32 = 1100.;
+const QUEUE_W: f32 = 380.;
+const QUEUE_NARROW: f32 = 300.;
+/// The focus column's widest.
+const FOCUS_W: f32 = 640.;
+/// A waiting session's calls shown before Show all.
+const CALLS_SHOWN: usize = 3;
+/// The sheet's waves cover this much time.
+const SHEET_SPAN: Duration = Duration::minutes(30);
+/// At most this many rows per sheet tab.
+const SHEET_ROWS: usize = 12;
 
-/// The span the lanes show.
+/// The span the activity strips and the histogram show.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Span {
-    Hour,
     #[default]
+    Hour,
     Three,
     Day,
 }
@@ -69,6 +69,24 @@ impl Span {
             Span::Day => "Day",
         }
     }
+
+    fn words(self) -> &'static str {
+        match self {
+            Span::Hour => "last hour",
+            Span::Three => "last 3 hours",
+            Span::Day => "today",
+        }
+    }
+}
+
+/// The sheet's tabs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SheetTab {
+    #[default]
+    Working,
+    Review,
+    Quiet,
+    Settled,
 }
 
 /// What Pulse reads besides the fleet.
@@ -77,6 +95,9 @@ pub struct PulseData {
     pub incidents: Vec<Incident>,
     pub corrected: Vec<Corrected>,
     pub tonight: Option<Tonight>,
+    /// The current turn of each waiting session, which the fleet reads
+    /// only for live ones.
+    pub turns: HashMap<String, hippo_view::fleet::tail::Turn>,
     pub read_at: OffsetDateTime,
 }
 
@@ -88,12 +109,20 @@ pub struct PulseUi {
     pub data: Option<Rc<PulseData>>,
     pub loading: bool,
     pub error: Option<String>,
-    /// Waiting sessions put off with Later, shown after the others.
+    /// Items put off with Later ([`Item::key`]), shown after the others
+    /// of their group until the app restarts.
     pub later: Vec<String>,
-    /// Next up's selection (J K); `None` until one is chosen.
-    pub next_sel: Option<usize>,
-    /// Next up shows all, not the first [`NEXT_SHOWN`].
-    pub next_all: bool,
+    /// The selected item's key; the first item when `None` or gone.
+    pub sel: Option<String>,
+    /// The fleet sheet is open over the queue.
+    pub sheet: bool,
+    pub sheet_tab: SheetTab,
+    /// The selected session shows all its calls.
+    pub all_calls: bool,
+    /// Stacked: the focus is open over the queue.
+    pub focus_open: bool,
+    pub queue_scroll: ScrollHandle,
+    pub sheet_scroll: ScrollHandle,
     /// The content width as last drawn.
     pub width: Rc<Cell<f32>>,
     /// The system asks for reduced motion (read once).
@@ -109,12 +138,58 @@ impl Default for PulseUi {
             loading: false,
             error: None,
             later: Vec::new(),
-            next_sel: None,
-            next_all: false,
+            sel: None,
+            sheet: false,
+            sheet_tab: SheetTab::default(),
+            all_calls: false,
+            focus_open: false,
+            queue_scroll: ScrollHandle::new(),
+            sheet_scroll: ScrollHandle::new(),
             width: Rc::new(Cell::new(0.)),
             still: None,
         }
     }
+}
+
+/// One thing in the queue.
+#[derive(Debug, Clone)]
+pub enum Item {
+    /// A session waiting on the person, or stopped at its limit.
+    Wait(Box<Row>),
+    /// What will want the person soon.
+    Next(Next),
+}
+
+impl Item {
+    /// What identifies it across reads.
+    pub fn key(&self) -> String {
+        match self {
+            Item::Wait(r) => format!("wait:{}", r.id),
+            Item::Next(Next::RunsDry { profile, .. }) => format!("dry:{profile}"),
+            Item::Next(Next::Unverified { session, claim, .. }) => {
+                format!("claim:{session}:{claim}")
+            }
+            Item::Next(Next::Destructive { incident, .. }) => format!("harm:{incident}"),
+            Item::Next(Next::Correction { lesson, .. }) => format!("rule:{lesson}"),
+        }
+    }
+}
+
+/// `items` with those put off (in `later`'s order) moved to the end.
+pub fn later_last(mut items: Vec<Item>, later: &[String]) -> Vec<Item> {
+    items.sort_by_key(|i| later.iter().position(|l| *l == i.key()));
+    items
+}
+
+/// The selected index among `keys`: `sel`'s, else the first.
+pub fn selected(keys: &[String], sel: Option<&str>) -> Option<usize> {
+    if keys.is_empty() {
+        return None;
+    }
+    Some(
+        sel.and_then(|s| keys.iter().position(|k| k == s))
+            .unwrap_or(0),
+    )
 }
 
 /// Whether the system's Reduce motion is on.
@@ -133,44 +208,6 @@ fn memory_yellow(look: &Look) -> Hsla {
         gpui::hsla(45. / 360., 0.92, 0.58, 1.)
     } else {
         gpui::hsla(40. / 360., 0.95, 0.40, 1.)
-    }
-}
-
-/// The column widths for a content width.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Geo {
-    pub rail: bool,
-    pub head: f32,
-    pub now: f32,
-    pub tracks: bool,
-    pub pad: f32,
-    /// The tracks' width.
-    pub track: f32,
-}
-
-/// The layout for content width `w`: the rail beside from
-/// [`RAIL_BESIDE`], the head and now columns about a quarter each, and
-/// the tracks only when they keep [`TRACKS_MIN`].
-pub fn geo(w: f32) -> Geo {
-    let rail = w >= RAIL_BESIDE;
-    let pad = 16.;
-    let main = w - pad * 2. - if rail { RAIL_W + 16. } else { 0. };
-    let head = (main * 0.28).clamp(200., 290.);
-    let now = (main * 0.32).clamp(220., 330.);
-    let tracks = main - head - now >= TRACKS_MIN;
-    let (head, now) = if tracks {
-        (head, now)
-    } else {
-        // Without tracks the two columns share the row.
-        ((main * 0.55).max(160.), (main * 0.45).max(150.))
-    };
-    Geo {
-        rail,
-        head,
-        now,
-        tracks,
-        pad,
-        track: (main - head - now).max(0.),
     }
 }
 
@@ -202,6 +239,10 @@ pub fn thousands(n: u64) -> String {
         out.push(c);
     }
     out
+}
+
+fn plural(n: usize, one: &str, many: &str) -> String {
+    format!("{n} {}", if n == 1 { one } else { many })
 }
 
 /// What a lane draws: its beats, the waiting ones flagged, and its marks
@@ -400,8 +441,12 @@ impl Shell {
         };
         let ws = loaded.setup.workspace().cloned();
         let mut live: HashMap<String, Live> = HashMap::new();
+        let mut waits: Vec<(String, std::path::PathBuf)> = Vec::new();
         if let Some(f) = loaded.fleet.as_ref() {
             for r in &f.rows {
+                if matches!(r.state, State::Waiting { .. }) && r.turn.is_none() {
+                    waits.push((r.id.clone(), r.transcript.clone()));
+                }
                 let l = match &r.state {
                     State::Live => Live {
                         live: true,
@@ -444,18 +489,23 @@ impl Shell {
                     let tonight = ws.as_ref().map(|ws| {
                         pulse::tonight(&rollup, &cfg.dream_at, since, pulse::notes_due(ws), now)
                     });
-                    Ok::<_, String>((day, incidents, corrected, tonight, now))
+                    let turns = waits
+                        .into_iter()
+                        .map(|(id, path)| (id, hippo_view::fleet::tail::read_turn(&path)))
+                        .collect();
+                    Ok::<_, String>((day, incidents, corrected, tonight, turns, now))
                 })
                 .await;
             this.update(cx, |this, cx| {
                 this.pulse.loading = false;
                 match read {
-                    Ok((day, incidents, corrected, tonight, read_at)) => {
+                    Ok((day, incidents, corrected, tonight, turns, read_at)) => {
                         this.pulse.data = Some(Rc::new(PulseData {
                             day: Rc::new(day),
                             incidents,
                             corrected,
                             tonight,
+                            turns,
                             read_at,
                         }));
                         this.pulse.error = None;
@@ -469,25 +519,87 @@ impl Shell {
         .detach();
     }
 
-    /// The waiting sessions in the order Pulse lists them: the longest
-    /// wait first, those put off with Later last.
-    fn pulse_needs<'a>(&self, fleet: &'a Fleet) -> Vec<&'a Row> {
-        let mut out: Vec<&Row> = fleet.needs_you().into_iter().map(|n| n.row).collect();
-        out.sort_by_key(|r| self.pulse.later.iter().position(|l| *l == r.id));
-        out
+    /// The queue: the sessions that need the person (the longest wait
+    /// first), then Next up (most urgent first); in each, those put off
+    /// with Later last.
+    fn pulse_queue(&self, fleet: &Fleet) -> (Vec<Item>, Vec<Item>) {
+        let needs: Vec<Item> = fleet
+            .needs_you()
+            .into_iter()
+            .filter(|n| !matches!(n.why, Why::Check))
+            .map(|n| Item::Wait(Box::new(n.row.clone())))
+            .collect();
+        let next: Vec<Item> = match &self.pulse.data {
+            Some(d) => pulse::next_up(fleet, &d.incidents, &d.corrected, d.day.start)
+                .into_iter()
+                .map(Item::Next)
+                .collect(),
+            None => Vec::new(),
+        };
+        (
+            later_last(needs, &self.pulse.later),
+            later_last(next, &self.pulse.later),
+        )
     }
 
-    fn pulse_next(&self, fleet: &Fleet) -> Vec<Next> {
-        match &self.pulse.data {
-            Some(d) => pulse::next_up(fleet, &d.incidents, &d.corrected, d.day.start),
-            None => Vec::new(),
+    /// The queue as one list, and the selected index in it.
+    fn pulse_items(&self, fleet: &Fleet) -> (Vec<Item>, Option<usize>) {
+        let (needs, next) = self.pulse_queue(fleet);
+        let all: Vec<Item> = needs.into_iter().chain(next).collect();
+        let keys: Vec<String> = all.iter().map(Item::key).collect();
+        let i = selected(&keys, self.pulse.sel.as_deref());
+        (all, i)
+    }
+
+    fn pulse_stacked(&self) -> bool {
+        let w = self.pulse.width.get();
+        w > 0. && w < STACK_BELOW
+    }
+
+    /// Selects `key`; stacked, it opens the item's focus.
+    fn pulse_select(&mut self, key: String) {
+        if self.pulse.sel.as_deref() != Some(key.as_str()) {
+            self.pulse.all_calls = false;
+        }
+        self.pulse.sel = Some(key);
+        if self.pulse_stacked() {
+            self.pulse.focus_open = true;
         }
     }
 
-    /// Pulse's keys: ↵ opens the first waiting thread (or runs the chosen
-    /// Next up's action), T opens it in T3 Code, ⌘T in a terminal, S puts
-    /// it off, J K move in Next up, U resumes the runs-dry sessions,
-    /// L shows Lanes.
+    /// Puts `item` off with Later and selects the one after it.
+    fn pulse_later(&mut self, items: &[Item], i: usize) {
+        let key = items[i].key();
+        let after = items
+            .get(i + 1)
+            .or_else(|| i.checked_sub(1).and_then(|j| items.get(j)))
+            .map(Item::key);
+        self.pulse.later.retain(|l| *l != key);
+        self.pulse.later.push(key.clone());
+        self.pulse.sel = after.or(Some(key));
+        self.pulse.all_calls = false;
+    }
+
+    /// The item's first action: Open thread, Resume them on, Check, Open
+    /// incident or Keep now.
+    fn pulse_do(
+        &mut self,
+        item: &Item,
+        fleet: &Fleet,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match item {
+            Item::Wait(r) => self.open_session((**r).clone(), window, cx),
+            Item::Next(n) => self.pulse_act(n, fleet, window, cx),
+        }
+    }
+
+    /// Pulse's keys: J K (or the arrows) move in the queue, ↵ does the
+    /// selected item's first action, T opens a waiting session in T3 Code
+    /// and ⌘T in a terminal, U resumes the runs-dry sessions, S puts the
+    /// item off, F opens the fleet sheet, L shows Lanes. Escape is
+    /// [`Shell::pulse_escape`].
     pub(super) fn pulse_key(
         &mut self,
         k: &gpui::Keystroke,
@@ -498,12 +610,13 @@ impl Shell {
             return false;
         };
         let key = k.key.as_str();
+        let (items, sel) = self.pulse_items(&fleet);
+        let current = sel.and_then(|i| items.get(i)).cloned();
         if k.modifiers.platform {
             if key == "t"
-                && let Some(r) = self.pulse_needs(&fleet).first()
+                && let Some(Item::Wait(r)) = &current
             {
-                let r = (*r).clone();
-                self.pulse_terminal(&r, &fleet);
+                self.pulse_terminal(r, &fleet);
                 cx.notify();
                 return true;
             }
@@ -512,45 +625,51 @@ impl Shell {
         if k.modifiers.control || k.modifiers.alt {
             return false;
         }
-        let first = self.pulse_needs(&fleet).first().map(|r| (*r).clone());
-        let next = self.pulse_next(&fleet);
         match key {
-            "l" => {
-                self.replay.lanes = true;
+            "l" => self.replay.lanes = true,
+            "f" => {
+                self.pulse.sheet = !self.pulse.sheet;
+            }
+            "j" | "down" if !items.is_empty() => {
+                let i = sel.map_or(0, |i| (i + 1).min(items.len() - 1));
+                self.pulse.sel = Some(items[i].key());
+                self.pulse.all_calls = false;
+            }
+            "k" | "up" if !items.is_empty() => {
+                let i = sel.map_or(0, |i| i.saturating_sub(1));
+                self.pulse.sel = Some(items[i].key());
+                self.pulse.all_calls = false;
             }
             "enter" => {
-                if let Some(i) = self.pulse.next_sel
-                    && let Some(n) = next.get(i)
-                {
-                    let n = n.clone();
-                    self.pulse_act(&n, &fleet, window, cx);
+                let Some(item) = current else { return false };
+                if self.pulse_stacked() && !self.pulse.focus_open {
+                    self.pulse.focus_open = true;
+                } else {
+                    self.pulse_do(&item, &fleet, window, cx);
                     return true;
                 }
-                let Some(r) = first else { return false };
-                self.open_session(r, window, cx);
-                return true;
             }
             "t" => {
-                let Some(r) = first else { return false };
+                let Some(Item::Wait(r)) = current else {
+                    return false;
+                };
                 self.pulse_t3(&r);
             }
             "s" => {
-                let Some(r) = first else { return false };
-                self.pulse.later.retain(|l| *l != r.id);
-                self.pulse.later.push(r.id);
+                let Some(i) = sel else { return false };
+                self.pulse_later(&items, i);
             }
-            "j" | "down" if !next.is_empty() => {
-                let i = self
-                    .pulse
-                    .next_sel
-                    .map_or(0, |i| (i + 1).min(next.len() - 1));
-                self.pulse.next_sel = Some(i);
-                self.pulse.next_all |= i >= NEXT_SHOWN;
+            "u" => {
+                let Some(Item::Next(n)) = items
+                    .iter()
+                    .find(|i| matches!(i, Item::Next(Next::RunsDry { .. })))
+                    .cloned()
+                else {
+                    return false;
+                };
+                self.pulse_act(&n, &fleet, window, cx);
+                return true;
             }
-            "k" | "up" if !next.is_empty() => {
-                self.pulse.next_sel = Some(self.pulse.next_sel.map_or(0, |i| i.saturating_sub(1)));
-            }
-            "escape" if self.pulse.next_sel.is_some() => self.pulse.next_sel = None,
             "pagedown" | "pageup" | "home" | "end" => {
                 let h = self.page_scroll.bounds().size.height * 0.85;
                 let max = self.page_scroll.max_offset().y;
@@ -563,18 +682,32 @@ impl Shell {
                 };
                 self.page_scroll.set_offset(o);
             }
-            "u" => {
-                let Some(n) = next.iter().find(|n| matches!(n, Next::RunsDry { .. })) else {
-                    return false;
-                };
-                let n = n.clone();
-                self.pulse_act(&n, &fleet, window, cx);
-                return true;
-            }
             _ => return false,
         }
         cx.notify();
         true
+    }
+
+    /// Escape in Pulse: closes the sheet, else the stacked focus. Escape
+    /// is bound to Back, so the shell's interceptor calls this first;
+    /// `false` when Pulse is not the view shown or has nothing to close.
+    pub(super) fn pulse_escape(&mut self) -> bool {
+        let shown = self.state.tabs.section() == crate::state::Section::Fleet
+            && self.state.tabs.depth() == 1
+            && self.pulse.on
+            && !self.replay.lanes;
+        if !shown {
+            return false;
+        }
+        if self.pulse.sheet {
+            self.pulse.sheet = false;
+            true
+        } else if self.pulse.focus_open {
+            self.pulse.focus_open = false;
+            true
+        } else {
+            false
+        }
     }
 
     /// Opens a T3 Code session's thread in T3 Code.
@@ -610,7 +743,7 @@ impl Shell {
         self.reach.said = Some(said);
     }
 
-    /// Does what a Next up row offers.
+    /// Does what a Next up item offers.
     fn pulse_act(&mut self, n: &Next, fleet: &Fleet, window: &mut Window, cx: &mut Context<Self>) {
         match n {
             Next::RunsDry { sessions, to, .. } => {
@@ -686,7 +819,25 @@ impl Shell {
             )
     }
 
-    #[allow(clippy::too_many_lines)]
+    /// The start of the shown span.
+    fn pulse_t0(&self, data: Option<&PulseData>, now: OffsetDateTime) -> OffsetDateTime {
+        match (self.pulse.span, data) {
+            (Span::Hour, _) => now - Duration::hours(1),
+            (Span::Three, _) => now - Duration::hours(3),
+            (Span::Day, Some(d)) => {
+                let first = d
+                    .day
+                    .lanes
+                    .iter()
+                    .filter_map(|l| l.track.first)
+                    .min()
+                    .unwrap_or(now - Duration::hours(3));
+                (first - Duration::minutes(10)).max(d.day.start)
+            }
+            (Span::Day, None) => now - Duration::hours(6),
+        }
+    }
+
     pub(super) fn render_pulse(
         &mut self,
         fleet: &Fleet,
@@ -701,267 +852,35 @@ impl Shell {
         } else {
             f32::from(window.viewport_size().width) - self.sidebar_width(window)
         };
-        let g = geo(width);
+        let stacked = width < STACK_BELOW;
+        if !stacked {
+            self.pulse.focus_open = false;
+        }
+        let queue_w = if width >= QUEUE_WIDE_FROM {
+            QUEUE_W
+        } else {
+            QUEUE_NARROW
+        };
         let now = OffsetDateTime::now_utc();
         let data = self.pulse.data.clone();
-        let t0 = match (self.pulse.span, &data) {
-            (Span::Hour, _) => now - Duration::hours(1),
-            (Span::Three, _) => now - Duration::hours(3),
-            (Span::Day, Some(d)) => {
-                let first = d
-                    .day
-                    .lanes
-                    .iter()
-                    .filter_map(|l| l.track.first)
-                    .min()
-                    .unwrap_or(now - Duration::hours(3));
-                (first - Duration::minutes(10)).max(d.day.start)
-            }
-            (Span::Day, None) => now - Duration::hours(6),
-        };
-        let shelves = crate::shelving::Shelves::of(fleet, &self.marks());
-        let needs = self.pulse_needs(fleet);
-        let working: Vec<&Row> = shelves.shelves[1]
-            .1
-            .iter()
-            .copied()
-            .filter(|r| r.working())
-            .collect();
-        let quiet: Vec<&Row> = shelves.shelves[1]
-            .1
-            .iter()
-            .copied()
-            .filter(|r| !r.working())
-            .collect();
-        let review: Vec<&Row> = shelves.shelves[2].1.clone();
-        let settled: Vec<&Row> = shelves.shelves[3].1.clone();
-        let _ = Shelf::NeedsYou;
+        let t0 = self.pulse_t0(data.as_deref(), now);
+        let (needs, next) = self.pulse_queue(fleet);
+        let items: Vec<Item> = needs.iter().chain(next.iter()).cloned().collect();
+        let keys: Vec<String> = items.iter().map(Item::key).collect();
+        let sel = selected(&keys, self.pulse.sel.as_deref());
         let totals = pulse::totals(fleet, data.as_ref().map(|d| d.day.as_ref()), now);
-        let next = self.pulse_next(fleet);
-        let still = self.pulse.still.unwrap_or(true);
 
         let toolbar = self.pulse_toolbar(look, cx);
-        // Blocks of lanes; those with tracks get the grid and the now line.
-        let mut blocks: Vec<(bool, Vec<gpui::AnyElement>)> = Vec::new();
-        let mut lanes: Vec<gpui::AnyElement> = Vec::new();
-        lanes.push(self.pulse_header(fleet, &totals, data.as_deref(), t0, now, g, look));
-        // Needs you.
-        if !needs.is_empty() {
-            let oldest = needs
-                .iter()
-                .filter_map(|r| match r.state {
-                    State::Waiting { at, .. } | State::Stopped { at, .. } => Some(now - at),
-                    _ => None,
-                })
-                .max();
-            lanes.push(group_head(
-                look,
-                "Needs you",
-                needs.len(),
-                Some(format!(
-                    "oldest {} · ↵ opens the first",
-                    oldest.map(kit::span).unwrap_or_default()
-                )),
-            ));
-            if needs.len() == 1 {
-                blocks.push((true, std::mem::take(&mut lanes)));
-                lanes.push(self.pulse_card(needs[0], fleet, data.as_deref(), t0, now, look, cx));
-            } else {
-                for (i, r) in needs.iter().enumerate() {
-                    lanes.push(self.pulse_need_lane(
-                        r,
-                        i,
-                        data.as_deref(),
-                        t0,
-                        now,
-                        g,
-                        still,
-                        look,
-                        cx,
-                    ));
-                }
+        let strip = self.pulse_strip(fleet, &totals, now, look);
+        let queue = self.pulse_queue_pane(
+            fleet, &needs, &next, sel, &totals, stacked, queue_w, now, look, cx,
+        );
+        let focus = match sel.and_then(|i| items.get(i)) {
+            Some(item) => {
+                self.pulse_focus(item, fleet, data.as_deref(), t0, now, stacked, look, cx)
             }
-        }
-        blocks.push((needs.len() != 1, std::mem::take(&mut lanes)));
-        if !next.is_empty() {
-            lanes.push(group_head(
-                look,
-                "Next up",
-                next.len(),
-                Some("will want you soon, most urgent first · J K move".into()),
-            ));
-            let shown = if self.pulse.next_all {
-                next.len()
-            } else {
-                next.len().min(NEXT_SHOWN)
-            };
-            for (i, n) in next.iter().take(shown).enumerate() {
-                lanes.push(self.pulse_next_row(n, i, fleet, now, look, cx));
-            }
-            if next.len() > shown {
-                lanes.push(
-                    div()
-                        .id("pulse-next-more")
-                        .py(look.px(6.))
-                        .px(look.px(6.))
-                        .text_size(look.text(12.))
-                        .text_color(look.c.text_muted)
-                        .cursor_pointer()
-                        .hover(|h| h.text_color(look.c.text))
-                        .child(format!("{} more", next.len() - shown))
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.pulse.next_all = true;
-                            cx.notify();
-                        }))
-                        .into_any_element(),
-                );
-            }
-        }
-        blocks.push((false, std::mem::take(&mut lanes)));
-        if !working.is_empty() {
-            lanes.push(group_head(look, "Working", working.len(), None));
-            for r in &working {
-                lanes.push(self.pulse_work_lane(r, data.as_deref(), t0, now, g, look, cx));
-            }
-        }
-        if !review.is_empty() {
-            lanes.push(group_head(
-                look,
-                "To review",
-                review.len(),
-                Some("finished, not opened yet".into()),
-            ));
-            for r in review.iter().take(REVIEW_SHOWN) {
-                lanes.push(self.pulse_mini_lane(r, data.as_deref(), t0, now, g, look, cx));
-            }
-            if review.len() > REVIEW_SHOWN {
-                lanes.push(
-                    div()
-                        .py(look.px(4.))
-                        .text_size(look.text(12.))
-                        .text_color(look.c.faint)
-                        .child(format!("{} more in Rows", review.len() - REVIEW_SHOWN))
-                        .into_any_element(),
-                );
-            }
-        }
-        if !quiet.is_empty() {
-            let since: Vec<String> = quiet
-                .iter()
-                .filter_map(|r| r.last.map(kit::hm))
-                .take(3)
-                .collect();
-            lanes.push(self.pulse_packed(
-                "Quiet",
-                &quiet,
-                format!("since {}", since.join(", ")),
-                data.as_deref(),
-                t0,
-                now,
-                g,
-                look,
-            ));
-        }
-        if !settled.is_empty() {
-            let merged = settled
-                .iter()
-                .filter(|r| r.pulls.iter().any(|(_, d)| *d == "merged"))
-                .count();
-            let summary = if merged > 0 {
-                format!(
-                    "{merged} pull request{} merged",
-                    if merged == 1 { "" } else { "s" }
-                )
-            } else {
-                "finished and opened".to_owned()
-            };
-            lanes.push(self.pulse_packed(
-                "Settled",
-                &settled,
-                summary,
-                data.as_deref(),
-                t0,
-                now,
-                g,
-                look,
-            ));
-        }
-        if fleet.rows.is_empty() {
-            lanes.push(
-                div()
-                    .py(look.px(18.))
-                    .text_color(look.c.text_muted)
-                    .child("No session today yet.")
-                    .into_any_element(),
-            );
-        }
-        if let Some(e) = &self.pulse.error {
-            lanes.push(
-                div()
-                    .py(look.px(8.))
-                    .text_size(look.text(12.))
-                    .text_color(look.c.faint)
-                    .child(format!("Lanes not read: {e}"))
-                    .into_any_element(),
-            );
-        }
-        // The grid and the now line over every lane.
-        let overlay = || {
-            let lk = look.clone();
-            let span_s = (now - t0).whole_seconds();
-            let t0c = t0;
-            canvas(
-                |_, _, _| {},
-                move |bounds, _, window, _| {
-                    let o = bounds.origin;
-                    let w = f32::from(bounds.size.width);
-                    let step = tick_step(span_s, w);
-                    let off = i64::from(super::status::local_offset().whole_seconds());
-                    let first = ((t0c.unix_timestamp() + off) / step + 1) * step - off;
-                    let mut t = first;
-                    while t < t0c.unix_timestamp() + span_s {
-                        let x = (t - t0c.unix_timestamp()) as f32 / span_s as f32 * w;
-                        window.paint_quad(fill(
-                            Bounds::new(point(o.x + px(x), o.y), size(px(1.), bounds.size.height)),
-                            lk.c.border.opacity(0.5),
-                        ));
-                        t += step;
-                    }
-                    window.paint_quad(fill(
-                        Bounds::new(
-                            point(o.x + px(w - 1.), o.y),
-                            size(px(1.), bounds.size.height),
-                        ),
-                        lk.c.info.opacity(0.7),
-                    ));
-                },
-            )
-            .absolute()
-            .top_0()
-            .bottom_0()
-            .left(look.px(g.head))
-            .right(look.px(g.now))
+            None => self.pulse_clear(fleet, &totals, data.as_deref(), t0, now, look),
         };
-        blocks.push((true, lanes));
-        let list = div()
-            .flex()
-            .flex_col()
-            .px(look.px(g.pad))
-            .pb(look.px(24.))
-            .children(
-                blocks
-                    .into_iter()
-                    .filter(|(_, v)| !v.is_empty())
-                    .map(|(grid, v)| {
-                        div()
-                            .relative()
-                            .flex()
-                            .flex_col()
-                            .when(grid && g.tracks, |d| d.child(overlay()))
-                            .children(v)
-                    }),
-            );
-        let rail = self.pulse_rail(fleet, data.as_deref(), g, now, look);
         let width_cell = self.pulse.width.clone();
         let shell = cx.entity().downgrade();
         let measure = canvas(
@@ -982,51 +901,76 @@ impl Shell {
         .left_0()
         .w_full()
         .h(px(1.));
-        let body = if g.rail {
-            div()
-                .flex()
-                .items_start()
-                .w_full()
-                .child(div().flex_1().min_w_0().child(list))
-                .child(
-                    div()
-                        .flex_shrink_0()
-                        .w(look.px(RAIL_W))
-                        .mr(look.px(g.pad))
-                        .child(rail),
-                )
-        } else {
-            div()
-                .flex()
-                .flex_col()
-                .w_full()
-                .child(div().px(look.px(g.pad)).child(rail))
-                .child(list)
-        };
-        div()
-            .id("pulse")
+        let focus_pane = div()
+            .id("pulse-focus")
+            .flex_1()
+            .min_w_0()
+            .h_full()
             .relative()
-            .size_full()
-            .child(measure)
             .child(
                 div()
-                    .id("pulse-scroll")
+                    .id("pulse-focus-scroll")
                     .size_full()
                     .overflow_y_scroll()
                     .track_scroll(&self.page_scroll)
                     .child(
                         div()
                             .flex()
-                            .flex_col()
+                            .justify_center()
                             .w_full()
-                            .pt(look.px(8.))
-                            .text_size(look.text(13.))
-                            .child(div().px(look.px(g.pad)).child(toolbar))
-                            .children(self.render_reach_said(look))
-                            .child(body),
+                            .px(look.px(if stacked { 20. } else { 40. }))
+                            .pt(look.px(if stacked { 20. } else { 44. }))
+                            .pb(look.px(48.))
+                            .child(div().w_full().max_w(look.px(FOCUS_W)).child(focus)),
                     ),
             )
-            .children(super::scrollbar::vertical(&self.page_scroll, look))
+            .children(super::scrollbar::vertical(&self.page_scroll, look));
+        let body = if stacked {
+            let show_focus = self.pulse.focus_open && sel.is_some();
+            div()
+                .flex()
+                .flex_1()
+                .min_h_0()
+                .w_full()
+                .child(if show_focus {
+                    focus_pane.into_any_element()
+                } else {
+                    queue.into_any_element()
+                })
+        } else {
+            div()
+                .flex()
+                .flex_1()
+                .min_h_0()
+                .w_full()
+                .child(
+                    div()
+                        .flex_shrink_0()
+                        .w(look.px(queue_w))
+                        .h_full()
+                        .border_r(look.fixed(1.))
+                        .border_color(look.c.border)
+                        .child(queue),
+                )
+                .child(focus_pane)
+        };
+        div()
+            .id("pulse")
+            .relative()
+            .size_full()
+            .flex()
+            .flex_col()
+            .text_size(look.text(13.))
+            .child(measure)
+            .child(
+                div()
+                    .px(look.px(16.))
+                    .pt(look.px(8.))
+                    .child(toolbar)
+                    .children(self.render_reach_said(look)),
+            )
+            .child(strip)
+            .child(body)
             .into_any_element()
     }
 
@@ -1055,247 +999,1773 @@ impl Shell {
             .flex_wrap()
             .items_center()
             .gap(look.px(10.))
-            .pb(look.px(10.))
+            .pb(look.px(8.))
             .child(self.fleet_view_switch(look, cx))
             .child(spans)
     }
 
-    /// Big counts, the histogram and the now column.
+    /// One line: the counts on the left, each account's 5-hour meter on
+    /// the right, red with its empty time when it runs dry.
+    fn pulse_strip(
+        &self,
+        fleet: &Fleet,
+        t: &pulse::Totals,
+        now: OffsetDateTime,
+        look: &Look,
+    ) -> gpui::Div {
+        let at = |s: i64| OffsetDateTime::from_unix_timestamp(s).unwrap_or(now);
+        let count = |n: usize, what: &str, color: Hsla| {
+            div()
+                .flex()
+                .items_center()
+                .gap(look.px(7.))
+                .whitespace_nowrap()
+                .child(kit::dot(look, color))
+                .child(
+                    div()
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(look.c.text)
+                        .child(n.to_string()),
+                )
+                .child(div().text_color(look.c.text_muted).child(what.to_owned()))
+        };
+        let meters = rail_profiles(fleet).into_iter().filter_map(|p| {
+            let h = fleet.room(&p)?;
+            let left = h.five.map(|l| l.frac).or_else(|| h.left())?;
+            let used = (1. - left).clamp(0., 1.);
+            let d = fleet.drain(&p);
+            let dry = d.and_then(|d| d.empty_at);
+            let reset = h.five.and_then(|l| l.resets_at).or_else(|| h.resets());
+            let hue = kit::profile_hue(&p);
+            let tip = format!(
+                "{}: {}% of the 5-hour window used{}",
+                kit::profile_name(&p),
+                (used * 100.).round(),
+                reset
+                    .map(|r| format!(", resets {}", kit::hm(at(r))))
+                    .unwrap_or_default()
+            );
+            Some(
+                div()
+                    .id(SharedString::from(format!("pulse-meter-{p}")))
+                    .flex()
+                    .items_center()
+                    .gap(look.px(8.))
+                    .whitespace_nowrap()
+                    .tooltip(super::tooltip::Tooltip::text(tip))
+                    .child(kit::dot(look, hue))
+                    .child(
+                        div()
+                            .text_color(look.c.text_muted)
+                            .child(kit::profile_name(&p)),
+                    )
+                    .child(
+                        div()
+                            .w(look.px(64.))
+                            .h(look.px(4.))
+                            .rounded_full()
+                            .bg(look.c.border)
+                            .child(
+                                div()
+                                    .h_full()
+                                    .rounded_full()
+                                    .w(gpui::relative(used as f32))
+                                    .bg(if dry.is_some() { look.c.err } else { hue }),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .font_family(kit::MONO)
+                            .text_size(look.text(12.))
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(look.c.text)
+                            .child(format!("{}%", (used * 100.).round())),
+                    )
+                    .child(
+                        div()
+                            .font_family(kit::MONO)
+                            .text_size(look.text(12.))
+                            .text_color(if dry.is_some() {
+                                look.c.err
+                            } else {
+                                look.c.faint
+                            })
+                            .child(match (dry, reset) {
+                                (Some(e), _) => format!("empty {}", kit::hm(at(e))),
+                                (None, Some(r)) => kit::hm(at(r)),
+                                _ => String::new(),
+                            }),
+                    ),
+            )
+        });
+        div()
+            .flex()
+            .items_center()
+            .gap(look.px(20.))
+            .h(look.px(40.))
+            .px(look.px(16.))
+            .border_y(look.fixed(1.))
+            .border_color(look.c.border)
+            .overflow_hidden()
+            .child(count(t.working, "working", look.c.info))
+            .child(count(t.need_you, "need you", look.c.warn))
+            .child(div().flex_1())
+            .children(meters)
+    }
+
+    /// The queue pane: Needs you, then Next up, the key hint and the
+    /// fleet row; the sheet over it when open.
     #[allow(clippy::too_many_arguments)]
-    fn pulse_header(
+    fn pulse_queue_pane(
+        &self,
+        fleet: &Fleet,
+        needs: &[Item],
+        next: &[Item],
+        sel: Option<usize>,
+        totals: &pulse::Totals,
+        stacked: bool,
+        width: f32,
+        now: OffsetDateTime,
+        look: &Look,
+        cx: &mut Context<Self>,
+    ) -> gpui::Stateful<gpui::Div> {
+        let still = self.pulse.still.unwrap_or(true);
+        let group = |title: &str| {
+            div()
+                .px(look.px(8.))
+                .pt(look.px(18.))
+                .pb(look.px(6.))
+                .text_size(look.text(12.))
+                .text_color(look.c.faint)
+                .child(title.to_owned())
+        };
+        let mut list = div().flex().flex_col().px(look.px(8.)).pb(look.px(12.));
+        list = list.child(
+            div()
+                .flex()
+                .items_center()
+                .gap(look.px(8.))
+                .px(look.px(8.))
+                .pt(look.px(16.))
+                .child(
+                    div()
+                        .text_size(look.text(14.))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(look.c.text)
+                        .child("Up next"),
+                )
+                .child(
+                    div()
+                        .text_color(look.c.faint)
+                        .child((needs.len() + next.len()).to_string()),
+                ),
+        );
+        if needs.is_empty() && next.is_empty() {
+            list = list.child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(look.px(8.))
+                    .px(look.px(8.))
+                    .pt(look.px(18.))
+                    .text_color(look.c.text_muted)
+                    .child(kit::icon(look, "circle-check", 14., look.c.ok))
+                    .child("All clear. Nothing needs you."),
+            );
+        }
+        let mut i = 0;
+        for (title, group_items) in [("Needs you", needs), ("Next up", next)] {
+            if group_items.is_empty() {
+                continue;
+            }
+            list = list.child(group(title));
+            for item in group_items {
+                list = list.child(self.pulse_queue_row(
+                    item,
+                    i,
+                    sel == Some(i),
+                    fleet,
+                    now,
+                    still,
+                    look,
+                    cx,
+                ));
+                i += 1;
+            }
+        }
+        if let Some(e) = &self.pulse.error {
+            list = list.child(
+                div()
+                    .px(look.px(8.))
+                    .pt(look.px(14.))
+                    .text_size(look.text(12.))
+                    .text_color(look.c.faint)
+                    .child(format!("Today’s lanes not read: {e}")),
+            );
+        }
+        let hint = div()
+            .flex()
+            .items_center()
+            .gap(look.px(6.))
+            .px(look.px(16.))
+            .py(look.px(10.))
+            .text_size(look.text(11.5))
+            .text_color(look.c.faint)
+            .child(kit::kbd(look, "J"))
+            .child(kit::kbd(look, "K"))
+            .child("move")
+            .child(div().w(look.px(4.)))
+            .child(kit::kbd(look, "↵"))
+            .child(if stacked { "open" } else { "act" })
+            .child(div().w(look.px(4.)))
+            .child(kit::kbd(look, "S"))
+            .child("later");
+        let fleet_row =
+            div()
+                .id("pulse-fleet-row")
+                .flex()
+                .items_center()
+                .gap(look.px(8.))
+                .h(look.px(44.))
+                .px(look.px(16.))
+                .border_t(look.fixed(1.))
+                .border_color(look.c.border)
+                .cursor_pointer()
+                .hover(|h| h.bg(look.c.hover))
+                .tooltip(super::tooltip::Tooltip::text(
+                    "The fleet, memory and tonight (F)",
+                ))
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.pulse.sheet = !this.pulse.sheet;
+                    cx.notify();
+                }))
+                .child(kit::dot(look, look.c.info))
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(look.px(4.))
+                        .whitespace_nowrap()
+                        .child(
+                            div()
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(look.c.text)
+                                .child(totals.working.to_string()),
+                        )
+                        .child(div().text_color(look.c.text_muted).child("working"))
+                        .when(totals.subs > 0, |d| {
+                            d.child(div().text_color(look.c.faint).child("·"))
+                                .child(
+                                    div()
+                                        .font_weight(FontWeight::MEDIUM)
+                                        .text_color(look.c.text)
+                                        .child(totals.subs.to_string()),
+                                )
+                                .child(div().text_color(look.c.text_muted).child(
+                                    if totals.subs == 1 {
+                                        "sub-agent"
+                                    } else {
+                                        "sub-agents"
+                                    },
+                                ))
+                        }),
+                )
+                .child(div().flex_1())
+                .children(fleet.rows.iter().filter(|r| r.working()).take(6).map(|r| {
+                    kit::dot(
+                        look,
+                        r.profile
+                            .as_deref()
+                            .map_or(look.c.text_muted, kit::profile_hue),
+                    )
+                }))
+                .child(kit::icon(
+                    look,
+                    if self.pulse.sheet {
+                        "chevron-down"
+                    } else {
+                        "chevron-right"
+                    },
+                    13.,
+                    look.c.faint,
+                ));
+        let pane_w: gpui::Length = if stacked {
+            gpui::relative(1.).into()
+        } else {
+            look.px(width).into()
+        };
+        let pane = div()
+            .id("pulse-queue")
+            .relative()
+            .flex()
+            .flex_col()
+            .h_full()
+            .w(pane_w)
+            .bg(look.c.canvas)
+            .child(
+                div()
+                    .id("pulse-queue-scroll")
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
+                    .track_scroll(&self.pulse.queue_scroll)
+                    .child(list),
+            )
+            .child(hint)
+            .child(fleet_row);
+        if self.pulse.sheet {
+            pane.child(self.pulse_sheet(fleet, totals, now, look, cx))
+        } else {
+            pane
+        }
+    }
+
+    /// One queue row: an icon, the title, one line of reason, its age and
+    /// its account's dot.
+    #[allow(clippy::too_many_arguments)]
+    fn pulse_queue_row(
+        &self,
+        item: &Item,
+        i: usize,
+        on: bool,
+        fleet: &Fleet,
+        now: OffsetDateTime,
+        still: bool,
+        look: &Look,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let at = |s: i64| OffsetDateTime::from_unix_timestamp(s).unwrap_or(now);
+        let (icon, color, title, reason, age, profiles): (
+            &str,
+            Hsla,
+            String,
+            String,
+            String,
+            Vec<String>,
+        ) = match item {
+            Item::Wait(r) => {
+                let (_, icon, asked, since) = need_words(r, now);
+                let plan = matches!(r.state, State::Waiting { plan: true, .. });
+                let reason = if plan {
+                    match r.plan.as_ref().map(|p| p.steps.len() + p.more) {
+                        Some(n) if n > 0 => format!("A {n}-step plan is waiting for your approval"),
+                        _ => "A plan is waiting for your approval".to_owned(),
+                    }
+                } else {
+                    asked.unwrap_or_else(|| "It is waiting on you".to_owned())
+                };
+                (
+                    icon,
+                    look.c.warn,
+                    kit::title(&r.title),
+                    reason,
+                    since,
+                    r.profile.iter().cloned().collect(),
+                )
+            }
+            Item::Next(Next::RunsDry {
+                profile,
+                empty_at,
+                reset,
+                sessions,
+                ..
+            }) => (
+                "gauge",
+                look.c.err,
+                format!(
+                    "{} runs dry about {}",
+                    kit::profile_name(profile),
+                    kit::hm(at(*empty_at))
+                ),
+                format!(
+                    "{} will stop, {} before its reset",
+                    plural(sessions.len(), "session", "sessions"),
+                    kit::span(at(*reset) - at(*empty_at))
+                ),
+                format!("in {}", kit::span(at(*empty_at) - now)),
+                vec![profile.clone()],
+            ),
+            Item::Next(Next::Unverified {
+                session,
+                title,
+                claim,
+                at,
+                ..
+            }) => (
+                "shield-question",
+                look.c.warn,
+                kit::title(title),
+                format!("Unverified: “{claim}”"),
+                kit::span(now - *at),
+                fleet
+                    .row(session)
+                    .and_then(|r| r.profile.clone())
+                    .into_iter()
+                    .collect(),
+            ),
+            Item::Next(Next::Destructive {
+                session,
+                title,
+                command,
+                at,
+                ..
+            }) => (
+                "triangle-alert",
+                look.c.err,
+                kit::command_words(command.strip_prefix("Bash: ").unwrap_or(command)),
+                format!(
+                    "{} · {}",
+                    title.as_deref().map_or("A session".into(), kit::title),
+                    kit::hm(*at)
+                ),
+                kit::span(now - *at),
+                fleet
+                    .row(session)
+                    .and_then(|r| r.profile.clone())
+                    .into_iter()
+                    .collect(),
+            ),
+            Item::Next(Next::Correction {
+                session,
+                said,
+                at,
+                seen,
+                ..
+            }) => (
+                "lightbulb",
+                look.c.info,
+                format!("Keep a rule: “{}”", short(said, 60)),
+                format!(
+                    "You corrected it {}",
+                    if *seen > 1 {
+                        format!("{seen} times")
+                    } else {
+                        "once".to_owned()
+                    }
+                ),
+                kit::span(now - *at),
+                fleet
+                    .row(session)
+                    .and_then(|r| r.profile.clone())
+                    .into_iter()
+                    .collect(),
+            ),
+        };
+        let waiting = matches!(item, Item::Wait(_));
+        let glyph = div()
+            .relative()
+            .pt(look.px(2.))
+            .child(kit::icon(look, icon, 15., color))
+            .when(waiting, |d| {
+                let dot = div()
+                    .absolute()
+                    .top(look.px(0.))
+                    .right(look.px(-3.))
+                    .size(look.px(6.))
+                    .rounded_full()
+                    .bg(look.c.warn);
+                let dot: gpui::AnyElement = if still {
+                    dot.into_any_element()
+                } else {
+                    dot.with_animation(
+                        SharedString::from(format!("pulse-dot-{}", item.key())),
+                        gpui::Animation::new(std::time::Duration::from_millis(1600)).repeat(),
+                        |d, t| {
+                            d.opacity(0.35 + 0.65 * (1. - (t * std::f32::consts::TAU).cos()) / 2.)
+                        },
+                    )
+                    .into_any_element()
+                };
+                d.child(dot)
+            });
+        let key = item.key();
+        div()
+            .id(("pulse-q", i))
+            .relative()
+            .flex()
+            .items_start()
+            .gap(look.px(12.))
+            .min_h(look.px(60.))
+            .px(look.px(12.))
+            .py(look.px(11.))
+            .rounded(look.px(8.))
+            .cursor_pointer()
+            .when(on, |d| d.bg(look.c.selected))
+            .when(!on, |d| d.hover(|h| h.bg(look.c.hover)))
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.pulse_select(key.clone());
+                cx.notify();
+            }))
+            .when(on, |d| {
+                d.child(
+                    div()
+                        .absolute()
+                        .left(look.px(0.))
+                        .top(look.px(10.))
+                        .bottom(look.px(10.))
+                        .w(look.fixed(2.))
+                        .rounded_full()
+                        .bg(look.c.accent),
+                )
+            })
+            .child(glyph)
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .gap(look.px(3.))
+                    .child(
+                        div()
+                            .truncate()
+                            .text_size(look.text(14.))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(look.c.text)
+                            .child(title),
+                    )
+                    .child(
+                        div()
+                            .truncate()
+                            .text_size(look.text(12.5))
+                            .text_color(look.c.text_muted)
+                            .child(reason),
+                    ),
+            )
+            .child(
+                div()
+                    .flex_shrink_0()
+                    .flex()
+                    .flex_col()
+                    .items_end()
+                    .gap(look.px(7.))
+                    .pt(look.px(1.))
+                    .child(
+                        div()
+                            .font_family(kit::MONO)
+                            .text_size(look.text(11.5))
+                            .text_color(look.c.faint)
+                            .child(age),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .gap(look.px(3.))
+                            .children(profiles.iter().map(|p| kit::dot(look, kit::profile_hue(p)))),
+                    ),
+            )
+            .into_any_element()
+    }
+
+    /// The selected item, alone.
+    #[allow(clippy::too_many_arguments)]
+    fn pulse_focus(
+        &self,
+        item: &Item,
+        fleet: &Fleet,
+        data: Option<&PulseData>,
+        t0: OffsetDateTime,
+        now: OffsetDateTime,
+        stacked: bool,
+        look: &Look,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let back = stacked.then(|| {
+            div()
+                .id("pulse-back")
+                .flex()
+                .items_center()
+                .gap(look.px(4.))
+                .mb(look.px(16.))
+                .text_size(look.text(12.5))
+                .text_color(look.c.text_muted)
+                .cursor_pointer()
+                .hover(|h| h.text_color(look.c.text))
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.pulse.focus_open = false;
+                    cx.notify();
+                }))
+                .child(kit::icon(look, "chevron-left", 13., look.c.text_muted))
+                .child("Up next")
+                .child(kit::kbd(look, "esc"))
+        });
+        let body = match item {
+            Item::Wait(r) => self.pulse_focus_wait(r, data, t0, now, look, cx),
+            Item::Next(n @ Next::RunsDry { .. }) => self.pulse_focus_dry(n, fleet, now, look, cx),
+            Item::Next(n) => self.pulse_focus_next(n, fleet, now, look, cx),
+        };
+        div()
+            .flex()
+            .flex_col()
+            .children(back)
+            .child(body)
+            .into_any_element()
+    }
+
+    /// A waiting session: where it is, what it asked (or its plan), the
+    /// ways in, and what it did before asking.
+    fn pulse_focus_wait(
+        &self,
+        r: &Row,
+        data: Option<&PulseData>,
+        t0: OffsetDateTime,
+        now: OffsetDateTime,
+        look: &Look,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let (what, icon, asked, since) = need_words(r, now);
+        let plan = matches!(r.state, State::Waiting { plan: true, .. });
+        let crumb = crumb(look, r.profile.as_deref(), r.project.as_deref())
+            .child(kit::icon(look, icon, 13., look.c.warn))
+            .child(
+                div()
+                    .text_color(look.c.text_muted)
+                    .child(format!("{what} · {since}")),
+            );
+        // One line of facts, each with its detail on hover.
+        let lines = r.total_lines();
+        let pr = r.pulls.iter().rev().find(|(_, d)| *d == "opened").cloned();
+        let mut facts = div()
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .gap_x(look.px(12.))
+            .gap_y(look.px(4.))
+            .text_size(look.text(12.5))
+            .text_color(look.c.text_muted);
+        if let Some(b) = &r.branch {
+            facts = facts.child(
+                div()
+                    .font_family(kit::MONO)
+                    .text_size(look.text(12.))
+                    .child(kit::middle(b, 40)),
+            );
+        }
+        if let Some((url, _)) = &pr {
+            facts = facts.child(
+                div()
+                    .id("pulse-fact-pr")
+                    .flex()
+                    .items_center()
+                    .gap(look.px(5.))
+                    .tooltip(super::tooltip::Tooltip::text(url.clone()))
+                    .child(kit::icon(look, "git-pull-request", 13., look.c.faint))
+                    .child(format!(
+                        "PR #{}",
+                        super::sidebar::pr_number(url).unwrap_or("?")
+                    )),
+            );
+        }
+        if let Some(l) = lines {
+            facts = facts.child(
+                div()
+                    .id("pulse-fact-lines")
+                    .flex()
+                    .items_center()
+                    .gap(look.px(5.))
+                    .tooltip(super::tooltip::Tooltip::text(format!(
+                        "{} changed",
+                        plural(l.files as usize, "file", "files")
+                    )))
+                    .children(kit::diff_counts(look, l.added, l.removed)),
+            );
+        }
+        if r.claims.verified + r.claims.unverified > 0 {
+            let ok = r.claims.unverified == 0;
+            let tip = match &r.claims.first_unverified {
+                Some((claim, why)) => format!("Unverified: “{claim}” ({why})"),
+                None => format!(
+                    "{} checked against what ran",
+                    plural(r.claims.verified as usize, "claim", "claims")
+                ),
+            };
+            facts = facts.child(
+                div()
+                    .id("pulse-fact-claims")
+                    .flex()
+                    .items_center()
+                    .gap(look.px(5.))
+                    .tooltip(super::tooltip::Tooltip::text(tip))
+                    .child(kit::icon(
+                        look,
+                        if ok {
+                            "circle-check"
+                        } else {
+                            "shield-question"
+                        },
+                        13.,
+                        if ok { look.c.ok } else { look.c.warn },
+                    ))
+                    .child(if ok {
+                        "claims checked".to_owned()
+                    } else {
+                        plural(
+                            r.claims.unverified as usize,
+                            "claim unverified",
+                            "claims unverified",
+                        )
+                    }),
+            );
+        }
+        if !r.rules.is_empty() {
+            let tip = r
+                .rules
+                .iter()
+                .map(|s| s.title.clone())
+                .collect::<Vec<_>>()
+                .join("\n");
+            facts = facts.child(
+                div()
+                    .id("pulse-fact-rules")
+                    .flex()
+                    .items_center()
+                    .gap(look.px(6.))
+                    .tooltip(super::tooltip::Tooltip::text(tip))
+                    .child(ring_glyph(look))
+                    .child(plural(r.rules.len(), "kept rule", "kept rules")),
+            );
+        }
+        // The question, or the plan.
+        let ask: gpui::AnyElement = match (plan, r.plan.as_ref()) {
+            (true, Some(p)) if !p.steps.is_empty() => div()
+                .flex()
+                .flex_col()
+                .gap(look.px(14.))
+                .children(p.steps.iter().enumerate().map(|(n, s)| {
+                    div()
+                        .flex()
+                        .items_start()
+                        .gap(look.px(14.))
+                        .child(
+                            div()
+                                .w(look.px(16.))
+                                .flex_shrink_0()
+                                .font_family(kit::MONO)
+                                .text_size(look.text(12.))
+                                .text_color(look.c.faint)
+                                .pt(look.px(2.))
+                                .child((n + 1).to_string()),
+                        )
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .text_size(look.text(15.))
+                                .line_height(look.text(22.))
+                                .text_color(look.c.text)
+                                .child(s.clone()),
+                        )
+                }))
+                .when(p.more > 0, |d| {
+                    d.child(
+                        div()
+                            .pl(look.px(30.))
+                            .text_size(look.text(12.5))
+                            .text_color(look.c.faint)
+                            .child(format!("and {} more in the thread", p.more)),
+                    )
+                })
+                .into_any_element(),
+            (true, Some(p)) if p.text.is_some() => div()
+                .text_size(look.text(14.))
+                .line_height(look.text(21.))
+                .text_color(look.c.text)
+                .child(short(p.text.as_deref().unwrap_or_default(), 900))
+                .into_any_element(),
+            _ => div()
+                .text_size(look.text(18.))
+                .line_height(look.text(26.))
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(look.c.text)
+                .child(
+                    asked.map_or_else(|| "It is waiting on you.".to_owned(), |q| format!("“{q}”")),
+                )
+                .into_any_element(),
+        };
+        let asked_at = match r.state {
+            State::Waiting { at, .. } => Some(format!(
+                "{} at {}",
+                if plan { "Plan written" } else { "Asked" },
+                kit::hm(at)
+            )),
+            State::Stopped { at, .. } => Some(format!("Stopped at {}", kit::hm(at))),
+            _ => None,
+        };
+        // The ways in.
+        let id = r.id.clone();
+        let (row, row2, row3) = (r.clone(), r.clone(), r.clone());
+        let key = Item::Wait(Box::new(r.clone())).key();
+        let actions = div()
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .gap(look.px(6.))
+            .child(
+                kit::button_key(
+                    look,
+                    SharedString::from(format!("focus-open-{id}")),
+                    "Open thread",
+                    "↵",
+                    Kind::Primary,
+                )
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    this.open_session(row.clone(), window, cx);
+                })),
+            )
+            .when(r.client == Some("T3 Code"), |d| {
+                d.child(
+                    kit::button_icon(
+                        look,
+                        SharedString::from(format!("focus-t3-{id}")),
+                        Some("arrow-up-right"),
+                        "T3 Code",
+                        "T",
+                        Kind::Ghost,
+                    )
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.pulse_t3(&row2);
+                        cx.notify();
+                    })),
+                )
+            })
+            .child(
+                kit::button_icon(
+                    look,
+                    SharedString::from(format!("focus-term-{id}")),
+                    Some("terminal"),
+                    "Terminal",
+                    "⌘T",
+                    Kind::Ghost,
+                )
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    if let Some(f) = this.loaded.as_ref().and_then(|l| l.fleet.clone()) {
+                        this.pulse_terminal(&row3, &f);
+                    }
+                    cx.notify();
+                })),
+            )
+            .child(self.later_button(look, key, cx));
+        // What it did before asking: its activity over the span and its
+        // last calls.
+        let wave = self.wave_of(r, data, t0, now, Some(look.c.warn));
+        let lk = look.clone();
+        let strip = wave.map(|w| {
+            canvas(
+                |_, _, _| {},
+                move |bounds, _, window, _| paint_wave(window, bounds, &w, t0, now, &lk, true),
+            )
+            .w_full()
+            .h(look.px(36.))
+        });
+        let calls: Vec<hippo_view::fleet::tail::Activity> = r
+            .turn
+            .as_ref()
+            .or_else(|| data.and_then(|d| d.turns.get(&r.id)))
+            .map(|t| t.calls.clone())
+            .unwrap_or_default();
+        let shown = if self.pulse.all_calls {
+            calls.len()
+        } else {
+            calls.len().min(CALLS_SHOWN)
+        };
+        let call_rows = calls.iter().take(shown).rev().map(|c| {
+            div()
+                .flex()
+                .items_center()
+                .gap(look.px(14.))
+                .h(look.px(28.))
+                .child(
+                    div()
+                        .w(look.px(40.))
+                        .flex_shrink_0()
+                        .font_family(kit::MONO)
+                        .text_size(look.text(12.))
+                        .text_color(look.c.faint)
+                        .child(kit::hm(c.at)),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .child(kit::tool_line(look, c, 1, None, false)),
+                )
+        });
+        let more = calls.len().saturating_sub(shown);
+        let activity = div()
+            .flex()
+            .flex_col()
+            .gap(look.px(6.))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .text_size(look.text(12.))
+                    .text_color(look.c.faint)
+                    .child(format!("Activity · {}", self.pulse.span.words()))
+                    .child(div().flex_1())
+                    .child(
+                        div()
+                            .font_family(kit::MONO)
+                            .text_color(look.c.warn)
+                            .child(format!("waiting {since}")),
+                    ),
+            )
+            .children(strip)
+            .child(div().h(look.px(6.)))
+            .children(call_rows)
+            .when(more > 0, |d| {
+                d.child(
+                    div()
+                        .id("pulse-all-calls")
+                        .flex()
+                        .items_center()
+                        .gap(look.px(5.))
+                        .pl(look.px(54.))
+                        .pt(look.px(4.))
+                        .text_size(look.text(12.5))
+                        .text_color(look.c.text_muted)
+                        .cursor_pointer()
+                        .hover(|h| h.text_color(look.c.text))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.pulse.all_calls = true;
+                            cx.notify();
+                        }))
+                        .child(kit::icon(look, "chevron-down", 12., look.c.faint))
+                        .child(format!("Show all {} calls", calls.len())),
+                )
+            });
+        div()
+            .flex()
+            .flex_col()
+            .child(crumb)
+            .child(focus_title(look, &kit::title(&r.title)))
+            .child(facts)
+            .child(div().h(look.px(36.)))
+            .child(ask)
+            .children(asked_at.map(|a| {
+                div()
+                    .pt(look.px(10.))
+                    .text_size(look.text(12.5))
+                    .text_color(look.c.faint)
+                    .child(a)
+            }))
+            .child(div().h(look.px(24.)))
+            .child(actions)
+            .child(div().h(look.px(44.)))
+            .child(activity)
+            .into_any_element()
+    }
+
+    /// An account that runs dry: its drain, the sessions that will stop
+    /// and the account to resume them on.
+    fn pulse_focus_dry(
+        &self,
+        n: &Next,
+        fleet: &Fleet,
+        now: OffsetDateTime,
+        look: &Look,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let Next::RunsDry {
+            profile,
+            empty_at,
+            reset,
+            sessions,
+            to,
+        } = n
+        else {
+            return div().into_any_element();
+        };
+        let at = |s: i64| OffsetDateTime::from_unix_timestamp(s).unwrap_or(now);
+        let d = fleet.drain(profile);
+        let hue = kit::profile_hue(profile);
+        let crumb = crumb(look, Some(profile), Some("5-hour window"))
+            .child(kit::icon(look, "gauge", 13., look.c.err))
+            .child(
+                div()
+                    .text_color(look.c.err)
+                    .child(format!("Runs dry in {}", kit::span(at(*empty_at) - now))),
+            );
+        let facts = div()
+            .flex()
+            .flex_wrap()
+            .gap(look.px(12.))
+            .text_size(look.text(12.5))
+            .text_color(look.c.text_muted)
+            .children(d.map(|d| format!("{}% used", (d.used * 100.).round())))
+            .children(d.map(|d| format!("{}% an hour", (d.burn * 100.).round())))
+            .child(format!("resets {}", kit::hm(at(*reset))));
+        let chart = d.map(|d| {
+            div()
+                .flex()
+                .flex_col()
+                .gap(look.px(6.))
+                .child(
+                    div()
+                        .flex()
+                        .text_size(look.text(12.))
+                        .text_color(look.c.faint)
+                        .child("What is left of the window")
+                        .child(div().flex_1())
+                        .child(
+                            div()
+                                .font_family(kit::MONO)
+                                .text_color(look.c.err)
+                                .child(format!("empty {}", kit::hm(at(*empty_at)))),
+                        ),
+                )
+                .child(drain_chart(look, d, hue, None, 120.))
+                .child(
+                    div()
+                        .flex()
+                        .font_family(kit::MONO)
+                        .text_size(look.text(11.))
+                        .text_color(look.c.faint)
+                        .child(kit::hm(at(d.start)))
+                        .child(div().flex_1())
+                        .child(format!("reset {}", kit::hm(at(d.end)))),
+                )
+        });
+        let stop = sessions.iter().filter_map(|id| fleet.row(id)).map(|r| {
+            div()
+                .flex()
+                .items_center()
+                .gap(look.px(10.))
+                .h(look.px(30.))
+                .child(kit::dot(look, hue))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .truncate()
+                        .text_color(look.c.text)
+                        .child(kit::title(&r.title)),
+                )
+                .children(r.call.as_ref().map(|c| {
+                    div()
+                        .flex_shrink_0()
+                        .max_w(look.px(260.))
+                        .child(kit::tool_line(look, c, 1, None, true))
+                }))
+        });
+        let room = to.as_ref().and_then(|t| {
+            let h = fleet.room(t)?;
+            let left = h.five.map(|l| l.frac).or_else(|| h.left())?;
+            let reset = h.five.and_then(|l| l.resets_at).or_else(|| h.resets());
+            Some(format!(
+                "{} has {}% left{}. Resumed there, they carry on where they are.",
+                kit::profile_name(t),
+                (left * 100.).round(),
+                reset
+                    .map(|r| format!(" until {}", kit::hm(at(r))))
+                    .unwrap_or_default()
+            ))
+        });
+        let n2 = n.clone();
+        let key = Item::Next(n.clone()).key();
+        let actions = div()
+            .flex()
+            .items_center()
+            .gap(look.px(6.))
+            .when_some(to.clone(), |d, t| {
+                d.child(
+                    kit::button_key(
+                        look,
+                        "focus-resume",
+                        format!("Resume them on {}", kit::profile_name(&t)),
+                        "U",
+                        Kind::Primary,
+                    )
+                    .tooltip(super::tooltip::Tooltip::text(
+                        "Copies their resume commands for that account",
+                    ))
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        if let Some(f) = this.loaded.as_ref().and_then(|l| l.fleet.clone()) {
+                            this.pulse_act(&n2, &f, window, cx);
+                        }
+                    })),
+                )
+            })
+            .child(self.later_button(look, key, cx));
+        div()
+            .flex()
+            .flex_col()
+            .child(crumb)
+            .child(focus_title(
+                look,
+                &format!(
+                    "{} runs dry about {}",
+                    kit::profile_name(profile),
+                    kit::hm(at(*empty_at))
+                ),
+            ))
+            .child(facts)
+            .child(div().h(look.px(32.)))
+            .children(chart)
+            .child(div().h(look.px(28.)))
+            .child(
+                div()
+                    .pb(look.px(6.))
+                    .text_size(look.text(12.))
+                    .text_color(look.c.faint)
+                    .child(format!("Will stop at {}", kit::hm(at(*empty_at)))),
+            )
+            .children(stop)
+            .child(div().h(look.px(24.)))
+            .children(room.map(|t| {
+                div()
+                    .pb(look.px(16.))
+                    .text_size(look.text(14.))
+                    .text_color(look.c.text)
+                    .child(t)
+            }))
+            .child(actions)
+            .into_any_element()
+    }
+
+    /// An unverified claim, a destructive incident or a rule candidate:
+    /// the one fact, its evidence and the one action.
+    fn pulse_focus_next(
+        &self,
+        n: &Next,
+        fleet: &Fleet,
+        now: OffsetDateTime,
+        look: &Look,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let (crumb_el, title, fact, evidence, action): (
+            gpui::Div,
+            String,
+            gpui::AnyElement,
+            Option<gpui::AnyElement>,
+            &str,
+        ) = match n {
+            Next::Unverified {
+                session,
+                title,
+                claim,
+                why,
+                at,
+            } => {
+                let r = fleet.row(session);
+                (
+                    crumb(
+                        look,
+                        r.and_then(|r| r.profile.as_deref()),
+                        r.and_then(|r| r.project.as_deref()),
+                    )
+                    .child(kit::icon(look, "shield-question", 13., look.c.warn))
+                    .child(
+                        div()
+                            .text_color(look.c.text_muted)
+                            .child(format!("Unverified claim · finished {}", kit::hm(*at))),
+                    ),
+                    kit::title(title),
+                    div()
+                        .text_size(look.text(18.))
+                        .line_height(look.text(26.))
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(look.c.text)
+                        .child(format!("“{claim}”"))
+                        .into_any_element(),
+                    Some(
+                        div()
+                            .flex()
+                            .items_start()
+                            .gap(look.px(8.))
+                            .text_size(look.text(13.))
+                            .text_color(look.c.text_muted)
+                            .child(kit::icon(look, "info", 14., look.c.faint))
+                            .child(div().flex_1().min_w_0().child(why.clone()))
+                            .into_any_element(),
+                    ),
+                    "Check",
+                )
+            }
+            Next::Destructive {
+                session,
+                title,
+                command,
+                at,
+                ..
+            } => {
+                let r = fleet.row(session);
+                (
+                    crumb(
+                        look,
+                        r.and_then(|r| r.profile.as_deref()),
+                        r.and_then(|r| r.project.as_deref()),
+                    )
+                    .child(kit::icon(look, "triangle-alert", 13., look.c.err))
+                    .child(
+                        div()
+                            .text_color(look.c.text_muted)
+                            .child(format!("Destructive · {}", kit::hm(*at))),
+                    ),
+                    format!(
+                        "A destructive command in {}",
+                        title.as_deref().map_or("a session".into(), kit::title)
+                    ),
+                    div()
+                        .p(look.px(14.))
+                        .rounded(look.px(8.))
+                        .bg(look.c.inset)
+                        .border(look.fixed(1.))
+                        .border_color(look.c.border)
+                        .font_family(kit::MONO)
+                        .text_size(look.text(13.))
+                        .text_color(look.c.text)
+                        .child(short(command.strip_prefix("Bash: ").unwrap_or(command), 400))
+                        .into_any_element(),
+                    Some(
+                        div()
+                            .text_size(look.text(13.))
+                            .text_color(look.c.text_muted)
+                            .child(format!(
+                                "Harm followed it {} ago. The incident holds what it changed and what you said.",
+                                kit::span(now - *at)
+                            ))
+                            .into_any_element(),
+                    ),
+                    "Open incident",
+                )
+            }
+            Next::Correction {
+                session,
+                said,
+                at,
+                seen,
+                ..
+            } => {
+                let r = fleet.row(session);
+                (
+                    crumb(
+                        look,
+                        r.and_then(|r| r.profile.as_deref()),
+                        r.and_then(|r| r.project.as_deref()),
+                    )
+                    .child(kit::icon(look, "lightbulb", 13., look.c.info))
+                    .child(
+                        div()
+                            .text_color(look.c.text_muted)
+                            .child("Rule candidate"),
+                    ),
+                    "Keep a rule".to_owned(),
+                    div()
+                        .text_size(look.text(18.))
+                        .line_height(look.text(26.))
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(look.c.text)
+                        .child(format!("“{said}”"))
+                        .into_any_element(),
+                    Some(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(look.px(8.))
+                            .text_size(look.text(13.))
+                            .text_color(look.c.text_muted)
+                            .child(diamond_glyph(look))
+                            .child(format!(
+                                "You said it {} today, last at {}. A pending lesson holds it; keeping it makes it a rule sessions start with.",
+                                if *seen > 1 {
+                                    format!("{seen} times")
+                                } else {
+                                    "once".to_owned()
+                                },
+                                kit::hm(*at)
+                            ))
+                            .into_any_element(),
+                    ),
+                    "Keep now",
+                )
+            }
+            Next::RunsDry { .. } => return div().into_any_element(),
+        };
+        let n2 = n.clone();
+        let key = Item::Next(n.clone()).key();
+        let actions = div()
+            .flex()
+            .items_center()
+            .gap(look.px(6.))
+            .child(
+                kit::button_key(look, "focus-act", action, "↵", Kind::Primary).on_click(
+                    cx.listener(move |this, _, window, cx| {
+                        if let Some(f) = this.loaded.as_ref().and_then(|l| l.fleet.clone()) {
+                            this.pulse_act(&n2, &f, window, cx);
+                        }
+                    }),
+                ),
+            )
+            .child(self.later_button(look, key, cx));
+        div()
+            .flex()
+            .flex_col()
+            .child(crumb_el)
+            .child(focus_title(look, &title))
+            .child(div().h(look.px(28.)))
+            .child(fact)
+            .children(evidence.map(|e| div().pt(look.px(16.)).child(e)))
+            .child(div().h(look.px(28.)))
+            .child(actions)
+            .into_any_element()
+    }
+
+    /// Later: puts the item after the others in its group.
+    fn later_button(
+        &self,
+        look: &Look,
+        key: String,
+        cx: &mut Context<Self>,
+    ) -> gpui::Stateful<gpui::Div> {
+        kit::button_key(look, "focus-later", "Later", "S", Kind::Ghost).on_click(cx.listener(
+            move |this, _, _, cx| {
+                if let Some(f) = this.loaded.as_ref().and_then(|l| l.fleet.clone()) {
+                    let (items, _) = this.pulse_items(&f);
+                    if let Some(i) = items.iter().position(|it| it.key() == key) {
+                        this.pulse_later(&items, i);
+                    }
+                }
+                cx.notify();
+            },
+        ))
+    }
+
+    /// Nothing in the queue: the fleet's histogram and today's totals.
+    fn pulse_clear(
         &self,
         fleet: &Fleet,
         t: &pulse::Totals,
         data: Option<&PulseData>,
         t0: OffsetDateTime,
         now: OffsetDateTime,
-        g: Geo,
         look: &Look,
     ) -> gpui::AnyElement {
-        let big = |n: usize, label: String, color: Hsla| {
+        let order = rail_profiles(fleet);
+        let hist = data.map(|d| pulse::histogram(&d.day, t0, now, &order));
+        let stat = |big: String, what: String| {
             div()
                 .flex()
                 .flex_col()
-                .min_w_0()
+                .items_center()
+                .gap(look.px(4.))
                 .child(
                     div()
-                        .text_size(look.text(30.))
-                        .line_height(look.text(32.))
+                        .text_size(look.text(17.))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(color)
-                        .child(n.to_string()),
+                        .text_color(look.c.text)
+                        .child(big),
                 )
                 .child(
                     div()
                         .text_size(look.text(12.))
-                        .text_color(if color == look.c.text {
-                            look.c.text_muted
-                        } else {
-                            color
-                        })
-                        .whitespace_nowrap()
-                        .child(label),
+                        .text_color(look.c.faint)
+                        .child(what),
                 )
         };
-        let subs = if t.subs > 0 {
+        let line = if t.working > 0 {
             format!(
-                "working · {} sub-agent{}",
-                t.subs,
-                if t.subs == 1 { "" } else { "s" }
+                "Nothing needs you. {} {}; Pulse raises the next thing as it happens.",
+                plural(t.working, "session is", "sessions are"),
+                if t.subs > 0 {
+                    format!("working with {}", plural(t.subs, "sub-agent", "sub-agents"))
+                } else {
+                    "working".to_owned()
+                }
             )
         } else {
-            "working".to_owned()
+            "Nothing needs you and nothing is working.".to_owned()
         };
-        let head = div()
-            .flex_shrink_0()
-            .w(look.px(g.head))
-            .flex()
-            .items_end()
-            .gap(look.px(26.))
-            .child(big(t.working, subs, look.c.text))
-            .child(big(
-                t.need_you,
-                "need you".into(),
-                if t.need_you > 0 {
-                    look.c.warn
-                } else {
-                    look.c.text
-                },
-            ));
-        // The histogram, stacked by account in the rail's order.
-        let order: Vec<String> = rail_profiles(fleet);
-        let hist = data.map(|d| pulse::histogram(&d.day, t0, now, &order));
-        let lk = look.clone();
-        let span_s = (now - t0).whole_seconds();
-        let middle = g.tracks.then(|| {
-            let chart = canvas(
-                |_, _, _| {},
-                move |bounds, _, window, _| {
-                    let Some(h) = &hist else { return };
-                    let o = bounds.origin;
-                    let w = f32::from(bounds.size.width);
-                    let height = f32::from(bounds.size.height);
-                    let peak = h.peak().max(6) as f32;
-                    let span = span_s as f32;
-                    let beat_w = replay::BEAT.as_seconds_f32() / span * w;
-                    let bin = ((2.5 / beat_w).ceil() as usize).max(1);
-                    let mut k = 0;
-                    while k < h.bars.len() {
-                        let end = (k + bin).min(h.bars.len());
-                        // The tallest beat of the bin, its stack kept.
-                        let Some(bar) = h.bars[k..end].iter().max_by_key(|b| b.iter().sum::<u32>())
-                        else {
-                            break;
-                        };
-                        let t = h.from + replay::BEAT * k as i32;
-                        let x = (t - t0).as_seconds_f32() / span * w;
-                        let bw = (beat_w * (end - k) as f32 - 1.).max(1.5);
-                        let mut y = height;
-                        for (p, v) in h.profiles.iter().zip(bar) {
-                            if *v == 0 || x < 0. {
-                                continue;
-                            }
-                            let bh = *v as f32 / peak * (height - 2.);
-                            y -= bh;
-                            let color = p.as_deref().map_or(lk.c.text_muted, kit::profile_hue);
-                            window.paint_quad(fill(
-                                Bounds::new(point(o.x + px(x), o.y + px(y)), size(px(bw), px(bh))),
-                                color.opacity(0.9),
-                            ));
-                        }
-                        k = end;
-                    }
-                    window.paint_quad(fill(
-                        Bounds::new(
-                            point(o.x, o.y + px(height - 1.)),
-                            size(bounds.size.width, px(1.)),
-                        ),
-                        lk.c.border,
-                    ));
-                },
-            )
-            .w_full()
-            .h(look.px(44.));
-            // Tick labels.
-            let lk = look.clone();
-            let labels = canvas(
-                |_, _, _| {},
-                move |bounds, _, window, cx| {
-                    let o = bounds.origin;
-                    let w = f32::from(bounds.size.width);
-                    let step = tick_step(span_s, w);
-                    let off = i64::from(super::status::local_offset().whole_seconds());
-                    let mut t = ((t0.unix_timestamp() + off) / step + 1) * step - off;
-                    while t < t0.unix_timestamp() + span_s - step / 3 {
-                        let x = (t - t0.unix_timestamp()) as f32 / span_s as f32 * w;
-                        let Ok(at) = OffsetDateTime::from_unix_timestamp(t) else {
-                            break;
-                        };
-                        let text: SharedString = kit::hm(at).into();
-                        let run = gpui::TextRun {
-                            len: text.len(),
-                            font: gpui::font(kit::MONO),
-                            color: lk.c.faint,
-                            background_color: None,
-                            underline: None,
-                            strikethrough: None,
-                        };
-                        let size_px = lk.text(10.5);
-                        let line = window.text_system().shape_line(text, size_px, &[run], None);
-                        let lw = f32::from(line.width);
-                        let _ = line.paint(
-                            point(o.x + px(x - lw / 2.), o.y),
-                            size_px * 1.3,
-                            gpui::TextAlign::Left,
-                            None,
-                            window,
-                            cx,
-                        );
-                        t += step;
-                    }
-                },
-            )
-            .w_full()
-            .h(look.px(16.));
-            div()
-                .flex_1()
-                .min_w_0()
-                .flex()
-                .flex_col()
-                .gap(look.px(3.))
-                .child(chart)
-                .child(labels)
-        });
-        let work = kit::span(t.work);
-        let now_col = div()
-            .flex_shrink_0()
-            .w(look.px(g.now))
-            .pl(look.px(14.))
+        div()
             .flex()
             .flex_col()
-            .gap(look.px(3.))
-            .text_size(look.text(12.))
-            .text_color(look.c.text_muted)
+            .items_center()
+            .pt(look.px(40.))
+            .gap(look.px(10.))
+            .child(kit::icon(look, "circle-check", 30., look.c.ok))
+            .child(
+                div()
+                    .text_size(look.text(20.))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(look.c.text)
+                    .child("All clear"),
+            )
+            .child(
+                div()
+                    .max_w(look.px(440.))
+                    .text_color(look.c.text_muted)
+                    .child(line),
+            )
+            .child(div().h(look.px(24.)))
+            .children(hist.map(|h| histogram_el(look, h, t0, now, 110.)))
+            .child(div().h(look.px(20.)))
             .child(
                 div()
                     .flex()
-                    .items_center()
-                    .gap(look.px(6.))
-                    .font_family(kit::MONO)
-                    .text_size(look.text(11.))
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(look.c.info)
-                    .child(kit::dot(look, look.c.info))
-                    .child(format!("NOW {}", kit::hm(now))),
+                    .flex_wrap()
+                    .justify_center()
+                    .gap(look.px(44.))
+                    .child(stat(
+                        t.calls_lately.to_string(),
+                        "calls · last 5 min".into(),
+                    ))
+                    .child(stat(kit::span(t.work), "agent work today".into()))
+                    .when(t.added + t.removed > 0, |d| {
+                        d.child(stat(
+                            format!("+{} −{}", thousands(t.added), thousands(t.removed)),
+                            "lines today".into(),
+                        ))
+                    })
+                    .children(
+                        data.and_then(|d| d.tonight.as_ref())
+                            .map(|n| stat(n.at.clone(), "tonight’s pass".into())),
+                    ),
             )
-            .child(
+            .into_any_element()
+    }
+
+    /// The sheet over the queue: the fleet's lists, Memory today and
+    /// Tonight.
+    fn pulse_sheet(
+        &self,
+        fleet: &Fleet,
+        totals: &pulse::Totals,
+        now: OffsetDateTime,
+        look: &Look,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let data = self.pulse.data.clone();
+        let shelves = crate::shelving::Shelves::of(fleet, &self.marks());
+        let working: Vec<&Row> = shelves.shelves[1]
+            .1
+            .iter()
+            .copied()
+            .filter(|r| r.working())
+            .collect();
+        let quiet: Vec<&Row> = shelves.shelves[1]
+            .1
+            .iter()
+            .copied()
+            .filter(|r| !r.working())
+            .collect();
+        let review: Vec<&Row> = shelves.shelves[2].1.clone();
+        let settled: Vec<&Row> = shelves.shelves[3].1.clone();
+        let tab = self.pulse.sheet_tab;
+        let tabs = [
+            (SheetTab::Working, "Working", working.len()),
+            (SheetTab::Review, "To review", review.len()),
+            (SheetTab::Quiet, "Quiet", quiet.len()),
+            (SheetTab::Settled, "Settled", settled.len()),
+        ];
+        let tab_row = div()
+            .flex()
+            .items_end()
+            .gap(look.px(12.))
+            .px(look.px(16.))
+            .overflow_hidden()
+            .border_b(look.fixed(1.))
+            .border_color(look.c.border)
+            .children(tabs.into_iter().map(|(t, label, n)| {
+                let on = t == tab;
                 div()
-                    .whitespace_nowrap()
-                    .truncate()
-                    .child(format!("{} tool calls in the last 5 min", t.calls_lately)),
-            )
-            .child(
-                div()
+                    .id(SharedString::from(format!("pulse-tab-{label}")))
                     .flex()
                     .items_center()
                     .gap(look.px(5.))
-                    .whitespace_nowrap()
-                    .overflow_hidden()
+                    .flex_shrink_0()
+                    .pb(look.px(8.))
+                    .border_b(look.fixed(2.))
+                    .border_color(if on {
+                        look.c.text
+                    } else {
+                        gpui::transparent_black()
+                    })
+                    .text_size(look.text(12.))
+                    .cursor_pointer()
+                    .text_color(if on { look.c.text } else { look.c.text_muted })
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.pulse.sheet_tab = t;
+                        cx.notify();
+                    }))
+                    .child(label)
+                    .child(div().text_color(look.c.faint).child(n.to_string()))
+            }));
+        let rows: Vec<&Row> = match tab {
+            SheetTab::Working => working,
+            SheetTab::Review => review,
+            SheetTab::Quiet => quiet,
+            SheetTab::Settled => settled,
+        };
+        let t0 = now - SHEET_SPAN;
+        let mut list = div().flex().flex_col().px(look.px(8.)).py(look.px(6.));
+        if rows.is_empty() {
+            list = list.child(
+                div()
+                    .px(look.px(8.))
+                    .py(look.px(10.))
+                    .text_color(look.c.faint)
+                    .child("None."),
+            );
+        }
+        for r in rows.iter().take(SHEET_ROWS) {
+            let end = if r.working() {
+                Some(look.c.info)
+            } else if r.pulls.iter().any(|(_, d)| *d == "merged") {
+                Some(look.c.created)
+            } else {
+                None
+            };
+            let wave = self.wave_of(r, data.as_deref(), t0, now, end);
+            let lk = look.clone();
+            let wave_el = canvas(
+                |_, _, _| {},
+                move |bounds, _, window, _| {
+                    if let Some(w) = &wave {
+                        paint_wave(window, bounds, w, t0, now, &lk, true);
+                    }
+                },
+            )
+            .flex_shrink_0()
+            .w(look.px(88.))
+            .h(look.px(22.));
+            let subs = r.live_subs.len();
+            let second = match &r.call {
+                Some(c) => kit::tool_line(look, c, 1, Some(kit::span(now - c.at)), true),
+                None => div()
+                    .truncate()
+                    .text_size(look.text(12.))
+                    .text_color(look.c.faint)
+                    .child(r.activity.clone().unwrap_or_else(|| match r.last {
+                        Some(t) => format!("last {}", kit::hm(t)),
+                        None => String::new(),
+                    })),
+            };
+            let id = r.id.clone();
+            list = list.child(
+                div()
+                    .id(SharedString::from(format!("pulse-sheet-{id}")))
+                    .flex()
+                    .items_center()
+                    .gap(look.px(10.))
+                    .px(look.px(8.))
+                    .py(look.px(7.))
+                    .rounded(look.px(6.))
+                    .cursor_pointer()
+                    .hover(|h| h.bg(look.c.hover))
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.open_xray(&id, window, cx);
+                    }))
                     .child(
                         div()
-                            .text_color(look.c.text)
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child(work),
+                            .flex_1()
+                            .min_w_0()
+                            .flex()
+                            .flex_col()
+                            .gap(look.px(2.))
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(look.px(7.))
+                                    .min_w_0()
+                                    .child(kit::dot(
+                                        look,
+                                        r.profile
+                                            .as_deref()
+                                            .map_or(look.c.text_muted, kit::profile_hue),
+                                    ))
+                                    .child(
+                                        div()
+                                            .min_w_0()
+                                            .truncate()
+                                            .text_color(look.c.text)
+                                            .child(kit::title(&r.title)),
+                                    )
+                                    .when(subs > 0, |d| {
+                                        d.child(
+                                            div()
+                                                .flex_shrink_0()
+                                                .text_size(look.text(11.5))
+                                                .text_color(look.c.faint)
+                                                .child(format!("+{subs}")),
+                                        )
+                                    }),
+                            )
+                            .child(div().pl(look.px(13.)).min_w_0().child(second)),
                     )
-                    .child("of agent work")
-                    .when(t.added + t.removed > 0, |d| {
-                        d.child("·")
-                            .child(
-                                div()
-                                    .font_family(kit::MONO)
-                                    .text_size(look.text(11.5))
-                                    .text_color(look.c.diff_add)
-                                    .child(format!("+{}", thousands(t.added))),
-                            )
-                            .child(
-                                div()
-                                    .font_family(kit::MONO)
-                                    .text_size(look.text(11.5))
-                                    .text_color(look.c.diff_del)
-                                    .child(format!("−{}", thousands(t.removed))),
-                            )
-                    }),
+                    .child(wave_el),
             );
-        div()
+        }
+        if rows.len() > SHEET_ROWS {
+            list = list.child(
+                div()
+                    .px(look.px(8.))
+                    .py(look.px(6.))
+                    .text_size(look.text(12.))
+                    .text_color(look.c.faint)
+                    .child(format!("{} more in Rows", rows.len() - SHEET_ROWS)),
+            );
+        }
+        let section = |icon: &str, title: &str, right: String| {
+            div()
+                .flex()
+                .items_center()
+                .gap(look.px(8.))
+                .h(look.px(32.))
+                .text_size(look.text(12.5))
+                .text_color(look.c.text_muted)
+                .child(kit::icon(look, icon, 13., look.c.faint))
+                .child(title.to_owned())
+                .child(div().flex_1())
+                .child(div().text_color(look.c.faint).child(right))
+        };
+        let served = pulse::served(&fleet.rows);
+        let mut memory = div()
             .flex()
-            .items_center()
+            .flex_col()
+            .gap(look.px(6.))
+            .px(look.px(16.))
             .py(look.px(8.))
+            .border_t(look.fixed(1.))
+            .border_color(look.c.border)
+            .child(section("brain", "Memory today", String::new()))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(look.px(8.))
+                    .text_size(look.text(12.5))
+                    .text_color(look.c.text)
+                    .child(ring_glyph(look))
+                    .child(format!(
+                        "{} started with a kept rule",
+                        plural(served, "session", "sessions")
+                    )),
+            );
+        if let Some(d) = &data {
+            for c in d.corrected.iter().take(3) {
+                let fate = match c.fate {
+                    Fate::Candidate { seen, .. } => format!("rule candidate · seen {seen}×"),
+                    Fate::Tonight => "read tonight".to_owned(),
+                    Fate::Read => "read by the last pass".to_owned(),
+                };
+                memory = memory.child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(look.px(8.))
+                        .text_size(look.text(12.5))
+                        .child(diamond_glyph(look))
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .truncate()
+                                .text_color(look.c.text)
+                                .child(format!("“{}”", short(&c.said, 70))),
+                        )
+                        .child(div().flex_shrink_0().text_color(look.c.faint).child(fate)),
+                );
+            }
+        }
+        let tonight = data.as_ref().and_then(|d| d.tonight.clone()).map(|t| {
+            div()
+                .flex()
+                .flex_col()
+                .gap(look.px(4.))
+                .px(look.px(16.))
+                .py(look.px(8.))
+                .border_t(look.fixed(1.))
+                .border_color(look.c.border)
+                .child(section(
+                    "moon",
+                    "Tonight",
+                    format!(
+                        "{} · reads {}",
+                        t.at,
+                        plural(t.sessions, "session", "sessions")
+                    ),
+                ))
+                .child(
+                    div()
+                        .text_size(look.text(12.5))
+                        .text_color(look.c.text_muted)
+                        .child(format!(
+                            "{}, {}, {}, {}",
+                            plural(t.corrections, "correction", "corrections"),
+                            plural(t.destructive, "destructive command", "destructive commands"),
+                            plural(t.unverified, "unverified claim", "unverified claims"),
+                            plural(t.notes_due, "note due a re-check", "notes due a re-check"),
+                        )),
+                )
+        });
+        div()
+            .id("pulse-sheet")
+            .absolute()
+            .top_0()
+            .left_0()
+            .right_0()
+            .bottom(look.px(44.))
+            .flex()
+            .flex_col()
+            .bg(look.c.canvas)
             .border_b(look.fixed(1.))
             .border_color(look.c.border)
-            .child(head)
-            .children(middle)
-            .when(!g.tracks, |d| d.child(div().flex_1()))
-            .child(now_col)
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(look.px(8.))
+                    .px(look.px(16.))
+                    .pt(look.px(16.))
+                    .pb(look.px(12.))
+                    .child(
+                        div()
+                            .text_size(look.text(14.))
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(look.c.text)
+                            .child("Fleet"),
+                    )
+                    .child(div().text_color(look.c.faint).child(if totals.subs > 0 {
+                        format!(
+                            "{} working · {}",
+                            totals.working,
+                            plural(totals.subs, "sub-agent", "sub-agents")
+                        )
+                    } else {
+                        format!("{} working", totals.working)
+                    }))
+                    .child(div().flex_1())
+                    .child(
+                        div()
+                            .id("pulse-sheet-close")
+                            .flex()
+                            .items_center()
+                            .gap(look.px(6.))
+                            .text_size(look.text(12.))
+                            .text_color(look.c.text_muted)
+                            .cursor_pointer()
+                            .hover(|h| h.text_color(look.c.text))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.pulse.sheet = false;
+                                cx.notify();
+                            }))
+                            .child("Close")
+                            .child(kit::kbd(look, "esc")),
+                    ),
+            )
+            .child(tab_row)
+            .child(
+                div()
+                    .id("pulse-sheet-scroll")
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
+                    .track_scroll(&self.pulse.sheet_scroll)
+                    .child(list)
+                    .child(memory)
+                    .children(tonight),
+            )
             .into_any_element()
     }
 
@@ -1328,1443 +2798,151 @@ impl Shell {
             end,
         })
     }
-
-    fn wave_el(
-        &self,
-        wave: Option<Wave>,
-        t0: OffsetDateTime,
-        now: OffsetDateTime,
-        h: f32,
-        bars: bool,
-        look: &Look,
-    ) -> gpui::AnyElement {
-        let lk = look.clone();
-        canvas(
-            |_, _, _| {},
-            move |bounds, _, window, _| {
-                if let Some(w) = &wave {
-                    paint_wave(window, bounds, w, t0, now, &lk, bars);
-                }
-            },
-        )
-        .flex_1()
-        .min_w_0()
-        .h(look.px(h))
-        .into_any_element()
-    }
-
-    /// Title, project, branch and lines: a lane's head.
-    /// `extra`: points the title may take from the track's empty start.
-    fn lane_head(&self, r: &Row, g: Geo, extra: f32, look: &Look) -> gpui::Div {
-        let lines = r.total_lines();
-        div()
-            .flex_shrink_0()
-            .w(look.px(g.head + extra))
-            .pr(look.px(12.))
-            .flex()
-            .items_start()
-            .gap(look.px(9.))
-            .min_w_0()
-            .child(
-                div()
-                    .pt(look.px(1.))
-                    .child(kit::mark(look, r.profile.as_deref(), 20.)),
-            )
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .min_w_0()
-                    .child(
-                        div()
-                            .text_size(look.text(13.))
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(look.c.text)
-                            .truncate()
-                            .child(kit::title(&r.title)),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap(look.px(6.))
-                            .min_w_0()
-                            .overflow_hidden()
-                            .text_size(look.text(11.5))
-                            .text_color(look.c.faint)
-                            .children(r.project.clone().map(|p| div().flex_shrink_0().child(p)))
-                            .children(r.branch.clone().map(|b| {
-                                div()
-                                    .min_w_0()
-                                    .truncate()
-                                    .font_family(kit::MONO)
-                                    .text_size(look.text(10.5))
-                                    .child(kit::middle(&b, 28))
-                            }))
-                            .children(
-                                lines.and_then(|l| kit::diff_counts(look, l.added, l.removed)),
-                            ),
-                    ),
-            )
-    }
-
-    /// A waiting session as a lane: its wave, what it asked, and the ways in.
-    #[allow(clippy::too_many_arguments)]
-    fn pulse_need_lane(
-        &self,
-        r: &Row,
-        i: usize,
-        data: Option<&PulseData>,
-        t0: OffsetDateTime,
-        now: OffsetDateTime,
-        g: Geo,
-        still: bool,
-        look: &Look,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
-        let (what, icon, asked, since) = need_words(r, now);
-        let wave = self.wave_of(r, data, t0, now, Some(look.c.warn));
-        let dot = div().size(look.px(8.)).rounded_full().bg(look.c.warn);
-        let dot: gpui::AnyElement = if still {
-            dot.into_any_element()
-        } else {
-            dot.with_animation(
-                SharedString::from(format!("pulse-dot-{}", r.id)),
-                gpui::Animation::new(std::time::Duration::from_millis(1600)).repeat(),
-                |d, t| d.opacity(0.35 + 0.65 * (1. - (t * std::f32::consts::TAU).cos()) / 2.),
-            )
-            .into_any_element()
-        };
-        // The title runs on over the track until its first activity.
-        let extra = spill(wave.as_ref(), g, t0, now);
-        let top = div()
-            .flex()
-            .items_center()
-            .child(self.lane_head(r, g, extra, look))
-            .when(g.tracks, |d| {
-                d.child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .flex()
-                        .ml(look.px(-extra))
-                        .child(self.wave_el(wave, t0, now, TRACK_H, true, look)),
-                )
-            })
-            .when(!g.tracks, |d| d.child(div().flex_1()))
-            .child(
-                div()
-                    .flex_shrink_0()
-                    .w(look.px(g.now))
-                    .pl(look.px(14.))
-                    .flex()
-                    .items_center()
-                    .gap(look.px(7.))
-                    .text_color(look.c.warn)
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .child(kit::icon(look, icon, 14., look.c.warn))
-                    .child(div().min_w_0().truncate().child(what))
-                    .child(div().flex_1())
-                    .child(dot)
-                    .child(
-                        div()
-                            .font_family(kit::MONO)
-                            .text_size(look.text(12.))
-                            .child(since),
-                    ),
-            );
-        let id = r.id.clone();
-        let row = r.clone();
-        let row2 = r.clone();
-        let row3 = r.clone();
-        let first = i == 0;
-        let buttons = div()
-            .flex_shrink_0()
-            .flex()
-            .gap(look.px(6.))
-            .child(
-                kit::button_key(
-                    look,
-                    SharedString::from(format!("pulse-open-{id}")),
-                    "Open thread",
-                    if first { "↵" } else { "" },
-                    Kind::Primary,
-                )
-                .on_click(cx.listener(move |this, _, window, cx| {
-                    this.open_session(row.clone(), window, cx);
-                })),
-            )
-            .when(r.client == Some("T3 Code"), |d| {
-                d.child(
-                    kit::button_icon(
-                        look,
-                        SharedString::from(format!("pulse-t3-{id}")),
-                        Some("arrow-up-right"),
-                        "T3 Code",
-                        if first { "T" } else { "" },
-                        Kind::Plain,
-                    )
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.pulse_t3(&row2);
-                        cx.notify();
-                    })),
-                )
-            })
-            .when(g.now + g.head > 480. || !g.tracks, |d| {
-                d.child(
-                    kit::button_icon(
-                        look,
-                        SharedString::from(format!("pulse-term-{id}")),
-                        Some("terminal"),
-                        "Terminal",
-                        if first { "⌘T" } else { "" },
-                        Kind::Plain,
-                    )
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        if let Some(f) = this.loaded.as_ref().and_then(|l| l.fleet.clone()) {
-                            this.pulse_terminal(&row3, &f);
-                        }
-                        cx.notify();
-                    })),
-                )
-            });
-        let ask =
-            div()
-                .flex()
-                .items_center()
-                .gap(look.px(14.))
-                .pl(look.px(29.))
-                .pt(look.px(4.))
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .truncate()
-                        .text_size(look.text(14.))
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(look.c.text)
-                        .child(asked.map_or_else(
-                            || "It is waiting on you.".to_owned(),
-                            |q| format!("“{q}”"),
-                        )),
-                )
-                .child(buttons);
-        div()
-            .id(SharedString::from(format!("pulse-need-{}", r.id)))
-            .mb(look.px(8.))
-            .py(look.px(9.))
-            .rounded(look.px(10.))
-            .border(look.fixed(1.))
-            .border_color(look.c.warn.opacity(0.45))
-            .bg(look.c.warn.opacity(if look.c.dark { 0.07 } else { 0.06 }))
-            .child(top)
-            .child(div().pr(look.px(10.)).child(ask))
-            .into_any_element()
-    }
-
-    /// B's large card for the one session that needs the person.
-    #[allow(clippy::too_many_arguments)]
-    fn pulse_card(
-        &self,
-        r: &Row,
-        _fleet: &Fleet,
-        data: Option<&PulseData>,
-        t0: OffsetDateTime,
-        now: OffsetDateTime,
-        look: &Look,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
-        let (what, icon, asked, since) = need_words(r, now);
-        let wave = self.wave_of(r, data, t0, now, Some(look.c.warn));
-        let lines = r.total_lines();
-        let calls: Vec<hippo_view::fleet::tail::Activity> = r
-            .turn
-            .as_ref()
-            .map(|t| t.calls.iter().take(3).rev().cloned().collect())
-            .unwrap_or_default();
-        let head = div()
-            .flex()
-            .items_center()
-            .gap(look.px(9.))
-            .text_size(look.text(12.5))
-            .child(kit::mark(look, r.profile.as_deref(), 20.))
-            .children(
-                r.project
-                    .clone()
-                    .map(|p| div().text_color(look.c.text_muted).child(p)),
-            )
-            .children(r.branch.clone().map(|b| {
-                div()
-                    .font_family(kit::MONO)
-                    .text_size(look.text(11.5))
-                    .text_color(look.c.faint)
-                    .truncate()
-                    .child(kit::middle(&b, 36))
-            }))
-            .child(div().flex_1())
-            .child(kit::icon(look, icon, 14., look.c.warn))
-            .child(
-                div()
-                    .text_color(look.c.warn)
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .whitespace_nowrap()
-                    .child(format!("{what} · {since}")),
-            );
-        let quote = div()
-            .text_size(look.text(21.))
-            .line_height(look.text(27.))
-            .font_weight(FontWeight::SEMIBOLD)
-            .text_color(look.c.text)
-            .child(asked.map_or_else(|| "It is waiting on you.".to_owned(), |q| format!("“{q}”")));
-        let steps = div()
-            .flex()
-            .items_center()
-            .gap(look.px(10.))
-            .min_w_0()
-            .overflow_hidden()
-            .children(calls.iter().enumerate().map(|(i, c)| {
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(look.px(10.))
-                    .min_w_0()
-                    .when(i > 0, |d| {
-                        d.child(
-                            div()
-                                .w(look.px(10.))
-                                .h(look.fixed(1.))
-                                .bg(look.c.border_strong),
-                        )
-                    })
-                    .child(kit::tool_line(look, c, 1, None, false))
-            }));
-        let facts = div()
-            .flex()
-            .flex_wrap()
-            .items_center()
-            .gap(look.px(14.))
-            .text_size(look.text(12.))
-            .text_color(look.c.text_muted)
-            .children(lines.map(|l| {
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(look.px(5.))
-                    .children(kit::diff_counts(look, l.added, l.removed))
-                    .child(format!(
-                        "in {} file{}",
-                        l.files,
-                        if l.files == 1 { "" } else { "s" }
-                    ))
-            }))
-            .children(
-                r.pulls
-                    .iter()
-                    .rev()
-                    .find(|(_, d)| *d == "opened")
-                    .map(|(u, _)| {
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap(look.px(5.))
-                            .child(kit::icon(look, "git-pull-request", 13., look.c.faint))
-                            .child(format!(
-                                "PR #{} open",
-                                super::sidebar::pr_number(u).unwrap_or("?")
-                            ))
-                    }),
-            )
-            .when(r.claims.verified > 0, |d| {
-                d.child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(look.px(5.))
-                        .child(kit::icon(look, "circle-check", 13., look.c.created))
-                        .child(format!(
-                            "{} claim{} verified",
-                            r.claims.verified,
-                            if r.claims.verified == 1 { "" } else { "s" }
-                        )),
-                )
-            })
-            .when(!r.rules.is_empty(), |d| {
-                d.child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(look.px(5.))
-                        .child(ring_glyph(look))
-                        .child(format!(
-                            "started with {} kept rule{}",
-                            r.rules.len(),
-                            if r.rules.len() == 1 { "" } else { "s" }
-                        )),
-                )
-            });
-        let id = r.id.clone();
-        let (row, row2, row3) = (r.clone(), r.clone(), r.clone());
-        let actions = div()
-            .flex()
-            .items_center()
-            .gap(look.px(8.))
-            .child(
-                kit::button_key(
-                    look,
-                    SharedString::from(format!("card-open-{id}")),
-                    "Open thread",
-                    "↵",
-                    Kind::Primary,
-                )
-                .on_click(cx.listener(move |this, _, window, cx| {
-                    this.open_session(row.clone(), window, cx);
-                })),
-            )
-            .when(r.client == Some("T3 Code"), |d| {
-                d.child(
-                    kit::button_icon(
-                        look,
-                        SharedString::from(format!("card-t3-{id}")),
-                        Some("arrow-up-right"),
-                        "Open in T3 Code",
-                        "T",
-                        Kind::Plain,
-                    )
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.pulse_t3(&row2);
-                        cx.notify();
-                    })),
-                )
-            })
-            .child(
-                kit::button_icon(
-                    look,
-                    SharedString::from(format!("card-term-{id}")),
-                    Some("terminal"),
-                    "Terminal",
-                    "⌘T",
-                    Kind::Plain,
-                )
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    if let Some(f) = this.loaded.as_ref().and_then(|l| l.fleet.clone()) {
-                        this.pulse_terminal(&row3, &f);
-                    }
-                    cx.notify();
-                })),
-            );
-        let lk = look.clone();
-        let track = wave.map(|w| {
-            canvas(
-                |_, _, _| {},
-                move |bounds, _, window, _| paint_wave(window, bounds, &w, t0, now, &lk, true),
-            )
-            .w_full()
-            .h(look.px(26.))
-        });
-        div()
-            .id(SharedString::from(format!("pulse-card-{}", r.id)))
-            .mb(look.px(10.))
-            .p(look.px(18.))
-            .rounded(look.px(12.))
-            .border(look.fixed(1.))
-            .border_color(look.c.warn.opacity(0.55))
-            .bg(look.c.warn.opacity(if look.c.dark { 0.07 } else { 0.06 }))
-            .flex()
-            .flex_col()
-            .gap(look.px(10.))
-            .child(head)
-            .child(
-                div()
-                    .text_size(look.text(13.5))
-                    .text_color(look.c.text_muted)
-                    .child(kit::title(&r.title)),
-            )
-            .child(quote)
-            .children(track)
-            .when(!calls.is_empty(), |d| d.child(steps))
-            .child(facts)
-            .child(actions)
-            .into_any_element()
-    }
-
-    /// One row of Next up.
-    fn pulse_next_row(
-        &self,
-        n: &Next,
-        i: usize,
-        fleet: &Fleet,
-        now: OffsetDateTime,
-        look: &Look,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
-        let at = |s: i64| OffsetDateTime::from_unix_timestamp(s).unwrap_or(now);
-        let (glyph, title, sub, right, action): (
-            gpui::AnyElement,
-            String,
-            String,
-            String,
-            Option<String>,
-        ) = match n {
-            Next::RunsDry {
-                profile,
-                empty_at,
-                reset,
-                sessions,
-                to,
-            } => (
-                kit::icon(look, "gauge", 15., look.c.err).into_any_element(),
-                format!(
-                    "{} runs dry in about {}",
-                    kit::profile_name(profile),
-                    kit::span(at(*empty_at) - now)
-                ),
-                format!(
-                    "{} session{} stop near {}, {} before the {} reset",
-                    sessions.len(),
-                    if sessions.len() == 1 { "" } else { "s" },
-                    kit::hm(at(*empty_at)),
-                    kit::span(at(*reset) - at(*empty_at)),
-                    kit::hm(at(*reset))
-                ),
-                kit::span(at(*empty_at) - now),
-                to.as_ref()
-                    .map(|t| format!("Resume them on {}", kit::profile_name(t))),
-            ),
-            Next::Unverified {
-                title,
-                claim,
-                why,
-                at,
-                ..
-            } => (
-                kit::icon(look, "triangle-alert", 15., look.c.warn).into_any_element(),
-                format!("{} said “{}”", kit::title(title), claim),
-                format!("{} · finished {}", why, kit::hm(*at)),
-                format!("{} ago", kit::span(now - *at)),
-                Some("Check".into()),
-            ),
-            Next::Destructive {
-                title, command, at, ..
-            } => (
-                div()
-                    .size(look.px(9.))
-                    .rounded(look.px(1.5))
-                    .bg(look.c.err)
-                    .into_any_element(),
-                format!(
-                    "Destructive command in {}",
-                    title.as_deref().map_or("a session".into(), kit::title)
-                ),
-                kit::command_words(command.strip_prefix("Bash: ").unwrap_or(command)),
-                kit::hm(*at),
-                Some("Open incident".into()),
-            ),
-            Next::Correction { said, at, seen, .. } => (
-                diamond_glyph(look).into_any_element(),
-                format!("“{said}”"),
-                format!(
-                    "your correction, seen {}× · a rule candidate in tonight’s pass",
-                    seen
-                ),
-                kit::hm(*at),
-                Some("Keep now".into()),
-            ),
-        };
-        let mono = matches!(n, Next::Destructive { .. });
-        let on = self.pulse.next_sel == Some(i);
-        let n2 = n.clone();
-        let f2 = fleet.clone();
-        div()
-            .id(("pulse-next", i))
-            .flex()
-            .items_center()
-            .gap(look.px(12.))
-            .px(look.px(6.))
-            .py(look.px(8.))
-            .rounded(look.px(8.))
-            .border_b(look.fixed(1.))
-            .border_color(look.c.border)
-            .when(on, |d| d.bg(look.c.selected))
-            .child(
-                div()
-                    .w(look.px(18.))
-                    .flex()
-                    .justify_center()
-                    .flex_shrink_0()
-                    .child(glyph),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .flex()
-                    .flex_col()
-                    .child(
-                        div()
-                            .truncate()
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(look.c.text)
-                            .child(title),
-                    )
-                    .child(
-                        div()
-                            .truncate()
-                            .text_size(look.text(12.))
-                            .text_color(look.c.text_muted)
-                            .when(mono, |d| {
-                                d.font_family(kit::MONO).text_size(look.text(11.5))
-                            })
-                            .child(sub),
-                    ),
-            )
-            .child(
-                div()
-                    .flex_shrink_0()
-                    .font_family(kit::MONO)
-                    .text_size(look.text(12.))
-                    .text_color(if matches!(n, Next::RunsDry { .. }) {
-                        look.c.err
-                    } else {
-                        look.c.faint
-                    })
-                    .child(right),
-            )
-            .children(action.map(|a| {
-                kit::button_key(
-                    look,
-                    ("pulse-next-act", i),
-                    a,
-                    if matches!(n, Next::RunsDry { .. }) {
-                        "U"
-                    } else {
-                        ""
-                    },
-                    Kind::Plain,
-                )
-                .on_click(cx.listener(move |this, _, window, cx| {
-                    this.pulse_act(&n2, &f2, window, cx);
-                }))
-            }))
-            .into_any_element()
-    }
-
-    /// A working session: its wave and sub-agents, and what it is doing.
-    #[allow(clippy::too_many_arguments)]
-    fn pulse_work_lane(
-        &self,
-        r: &Row,
-        data: Option<&PulseData>,
-        t0: OffsetDateTime,
-        now: OffsetDateTime,
-        g: Geo,
-        look: &Look,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
-        let wave = self.wave_of(r, data, t0, now, Some(look.c.info));
-        let extra = spill(wave.as_ref(), g, t0, now);
-        let call_line = r.call.as_ref().map(|c| {
-            div()
-                .flex()
-                .items_center()
-                .gap(look.px(6.))
-                .min_w_0()
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .child(kit::tool_line(look, c, 1, None, false)),
-                )
-                .child(
-                    div()
-                        .flex_shrink_0()
-                        .text_size(look.text(11.5))
-                        .text_color(look.c.faint)
-                        .child(if c.running {
-                            format!("running {}", kit::span(now - c.at))
-                        } else {
-                            kit::span(now - c.at)
-                        }),
-                )
-        });
-        let correction = data.and_then(|d| {
-            d.day
-                .lanes
-                .iter()
-                .find(|l| l.track.id == r.id)?
-                .marks
-                .iter()
-                .rev()
-                .find(|m| m.kind == MarkKind::Correction)
-                .map(|m| m.at)
-        });
-        let turn = r
-            .turn
-            .as_ref()
-            .and_then(|t| t.asked_at)
-            .map(|a| format!("{} in this turn", kit::span(now - a)));
-        let memo: Option<gpui::Div> = match (correction, r.rules.len()) {
-            (Some(at), _) => Some(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(look.px(5.))
-                    .text_color(memory_yellow(look))
-                    .child(diamond_glyph(look))
-                    .child(format!("you corrected {}", kit::hm(at))),
-            ),
-            (None, 0) => None,
-            (None, n) => Some(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(look.px(5.))
-                    .child(ring_glyph(look))
-                    .child(format!(
-                        "started with {n} kept rule{}",
-                        if n == 1 { "" } else { "s" }
-                    )),
-            ),
-        };
-        let second = div()
-            .flex()
-            .items_center()
-            .gap(look.px(8.))
-            .overflow_hidden()
-            .whitespace_nowrap()
-            .text_size(look.text(11.5))
-            .text_color(look.c.faint)
-            .children(turn)
-            .children(memo);
-        let id = r.id.clone();
-        let mut el = div()
-            .id(SharedString::from(format!("pulse-work-{id}")))
-            .py(look.px(6.))
-            .cursor_pointer()
-            .rounded(look.px(8.))
-            .hover(|h| h.bg(look.c.hover.opacity(0.5)))
-            .on_click(cx.listener(move |this, _, window, cx| {
-                this.open_xray(&id, window, cx);
-            }))
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .child(self.lane_head(r, g, extra, look))
-                    .when(g.tracks, |d| {
-                        d.child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .flex()
-                                .ml(look.px(-extra))
-                                .child(self.wave_el(wave, t0, now, TRACK_H, true, look)),
-                        )
-                    })
-                    .when(!g.tracks, |d| d.child(div().flex_1()))
-                    .child(
-                        div()
-                            .flex_shrink_0()
-                            .w(look.px(g.now))
-                            .pl(look.px(14.))
-                            .flex()
-                            .flex_col()
-                            .gap(look.px(2.))
-                            .min_w_0()
-                            .children(call_line)
-                            .when(r.call.is_none(), |d| {
-                                d.child(
-                                    div()
-                                        .truncate()
-                                        .text_size(look.text(12.))
-                                        .text_color(look.c.text_muted)
-                                        .child(r.activity.clone().unwrap_or_default()),
-                                )
-                            })
-                            .child(second),
-                    ),
-            );
-        // Sub-agents as strands.
-        if let Some(d) = data
-            && let Some(lane) = d.day.lanes.iter().find(|l| l.track.id == r.id)
-        {
-            let kids: Vec<&replay::Track> = lane
-                .children
-                .iter()
-                .filter(|c| c.last.is_some_and(|l| l >= t0))
-                .collect();
-            let shown = kids.len().min(SUBS_SHOWN);
-            let live = &r.live_subs;
-            for (j, c) in kids.iter().rev().take(shown).rev().enumerate() {
-                let from = d.day.start
-                    + replay::BEAT
-                        * replay::beat_of(d.day.start, t0.max(d.day.start)).unwrap_or(0) as i32;
-                let a = replay::beat_of(d.day.start, t0.max(d.day.start)).unwrap_or(0);
-                let beats: Vec<u16> = c.beats.iter().skip(a).copied().collect();
-                let working = c.last.is_some_and(|l| now - l < Duration::minutes(2));
-                let w = Wave {
-                    waiting: vec![false; beats.len()],
-                    beats,
-                    from,
-                    marks: Vec::new(),
-                    ring: None,
-                    color: r
-                        .profile
-                        .as_deref()
-                        .map_or(gpui::hsla(0., 0., 0.6, 1.), kit::profile_hue)
-                        .opacity(0.85),
-                    end: Some(if working { look.c.info } else { look.c.created }),
-                };
-                let title = c.title.clone().unwrap_or_else(|| "A sub-agent".into());
-                let step = live
-                    .iter()
-                    .find(|l| l.title.as_deref() == c.title.as_deref())
-                    .map(|l| l.step.clone())
-                    .or_else(|| {
-                        (!working)
-                            .then(|| c.last.map(|t| format!("done {}", kit::hm(t))))
-                            .flatten()
-                    })
-                    .unwrap_or_default();
-                el = el.child(
-                    div()
-                        .id(SharedString::from(format!("pulse-sub-{}-{j}", r.id)))
-                        .flex()
-                        .items_center()
-                        .h(look.px(SUB_H + 3.))
-                        .child(
-                            div()
-                                .flex_shrink_0()
-                                .w(look.px(g.head))
-                                .pl(look.px(29.))
-                                .pr(look.px(12.))
-                                .flex()
-                                .items_center()
-                                .gap(look.px(6.))
-                                .text_size(look.text(12.))
-                                .text_color(look.c.text_muted)
-                                .child(
-                                    div()
-                                        .w(look.px(8.))
-                                        .h(look.fixed(1.))
-                                        .bg(look.c.border_strong),
-                                )
-                                .child(div().min_w_0().truncate().child(title)),
-                        )
-                        .when(g.tracks, |d| {
-                            d.child(self.wave_el(Some(w), t0, now, SUB_H, false, look))
-                        })
-                        .when(!g.tracks, |d| d.child(div().flex_1()))
-                        .child(
-                            div()
-                                .flex_shrink_0()
-                                .w(look.px(g.now))
-                                .pl(look.px(14.))
-                                .truncate()
-                                .text_size(look.text(11.5))
-                                .text_color(look.c.faint)
-                                .child(step),
-                        ),
-                );
-            }
-            if kids.len() > shown {
-                el = el.child(
-                    div()
-                        .pl(look.px(29.))
-                        .text_size(look.text(11.5))
-                        .text_color(look.c.faint)
-                        .child(format!("{} more sub-agents earlier", kids.len() - shown)),
-                );
-            }
-        }
-        el.into_any_element()
-    }
-
-    /// A finished session to review: a thin wave and how it ended.
-    #[allow(clippy::too_many_arguments)]
-    fn pulse_mini_lane(
-        &self,
-        r: &Row,
-        data: Option<&PulseData>,
-        t0: OffsetDateTime,
-        now: OffsetDateTime,
-        g: Geo,
-        look: &Look,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
-        let merged = r.pulls.iter().any(|(_, d)| *d == "merged");
-        let wave = self.wave_of(r, data, t0, now, merged.then_some(look.c.created));
-        let wave = wave.map(|mut w| {
-            w.end = None;
-            w
-        });
-        let lines = r.total_lines();
-        let pr = r
-            .pulls
-            .iter()
-            .rev()
-            .find(|(_, d)| *d == "opened")
-            .and_then(|(u, _)| super::sidebar::pr_number(u).map(str::to_owned));
-        let done_at = match r.state {
-            State::Finished { at } | State::Interrupted { at, .. } => Some(at),
-            _ => r.last,
-        };
-        let right: gpui::Div = if let Some((claim, _)) = &r.claims.first_unverified {
-            div()
-                .flex()
-                .items_center()
-                .gap(look.px(6.))
-                .min_w_0()
-                .text_color(look.c.warn)
-                .child(kit::icon(look, "triangle-alert", 13., look.c.warn))
-                .child(
-                    div()
-                        .min_w_0()
-                        .truncate()
-                        .child(format!("claim unverified: “{claim}”")),
-                )
-        } else {
-            div()
-                .flex()
-                .items_center()
-                .gap(look.px(6.))
-                .min_w_0()
-                .child(kit::icon(look, "circle-check", 13., look.c.created))
-                .child(
-                    div()
-                        .whitespace_nowrap()
-                        .child(format!("done {}", done_at.map(kit::hm).unwrap_or_default())),
-                )
-                .children(pr.map(|n| div().whitespace_nowrap().child(format!("· PR #{n} open"))))
-                .children(lines.and_then(|l| kit::diff_counts(look, l.added, l.removed)))
-        };
-        let id = r.id.clone();
-        div()
-            .id(SharedString::from(format!("pulse-review-{id}")))
-            .flex()
-            .items_center()
-            .h(look.px(28.))
-            .cursor_pointer()
-            .rounded(look.px(6.))
-            .hover(|h| h.bg(look.c.hover.opacity(0.5)))
-            .on_click(cx.listener(move |this, _, window, cx| {
-                this.open_xray(&id, window, cx);
-            }))
-            .child(
-                div()
-                    .flex_shrink_0()
-                    .w(look.px(g.head))
-                    .pr(look.px(12.))
-                    .flex()
-                    .items_center()
-                    .gap(look.px(9.))
-                    .child(kit::mark(look, r.profile.as_deref(), 16.))
-                    .child(
-                        div()
-                            .min_w_0()
-                            .truncate()
-                            .text_size(look.text(12.5))
-                            .text_color(look.c.text_muted)
-                            .child(kit::title(&r.title)),
-                    ),
-            )
-            .when(g.tracks, |d| {
-                d.child(self.wave_el(wave, t0, now, MINI_H, false, look))
-            })
-            .when(!g.tracks, |d| d.child(div().flex_1()))
-            .child(
-                div()
-                    .flex_shrink_0()
-                    .w(look.px(g.now))
-                    .pl(look.px(14.))
-                    .text_size(look.text(12.))
-                    .text_color(look.c.faint)
-                    .child(right),
-            )
-            .into_any_element()
-    }
-
-    /// Quiet or settled sessions packed into one row.
-    #[allow(clippy::too_many_arguments)]
-    fn pulse_packed(
-        &self,
-        label: &str,
-        rows: &[&Row],
-        summary: String,
-        data: Option<&PulseData>,
-        t0: OffsetDateTime,
-        now: OffsetDateTime,
-        g: Geo,
-        look: &Look,
-    ) -> gpui::AnyElement {
-        let waves: Vec<Wave> = rows
-            .iter()
-            .take(6)
-            .filter_map(|r| {
-                let merged = r.pulls.iter().any(|(_, d)| *d == "merged");
-                self.wave_of(r, data, t0, now, None).map(|mut w| {
-                    w.end = None;
-                    w.marks.retain(|(_, k)| *k == MarkKind::PullMerged);
-                    if !merged {
-                        w.marks.clear();
-                    }
-                    w.ring = None;
-                    w
-                })
-            })
-            .collect();
-        let lk = look.clone();
-        let n = waves.len().max(1);
-        let tracks = canvas(
-            |_, _, _| {},
-            move |bounds, _, window, _| {
-                let h = f32::from(bounds.size.height) / n as f32;
-                for (i, w) in waves.iter().enumerate() {
-                    let b = Bounds::new(
-                        point(bounds.origin.x, bounds.origin.y + px(h * i as f32)),
-                        size(bounds.size.width, px(h)),
-                    );
-                    paint_wave(window, b, w, t0, now, &lk, false);
-                }
-            },
-        )
-        .flex_1()
-        .min_w_0()
-        .h(look.px((rows.len().min(6) as f32 * 7.).max(10.)));
-        div()
-            .flex()
-            .items_center()
-            .py(look.px(6.))
-            .child(
-                div()
-                    .flex_shrink_0()
-                    .w(look.px(g.head))
-                    .flex()
-                    .items_center()
-                    .gap(look.px(8.))
-                    .text_size(look.text(12.5))
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(look.c.text_muted)
-                    .child(label.to_owned())
-                    .child(
-                        div()
-                            .text_color(look.c.faint)
-                            .font_weight(FontWeight::NORMAL)
-                            .child(rows.len().to_string()),
-                    ),
-            )
-            .when(g.tracks, |d| d.child(tracks))
-            .when(!g.tracks, |d| d.child(div().flex_1()))
-            .child(
-                div()
-                    .flex_shrink_0()
-                    .w(look.px(g.now))
-                    .pl(look.px(14.))
-                    .truncate()
-                    .text_size(look.text(12.))
-                    .text_color(look.c.faint)
-                    .child(summary),
-            )
-            .into_any_element()
-    }
-
-    /// The rail: usage per account, memory today, tonight, the legend;
-    /// beside the lanes when wide, else the accounts as a strip.
-    fn pulse_rail(
-        &self,
-        fleet: &Fleet,
-        data: Option<&PulseData>,
-        g: Geo,
-        now: OffsetDateTime,
-        look: &Look,
-    ) -> gpui::AnyElement {
-        let live = pulse::live_by_profile(&fleet.rows);
-        let profiles = rail_profiles(fleet);
-        if !g.rail {
-            // The strip: one compact cell per account, then tonight.
-            let cells = profiles.iter().filter_map(|p| {
-                let h = fleet.room(p)?;
-                let left = h.five.map(|l| l.frac).or_else(|| h.left())?;
-                let d = fleet.drain(p);
-                let dry = d.and_then(|d| d.empty_at);
-                Some(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(look.px(7.))
-                        .whitespace_nowrap()
-                        .child(kit::dot(look, kit::profile_hue(p)))
-                        .child(
-                            div()
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .text_color(look.c.text)
-                                .child(kit::profile_name(p)),
-                        )
-                        .child(
-                            div()
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .text_color(if dry.is_some() || left < 0.1 {
-                                    look.c.err
-                                } else {
-                                    look.c.text
-                                })
-                                .child(format!("{}%", (left * 100.).round())),
-                        )
-                        .children(d.map(|d| drain_chart(look, d, kit::profile_hue(p), 64., 18.)))
-                        .child(
-                            div()
-                                .text_size(look.text(12.))
-                                .text_color(if dry.is_some() {
-                                    look.c.err
-                                } else {
-                                    look.c.faint
-                                })
-                                .child(match (dry, h.five.and_then(|l| l.resets_at)) {
-                                    (Some(e), _) => format!(
-                                        "empty ~{}",
-                                        kit::hm(
-                                            OffsetDateTime::from_unix_timestamp(e).unwrap_or(now)
-                                        )
-                                    ),
-                                    (None, Some(r)) => format!(
-                                        "resets {}",
-                                        kit::hm(
-                                            OffsetDateTime::from_unix_timestamp(r).unwrap_or(now)
-                                        )
-                                    ),
-                                    _ => String::new(),
-                                }),
-                        )
-                        .when(fleet.use_next.as_deref() == Some(p.as_str()), |d| {
-                            d.child(kit::pill(look, "use next", look.c.created))
-                        }),
-                )
-            });
-            let tonight = data.and_then(|d| d.tonight.clone()).map(|t| {
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(look.px(6.))
-                    .whitespace_nowrap()
-                    .text_size(look.text(12.))
-                    .text_color(look.c.text_muted)
-                    .child(kit::icon(look, "moon", 13., look.c.faint))
-                    .child(format!("Tonight {}", t.at))
-                    .child(diamond_glyph(look))
-                    .child(t.corrections.to_string())
-                    .child(div().size(look.px(8.)).rounded(look.px(1.5)).bg(look.c.err))
-                    .child(t.destructive.to_string())
-            });
-            return div()
-                .flex()
-                .flex_wrap()
-                .items_center()
-                .gap_x(look.px(18.))
-                .gap_y(look.px(6.))
-                .py(look.px(8.))
-                .mb(look.px(4.))
-                .border_y(look.fixed(1.))
-                .border_color(look.c.border)
-                .text_size(look.text(12.5))
-                .children(cells)
-                .child(div().flex_1())
-                .children(tonight)
-                .into_any_element();
-        }
-        let section = |icon: &str, title: &str, right: String| {
-            div()
-                .flex()
-                .items_center()
-                .gap(look.px(8.))
-                .h(look.px(32.))
-                .text_size(look.text(12.))
-                .font_weight(FontWeight::SEMIBOLD)
-                .text_color(look.c.text_muted)
-                .child(kit::icon(look, icon, 13., look.c.faint))
-                .child(title.to_owned())
-                .child(div().flex_1())
-                .child(
-                    div()
-                        .font_weight(FontWeight::NORMAL)
-                        .text_color(look.c.faint)
-                        .child(right),
-                )
-        };
-        let meter_age = fleet
-            .headroom
-            .iter()
-            .filter_map(|h| h.meter.map(|m| m.fetched_at))
-            .max()
-            .map(|t| {
-                format!(
-                    "meter {} ago",
-                    kit::span(now - OffsetDateTime::from_unix_timestamp(t).unwrap_or(now))
-                )
-            })
-            .unwrap_or_default();
-        let mut usage = div()
-            .flex()
-            .flex_col()
-            .pb(look.px(10.))
-            .border_b(look.fixed(1.))
-            .border_color(look.c.border)
-            .child(section("gauge", "Usage", meter_age));
-        let mut any = false;
-        for p in &profiles {
-            let Some(h) = fleet.room(p) else { continue };
-            let Some(left) = h.five.map(|l| l.frac).or_else(|| h.left()) else {
-                continue;
-            };
-            any = true;
-            usage = usage.child(account_block(
-                look,
-                fleet,
-                p,
-                left,
-                live.get(p).copied().unwrap_or(0),
-                now,
-            ));
-        }
-        if !any {
-            usage = usage.child(
-                div()
-                    .text_size(look.text(12.))
-                    .text_color(look.c.faint)
-                    .child("No account figure yet."),
-            );
-        }
-        let served = pulse::served(&fleet.rows);
-        let mut memory = div()
-            .flex()
-            .flex_col()
-            .gap(look.px(8.))
-            .pb(look.px(12.))
-            .border_b(look.fixed(1.))
-            .border_color(look.c.border)
-            .child(section(
-                "brain",
-                "Memory today",
-                format!("{served} sessions served"),
-            ))
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(look.px(8.))
-                    .text_size(look.text(12.5))
-                    .text_color(look.c.text)
-                    .child(ring_glyph(look))
-                    .child(format!(
-                        "{served} session{} started with a kept rule",
-                        if served == 1 { "" } else { "s" }
-                    )),
-            );
-        if let Some(d) = data {
-            for c in d.corrected.iter().take(3) {
-                let (fate, seen) = match c.fate {
-                    Fate::Candidate { seen, .. } => ("rule candidate", format!(" · seen {seen}×")),
-                    Fate::Tonight => ("read tonight", String::new()),
-                    Fate::Read => ("read by the last pass", String::new()),
-                };
-                memory = memory.child(
-                    div()
-                        .flex()
-                        .items_start()
-                        .gap(look.px(8.))
-                        .child(div().pt(look.px(4.)).child(diamond_glyph(look)))
-                        .child(
-                            div()
-                                .flex()
-                                .flex_col()
-                                .min_w_0()
-                                .child(
-                                    div()
-                                        .text_size(look.text(12.5))
-                                        .text_color(look.c.text)
-                                        .child(format!("“{}”", short(&c.said, 90))),
-                                )
-                                .child(
-                                    div()
-                                        .flex()
-                                        .gap(look.px(4.))
-                                        .text_size(look.text(11.5))
-                                        .text_color(look.c.faint)
-                                        .child(format!("{}{seen} ·", kit::hm(c.at)))
-                                        .child(div().text_color(memory_yellow(look)).child(fate)),
-                                ),
-                        ),
-                );
-            }
-        }
-        let tonight = data.and_then(|d| d.tonight.clone()).map(|t| {
-            let chip = |glyph: Option<gpui::AnyElement>, n: usize, what: &str| {
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(look.px(6.))
-                    .h(look.px(24.))
-                    .px(look.px(8.))
-                    .rounded(look.px(6.))
-                    .border(look.fixed(1.))
-                    .border_color(look.c.border)
-                    .text_size(look.text(12.))
-                    .text_color(look.c.text_muted)
-                    .children(glyph)
-                    .child(
-                        div()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(look.c.text)
-                            .child(n.to_string()),
-                    )
-                    .child(what.to_owned())
-            };
-            let plural = |n: usize, one: &str, many: &str| {
-                if n == 1 {
-                    one.to_owned()
-                } else {
-                    many.to_owned()
-                }
-            };
-            div()
-                .flex()
-                .flex_col()
-                .pb(look.px(12.))
-                .border_b(look.fixed(1.))
-                .border_color(look.c.border)
-                .child(section(
-                    "moon",
-                    &format!("Tonight {}", t.at),
-                    format!("reads {} sessions", t.sessions),
-                ))
-                .child(
-                    div()
-                        .flex()
-                        .flex_wrap()
-                        .gap(look.px(6.))
-                        .child(chip(
-                            Some(diamond_glyph(look).into_any_element()),
-                            t.corrections,
-                            &plural(t.corrections, "correction", "corrections"),
-                        ))
-                        .child(chip(
-                            Some(
-                                div()
-                                    .size(look.px(8.))
-                                    .rounded(look.px(1.5))
-                                    .bg(look.c.err)
-                                    .into_any_element(),
-                            ),
-                            t.destructive,
-                            &plural(t.destructive, "destructive command", "destructive commands"),
-                        ))
-                        .child(chip(
-                            None,
-                            t.unverified,
-                            &plural(t.unverified, "unverified claim", "unverified claims"),
-                        ))
-                        .child(chip(
-                            None,
-                            t.notes_due,
-                            &plural(t.notes_due, "note due a re-check", "notes due a re-check"),
-                        )),
-                )
-        });
-        let key = |glyph: gpui::AnyElement, what: &str| {
-            div()
-                .flex()
-                .items_center()
-                .gap(look.px(6.))
-                .text_size(look.text(11.5))
-                .text_color(look.c.faint)
-                .child(div().w(look.px(14.)).flex().justify_center().child(glyph))
-                .child(what.to_owned())
-        };
-        let legend = div()
-            .pt(look.px(12.))
-            .flex()
-            .flex_wrap()
-            .gap_x(look.px(12.))
-            .gap_y(look.px(6.))
-            .child(key(
-                div()
-                    .w(look.px(3.))
-                    .h(look.px(10.))
-                    .bg(look.c.text_muted)
-                    .into_any_element(),
-                "tool calls and edits",
-            ))
-            .child(key(
-                div()
-                    .w(look.px(12.))
-                    .h(look.fixed(2.))
-                    .bg(look.c.warn)
-                    .into_any_element(),
-                "waiting on you",
-            ))
-            .child(key(
-                diamond_glyph(look).into_any_element(),
-                "you corrected it",
-            ))
-            .child(key(
-                div()
-                    .size(look.px(8.))
-                    .rounded(look.px(1.5))
-                    .bg(look.c.err)
-                    .into_any_element(),
-                "destructive",
-            ))
-            .child(key(ring_glyph(look).into_any_element(), "kept rule served"))
-            .child(key(
-                div()
-                    .size(look.px(8.))
-                    .rounded_full()
-                    .bg(look.c.created)
-                    .into_any_element(),
-                "merged",
-            ));
-        div()
-            .flex()
-            .flex_col()
-            .gap(look.px(4.))
-            .pl(look.px(16.))
-            .border_l(look.fixed(1.))
-            .border_color(look.c.border)
-            .child(usage)
-            .child(memory)
-            .children(tonight)
-            .child(legend)
-            .into_any_element()
-    }
 }
 
-/// How far a lane's title may run on over its track: up to its first
-/// activity (or its first mark), less a gap.
-fn spill(wave: Option<&Wave>, g: Geo, t0: OffsetDateTime, now: OffsetDateTime) -> f32 {
-    if !g.tracks {
-        return 0.;
-    }
-    let Some(w) = wave else {
-        return g.track * 0.5;
-    };
-    let first = w
-        .beats
-        .iter()
-        .position(|v| *v > 0)
-        .map(|k| w.from + replay::BEAT * k as i32);
-    let mark = w
-        .marks
-        .iter()
-        .map(|(t, _)| *t)
-        .chain(w.ring)
-        .filter(|t| *t >= t0)
-        .min();
-    let Some(t) = [first, mark].into_iter().flatten().min() else {
-        return g.track * 0.5;
-    };
-    let frac = (t - t0).as_seconds_f32() / (now - t0).as_seconds_f32().max(1.);
-    (frac.clamp(0., 1.) * g.track - 20.).clamp(0., g.track * 0.6)
+/// The breadcrumb over a focused item: its account's dot and name, then
+/// `place`; the caller adds its state.
+fn crumb(look: &Look, profile: Option<&str>, place: Option<&str>) -> gpui::Div {
+    div()
+        .flex()
+        .flex_wrap()
+        .items_center()
+        .gap(look.px(8.))
+        .pb(look.px(10.))
+        .text_size(look.text(12.5))
+        .text_color(look.c.text_muted)
+        .when_some(profile, |d, p| {
+            d.child(kit::dot(look, kit::profile_hue(p)))
+                .child(kit::profile_name(p))
+        })
+        .when_some(place, |d, p| {
+            d.child(div().text_color(look.c.faint).child("·"))
+                .child(p.to_owned())
+        })
+        .child(div().text_color(look.c.faint).child("·"))
 }
 
-/// The rail's accounts: the one to use next first, then by name.
+/// A focused item's title.
+fn focus_title(look: &Look, title: &str) -> gpui::Div {
+    div()
+        .pb(look.px(8.))
+        .text_size(look.text(22.))
+        .line_height(look.text(29.))
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(look.c.text)
+        .child(title.to_owned())
+}
+
+/// The fleet's histogram over the span, stacked by account, ending at
+/// a now line, with its tick labels.
+fn histogram_el(
+    look: &Look,
+    hist: pulse::Histogram,
+    t0: OffsetDateTime,
+    now: OffsetDateTime,
+    h: f32,
+) -> gpui::Div {
+    let lk = look.clone();
+    let span_s = (now - t0).whole_seconds();
+    let chart = canvas(
+        |_, _, _| {},
+        move |bounds, _, window, _| {
+            let o = bounds.origin;
+            let w = f32::from(bounds.size.width);
+            let height = f32::from(bounds.size.height);
+            let peak = hist.peak().max(6) as f32;
+            let span = span_s as f32;
+            let beat_w = replay::BEAT.as_seconds_f32() / span * w;
+            let bin = ((4. / beat_w).ceil() as usize).max(1);
+            let mut k = 0;
+            while k < hist.bars.len() {
+                let end = (k + bin).min(hist.bars.len());
+                // The tallest beat of the bin, its stack kept.
+                let Some(bar) = hist.bars[k..end]
+                    .iter()
+                    .max_by_key(|b| b.iter().sum::<u32>())
+                else {
+                    break;
+                };
+                let t = hist.from + replay::BEAT * k as i32;
+                let x = (t - t0).as_seconds_f32() / span * w;
+                let bw = (beat_w * (end - k) as f32 - 2.).max(2.);
+                let mut y = height;
+                for (p, v) in hist.profiles.iter().zip(bar) {
+                    if *v == 0 || x < 0. {
+                        continue;
+                    }
+                    let bh = *v as f32 / peak * (height - 2.);
+                    y -= bh;
+                    let color = p.as_deref().map_or(lk.c.text_muted, kit::profile_hue);
+                    window.paint_quad(fill(
+                        Bounds::new(point(o.x + px(x), o.y + px(y)), size(px(bw), px(bh))),
+                        color.opacity(0.9),
+                    ));
+                }
+                k = end;
+            }
+            window.paint_quad(fill(
+                Bounds::new(
+                    point(o.x, o.y + px(height - 1.)),
+                    size(bounds.size.width, px(1.)),
+                ),
+                lk.c.border,
+            ));
+        },
+    )
+    .w_full()
+    .h(look.px(h));
+    let lk = look.clone();
+    let labels = canvas(
+        |_, _, _| {},
+        move |bounds, _, window, cx| {
+            let o = bounds.origin;
+            let w = f32::from(bounds.size.width);
+            let step = tick_step(span_s, w);
+            let off = i64::from(super::status::local_offset().whole_seconds());
+            let mut t = ((t0.unix_timestamp() + off) / step + 1) * step - off;
+            while t < t0.unix_timestamp() + span_s - step / 3 {
+                let x = (t - t0.unix_timestamp()) as f32 / span_s as f32 * w;
+                let Ok(at) = OffsetDateTime::from_unix_timestamp(t) else {
+                    break;
+                };
+                let text: SharedString = kit::hm(at).into();
+                let run = gpui::TextRun {
+                    len: text.len(),
+                    font: gpui::font(kit::MONO),
+                    color: lk.c.faint,
+                    background_color: None,
+                    underline: None,
+                    strikethrough: None,
+                };
+                let size_px = lk.text(10.5);
+                let line = window.text_system().shape_line(text, size_px, &[run], None);
+                let lw = f32::from(line.width);
+                let _ = line.paint(
+                    point(o.x + px(x - lw / 2.), o.y),
+                    size_px * 1.3,
+                    gpui::TextAlign::Left,
+                    None,
+                    window,
+                    cx,
+                );
+                t += step;
+            }
+        },
+    )
+    .w_full()
+    .h(look.px(16.));
+    div()
+        .w_full()
+        .flex()
+        .flex_col()
+        .gap(look.px(4.))
+        .child(chart)
+        .child(labels)
+}
+
+/// The accounts with a figure: the one to use next first, then by name.
 fn rail_profiles(fleet: &Fleet) -> Vec<String> {
     let mut out: Vec<String> = fleet
         .headroom
@@ -2787,9 +2965,9 @@ fn need_words(r: &Row, now: OffsetDateTime) -> (String, &'static str, Option<Str
     match &r.state {
         State::Waiting { at, asked, plan } => (
             if *plan {
-                "Plan to approve".into()
+                "Plan waiting".into()
             } else {
-                "Asked you a question".into()
+                "Waiting".into()
             },
             if *plan {
                 "list-checks"
@@ -2807,36 +2985,6 @@ fn need_words(r: &Row, now: OffsetDateTime) -> (String, &'static str, Option<Str
         ),
         _ => ("Needs you".into(), "hand", None, String::new()),
     }
-}
-
-/// A group's heading: `Needs you  2`, with a hint at the right.
-fn group_head(look: &Look, title: &str, n: usize, hint: Option<String>) -> gpui::AnyElement {
-    div()
-        .relative()
-        .flex()
-        .items_end()
-        .gap(look.px(8.))
-        .h(look.px(30.))
-        .pb(look.px(6.))
-        .text_size(look.text(12.))
-        .font_weight(FontWeight::SEMIBOLD)
-        .text_color(look.c.text_muted)
-        .child(title.to_owned())
-        .child(
-            div()
-                .font_weight(FontWeight::NORMAL)
-                .text_color(look.c.faint)
-                .child(n.to_string()),
-        )
-        .child(div().flex_1())
-        .children(hint.map(|h| {
-            div()
-                .font_weight(FontWeight::NORMAL)
-                .text_color(look.c.faint)
-                .truncate()
-                .child(h)
-        }))
-        .into_any_element()
 }
 
 /// The yellow ring glyph: a kept rule served.
@@ -2883,17 +3031,18 @@ fn short(s: &str, max: usize) -> String {
 }
 
 /// A drain chart: the window's samples as bars of what was left, the
-/// projection to the reset as outlines, red where it runs dry.
+/// projection to the reset as outlines, red where it runs dry. `w` in
+/// points, or the parent's width when `None`.
 fn drain_chart(
     look: &Look,
     d: &hippo_core::usage::Drain,
     hue: Hsla,
-    w: f32,
+    w: Option<f32>,
     h: f32,
 ) -> gpui::AnyElement {
     let d = d.clone();
     let lk = look.clone();
-    canvas(
+    let el = canvas(
         |_, _, _| {},
         move |bounds, _, window, _| {
             let o = bounds.origin;
@@ -2901,7 +3050,7 @@ fn drain_chart(
             let height = f32::from(bounds.size.height);
             let slots = ((d.end - d.start) / hippo_core::usage::DRAIN_STEP).max(1) as usize;
             let slot_w = width / slots as f32;
-            let bw = (slot_w - 1.).max(1.);
+            let bw = (slot_w - 2.).max(1.);
             for (k, used) in d.samples.iter().enumerate().take(slots) {
                 let left = (1. - *used as f32).clamp(0., 1.);
                 let bh = (left * (height - 1.)).max(1.);
@@ -2921,7 +3070,7 @@ fn drain_chart(
                 let x = o.x + px(k as f32 * slot_w);
                 if left <= 0. {
                     window.paint_quad(fill(
-                        Bounds::new(point(x, o.y + px(height - 1.)), size(px(bw), px(1.))),
+                        Bounds::new(point(x, o.y + px(height - 2.)), size(px(bw), px(2.))),
                         lk.c.err.opacity(0.85),
                     ));
                     continue;
@@ -2948,176 +3097,45 @@ fn drain_chart(
             ));
         },
     )
-    .flex_shrink_0()
-    .w(look.px(w))
-    .h(look.px(h))
-    .into_any_element()
-}
-
-/// One account in the rail.
-fn account_block(
-    look: &Look,
-    fleet: &Fleet,
-    p: &str,
-    left: f64,
-    working: usize,
-    now: OffsetDateTime,
-) -> gpui::AnyElement {
-    let hue = kit::profile_hue(p);
-    let h = fleet.room(p);
-    let d = fleet.drain(p);
-    let dry = d.and_then(|d| d.empty_at);
-    let low = dry.is_some() || left < 0.15;
-    let at = |s: i64| OffsetDateTime::from_unix_timestamp(s).unwrap_or(now);
-    let reset = h.and_then(|h| h.five.and_then(|l| l.resets_at).or_else(|| h.resets()));
-    let tag = if fleet.use_next.as_deref() == Some(p) {
-        Some(kit::pill(look, "USE NEXT", look.c.created))
-    } else if low {
-        Some(kit::pill(look, "LOW", look.c.err))
-    } else {
-        None
-    };
-    let seven = h.and_then(|h| h.seven);
-    div()
-        .flex()
-        .flex_col()
-        .gap(look.px(4.))
-        .py(look.px(7.))
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .gap(look.px(7.))
-                .child(kit::dot(look, hue))
-                .child(
-                    div()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(look.c.text)
-                        .child(kit::profile_name(p)),
-                )
-                .when(working > 0, |d| {
-                    d.child(
-                        div()
-                            .text_size(look.text(11.5))
-                            .text_color(look.c.faint)
-                            .child(format!("{working} working")),
-                    )
-                })
-                .child(div().flex_1())
-                .children(tag),
-        )
-        .child(
-            div()
-                .flex()
-                .items_end()
-                .gap(look.px(10.))
-                .child(
-                    div()
-                        .flex()
-                        .items_end()
-                        .w(look.px(62.))
-                        .flex_shrink_0()
-                        .child(
-                            div()
-                                .text_size(look.text(22.))
-                                .line_height(look.text(24.))
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .text_color(if low { look.c.err } else { look.c.text })
-                                .child(format!("{}", (left * 100.).round())),
-                        )
-                        .child(
-                            div()
-                                .pb(look.px(2.))
-                                .text_size(look.text(11.))
-                                .text_color(look.c.faint)
-                                .child("% 5h"),
-                        ),
-                )
-                .children(d.map(|d| {
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .child(drain_chart(look, d, hue, 160., 26.))
-                })),
-        )
-        .child(
-            div()
-                .flex()
-                .gap(look.px(6.))
-                .text_size(look.text(11.5))
-                .text_color(look.c.faint)
-                .whitespace_nowrap()
-                .children(
-                    d.map(|d| div().child(format!("burning {}% / h", (d.burn * 100.).round()))),
-                )
-                .child(div().flex_1())
-                .children(reset.map(|r| {
-                    div().child(format!(
-                        "resets {} · {}",
-                        kit::hm(at(r)),
-                        kit::span(at(r) - now)
-                    ))
-                })),
-        )
-        .children(dry.zip(reset).map(|(e, r)| {
-            div()
-                .text_size(look.text(12.))
-                .text_color(look.c.err)
-                .child(format!(
-                    "Empty about {}, {} before the reset. {working} session{} will stop.",
-                    kit::hm(at(e)),
-                    kit::span(at(r) - at(e)),
-                    if working == 1 { "" } else { "s" }
-                ))
-        }))
-        .children(seven.map(|s| {
-            div()
-                .flex()
-                .items_center()
-                .gap(look.px(6.))
-                .text_size(look.text(11.5))
-                .text_color(look.c.faint)
-                .child("7d")
-                .child(
-                    div()
-                        .flex_1()
-                        .h(look.px(3.))
-                        .rounded_full()
-                        .bg(look.c.border)
-                        .child(
-                            div()
-                                .h_full()
-                                .rounded_full()
-                                .w(gpui::relative(s.frac.clamp(0., 1.) as f32))
-                                .bg(hue.opacity(0.8)),
-                        ),
-                )
-                .child(format!(
-                    "{}%{}",
-                    (s.frac * 100.).round(),
-                    s.resets_at
-                        .map(|r| {
-                            let t = at(r).to_offset(super::status::local_offset());
-                            format!(" · {} {}", &t.weekday().to_string()[..3], kit::hm(at(r)))
-                        })
-                        .unwrap_or_default()
-                ))
-        }))
-        .into_any_element()
+    .h(look.px(h));
+    match w {
+        Some(w) => el.flex_shrink_0().w(look.px(w)).into_any_element(),
+        None => el.w_full().into_any_element(),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn key(s: &str) -> String {
+        s.to_owned()
+    }
+
     #[test]
-    fn the_rail_sits_beside_only_when_wide_and_tracks_keep_their_room() {
-        let wide = geo(1210.);
-        assert!(wide.rail && wide.tracks);
-        let mid = geo(870.);
-        assert!(!mid.rail && mid.tracks);
-        let narrow = geo(560.);
-        assert!(!narrow.rail && !narrow.tracks);
+    fn the_selection_is_the_chosen_key_or_the_first() {
+        let keys = vec![key("wait:a"), key("dry:work"), key("harm:i1")];
+        assert_eq!(selected(&keys, None), Some(0));
+        assert_eq!(selected(&keys, Some("dry:work")), Some(1));
+        assert_eq!(selected(&keys, Some("gone")), Some(0));
+        assert_eq!(selected(&[], Some("dry:work")), None);
+    }
+
+    #[test]
+    fn items_put_off_come_last_in_the_order_they_were_put_off() {
+        let item = |profile: &str| {
+            Item::Next(Next::RunsDry {
+                profile: profile.to_owned(),
+                empty_at: 0,
+                reset: 0,
+                sessions: Vec::new(),
+                to: None,
+            })
+        };
+        let items = vec![item("a"), item("b"), item("c")];
+        let out = later_last(items, &[key("dry:a"), key("dry:b")]);
+        let keys: Vec<String> = out.iter().map(Item::key).collect();
+        assert_eq!(keys, ["dry:c", "dry:a", "dry:b"]);
     }
 
     #[test]

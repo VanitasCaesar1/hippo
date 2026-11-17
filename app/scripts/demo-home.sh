@@ -823,7 +823,8 @@ proj=$demo_proj
 TS=agos
 
 # Pulse, Fleet's default view: a fleet at work now. Four sessions in the
-# workspace, timed from when the script runs, each with its start block
+# workspace, working for the last two to three hours (timed from when the
+# script runs), each with its start block
 # recorded (carrying the Style guide, whose rule a kept lesson below holds)
 # and each reply's token use, so the default account drains:
 # "Push the notes branch to origin" (default) force-pushes, is corrected
@@ -849,7 +850,7 @@ pstart() { # seconds-ago title request
   pu "$1" "\"$3\""
 }
 # prun <from> <to> <every> <file>: calls and their results, seconds ago,
-# in bursts (every third step is shorter).
+# in bursts and lulls around <every> seconds.
 prun() {
   t=$1 n=0
   while [ "$t" -gt "$2" ]; do
@@ -862,13 +863,21 @@ prun() {
       *) pa "$t" "$(tuse "$c" Edit "{\"file_path\":\"$ws/src/$4\",\"old_string\":\"const n = $n\",\"new_string\":\"const n = $((n + 1))\\nconst m = $n\"}")"
          pres $((t - 2)) "$c" 'The file has been updated.' ;;
     esac
-    if [ $((n % 3)) -eq 0 ]; then t=$((t - $3 / 3)); else t=$((t - $3)); fi
+    # Steps of 0.2 to 2.6 times <every>, so the activity has a shape.
+    case $(((n * 7 + pk) % 9)) in
+      0|1|2) t=$((t - $3 / 5)) ;;
+      3|4) t=$((t - $3 / 2)) ;;
+      5|6) t=$((t - $3)) ;;
+      7) t=$((t - $3 * 2)) ;;
+      *) t=$((t - $3 * 13 / 5)) ;;
+    esac
   done
 }
 P_ID=demo-p1
 {
-  pstart 1500 "Push the notes branch to origin" "Push the notes branch to origin and open a draft pull request."
-  prun 1480 900 50 notes/draft.ts
+  pstart 7800 "Push the notes branch to origin" "Push the notes branch to origin and open a draft pull request."
+  prun 7780 5200 55 notes/draft.ts
+  prun 4600 900 50 notes/draft.ts
   pa 860 "$(tuse pf1 Bash '{"command":"git push --force origin notes-draft","description":"Push the branch"}')"
   pres 855 pf1 '+ 3f2a1c9...8b7d6e5 notes-draft -> notes-draft (forced update)'
   pu 780 '"no, why did you force push? the remote had my commits from this morning"'
@@ -877,8 +886,9 @@ P_ID=demo-p1
 } >"$xproj/demo-p1.jsonl"
 P_ID=demo-p3
 {
-  pstart 2400 "Gallery page: send me screenshots" "Check the gallery page and send me screenshots."
-  prun 2380 1900 60 gallery/page.ts
+  pstart 9000 "Gallery page: send me screenshots" "Check the gallery page and send me screenshots."
+  prun 8980 6000 65 gallery/page.ts
+  prun 5400 1900 60 gallery/page.ts
   pa 1880 "$(tuse pg1 Bash '{"command":"npm run preview -- --db production gallery","description":"Start a preview of the gallery"}')"
   pres 1870 pg1 'saved gallery.png'
   pu 1800 '"no, previews use the staging database, never production"'
@@ -887,15 +897,16 @@ P_ID=demo-p3
 } >"$xproj/demo-p3.jsonl"
 P_ID=demo-p2
 {
-  pstart 3000 "Rotate the staging certificates" "Rotate the staging certificates before they expire on Friday."
-  prun 2980 1500 70 ops/certs.ts
+  pstart 10200 "Rotate the staging certificates" "Rotate the staging certificates before they expire on Friday."
+  prun 10180 7000 70 ops/certs.ts
+  prun 6400 1500 75 ops/certs.ts
   prun 900 80 80 ops/certs.ts
   pa 38 "$(tuse pc1 Bash '{"command":"terraform plan -target=module.staging_certs","description":"Plan the certificate change"}')"
 } >"$pulse_w/demo-p2.jsonl"
 P_ID=demo-p4
 {
-  pstart 1500 "Move settings to the new store" "Move the settings screen to the new settings store."
-  prun 1480 400 60 settings/store.ts
+  pstart 6000 "Move settings to the new store" "Move the settings screen to the new settings store."
+  prun 5980 400 60 settings/store.ts
   pa 180 "$(tuse pp1 ExitPlanMode '{"plan":"## Plan\n\n1. Add SettingsStore with the three toggles\n2. Point SettingsView at the store\n3. Delete the old UserDefaults wrapper\n4. Update 6 snapshot tests\n\nPlan ready: 4 steps across 9 files. Approve to start editing?"}')"
 } >"$pulse_w/demo-p4.jsonl"
 TS=ts8
