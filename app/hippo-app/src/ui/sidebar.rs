@@ -1217,7 +1217,13 @@ impl Shell {
         // overlay of its full width.
         let narrow = false;
         let now = OffsetDateTime::now_utc();
-        let (shelves, snoozed) = self.shelves();
+        // Pulse's queue and sheet are the session list there; the
+        // shelves would show the same sessions a second time.
+        let (shelves, snoozed) = if self.pulse_shown() {
+            (Vec::new(), Vec::new())
+        } else {
+            self.shelves()
+        };
         let nav = div()
             .flex()
             .flex_col()

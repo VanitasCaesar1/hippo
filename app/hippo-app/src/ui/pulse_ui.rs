@@ -688,15 +688,20 @@ impl Shell {
         true
     }
 
+    /// Pulse is the view on screen: Fleet's own view, not a thread opened
+    /// from it, with Pulse picked.
+    pub(super) fn pulse_shown(&self) -> bool {
+        self.state.tabs.section() == crate::state::Section::Fleet
+            && self.state.tabs.depth() == 1
+            && self.pulse.on
+            && !self.replay.lanes
+    }
+
     /// Escape in Pulse: closes the sheet, else the stacked focus. Escape
     /// is bound to Back, so the shell's interceptor calls this first;
     /// `false` when Pulse is not the view shown or has nothing to close.
     pub(super) fn pulse_escape(&mut self) -> bool {
-        let shown = self.state.tabs.section() == crate::state::Section::Fleet
-            && self.state.tabs.depth() == 1
-            && self.pulse.on
-            && !self.replay.lanes;
-        if !shown {
+        if !self.pulse_shown() {
             return false;
         }
         if self.pulse.sheet {
@@ -1031,16 +1036,16 @@ impl Shell {
         };
         let meters = rail_profiles(fleet).into_iter().filter_map(|p| {
             let h = fleet.room(&p)?;
-            let left = h.five.map(|l| l.frac).or_else(|| h.left())?;
-            let used = (1. - left).clamp(0., 1.);
+            // What is left, as Home and the composer show it.
+            let left = h.five.map(|l| l.frac).or_else(|| h.left())?.clamp(0., 1.);
             let d = fleet.drain(&p);
             let dry = d.and_then(|d| d.empty_at);
             let reset = h.five.and_then(|l| l.resets_at).or_else(|| h.resets());
             let hue = kit::profile_hue(&p);
             let tip = format!(
-                "{}: {}% of the 5-hour window used{}",
+                "{}: {}% of the 5-hour window left{}",
                 kit::profile_name(&p),
-                (used * 100.).round(),
+                (left * 100.).round(),
                 reset
                     .map(|r| format!(", resets {}", kit::hm(at(r))))
                     .unwrap_or_default()
@@ -1069,7 +1074,7 @@ impl Shell {
                                 div()
                                     .h_full()
                                     .rounded_full()
-                                    .w(gpui::relative(used as f32))
+                                    .w(gpui::relative(left as f32))
                                     .bg(if dry.is_some() { look.c.err } else { hue }),
                             ),
                     )
@@ -1079,7 +1084,7 @@ impl Shell {
                             .text_size(look.text(12.))
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(look.c.text)
-                            .child(format!("{}%", (used * 100.).round())),
+                            .child(format!("{}% left", (left * 100.).round())),
                     )
                     .child(
                         div()
@@ -1697,7 +1702,11 @@ impl Shell {
                         if ok { look.c.ok } else { look.c.warn },
                     ))
                     .child(if ok {
-                        "claims checked".to_owned()
+                        plural(
+                            r.claims.verified as usize,
+                            "claim checked",
+                            "claims checked",
+                        )
                     } else {
                         plural(
                             r.claims.unverified as usize,
@@ -1992,7 +2001,7 @@ impl Shell {
             .gap(look.px(12.))
             .text_size(look.text(12.5))
             .text_color(look.c.text_muted)
-            .children(d.map(|d| format!("{}% used", (d.used * 100.).round())))
+            .children(d.map(|d| format!("{}% left", ((1. - d.used).max(0.) * 100.).round())))
             .children(d.map(|d| format!("{}% an hour", (d.burn * 100.).round())))
             .child(format!("resets {}", kit::hm(at(*reset))));
         let chart = d.map(|d| {

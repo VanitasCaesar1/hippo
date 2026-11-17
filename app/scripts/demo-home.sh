@@ -314,10 +314,29 @@ done
 # HOME=<dir>/profiles.
 wfile=$dir/profiles/.claude-work/projects/-tern-web/demo-w1.jsonl
 {
-  printf '{"type":"user","sessionId":"demo-w1","timestamp":"%s","cwd":"%s","entrypoint":"cli","message":{"role":"user","content":"Get the release branch ready to merge."}}\n' "$(ago 30)" "$cwd"
-  printf '{"type":"assistant","sessionId":"demo-w1","timestamp":"%s","cwd":"%s","message":{"role":"assistant","content":[{"type":"tool_use","id":"w1","name":"Bash","input":{"command":"npm test"}}]}}\n' "$(ago 12)" "$cwd"
-  printf '{"type":"user","sessionId":"demo-w1","timestamp":"%s","cwd":"%s","entrypoint":"cli","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"w1","content":"Tests: 48 passed, 48 total"}]}}\n' "$(ago 11)" "$cwd"
-  printf '{"type":"assistant","sessionId":"demo-w1","timestamp":"%s","cwd":"%s","message":{"role":"assistant","stop_reason":"end_turn","content":[{"type":"text","text":"The branch is rebased and all 48 tests pass.\\n\\nShould I merge it into main now, or wait for the design review?"}]}}\n' "$(ago 9)" "$cwd"
+  wmeta='"sessionId":"demo-w1","cwd":"'"$cwd"'","gitBranch":"release/6"'
+  wcall() { # minutes-ago id tool input-json
+    printf '{"type":"assistant",%s,"timestamp":"%s","message":{"role":"assistant","content":[{"type":"tool_use","id":"%s","name":"%s","input":%s}]}}\n' "$wmeta" "$(ago "$1")" "$2" "$3" "$4"
+  }
+  wres() { # minutes-ago id result
+    printf '{"type":"user",%s,"timestamp":"%s","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"%s","content":"%s"}]}}\n' "$wmeta" "$(ago "$1")" "$2" "$3"
+  }
+  printf '{"type":"user",%s,"timestamp":"%s","entrypoint":"cli","message":{"role":"user","content":"Get the release branch ready to merge."}}\n' "$wmeta" "$(ago 34)"
+  wcall 33 w1 Read '{"file_path":"docs/release.md"}'
+  wres 33 w1 '# Releasing\\n\\nRebase on main, update the changelog, run the suite, open the pull request.'
+  wcall 31 w2 Bash '{"command":"git rebase origin/main","description":"Rebase on main"}'
+  wres 30 w2 'Successfully rebased and updated refs/heads/release/6.'
+  wcall 27 w3 Edit '{"file_path":"CHANGELOG.md","old_string":"## Unreleased\\n","new_string":"## 6.0\\n\\n- Albums load covers in parallel.\\n- Exports retry with backoff.\\n- The share sheet sends a resized copy.\\n"}'
+  wres 27 w3 'The file CHANGELOG.md has been updated.'
+  wcall 25 w4 Edit '{"file_path":"package.json","old_string":"\"version\": \"5.9.2\"","new_string":"\"version\": \"6.0.0\""}'
+  wres 25 w4 'The file package.json has been updated.'
+  wcall 23 w5 Bash '{"command":"npm test","description":"Run the suite"}'
+  wres 19 w5 'Tests: 48 passed, 48 total'
+  wcall 17 w6 Bash '{"command":"gh pr create --title \"Release 6\" --body \"Changelog and version for 6.0.\"","description":"Open the pull request"}'
+  wres 16 w6 'https://github.com/tern-example/web/pull/57'
+  wcall 14 w7 Bash '{"command":"gh pr checks 57","description":"Check the pull request"}'
+  wres 12 w7 'build\tpass\t2m4s\ntest\tpass\t3m10s'
+  printf '{"type":"assistant",%s,"timestamp":"%s","message":{"role":"assistant","stop_reason":"end_turn","content":[{"type":"text","text":"The branch is rebased, the changelog and version are updated, all 48 tests pass and the checks on https://github.com/tern-example/web/pull/57 are green.\\n\\nShould I merge it into main now, or wait for the design review?"}]}}\n' "$wmeta" "$(ago 11)"
 } >"$wfile"
 iso_in() { date -u -r $(( $(date +%s) + $1 )) +%Y-%m-%dT%H:%M:%S+00:00; }
 fetched=$(( ($(date +%s) - 180) * 1000 ))
