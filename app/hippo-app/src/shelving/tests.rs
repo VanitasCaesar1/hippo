@@ -46,6 +46,7 @@ fn row(id: &str, state: State) -> Row {
         asked: None,
         outcome: None,
         rules: Vec::new(),
+        plan: None,
     }
 }
 

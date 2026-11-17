@@ -34,7 +34,12 @@ pub struct Waiting {
     pub asked: Option<String>,
     /// A plan waiting for approval (`ExitPlanMode`).
     pub plan: bool,
+    /// The plan's own text, for a plan ([`PLAN_CHARS`] at most).
+    pub plan_text: Option<String>,
 }
+
+/// The most characters of a waiting plan's text the tail keeps.
+pub const PLAN_CHARS: usize = 8000;
 
 /// A session's newest tool call.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -332,6 +337,7 @@ pub fn read(path: &Path) -> Tail {
                     120,
                 )),
                 plan: false,
+                plan_text: None,
             });
             tail.last = Some(tail.last.map_or(a.at, |l| l.max(a.at)));
         }
@@ -454,6 +460,7 @@ pub fn of_lines(lines: &[&str]) -> Tail {
                                 at: ts,
                                 asked: last_sentence(&text),
                                 plan: false,
+                                plan_text: None,
                             });
                         }
                     }
@@ -501,10 +508,16 @@ fn claude_waiting(v: &Value, ts: OffsetDateTime, answered: &HashSet<String>) -> 
                                 .trim_end_matches(['*', ' ']);
                             (!line.is_empty()).then(|| cut(line, 120))
                         });
+                    let plan_text = (name == "ExitPlanMode")
+                        .then(|| block.pointer("/input/plan").and_then(Value::as_str))
+                        .flatten()
+                        .map(|p| cut(p.trim(), PLAN_CHARS))
+                        .filter(|p| !p.is_empty());
                     return Some(Waiting {
                         at: ts,
                         asked,
                         plan: name == "ExitPlanMode",
+                        plan_text,
                     });
                 }
             }
@@ -525,6 +538,7 @@ fn claude_waiting(v: &Value, ts: OffsetDateTime, answered: &HashSet<String>) -> 
         at: ts,
         asked: last_sentence(&text),
         plan: false,
+        plan_text: None,
     })
 }
 
@@ -1006,6 +1020,7 @@ mod tests {
         );
         let w = tail(std::slice::from_ref(&ask)).waiting.unwrap();
         assert_eq!(w.asked.as_deref(), Some("Merge now or wait for review?"));
+        assert_eq!(w.plan_text, None);
         let answered = tail(&[ask, result(T2, "q1")]);
         assert_eq!(answered.waiting, None);
         let plan = assistant(
@@ -1013,7 +1028,9 @@ mod tests {
             json!([{"type": "tool_use", "id": "p1", "name": "ExitPlanMode", "input": {"plan": "1. do"}}]),
             Some("tool_use"),
         );
-        assert!(tail(std::slice::from_ref(&plan)).waiting.unwrap().plan);
+        let w = tail(std::slice::from_ref(&plan)).waiting.unwrap();
+        assert!(w.plan);
+        assert_eq!(w.plan_text.as_deref(), Some("1. do"));
         let plan = assistant(
             T1,
             json!([{"type": "tool_use", "id": "p2", "name": "ExitPlanMode",

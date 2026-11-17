@@ -612,6 +612,7 @@ fn shelf_row(state: State, pulls: Vec<(String, &'static str)>) -> Row {
         asked: None,
         outcome: None,
         rules: Vec::new(),
+        plan: None,
     }
 }
 
@@ -1169,4 +1170,48 @@ fn opencode_sessions_are_live_running_waiting_or_quiet_from_the_database() {
         "sub-agents are not rows"
     );
     assert_eq!(fleet.rows.len(), 4);
+}
+
+#[test]
+fn a_plan_is_its_numbered_lines_else_its_bullets_else_its_text() {
+    let plan = plan_steps(
+        "## Plan\n\n1. Add **SettingsStore** with the three toggles\n   - nested detail\n2) Point SettingsView at the store:\n3. Delete the old wrapper\n\nPlan ready: 3 steps. Approve?\n",
+    );
+    assert_eq!(
+        plan.steps,
+        [
+            "Add SettingsStore with the three toggles",
+            "Point SettingsView at the store",
+            "Delete the old wrapper",
+        ]
+    );
+    assert_eq!((plan.more, plan.text), (0, None));
+
+    let plan = plan_steps("Steps:\n- [ ] Tokens\n- [x] Sheet layout\n  - padding\n* Haptics\n");
+    assert_eq!(plan.steps, ["Tokens", "Sheet layout", "Haptics"]);
+
+    let plan = plan_steps("Rename the helper and update its two callers.");
+    assert!(plan.steps.is_empty());
+    assert_eq!(
+        plan.text.as_deref(),
+        Some("Rename the helper and update its two callers.")
+    );
+    assert_eq!(plan_steps("  \n").text, None);
+}
+
+#[test]
+fn a_long_plan_keeps_twelve_steps_and_counts_the_rest() {
+    let text: String = (1..=15).map(|i| format!("{i}. Step {i}\n")).collect();
+    let plan = plan_steps(&text);
+    assert_eq!(plan.steps.len(), PLAN_STEPS);
+    assert_eq!(plan.steps[11], "Step 12");
+    assert_eq!(plan.more, 3);
+}
+
+#[test]
+fn a_plan_step_is_redacted() {
+    // Built at run time so the source holds no secret-shaped literal.
+    let key = format!("ghp_{}", "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8");
+    let plan = plan_steps(&format!("1. Export GITHUB_TOKEN={key} and push\n"));
+    assert!(!plan.steps[0].contains(&key), "{:?}", plan.steps);
 }
