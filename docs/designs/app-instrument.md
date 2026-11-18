@@ -1,6 +1,6 @@
 # Hippo.app: the instrument look
 
-Status: accepted 18 Nov 2026, to build on Fleet Pulse ([fleet-pulse.md](fleet-pulse.md)). Covers the app's look, its sidebar, Home and Pulse. Lanes, Rows, Inbox, Memory, Incidents and the session views keep their layout and take the new look from the shared tokens and kit.
+Status: accepted 18 Nov 2026, to build on Fleet Pulse ([fleet-pulse.md](fleet-pulse.md)). Covers the app's look, its sidebar, Home and Pulse. Amended 18 Nov 2026: Rows, Lanes, Inbox, Incidents and Memory take the look too (the first build left them with their badges, icons and cards, beside Pulse). The session views (the thread, the x-ray) and Manage keep their layout and take the new look from the shared tokens and kit.
 
 ## Background
 
@@ -51,6 +51,17 @@ Pulse's content and keys are as [fleet-pulse.md](fleet-pulse.md) describes; this
   - *An unverified claim, a destructive command, a rule to keep*: the claim quoted with a grey rule, or the command and its output in a block; rows for the evidence (*Typecheck: none ran*, *Last command*; *Overwrote*, *Corrected*, *Now*; each correction with its time and session, *Goes into* the note); one button.
 - **The sheet** (`F`): *WORKING 05* and *CLOSE*, then each working session as a row: its title, its current call in SF Mono, and its last 30 minutes as 15 bars in its account's colour. The foot: *TO REVIEW 03 QUIET 02 SETTLED 24*, each opening Rows. Memory today and Tonight move to Home.
 - **All clear**: the readouts of the fleet's day (*TOOL CALLS 5 MIN*, *AGENT WORK TODAY*, *LINES +2,184 −611*, *TONIGHT 03:00*) over the scope band for the whole day.
+
+### Rows, Lanes, Inbox, Incidents and Memory
+
+Each keeps what it shows and how it is laid out; it is drawn with the same parts as Pulse.
+
+- **Headers.** A view's title, then its switches as labels with the selected one underlined (*PULSE LANES ROWS*; Rows' *STATE PROJECT ACCOUNT*; Lanes' *DAY 6H 1H*; Inbox's *ALL CORRECTIONS FAILURES NOTES*, each with its count). No segmented boxes.
+- **Accounts.** An account is its name as a label (*WORK*), with a 2-point bar in its colour where a row needs to say which account it ran on (a lane, a Rows row). The letter badges (*De*, *Wo*) are gone. The account filter is the accounts' names as labels.
+- **Groups and columns.** Group headings and column heads are labels with their count (*NEEDS YOU 02*); no badges and no chevrons (a group still folds when its heading is clicked).
+- **Rows.** A row is a mark, its text and its values in SF Mono at the right: state and time (*WAITING 13M*, *WORKING 2H 32M*, *QUIET 13:42*), claims (*1 CHECKED*, *1 UNVERIFIED*), pull requests (*#57 OPEN*), branch. A waiting row's *Open thread* stays; no icon in any cell.
+- **Lanes.** The day's line becomes readouts (*SESSIONS*, *SUB-AGENTS*, *AGENT WORK*, *WAITED ON YOU*, *INCIDENTS*); the legend shows the marks, not icons; marks on lanes are the vector marks of [fleet-pulse.md](fleet-pulse.md) (ring, diamond, square, dot) and the amber square for a question. *At this minute* is a row on a hairline at the foot, not a card.
+- **Inbox, Incidents, Memory.** Lists are rows on hairlines; facts are spec tables (label and value rows); a quote has a grey rule at its left as in Pulse; cards, chips and note icons become rows. An empty pane says what to do in one line, with no icon.
 
 ## What the engine adds
 
