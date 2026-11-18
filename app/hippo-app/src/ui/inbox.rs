@@ -420,17 +420,14 @@ impl Shell {
                 .flex()
                 .items_center()
                 .gap(look.px(12.))
-                .py(look.px(6.))
+                .h(look.px(34.))
                 .px(look.px(8.))
-                .rounded(look.px(6.))
+                .border_b(look.fixed(1.))
+                .border_color(look.c.border.opacity(0.6))
                 .cursor_pointer()
                 .hover(|h| h.bg(look.c.hover))
                 .child(
-                    div()
-                        .flex_shrink_0()
-                        .w(look.px(110.))
-                        .text_color(look.c.text)
-                        .child(when),
+                    kit::figure(look, when.to_uppercase(), 11., look.c.text_muted).w(look.px(120.)),
                 )
                 .child(
                     div()
@@ -445,20 +442,25 @@ impl Shell {
                     this.after_state_change(window, cx);
                 }))
         });
-        kit::card(look)
+        div()
+            .flex()
+            .flex_col()
             .flex_shrink_0()
-            .p(look.px(14.))
             .child(
                 div()
                     .flex()
                     .items_center()
-                    .gap(look.px(10.))
-                    .pb(look.px(4.))
-                    .child(kit::label(look, "Dreaming runs", look.c.text_muted))
+                    .gap(look.px(12.))
+                    .h(look.px(34.))
+                    .px(look.px(8.))
+                    .border_b(look.fixed(1.))
+                    .border_color(look.c.border)
+                    .child(kit::heading(look, "Dreaming runs", runs.len(), look.c.text))
                     .child(
                         div()
                             .min_w_0()
                             .truncate()
+                            .text_size(look.text(12.))
                             .text_color(dim(look))
                             .child("each opens what it checked, changed and left out"),
                     ),
@@ -467,6 +469,8 @@ impl Shell {
             .when(runs.is_empty(), |d| {
                 d.child(
                     div()
+                        .px(look.px(8.))
+                        .py(look.px(10.))
                         .text_color(look.c.text_muted)
                         .child("No dreaming run yet."),
                 )

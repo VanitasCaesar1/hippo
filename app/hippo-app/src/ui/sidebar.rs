@@ -288,8 +288,7 @@ impl Shell {
     fn row_control(
         look: &Look,
         id: String,
-        icon: &'static str,
-        word: Option<&'static str>,
+        word: &'static str,
         tip: &'static str,
     ) -> gpui::Stateful<gpui::Div> {
         div()
@@ -302,19 +301,14 @@ impl Shell {
             .gap(look.px(4.))
             .h(look.px(20.))
             .px(look.px(6.))
-            .rounded(look.px(5.))
+            .rounded(look.px(3.))
             .cursor_pointer()
-            .text_size(look.text(12.))
+            .font_family(kit::MONO)
+            .text_size(look.text(10.5))
             .text_color(look.c.text_muted)
             .hover(|h| h.bg(look.c.hover).text_color(look.c.text))
             .active(|a| a.bg(look.c.raised))
-            .child(kit::icon(
-                look,
-                icon,
-                if word.is_some() { 14. } else { 13. },
-                look.c.text_muted,
-            ))
-            .children(word)
+            .child(word.to_uppercase())
             .tooltip(super::tooltip::Tooltip::text(tip))
     }
 
@@ -332,8 +326,7 @@ impl Shell {
             Self::row_control(
                 look,
                 format!("snooze-{id}"),
-                "clock",
-                None,
+                "Snooze",
                 "Snooze: hide it until later",
             )
             .when(menu_open, |d| d.bg(look.c.raised))
@@ -355,8 +348,7 @@ impl Shell {
             Self::row_control(
                 look,
                 format!("settle-{id}"),
-                "check",
-                Some("Settle"),
+                "Settle",
                 "Settle: move it to Settled",
             )
             .on_click(cx.listener(move |this, _, _, cx| {
@@ -779,8 +771,7 @@ impl Shell {
                 Self::row_control(
                     look,
                     format!("wake-{}", r.id),
-                    "alarm-clock-off",
-                    Some("Wake"),
+                    "Wake",
                     "Wake now: back on its shelf",
                 )
                 .on_click(cx.listener(move |this, _, _, cx| {
@@ -796,8 +787,7 @@ impl Shell {
                 Self::row_control(
                     look,
                     format!("unsettle-{}", r.id),
-                    "undo-2",
-                    Some("Un-settle"),
+                    "Un-settle",
                     "Un-settle: back to To review",
                 )
                 .on_click(cx.listener(move |this, _, _, cx| {

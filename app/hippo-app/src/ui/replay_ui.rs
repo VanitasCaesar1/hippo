@@ -13,8 +13,8 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use gpui::{
-    Bounds, Context, FontWeight, Hsla, MouseButton, Pixels, Role, SharedString, Window, canvas,
-    div, fill, outline, point, prelude::*, px, size,
+    Bounds, Context, Hsla, MouseButton, Pixels, Role, SharedString, Window, canvas, div, fill,
+    outline, point, prelude::*, px, size,
 };
 use hippo_view::replay::{self, Day, Live, MarkKind, SpanKind, Target};
 use time::{Date, Duration, OffsetDateTime};
@@ -39,6 +39,8 @@ const PANEL_W: f32 = 280.;
 /// The panel sits beside the lanes from this width; below, it is a compact
 /// strip under them.
 const PANEL_BESIDE: f32 = 1400.;
+/// A mark's side, in points.
+const MARK_SIZE: f32 = 7.;
 /// The least room between two chips, or two ruler labels.
 const GAP: f32 = 3.;
 /// The fewest hours `Day` shows.
@@ -398,16 +400,92 @@ pub fn day_bounds(day: &Day, now: OffsetDateTime) -> (Option<f64>, Option<f64>) 
     (first, last)
 }
 
-fn mark_icon(k: MarkKind) -> &'static str {
+/// A mark's shape: the vector marks of `fleet-pulse.md`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Shape {
+    /// Filled: a question (amber), harm (red).
+    Square,
+    /// Hollow: a usage limit (red).
+    Hollow,
+    /// Where the person corrected it.
+    Diamond,
+    /// A pull request: opened (faint), merged (the text colour).
+    Dot,
+    /// A later session carried it on.
+    Arrow,
+}
+
+/// The shape a mark kind is drawn with.
+pub fn mark_shape(k: MarkKind) -> Shape {
     match k {
-        MarkKind::PullOpened => "git-pull-request",
-        MarkKind::PullMerged => "git-merge",
-        MarkKind::Incident | MarkKind::Destructive => "siren",
-        MarkKind::Correction => "pencil",
-        MarkKind::Question => "message-circle-question",
-        MarkKind::Limit => "gauge",
-        MarkKind::CarryOn => "arrow-right",
+        MarkKind::Question | MarkKind::Incident | MarkKind::Destructive => Shape::Square,
+        MarkKind::Limit => Shape::Hollow,
+        MarkKind::Correction => Shape::Diamond,
+        MarkKind::PullOpened | MarkKind::PullMerged => Shape::Dot,
+        MarkKind::CarryOn => Shape::Arrow,
     }
+}
+
+/// A mark kind's colour: amber for a question, red for harm and a limit,
+/// the text colour for a correction and a merge, faint otherwise.
+fn mark_color(look: &Look, k: MarkKind) -> Hsla {
+    match k {
+        MarkKind::Question => look.c.warn,
+        MarkKind::Incident | MarkKind::Destructive | MarkKind::Limit => look.c.err,
+        MarkKind::Correction | MarkKind::PullMerged => look.c.text,
+        MarkKind::PullOpened | MarkKind::CarryOn => look.c.text_muted,
+    }
+}
+
+/// A mark drawn as a vector shape, `size` points square.
+fn shape(look: &Look, s: Shape, color: Hsla, size: f32) -> gpui::AnyElement {
+    let side = look.px(size);
+    canvas(
+        |_, _, _| {},
+        move |b, _, window, _| {
+            let o = b.origin;
+            let (w, h) = (b.size.width, b.size.height);
+            let polygon = |window: &mut Window, pts: &[gpui::Point<Pixels>]| {
+                let mut p = gpui::PathBuilder::fill();
+                p.add_polygon(pts, true);
+                if let Ok(path) = p.build() {
+                    window.paint_path(path, color);
+                }
+            };
+            match s {
+                Shape::Square => window.paint_quad(fill(b, color)),
+                Shape::Hollow => window.paint_quad(gpui::quad(
+                    b,
+                    px(0.),
+                    gpui::transparent_black(),
+                    px(1.5),
+                    color,
+                    gpui::BorderStyle::Solid,
+                )),
+                Shape::Dot => window.paint_quad(fill(b, color).corner_radii(w / 2.)),
+                Shape::Diamond => polygon(
+                    window,
+                    &[
+                        point(o.x + w / 2., o.y),
+                        point(o.x + w, o.y + h / 2.),
+                        point(o.x + w / 2., o.y + h),
+                        point(o.x, o.y + h / 2.),
+                    ],
+                ),
+                Shape::Arrow => polygon(
+                    window,
+                    &[
+                        point(o.x + w * 0.15, o.y),
+                        point(o.x + w, o.y + h / 2.),
+                        point(o.x + w * 0.15, o.y + h),
+                    ],
+                ),
+            }
+        },
+    )
+    .flex_shrink_0()
+    .size(side)
+    .into_any_element()
 }
 
 impl Shell {
@@ -658,7 +736,7 @@ impl Shell {
                     div()
                         .py(look.px(14.))
                         .text_color(look.c.text_muted)
-                        .child("No thread worked this day."),
+                        .child("No session worked this day."),
                 )
                 .into_any_element();
         }
@@ -744,19 +822,13 @@ impl Shell {
             ("1h", 3600.),
         ]
         .into_iter()
-        .fold(kit::segmented(look), |d, (name, secs)| {
+        .fold(kit::switches(look), |d, (name, secs)| {
             let on = if name == "Day" {
                 (span - secs).abs() < 1. && (self.replay.view.0 - fitted.0).abs() < 1.
             } else {
                 (span - secs).abs() < 1.
             };
-            let seg = kit::segment(
-                look,
-                SharedString::from(format!("zoom-{name}")),
-                None,
-                name,
-                on,
-            );
+            let seg = kit::switch(look, SharedString::from(format!("zoom-{name}")), name, on);
             let seg = if name == "Day" {
                 seg.tooltip(super::tooltip::Tooltip::text(day_tip.clone()))
             } else {
@@ -795,32 +867,32 @@ impl Shell {
         let switch = self.fleet_view_switch(look, cx);
         let nav = |cx: &mut Context<Self>,
                    id: &'static str,
-                   icon: &str,
+                   arrow: &'static str,
                    to: Option<Date>,
                    tip: &'static str| {
             let enabled = to.is_some();
             div()
                 .id(id)
+                .role(Role::Button)
+                .aria_label(tip)
                 .flex()
                 .items_center()
                 .justify_center()
-                .size(look.px(26.))
-                .rounded(look.px(6.))
+                .size(look.px(24.))
+                .rounded(look.px(3.))
+                .font_family(kit::MONO)
+                .text_size(look.text(12.))
+                .text_color(if enabled {
+                    look.c.text_muted
+                } else {
+                    look.c.border_strong
+                })
                 .when(enabled, |d| {
                     d.cursor_pointer()
-                        .hover(|h| h.bg(look.c.hover))
+                        .hover(|h| h.bg(look.c.hover).text_color(look.c.text))
                         .active(|a| a.bg(look.c.selected))
                 })
-                .child(kit::icon(
-                    look,
-                    icon,
-                    15.,
-                    if enabled {
-                        look.c.text_muted
-                    } else {
-                        look.c.faint
-                    },
-                ))
+                .child(arrow)
                 .tooltip(super::tooltip::Tooltip::text(tip))
                 .on_click(cx.listener(move |this, _, _, cx| {
                     if let Some(d) = to {
@@ -832,7 +904,8 @@ impl Shell {
             .flex()
             .flex_wrap()
             .items_center()
-            .gap(look.px(10.))
+            .gap_x(look.px(28.))
+            .gap_y(look.px(6.))
             .pb(look.px(10.))
             .child(switch)
             .child(
@@ -840,41 +913,28 @@ impl Shell {
                     .flex()
                     .items_center()
                     .gap(look.px(2.))
-                    .child(nav(
-                        cx,
-                        "lanes-prev",
-                        "chevron-left",
-                        prev,
-                        "The day before",
-                    ))
+                    .child(nav(cx, "lanes-prev", "←", prev, "The day before"))
                     .child(
                         div()
                             .min_w(look.px(84.))
                             .flex()
                             .justify_center()
-                            .text_size(look.text(13.))
-                            .font_weight(FontWeight::MEDIUM)
-                            .child(day_name(date, today)),
+                            .child(kit::cap(look, &day_name(date, today), look.c.text)),
                     )
-                    .child(nav(
-                        cx,
-                        "lanes-next",
-                        "chevron-right",
-                        next,
-                        "The day after",
-                    )),
+                    .child(nav(cx, "lanes-next", "→", next, "The day after")),
             )
             .child(zoom_seg)
             .child(div().flex_1())
-            .children(self.replay.loading.then(|| {
-                div()
-                    .text_size(look.text(12.))
-                    .text_color(look.c.faint)
-                    .child("reading…")
-            }))
+            .children(
+                self.replay
+                    .loading
+                    .then(|| kit::cap(look, "Reading", look.c.faint)),
+            )
     }
 
-    /// The day's line: counts only, each part acting.
+    /// The day's readouts (sessions, sub-agents, agent work, waited on
+    /// you, limits, merged, incidents), each acting; the longest wait and
+    /// the legend under them.
     fn lanes_line(
         &self,
         day: &Day,
@@ -884,30 +944,42 @@ impl Shell {
     ) -> gpui::Div {
         let l = &day.line;
         let hl = self.replay.highlight;
-        let part = |id: &'static str, text: String, on: bool, act: Option<Highlight>| {
+        let two = super::pulse_ui::two;
+        let read = |id: &'static str, label: &str, value: String, color: Hsla, on: bool| {
             div()
                 .id(id)
-                .text_color(if on { look.c.text } else { look.c.text_muted })
-                .rounded(look.px(4.))
-                .px(look.px(3.))
-                .when(on, |d| d.bg(look.c.selected))
-                .child(text)
-                .when(act.is_some(), |d| {
-                    d.cursor_pointer()
-                        .hover(|h| h.text_color(look.c.text))
-                        .active(|a| a.bg(look.c.hover))
+                .flex_shrink_0()
+                .flex()
+                .items_center()
+                .gap(look.px(8.))
+                .h(look.px(26.))
+                .border_b(look.fixed(1.))
+                .border_color(if on {
+                    look.c.text
+                } else {
+                    gpui::transparent_black()
                 })
+                .child(kit::cap(look, label, look.c.faint))
+                .child(kit::figure(look, value, 13., color))
         };
-        let mut parts: Vec<gpui::AnyElement> = Vec::new();
-        let threads = format!(
-            "{} {}",
-            l.threads,
-            if l.threads == 1 { "thread" } else { "threads" }
-        );
-        parts.push(
-            part("line-threads", threads, false, None)
-                .cursor_pointer()
-                .hover(|h| h.text_color(look.c.text))
+        let acting = |d: gpui::Stateful<gpui::Div>| {
+            d.cursor_pointer()
+                .hover(|h| h.border_color(look.c.border_strong))
+        };
+        let mut row = div()
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .gap_x(look.px(26.))
+            .gap_y(look.px(2.))
+            .child(
+                acting(read(
+                    "line-threads",
+                    "Sessions",
+                    two(l.threads),
+                    look.c.text,
+                    false,
+                ))
                 .tooltip(super::tooltip::Tooltip::text(
                     "Unfold or fold every lane's sub-agents",
                 ))
@@ -927,85 +999,83 @@ impl Shell {
                         this.replay.unfolded = all;
                     }
                     cx.notify();
-                }))
-                .into_any_element(),
-        );
-        if l.subs > 0 {
-            parts.push(
-                part("line-subs", format!("{} sub-agents", l.subs), false, None).into_any_element(),
+                })),
             );
+        if l.subs > 0 {
+            row = row.child(read(
+                "line-subs",
+                "Sub-agents",
+                two(l.subs),
+                look.c.text,
+                false,
+            ));
         }
         if l.work > Duration::ZERO {
-            parts.push(
-                part(
+            row = row.child(
+                read(
                     "line-work",
-                    format!("{} of agent work", span_words(l.work)),
+                    "Agent work",
+                    span_words(l.work).to_uppercase(),
+                    look.c.text,
                     false,
-                    None,
                 )
-                .id("line-work")
                 .tooltip(super::tooltip::Tooltip::text(
                     "Every session's working time summed, sub-agents included",
-                ))
-                .into_any_element(),
+                )),
             );
         }
         if l.questions > 0 {
-            parts.push(
-                part(
+            row = row.child(
+                acting(read(
                     "line-waits",
-                    format!(
-                        "waited on you {} in {} {}",
-                        span_words(l.waited),
-                        l.questions,
-                        if l.questions == 1 {
-                            "question"
-                        } else {
-                            "questions"
-                        }
-                    ),
+                    "Waited on you",
+                    format!("{} · {}", span_words(l.waited).to_uppercase(), l.questions),
+                    look.c.warn,
                     hl == Some(Highlight::Waits),
-                    Some(Highlight::Waits),
-                )
-                .text_color(look.c.warn)
-                .on_click(cx.listener(|this, _, _, cx| this.replay_toggle(Highlight::Waits, cx)))
-                .into_any_element(),
+                ))
+                .tooltip(super::tooltip::Tooltip::text(format!(
+                    "Waited on you {} in {} {}",
+                    span_words(l.waited),
+                    l.questions,
+                    if l.questions == 1 {
+                        "question"
+                    } else {
+                        "questions"
+                    }
+                )))
+                .on_click(cx.listener(|this, _, _, cx| this.replay_toggle(Highlight::Waits, cx))),
             );
         }
-        for (id, n, word, h) in [
-            ("line-limits", l.limits, "limit", Highlight::Limits),
-            ("line-merged", l.merged, "merged", Highlight::Merged),
+        for (id, n, label, h, color) in [
+            (
+                "line-limits",
+                l.limits,
+                "Limits",
+                Highlight::Limits,
+                look.c.err,
+            ),
+            (
+                "line-merged",
+                l.merged,
+                "Merged",
+                Highlight::Merged,
+                look.c.text,
+            ),
             (
                 "line-incidents",
                 l.incidents,
-                "incident",
+                "Incidents",
                 Highlight::Incidents,
+                look.c.err,
             ),
         ] {
             if n == 0 {
                 continue;
             }
-            let text = match word {
-                "merged" => format!("{n} merged"),
-                w => format!("{n} {w}{}", if n == 1 { "" } else { "s" }),
-            };
-            parts.push(
-                part(id, text, hl == Some(h), Some(h))
-                    .on_click(cx.listener(move |this, _, _, cx| this.replay_toggle(h, cx)))
-                    .into_any_element(),
+            row = row.child(
+                acting(read(id, label, two(n), color, hl == Some(h)))
+                    .on_click(cx.listener(move |this, _, _, cx| this.replay_toggle(h, cx))),
             );
-        }
-        let mut row = div()
-            .flex()
-            .flex_wrap()
-            .items_center()
-            .gap(look.px(4.))
-            .text_size(look.text(12.5));
-        for (k, p) in parts.into_iter().enumerate() {
-            if k > 0 {
-                row = row.child(div().text_color(look.c.faint).child("·"));
-            }
-            row = row.child(p);
         }
         let longest = l.longest.clone().map(|(id, s)| {
             let title = day
@@ -1016,42 +1086,48 @@ impl Shell {
                 .map(|t| kit::title(&t))
                 .unwrap_or_else(|| crate::rows::id_title(&id));
             let at = (s.start - day.start).as_seconds_f64();
-            let text = format!(
-                "Longest wait: {title}, {}, {}",
-                kit::hm(s.start),
-                span_words(s.len())
-            );
-            div().min_w_0().truncate().child(
-                kit::link(look, "line-longest", text)
-                    .text_color(look.c.text_muted)
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.replay.pinned = Some(at);
-                        let span = this.replay.view.1 - this.replay.view.0;
-                        this.replay.view = clamp_view((at - span * 0.3, at + span * 0.7));
-                        if let Some(day) = this.replay.day.clone() {
-                            let rows = rows(&day, &this.replay.unfolded);
-                            let mut y = 0.;
-                            for r in rows {
-                                if r == RowKind::Lane(
-                                    day.lanes.iter().position(|l| l.track.id == id).unwrap_or(0),
-                                ) {
-                                    break;
+            let text = format!("{title}, {}, {}", kit::hm(s.start), span_words(s.len()));
+            div()
+                .flex()
+                .items_center()
+                .gap(look.px(8.))
+                .min_w_0()
+                .child(kit::cap(look, "Longest wait", look.c.faint))
+                .child(
+                    div().min_w_0().truncate().child(
+                        kit::link(look, "line-longest", text)
+                            .text_color(look.c.text_muted)
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.replay.pinned = Some(at);
+                                let span = this.replay.view.1 - this.replay.view.0;
+                                this.replay.view = clamp_view((at - span * 0.3, at + span * 0.7));
+                                if let Some(day) = this.replay.day.clone() {
+                                    let rows = rows(&day, &this.replay.unfolded);
+                                    let mut y = 0.;
+                                    for r in rows {
+                                        if r == RowKind::Lane(
+                                            day.lanes
+                                                .iter()
+                                                .position(|l| l.track.id == id)
+                                                .unwrap_or(0),
+                                        ) {
+                                            break;
+                                        }
+                                        y += r.height();
+                                    }
+                                    this.replay.scroll = y;
                                 }
-                                y += r.height();
-                            }
-                            this.replay.scroll = y;
-                        }
-                        cx.notify();
-                    })),
-            )
+                                cx.notify();
+                            })),
+                    ),
+                )
         });
-        // What the marks and colours mean (the first reader could not
+        // What the stretches and marks mean (the first reader could not
         // tell that amber is waiting).
         let swatch = |look: &Look, color: Hsla, dashed: bool| {
             div()
                 .w(look.px(12.))
                 .h(look.px(8.))
-                .rounded(look.px(2.))
                 .bg(color)
                 .when(dashed, |d| {
                     d.border(look.fixed(1.))
@@ -1063,31 +1139,30 @@ impl Shell {
             div()
                 .flex()
                 .items_center()
-                .gap(look.px(4.))
+                .gap(look.px(5.))
                 .child(lead)
-                .child(word.to_owned())
+                .child(kit::cap(look, word, look.c.faint))
         };
         let mut legend = div()
             .flex()
             .flex_wrap()
             .items_center()
-            .gap(look.px(10.))
-            .text_size(look.text(11.5))
-            .text_color(look.c.faint)
+            .gap_x(look.px(12.))
+            .gap_y(look.px(4.))
             .child(key(
                 look,
                 swatch(look, look.c.text_muted.opacity(0.45), false).into_any_element(),
-                "working",
+                "Working",
             ))
             .child(key(
                 look,
                 swatch(look, look.c.warn.opacity(0.85), false).into_any_element(),
-                "waiting on you",
+                "Waiting on you",
             ))
             .child(key(
                 look,
                 swatch(look, look.c.border.opacity(0.5), true).into_any_element(),
-                "at a usage limit",
+                "At a limit",
             ));
         if !narrow {
             legend = legend.child(key(
@@ -1104,17 +1179,18 @@ impl Shell {
                             .bg(look.c.text_muted.opacity(0.4))
                     }))
                     .into_any_element(),
-                "sub-agents running",
+                "Sub-agents",
             ));
-            for (icon, word) in [
-                ("git-pull-request", "pull request"),
-                ("git-merge", "merged"),
-                ("message-circle-question", "question"),
-                ("siren", "incident"),
+            for (k, word) in [
+                (MarkKind::Question, "Question"),
+                (MarkKind::Correction, "Correction"),
+                (MarkKind::Incident, "Incident"),
+                (MarkKind::PullOpened, "Pull request"),
+                (MarkKind::PullMerged, "Merged"),
             ] {
                 legend = legend.child(key(
                     look,
-                    kit::icon(look, icon, 11., look.c.faint).into_any_element(),
+                    shape(look, mark_shape(k), mark_color(look, k), MARK_SIZE),
                     word,
                 ));
             }
@@ -1122,7 +1198,7 @@ impl Shell {
         div()
             .flex()
             .flex_col()
-            .gap(look.px(4.))
+            .gap(look.px(6.))
             .pb(look.px(10.))
             .child(row)
             .child(
@@ -1130,8 +1206,8 @@ impl Shell {
                     .flex()
                     .flex_wrap()
                     .items_center()
-                    .gap(look.px(12.))
-                    .text_size(look.text(12.))
+                    .gap_x(look.px(16.))
+                    .gap_y(look.px(4.))
                     .children(longest)
                     .child(div().flex_1())
                     .when(!narrow, |d| d.child(legend)),
@@ -1154,7 +1230,8 @@ impl Shell {
             .ml(look.px(head_w))
             .border_b(look.fixed(1.))
             .border_color(look.c.border)
-            .text_size(look.text(11.))
+            .font_family(kit::MONO)
+            .text_size(look.text(10.))
             .text_color(look.c.faint);
         // A label that would touch the one before it, or the
         // scrubber's time, is not drawn.
@@ -1191,10 +1268,7 @@ impl Shell {
                     .justify_center()
                     .whitespace_nowrap()
                     .px(look.px(4.))
-                    .rounded(look.px(4.))
-                    .bg(look.c.surface)
-                    .border(look.fixed(1.))
-                    .border_color(look.c.border)
+                    .bg(look.c.canvas)
                     .text_color(look.c.text)
                     .child(kit::hm(at)),
             );
@@ -1437,9 +1511,11 @@ impl Shell {
                             .h(px(*h))
                             .flex()
                             .items_center()
-                            .gap(look.px(6.))
+                            .gap(look.px(8.))
                             .pr(look.px(8.))
-                            .child(kit::mark(look, lane.profile.as_deref(), 16.))
+                            // The account it ran on: a 2-point bar in its
+                            // colour.
+                            .child(kit::account_bar(look, lane.profile.as_deref(), 14.))
                             // The title and the project on one line.
                             .child(
                                 div()
@@ -1465,7 +1541,8 @@ impl Shell {
                                             div()
                                                 .flex_shrink_0()
                                                 .truncate()
-                                                .text_size(look.text(11.5))
+                                                .font_family(kit::MONO)
+                                                .text_size(look.text(10.5))
                                                 .text_color(look.c.faint)
                                                 .child(p)
                                         }))
@@ -1491,7 +1568,7 @@ impl Shell {
                     let xs: Vec<f32> = inside.iter().map(|m| x(secs(m.at))).collect();
                     let chip_w = |n: usize| {
                         let digits = n.to_string().len() as f32;
-                        f32::from(look.px(if n == 1 { 14. } else { 16. + 6. * digits }))
+                        f32::from(look.px(if n == 1 { 12. } else { 14. + 6. * digits }))
                     };
                     let band = f32::from(look.px(MARK_BAND));
                     for (k, chip) in layout_chips(&xs, &chip_w, tl_w).into_iter().enumerate() {
@@ -1516,11 +1593,7 @@ impl Shell {
                         } else {
                             tip
                         };
-                        let color = match kind {
-                            MarkKind::Question => look.c.warn,
-                            k if k.is_incident() => look.c.text,
-                            _ => look.c.text_muted,
-                        };
+                        let color = mark_color(look, kind);
                         let n = ms.len();
                         let target = (n == 1).then(|| ms[0].target.clone()).flatten();
                         let range = (
@@ -1538,19 +1611,16 @@ impl Shell {
                                 .flex()
                                 .items_center()
                                 .justify_center()
-                                .gap(look.px(1.))
-                                .rounded(look.px(3.))
-                                .bg(look.c.surface)
-                                .border(look.fixed(1.))
-                                .border_color(look.c.border)
+                                .gap(look.px(2.))
                                 .opacity(if lit { 1. } else { 0.35 })
                                 .cursor_pointer()
-                                .hover(|h| h.bg(look.c.hover).border_color(look.c.text_muted))
+                                .hover(|h| h.bg(look.c.hover))
                                 .active(|a| a.bg(look.c.selected))
-                                .child(kit::icon(look, mark_icon(kind), 9., color))
+                                .child(shape(look, mark_shape(kind), color, MARK_SIZE))
                                 .when(n > 1, |d| {
                                     d.child(
                                         div()
+                                            .font_family(kit::MONO)
                                             .text_size(look.text(9.5))
                                             .line_height(px(band - 2.))
                                             .text_color(look.c.text_muted)
@@ -1603,31 +1673,23 @@ impl Shell {
                             .pl(look.px(if narrow { 6. } else { 24. }))
                             .pr(look.px(6.))
                             .overflow_hidden()
-                            .text_size(look.text(11.))
+                            .font_family(kit::MONO)
+                            .text_size(look.text(10.))
                             .line_height(px(*h))
                             .text_color(look.c.faint)
                             .cursor_pointer()
                             .hover(|h| h.text_color(look.c.text))
                             .active(|a| a.bg(look.c.hover))
-                            .child(kit::icon(
-                                look,
-                                if open {
-                                    "chevron-down"
-                                } else {
-                                    "chevron-right"
-                                },
-                                11.,
-                                look.c.faint,
-                            ))
                             .child(div().min_w_0().truncate().child(format!(
-                                "{n} sub-agent{}{}",
-                                if n == 1 { "" } else { "s" },
+                                "{} {n} SUB-AGENT{}{}",
+                                if open { "−" } else { "+" },
+                                if n == 1 { "" } else { "S" },
                                 // How many pull requests it
                                 // merged, readable without hovering.
                                 match merged {
                                     0 => String::new(),
                                     m if narrow => format!(" · {m}"),
-                                    m => format!(" · {m} merged"),
+                                    m => format!(" · {m} MERGED"),
                                 }
                             )))
                             .tooltip(super::tooltip::Tooltip::text(if open {
@@ -1875,7 +1937,6 @@ impl Shell {
         if narrow && !pinned {
             let mut parts: Vec<String> = Vec::new();
             if !idle {
-                parts.push(kit::hm(t));
                 if !m.working.is_empty() {
                     parts.push(format!("Working {}", m.working.len()));
                 }
@@ -1892,37 +1953,30 @@ impl Shell {
                         if m.subs_running == 1 { "" } else { "s" }
                     ));
                 }
-                if parts.len() == 1 {
+                if parts.is_empty() {
                     parts.push("Nothing was working".to_owned());
                 }
             }
             let waiting = !m.waiting.is_empty();
             let text = if idle {
-                "Point at the lanes to see what each thread was doing at that minute; a click pins it.".to_owned()
+                "Point at the lanes to see what each session was doing at that minute; a click pins it.".to_owned()
             } else {
                 parts.join(" · ")
             };
             return div()
                 .id("lanes-panel")
                 .flex_shrink_0()
-                .mt(look.px(8.))
-                .px(look.px(12.))
-                .py(look.px(7.))
-                .rounded(look.px(8.))
-                .border(look.fixed(1.))
+                .h(look.px(36.))
+                .border_t(look.fixed(1.))
                 .border_color(look.c.border)
-                .bg(look.c.surface)
                 .flex()
                 .items_center()
-                .gap(look.px(8.))
+                .gap(look.px(12.))
                 .text_size(look.text(12.5))
-                .child(
-                    div()
-                        .flex_shrink_0()
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(look.c.text)
-                        .child("At this minute"),
-                )
+                .child(kit::cap(look, "At this minute", look.c.faint))
+                .when(!idle, |d| {
+                    d.child(kit::figure(look, kit::hm(t), 11.5, look.c.text))
+                })
                 .child(
                     div()
                         .min_w_0()
@@ -1935,13 +1989,8 @@ impl Shell {
                         .child(text),
                 )
                 .when(!idle, |d| {
-                    d.child(div().flex_1()).child(
-                        div()
-                            .flex_shrink_0()
-                            .text_size(look.text(11.5))
-                            .text_color(look.c.faint)
-                            .child("click to pin"),
-                    )
+                    d.child(div().flex_1())
+                        .child(kit::cap(look, "Click to pin", look.c.faint))
                 })
                 .into_any_element();
         }
@@ -1956,9 +2005,9 @@ impl Shell {
             div()
                 .flex()
                 .items_center()
-                .gap(look.px(6.))
+                .gap(look.px(8.))
                 .min_w_0()
-                .child(kit::mark(look, lane.profile.as_deref(), 16.))
+                .child(kit::account_bar(look, lane.profile.as_deref(), 12.))
                 .child(
                     div()
                         .truncate()
@@ -1967,26 +2016,12 @@ impl Shell {
                         .child(title),
                 )
         };
-        let group = |look: &Look, label: String, color: Hsla| {
-            div()
-                .pt(look.px(6.))
-                .text_size(look.text(11.5))
-                .font_weight(FontWeight::MEDIUM)
-                .text_color(color)
-                .child(label)
+        let group = |look: &Look, label: &str, n: usize, color: Hsla| {
+            kit::heading(look, label, n, color).pt(look.px(8.))
         };
-        let mut body = div()
-            .flex()
-            .flex_col()
-            .gap(look.px(4.))
-            .px(look.px(14.))
-            .pb(look.px(12.));
+        let mut body = div().flex().flex_col().gap(look.px(4.)).pb(look.px(12.));
         if !m.waiting.is_empty() {
-            body = body.child(group(
-                look,
-                format!("Waiting on you {}", m.waiting.len()),
-                look.c.warn,
-            ));
+            body = body.child(group(look, "Waiting on you", m.waiting.len(), look.c.warn));
             for (i, d) in &m.waiting {
                 body = body.child(
                     div()
@@ -1995,22 +2030,12 @@ impl Shell {
                         .justify_between()
                         .gap(look.px(8.))
                         .child(lane_head(look, *i))
-                        .child(
-                            div()
-                                .flex_shrink_0()
-                                .text_size(look.text(12.))
-                                .text_color(look.c.warn)
-                                .child(span_words(*d)),
-                        ),
+                        .child(kit::cap(look, &span_words(*d), look.c.warn)),
                 );
             }
         }
         if !m.working.is_empty() {
-            body = body.child(group(
-                look,
-                format!("Working {}", m.working.len()),
-                look.c.text_muted,
-            ));
+            body = body.child(group(look, "Working", m.working.len(), look.c.text));
             for (k, on) in m.working.iter().enumerate() {
                 let sel = pinned && k == self.replay.selected.min(m.working.len() - 1);
                 let (session, ordinal) = (on.session.clone(), on.ordinal);
@@ -2023,7 +2048,6 @@ impl Shell {
                         .py(look.px(3.))
                         .px(look.px(6.))
                         .mx(look.px(-6.))
-                        .rounded(look.px(6.))
                         .when(sel, |d| d.bg(look.c.selected))
                         .cursor_pointer()
                         .hover(|h| h.bg(look.c.hover))
@@ -2031,7 +2055,7 @@ impl Shell {
                         .child(lane_head(look, on.lane))
                         .children(on.words.clone().map(|w| {
                             div()
-                                .pl(look.px(22.))
+                                .pl(look.px(10.))
                                 .truncate()
                                 .text_size(look.text(12.))
                                 .text_color(look.c.text_muted)
@@ -2044,11 +2068,7 @@ impl Shell {
             }
         }
         if !m.limited.is_empty() {
-            body = body.child(group(
-                look,
-                format!("Stopped at a limit {}", m.limited.len()),
-                look.c.text_muted,
-            ));
+            body = body.child(group(look, "At a limit", m.limited.len(), look.c.err));
             for i in &m.limited {
                 body = body.child(lane_head(look, *i));
             }
@@ -2071,7 +2091,7 @@ impl Shell {
                 div()
                     .text_size(look.text(12.5))
                     .text_color(look.c.text_muted)
-                    .child("Point at the lanes to see what each thread was doing at that minute; a click pins it."),
+                    .child("Point at the lanes to see what each session was doing at that minute; a click pins it."),
             );
         } else if m.working.is_empty() && m.waiting.is_empty() && m.limited.is_empty() {
             body = body.child(
@@ -2082,29 +2102,41 @@ impl Shell {
             );
         }
         let fact = if pinned {
-            Some(format!("pinned {} · Esc lets go", kit::hm(t)))
+            Some(format!("Pinned {} · Esc lets go", kit::hm(t)))
         } else if idle {
             None
         } else {
             Some(kit::hm(t))
         };
-        let card = kit::pane_card(look, "At this minute", fact).child(body);
+        let head = div()
+            .flex()
+            .items_center()
+            .gap(look.px(12.))
+            .h(look.px(28.))
+            .child(kit::cap(look, "At this minute", look.c.faint))
+            .child(div().flex_1())
+            .children(fact.map(|f| kit::cap(look, &f, look.c.text)));
+        let section = div().flex().flex_col().child(head).child(body);
         if narrow {
             div()
                 .id("lanes-panel")
                 .flex_shrink_0()
                 .max_h(px((page_h / 3.).max(120.)))
                 .overflow_y_scroll()
-                .pt(look.px(8.))
-                .child(card)
+                .border_t(look.fixed(1.))
+                .border_color(look.c.border)
+                .child(section)
                 .into_any_element()
         } else {
             div()
                 .id("lanes-panel")
                 .flex_shrink_0()
                 .w(look.px(PANEL_W))
+                .pl(look.px(14.))
+                .border_l(look.fixed(1.))
+                .border_color(look.c.border)
                 .overflow_y_scroll()
-                .child(card)
+                .child(section)
                 .into_any_element()
         }
     }
@@ -2138,6 +2170,17 @@ mod tests {
         let t = ticks((3600., 7200.), 400.);
         assert_eq!(t.first().unwrap().1, "01:00");
         assert_eq!(t[1].1, "01:15");
+    }
+
+    #[test]
+    fn marks_are_the_vector_marks() {
+        assert_eq!(mark_shape(MarkKind::Question), Shape::Square);
+        assert_eq!(mark_shape(MarkKind::Destructive), Shape::Square);
+        assert_eq!(mark_shape(MarkKind::Correction), Shape::Diamond);
+        assert_eq!(mark_shape(MarkKind::PullMerged), Shape::Dot);
+        assert_eq!(mark_shape(MarkKind::PullOpened), Shape::Dot);
+        assert_eq!(mark_shape(MarkKind::Limit), Shape::Hollow);
+        assert_eq!(mark_shape(MarkKind::CarryOn), Shape::Arrow);
     }
 
     #[test]

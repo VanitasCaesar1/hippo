@@ -286,10 +286,9 @@ impl Shell {
                 Some(
                     bar()
                         .child(
-                            kit::button_icon(
+                            kit::button_key(
                                 look,
                                 "fleet-copy-resume",
-                                Some("square-terminal"),
                                 if copied { "Copied" } else { "Copy resume" },
                                 "R",
                                 if has { Kind::Ghost } else { Kind::Disabled },
@@ -486,14 +485,13 @@ impl Shell {
             }
             Tab::Inbox => {
                 use super::lessons::Filter;
-                let seg = Filter::ALL.iter().fold(kit::segmented(look), |d, &f| {
+                let seg = Filter::ALL.iter().fold(kit::switches(look), |d, &f| {
                     let on = f == self.inbox.filter;
                     d.child(
-                        kit::segment(
+                        kit::switch(
                             look,
                             ("inbox-filter", f as usize),
-                            None,
-                            format!("{} {}", f.name(), self.count(f)),
+                            &format!("{} {:02}", f.name(), self.count(f)),
                             on,
                         )
                         .on_click(cx.listener(move |this, _, _, cx| {
@@ -504,7 +502,7 @@ impl Shell {
                         })),
                     )
                 });
-                Some(bar().child(seg).into_any_element())
+                Some(bar().pr(look.px(4.)).child(seg).into_any_element())
             }
             _ => None,
         }

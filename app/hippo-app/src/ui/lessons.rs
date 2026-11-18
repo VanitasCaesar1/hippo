@@ -43,8 +43,8 @@ impl Filter {
         match self {
             Filter::All => "All",
             Filter::Corrections => "Corrections",
-            Filter::Failures => "Repeated failures",
-            Filter::Overnight => "Note changes",
+            Filter::Failures => "Failures",
+            Filter::Overnight => "Notes",
         }
     }
 }
@@ -320,81 +320,6 @@ fn kind_color(look: &Look, kind: LessonKind) -> Hsla {
         LessonKind::Failure => look.c.text_muted,
         LessonKind::AskRule | LessonKind::AskNote | LessonKind::Miss => look.c.text_muted,
     }
-}
-
-/// A kind line in sentence case.
-fn kind_text(look: &Look, text: &str, color: Hsla) -> gpui::Div {
-    // Sentence case, never small capitals.
-    div()
-        .min_w_0()
-        .truncate()
-        .text_size(look.text(12.))
-        .font_weight(FontWeight::MEDIUM)
-        .text_color(color)
-        .child(kit::sentence(text))
-}
-
-/// A group label row: `Repeated failures 6`, muted, the count
-/// faint.
-fn group_label(look: &Look, label: &str, n: usize) -> gpui::Div {
-    div()
-        .flex()
-        .flex_shrink_0()
-        .items_center()
-        .gap(look.px(6.))
-        .text_size(look.text(13.))
-        // A section's name reads above its rows' facts (a fresh
-        // reader found Home's labels and facts one flat grey).
-        .child(
-            div()
-                .font_weight(FontWeight::SEMIBOLD)
-                .text_color(look.c.text)
-                .child(label.to_owned()),
-        )
-        .child(
-            div()
-                .text_size(look.text(12.))
-                .text_color(look.c.faint)
-                .child(n.to_string()),
-        )
-}
-
-/// A profile as a small letter square and its name.
-fn profile_tag(look: &Look, profile: Option<&str>, extra: Option<String>) -> gpui::Div {
-    div()
-        .flex()
-        .flex_shrink_0()
-        .items_center()
-        .gap(look.px(6.))
-        .child(
-            div()
-                .flex_shrink_0()
-                .size(look.px(18.))
-                .flex()
-                .items_center()
-                .justify_center()
-                .rounded(look.px(4.))
-                .border(look.fixed(1.))
-                .border_color(look.c.border)
-                .text_size(look.text(10.5))
-                .font_weight(FontWeight::SEMIBOLD)
-                .text_color(if profile == Some("codex") {
-                    look.c.focus
-                } else {
-                    look.c.text
-                })
-                .child(kit::profile_letter(profile)),
-        )
-        .child(
-            div()
-                .text_color(look.c.text_muted)
-                .whitespace_nowrap()
-                .child(format!(
-                    "{}{}",
-                    profile.map_or_else(|| "?".to_owned(), kit::profile_name),
-                    extra.unwrap_or_default()
-                )),
-        )
 }
 
 // ---------------------------------------------------------------------------
@@ -725,7 +650,7 @@ impl Shell {
             ),
             Some(s) => match s.at {
                 Some(at) => format!(
-                    "The lessons pass ran {} and read {} sessions. A kept rule reaches every agent at its next session start.",
+                    "The lessons pass ran {} and read {} sessions. A kept rule reaches every session at its start.",
                     kit::hm(at),
                     s.sessions
                 ),
@@ -784,7 +709,7 @@ impl Shell {
                             .count();
                         let (label, gloss) = match l.kind {
                             LessonKind::Correction => {
-                                ("Corrections", "you corrected an agent; keep it as a rule")
+                                ("Corrections", "you corrected a session; keep it as a rule")
                             }
                             LessonKind::Failure => {
                                 ("Repeated failures", "the same error in several sessions")
@@ -795,10 +720,13 @@ impl Shell {
                             div()
                                 .flex()
                                 .items_center()
-                                .gap(look.px(8.))
-                                .h(look.px(30.))
+                                .gap(look.px(12.))
+                                .h(look.px(34.))
                                 .px(look.px(8.))
-                                .child(group_label(look, label, n))
+                                .mt(look.px(if k == 0 { 0. } else { 12. }))
+                                .border_b(look.fixed(1.))
+                                .border_color(look.c.border)
+                                .child(kit::heading(look, label, n, look.c.text))
                                 .child(
                                     div()
                                         .min_w_0()
@@ -814,12 +742,12 @@ impl Shell {
                 }
                 Item::Group(g) => {
                     singles_head = None;
-                    self.group_card(k, g, on, notes_dir.as_deref(), true, look, cx)
+                    self.group_card(k, g, on, notes_dir.as_deref(), look, cx)
                 }
                 Item::Change(c) => self.change_card(k, c, on, look, cx),
-                Item::Overnight(c) => self.overnight_card(k, c, on, true, look, cx),
+                Item::Overnight(c) => self.overnight_card(k, c, on, look, cx),
             };
-            rows.push(div().pt(look.px(4.)).child(row).into_any_element());
+            rows.push(row);
             if on && !wide {
                 rows.push(self.render_detail(
                     &items[k],
@@ -870,40 +798,33 @@ impl Shell {
             .pb(look.px(16.))
             .children(rows)
             .children(result)
-            .child(div().pt(look.px(16.)).child(self.runs_card(look, cx)));
+            .child(div().pt(look.px(20.)).child(self.runs_card(look, cx)));
 
         let detail = wide.then(|| {
             let body = match selected {
                 Some(k) => self.render_detail(&items[k], now, notes_dir.as_deref(), true, look, cx),
-                None => kit::card(look)
+                None => div()
                     .size_full()
                     .flex()
                     .flex_col()
-                    .items_center()
                     .justify_center()
                     .gap(look.px(8.))
-                    .p(look.px(24.))
-                    .text_color(look.c.text_muted)
-                    .child(kit::icon(look, "inbox", 20., look.c.faint))
-                    .child(div().text_color(look.c.text).child(if items.is_empty() {
-                        "Nothing to review"
-                    } else {
-                        "Pick a card"
-                    }))
-                    .when(!items.is_empty(), |d| {
-                        d.child(
-                            div()
-                                .text_size(look.text(12.5))
-                                .text_align(gpui::TextAlign::Center)
-                                .child("Click one, or press ↓ for the first. What hippo saw, the proposed rule and Keep show here."),
-                        )
-                    })
+                    .px(look.px(24.))
+                    .border_l(look.fixed(1.))
+                    .border_color(look.c.border)
                     .child(
                         div()
-                            .pt(look.px(8.))
-                            .text_size(look.text(11.5))
+                            .text_color(look.c.text_muted)
+                            .child(if items.is_empty() {
+                                "Nothing to review."
+                            } else {
+                                "Pick one, or press ↓ for the first."
+                            }),
+                    )
+                    .child(
+                        div()
+                            .text_size(look.text(12.))
                             .text_color(look.c.faint)
-                            .text_align(gpui::TextAlign::Center)
                             .child(self.lessons_caveat()),
                     )
                     .into_any_element(),
@@ -928,9 +849,9 @@ impl Shell {
             .into_any_element()
     }
 
-    /// One correction or rule as a three-line row: the account
-    /// mark, the title and when; the quote; where the rule goes. A click
-    /// selects it (its detail shows at the right).
+    /// One correction or rule as a row on a hairline: its mark (a rule to
+    /// keep), the title and when; the quote with a grey rule; where the
+    /// rule goes. A click selects it (its detail shows at the right).
     #[allow(clippy::too_many_arguments)]
     fn lesson_card(
         &self,
@@ -945,32 +866,30 @@ impl Shell {
         let id = l.id;
         let newest = l.evidence.first();
         let failure = l.kind == LessonKind::Failure;
-        let profile = newest
-            .and_then(|e| e.profile.clone())
-            .or_else(|| l.seen.profiles.first().cloned());
         let target = target_words(l, notes_dir).map(|(verb, place)| {
             div()
                 .flex()
                 .items_center()
-                .gap(look.px(5.))
+                .gap(look.px(8.))
                 .min_w_0()
-                .text_size(look.text(12.))
-                .text_color(look.c.faint)
-                .child(kit::icon(
+                .pt(look.px(2.))
+                .child(kit::cap(
                     look,
                     if verb == "new note" {
-                        "file-plus"
+                        "New note"
                     } else {
-                        "arrow-right"
+                        "Goes into"
                     },
-                    12.,
                     look.c.faint,
                 ))
-                .child(div().min_w_0().truncate().child(if verb == "new note" {
-                    format!("new note · {place}")
-                } else {
-                    place
-                }))
+                .child(
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .text_size(look.text(12.))
+                        .text_color(look.c.text_muted)
+                        .child(place),
+                )
         });
         let key = id.to_string();
         let row = div()
@@ -979,15 +898,21 @@ impl Shell {
             .items_start()
             .gap(look.px(10.))
             .px(look.px(8.))
-            .py(look.px(8.))
-            .rounded(look.px(8.))
+            .py(look.px(10.))
+            .border_b(look.fixed(1.))
+            .border_color(look.c.border.opacity(0.6))
             .cursor_pointer()
-            .child(kit::mark(look, profile.as_deref(), 22.).mt(look.px(1.)))
+            .child(
+                div()
+                    .flex_shrink_0()
+                    .pt(look.px(5.))
+                    .child(kit::square(look, kit::Mark::Note)),
+            )
             .child(
                 div()
                     .flex()
                     .flex_col()
-                    .gap(look.px(2.))
+                    .gap(look.px(4.))
                     .flex_1()
                     .min_w_0()
                     .child(
@@ -1005,31 +930,32 @@ impl Shell {
                                     .text_color(look.c.text)
                                     .child(kit::title(&l.title)),
                             )
-                            .child(
-                                div()
-                                    .flex_shrink_0()
-                                    .text_size(look.text(12.))
-                                    .text_color(look.c.faint)
-                                    .child(match newest {
-                                        Some(e) => when(e.at, now),
-                                        None => count_words(l),
-                                    }),
-                            ),
+                            .child(kit::figure(
+                                look,
+                                match newest {
+                                    Some(e) => when(e.at, now),
+                                    None => count_words(l),
+                                }
+                                .to_uppercase(),
+                                11.,
+                                look.c.faint,
+                            )),
                     )
                     .children(newest.map(|e| {
-                        div()
-                            .min_w_0()
-                            .truncate()
-                            .text_size(look.text(12.5))
-                            .text_color(look.c.text_muted)
-                            .when(failure, |d| {
-                                d.font_family(kit::MONO).text_size(look.text(11.5))
-                            })
-                            .child(if failure {
+                        kit::quote(
+                            look,
+                            if failure {
                                 e.quote.clone()
                             } else {
                                 format!("“{}”", e.quote)
-                            })
+                            },
+                            look.c.border_strong,
+                        )
+                        .truncate()
+                        .text_size(look.text(12.5))
+                        .when(failure, |d| {
+                            d.font_family(kit::MONO).text_size(look.text(11.5))
+                        })
                     }))
                     .children(target),
             )
@@ -1044,8 +970,9 @@ impl Shell {
         kit::row_fill(row, look, on).into_any_element()
     }
 
-    /// A group of lessons whose rules go to one note section:
-    /// the kind and target once, a row per rule with ✓ ✎ ✕, and Keep all.
+    /// A group of lessons whose rules go to one note section: its
+    /// heading with the count and where they go, Keep all, and a row per
+    /// rule with Keep, Edit and Dismiss.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn group_card(
         &self,
@@ -1053,7 +980,6 @@ impl Shell {
         g: &[Lesson],
         on: bool,
         notes_dir: Option<&Path>,
-        home: bool,
         look: &Look,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
@@ -1075,27 +1001,34 @@ impl Shell {
         let head = div()
             .flex()
             .items_center()
-            .gap(look.px(10.))
+            .gap(look.px(12.))
             .min_w_0()
-            .h(look.px(34.))
+            .h(look.px(40.))
             .px(look.px(8.))
-            .child(group_label(look, kind, n))
+            .border_b(look.fixed(1.))
+            .border_color(look.c.border)
+            .child(kit::heading(look, kind, n, look.c.text))
             .child(
                 div()
                     .flex()
                     .items_center()
-                    .gap(look.px(4.))
+                    .gap(look.px(8.))
                     .flex_1()
                     .min_w_0()
-                    .text_size(look.text(12.))
-                    .text_color(look.c.faint)
-                    .child(kit::icon(look, "arrow-right", 12., look.c.faint))
-                    .child(div().min_w_0().truncate().child(place)),
+                    .child(kit::cap(look, "Goes into", look.c.faint))
+                    .child(
+                        div()
+                            .min_w_0()
+                            .truncate()
+                            .text_size(look.text(12.))
+                            .text_color(look.c.text_muted)
+                            .child(place),
+                    ),
             )
             .child(
                 kit::button(
                     look,
-                    ("keep-all", k + if home { 500 } else { 0 }),
+                    ("keep-all", k),
                     if busy { "…".to_owned() } else { format!("Keep all {n}") },
                     if on { Kind::Primary } else { Kind::Plain },
                 )
@@ -1107,72 +1040,58 @@ impl Shell {
                     this.keep_all(all.clone(), cx);
                 })),
             );
-        let selected = self.inbox.selected.clone();
         let rows: Vec<gpui::AnyElement> = g
             .iter()
             .enumerate()
-            .map(|(i, l)| {
-                let sel = on && !home && selected.as_deref() == Some(l.id.to_string().as_str());
-                let base = (k * 100 + i) + if home { 50_000 } else { 0 };
-                self.lesson_row(l, base, true, sel, look, cx)
-            })
+            .map(|(i, l)| self.lesson_row(l, k * 100 + i, false, look, cx))
             .collect();
-        let body = div()
+        div()
+            .id(("group-card", k))
             .flex()
             .flex_col()
-            .gap(look.px(if home { 0. } else { 8. }))
+            .mt(look.px(12.))
             .child(head)
-            .child(div().flex().flex_col().children(rows));
-        if home {
-            return div()
-                .id(("home-group", k))
-                .pt(look.px(6.))
-                .child(body)
-                .into_any_element();
-        }
-        kit::card(look)
-            .id(("group-card", k))
-            .p(look.px(14.))
-            .when(on, |d| d.border_color(look.c.text_accent.opacity(0.7)))
-            .child(body)
+            .children(rows)
             .into_any_element()
     }
 
-    /// The overnight changes as one row: how many, that a fresh
-    /// reviewer confirmed each, All look right and Review.
+    /// The overnight changes as one row: `NOTE CHANGES 04`, that a fresh
+    /// reviewer confirmed each, All look right and Review, then the notes
+    /// they changed.
     pub(super) fn overnight_card(
         &self,
         k: usize,
         changes: &[ReviewItem],
         on: bool,
-        home: bool,
         look: &Look,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let n = changes.len();
         let receipts: Vec<String> = changes.iter().map(|c| c.receipt.to_string()).collect();
         let notes: Vec<String> = changes.iter().map(|c| c.label.clone()).collect();
-        // The head and its buttons on one row, the notes under
-        // them across the whole width (an explanation wraps, never cut).
         let head = div()
             .flex()
             .items_center()
-            .gap(look.px(10.))
+            .gap(look.px(12.))
             .min_w_0()
+            .h(look.px(40.))
+            .px(look.px(8.))
+            .border_b(look.fixed(1.))
+            .border_color(look.c.border)
+            .child(kit::heading(look, "Note changes", n, look.c.text))
             .child(
-                div().flex_1().min_w_0().child(kind_text(
-                    look,
-                    &format!(
-                        "{n} note change{} · fresh reviewer confirmed",
-                        if n == 1 { "" } else { "s" }
-                    ),
-                    look.c.text_muted,
-                )),
+                div()
+                    .id(("overnight-confirmed", k))
+                    .child(kit::cap(look, "Confirmed", look.c.ok))
+                    .tooltip(super::tooltip::Tooltip::text(
+                        "A fresh reviewer confirmed each change before dreaming wrote it.",
+                    )),
             )
+            .child(div().flex_1())
             .child(
                 kit::button(
                     look,
-                    ("all-right", k + if home { 500 } else { 0 }),
+                    ("all-right", k),
                     if self.reviewing_now() { "…" } else { "All look right" },
                     Kind::Plain,
                 )
@@ -1185,130 +1104,34 @@ impl Shell {
                 })),
             )
             .child(
-                kit::button(look, ("review-all", k + if home { 500 } else { 0 }), "Review", Kind::Plain)
-                    .on_click(cx.listener(|this, _, window, cx| {
+                kit::button(look, ("review-all", k), "Review", Kind::Ghost).on_click(
+                    cx.listener(|this, _, window, cx| {
                         cx.stop_propagation();
                         this.inbox.filter = Filter::Overnight;
                         this.inbox.selected = None;
                         this.show_section(Section::Inbox, window, cx);
-                    })),
+                    }),
+                ),
             );
-        let row = div()
+        div()
+            .id(("overnight-card", k))
             .flex()
             .flex_col()
-            .gap(look.px(4.))
-            .min_w_0()
+            .mt(look.px(12.))
+            .pb(look.px(10.))
+            .border_b(look.fixed(1.))
+            .border_color(look.c.border.opacity(0.6))
+            .when(on, |d| d.bg(look.c.raised))
             .child(head)
             .child(
                 div()
+                    .px(look.px(8.))
+                    .pt(look.px(10.))
                     .min_w_0()
                     .text_size(look.text(12.5))
                     .text_color(look.c.text_muted)
                     .child(notes.join(" · ")),
-            );
-        if home {
-            // `Note changes 4`, the reviewer chip, the two buttons,
-            // then the notes as outline chips on one line.
-            let receipts = changes
-                .iter()
-                .map(|c| c.receipt.to_string())
-                .collect::<Vec<_>>();
-            // The chips wrap onto a hidden second line, so one
-            // that does not fit drops whole instead of being cut mid-word;
-            // a single chip too long for the line ends in an ellipsis.
-            let mut chips = div()
-                .flex()
-                .flex_wrap()
-                .gap_x(look.px(6.))
-                .gap_y(look.px(8.))
-                .h(look.px(24.))
-                .mx(look.px(8.))
-                .overflow_hidden()
-                .min_w_0();
-            for (i, note) in notes.iter().enumerate() {
-                chips = chips.child(
-                    div()
-                        .flex()
-                        .max_w_full()
-                        .items_center()
-                        .gap(look.px(5.))
-                        .h(look.px(24.))
-                        .px(look.px(8.))
-                        .rounded_full()
-                        .border(look.fixed(1.))
-                        .border_color(look.c.border_strong)
-                        .text_size(look.text(12.5))
-                        .text_color(look.c.text)
-                        .id(("home-note-chip", i))
-                        .child(kit::icon(look, "file-text", 12., look.c.text_muted))
-                        .child(div().min_w_0().truncate().child(note.clone())),
-                );
-            }
-            return div()
-                .id(("home-overnight", k))
-                .flex()
-                .flex_col()
-                .gap(look.px(4.))
-                .pt(look.px(4.))
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(look.px(8.))
-                        .h(look.px(34.))
-                        .px(look.px(8.))
-                        .child(group_label(look, "Note changes", n))
-                        .child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap(look.px(4.))
-                                .h(look.px(20.))
-                                .px(look.px(7.))
-                                .rounded_full()
-                                .bg(look.c.ok.opacity(if look.c.dark { 0.12 } else { 0.09 }))
-                                .text_color(look.c.ok)
-                                .text_size(look.text(11.5))
-                                .font_weight(FontWeight::MEDIUM)
-                                .child(kit::icon(look, "shield-check", 12., look.c.ok))
-                                .child("fresh reviewer confirmed"),
-                        )
-                        .child(div().flex_1())
-                        .child(
-                            kit::button(
-                                look,
-                                ("all-right", k + 500),
-                                if self.reviewing_now() { "…" } else { "All look right" },
-                                Kind::Plain,
-                            )
-                            .h(look.px(26.))
-                            .tooltip(super::tooltip::Tooltip::text(
-                                "Marks every overnight change as looked at (hippo review <receipts> --ok). Undo stays in each change's page.",
-                            ))
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                cx.stop_propagation();
-                                this.mark_right(receipts.clone(), cx);
-                            })),
-                        )
-                        .child(
-                            kit::button(look, ("review-all", k + 500), "Review", Kind::Ghost)
-                                .h(look.px(26.))
-                                .on_click(cx.listener(|this, _, window, cx| {
-                                    cx.stop_propagation();
-                                    this.inbox.filter = Filter::Overnight;
-                                    this.inbox.selected = None;
-                                    this.show_section(Section::Inbox, window, cx);
-                                })),
-                        ),
-                )
-                .child(chips)
-                .into_any_element();
-        }
-        kit::card(look)
-            .id(("overnight-card", k))
-            .p(look.px(14.))
-            .when(on, |d| d.border_color(look.c.text_accent.opacity(0.7)))
-            .child(row)
+            )
             .into_any_element()
     }
 
@@ -1322,24 +1145,32 @@ impl Shell {
     ) -> gpui::AnyElement {
         let key = c.receipt.to_string();
         let width = self.review_width.clone();
-        kit::card(look)
+        let row = div()
             .id(("change-card", k))
-            .p(look.px(14.))
+            .flex()
+            .flex_col()
             .gap(look.px(4.))
+            .px(look.px(8.))
+            .pt(look.px(10.))
+            .pb(look.px(4.))
+            .border_b(look.fixed(1.))
+            .border_color(look.c.border.opacity(0.6))
             .cursor_pointer()
-            .when(on, |d| d.border_color(look.c.text_accent.opacity(0.7)))
             .on_click(cx.listener(move |this, _, window, cx| {
                 this.inbox.selected = Some(key.clone());
                 window.focus(&this.inbox.focus, cx);
                 cx.notify();
             }))
-            .child(kit::label(
-                look,
-                "Overnight · dreaming · confirmed by a fresh reviewer",
-                kit::ok(look),
-            ))
-            .child(self.render_review_rows(std::slice::from_ref(c), &width, false, look, cx))
-            .into_any_element()
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(look.px(10.))
+                    .child(kit::cap(look, "Overnight", look.c.faint))
+                    .child(kit::cap(look, "Confirmed", look.c.ok)),
+            )
+            .child(self.render_review_rows(std::slice::from_ref(c), &width, false, look, cx));
+        kit::row_fill(row, look, on).into_any_element()
     }
 
     /// The selected card's detail: what hippo saw, and the proposed rule.
@@ -1387,24 +1218,34 @@ impl Shell {
         let foot = lesson
             .filter(|l| self.inbox.editing != Some(l.id))
             .map(|l| self.lesson_actions(l, look, cx));
-        kit::card(look)
+        div()
             .id("inbox-detail")
             .flex()
             .flex_col()
-            .when(panel, |d| d.size_full())
+            .when(panel, |d| {
+                d.size_full()
+                    .border_l(look.fixed(1.))
+                    .border_color(look.c.border)
+            })
+            .when(!panel, |d| {
+                d.border_b(look.fixed(1.))
+                    .border_color(look.c.border)
+                    .bg(look.c.surface)
+            })
             .child(
                 div()
                     .id("inbox-detail-body")
                     .flex_1()
                     .min_h_0()
-                    .p(look.px(16.))
+                    .px(look.px(20.))
+                    .py(look.px(16.))
                     .when(panel, |d| d.overflow_y_scroll())
                     .child(body),
             )
             .children(foot.map(|f| {
                 div()
                     .flex_shrink_0()
-                    .px(look.px(14.))
+                    .px(look.px(20.))
                     .py(look.px(12.))
                     .border_t(look.fixed(1.))
                     .border_color(look.c.border)
@@ -1458,7 +1299,14 @@ impl Shell {
                         .items_center()
                         .gap(look.px(8.))
                         .min_w_0()
-                        .child(profile_tag(look, e.profile.as_deref(), None))
+                        .child(kit::account_bar(look, e.profile.as_deref(), 12.))
+                        .child(kit::cap(
+                            look,
+                            &e.profile
+                                .as_deref()
+                                .map_or_else(|| "?".to_owned(), kit::profile_name),
+                            look.c.text_muted,
+                        ))
                         .child(
                             div()
                                 .min_w_0()
@@ -1474,7 +1322,7 @@ impl Shell {
                         .gap(look.px(6.))
                         .pl(look.px(12.))
                         .border_l(look.fixed(2.))
-                        .border_color(look.c.border)
+                        .border_color(look.c.border_strong)
                         // A tool call in words, the call itself
                         // behind `show call ▸`.
                         .children(e.action.as_ref().map(|a| {
@@ -1588,31 +1436,30 @@ impl Shell {
                         .key_context("LessonEdit")
                         .overflow_hidden()
                         .p(look.px(8.))
-                        .rounded(look.px(8.))
+                        .rounded(look.px(3.))
                         .border(look.fixed(1.))
                         .border_color(look.c.text_accent)
                         .child(self.inbox.edit_field.clone()),
                 )
-                .child(
-                    div()
-                        .p(look.px(12.))
-                        .rounded(look.px(8.))
-                        .bg(look.c.window.opacity(0.5))
-                        .text_color(look.c.text_muted)
-                        .child(text),
-                )
+                .child(kit::quote(look, text, look.c.border_strong))
                 .child(
                     div()
                         .flex()
                         .gap(look.px(6.))
                         .child(
-                            kit::button(look, "lesson-save", "Save and keep  ⌘↩", Kind::Primary)
-                                .on_click(
-                                    cx.listener(|this, _, window, cx| this.save_edit(window, cx)),
-                                ),
+                            kit::button_key(
+                                look,
+                                "lesson-save",
+                                "Save and keep",
+                                "⌘↩",
+                                Kind::Primary,
+                            )
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.save_edit(window, cx)),
+                            ),
                         )
                         .child(
-                            kit::button(look, "lesson-cancel", "Cancel  esc", Kind::Plain)
+                            kit::button_key(look, "lesson-cancel", "Cancel", "esc", Kind::Plain)
                                 .on_click(
                                     cx.listener(|this, _, window, cx| this.cancel_edit(window, cx)),
                                 ),
@@ -1620,14 +1467,11 @@ impl Shell {
                 )
                 .into_any_element()
         } else {
-            div()
-                .p(look.px(14.))
-                .rounded(look.px(8.))
-                .border(look.fixed(1.))
-                .border_color(look.c.border)
+            kit::quote(look, l.rule.clone(), look.c.text)
+                .py(look.px(2.))
                 .text_size(look.text(14.))
+                .line_height(look.text(21.))
                 .text_color(look.c.text)
-                .child(l.rule.clone())
                 .into_any_element()
         };
         let target = target_words(l, notes_dir).map(|(verb, place)| {
@@ -1639,15 +1483,9 @@ impl Shell {
             div()
                 .flex()
                 .items_center()
-                .gap(look.px(6.))
+                .gap(look.px(8.))
                 .min_w_0()
-                .child(kit::icon(look, "note", 14., look.c.text_muted))
-                .child(
-                    div()
-                        .flex_shrink_0()
-                        .text_color(look.c.text_muted)
-                        .child(verb),
-                )
+                .child(kit::cap(look, verb, look.c.faint))
                 .child(
                     div()
                         .min_w_0()
@@ -1679,32 +1517,21 @@ impl Shell {
         let head = div()
             .flex()
             .items_center()
-            .gap(look.px(8.))
-            .child(kit::kind_chip(look, kind))
-            .child(
-                div()
-                    .text_size(look.text(12.))
-                    .text_color(look.c.faint)
-                    .child(count_words(l)),
-            )
+            .gap(look.px(12.))
+            .child(kit::cap(look, kind, look.c.text))
+            .child(kit::cap(look, &count_words(l), look.c.faint))
             .child(div().flex_1())
             .when_some(session, |d, s| {
                 d.child(
-                    kit::button_icon(
-                        look,
-                        "detail-open",
-                        Some("arrow-up-right"),
-                        "Open session",
-                        "",
-                        Kind::Ghost,
-                    )
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        this.state.tabs.open(Tab::Session {
-                            id: s.clone(),
-                            ordinal,
-                        });
-                        this.after_state_change(window, cx);
-                    })),
+                    kit::button(look, "detail-open", "Open session", Kind::Ghost).on_click(
+                        cx.listener(move |this, _, window, cx| {
+                            this.state.tabs.open(Tab::Session {
+                                id: s.clone(),
+                                ordinal,
+                            });
+                            this.after_state_change(window, cx);
+                        }),
+                    ),
                 )
             });
         div()
@@ -1724,19 +1551,11 @@ impl Shell {
             .children(earlier)
             .child(
                 div()
-                    .h(look.fixed(1.))
-                    .bg(look.c.border_variant)
-                    .my(look.px(6.)),
-            )
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .child(kit::label(look, "Proposed rule", look.c.text_muted))
-                    .child(div().flex_1())
-                    .when(!editing, |d| {
-                        d.child(div().text_color(kit::dim(look)).child("E to edit"))
-                    }),
+                    .mt(look.px(6.))
+                    .pt(look.px(12.))
+                    .border_t(look.fixed(1.))
+                    .border_color(look.c.border)
+                    .child(kit::cap(look, "Proposed rule", look.c.faint)),
             )
             .child(rule_box)
             .children(target)
@@ -1754,10 +1573,9 @@ impl Shell {
             .items_center()
             .gap(look.px(8.))
             .child(
-                kit::button_icon(
+                kit::button_key(
                     look,
                     "detail-keep",
-                    Some("check"),
                     if busy { "Keeping…" } else { "Keep" },
                     "↵",
                     Kind::Primary,
@@ -1790,11 +1608,14 @@ impl Shell {
             .flex()
             .flex_col()
             .gap(look.px(10.))
-            .child(kit::label(
-                look,
-                "Overnight · what dreaming changed",
-                kit::ok(look),
-            ))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(look.px(10.))
+                    .child(kit::cap(look, "Overnight", look.c.faint))
+                    .child(kit::cap(look, "Confirmed", look.c.ok)),
+            )
             .child(
                 div()
                     .text_size(look.text(20.))
@@ -1803,19 +1624,19 @@ impl Shell {
             )
             .children(c.old.as_ref().map(|o| {
                 div()
-                    .p(look.px(12.))
-                    .rounded(look.px(8.))
-                    .bg(look.c.deleted_background)
-                    .text_color(look.c.deleted)
-                    .child(o.clone())
+                    .flex()
+                    .flex_col()
+                    .gap(look.px(4.))
+                    .child(kit::cap(look, "Was", look.c.faint))
+                    .child(kit::quote(look, o.clone(), look.c.deleted).text_color(look.c.deleted))
             }))
             .child(
                 div()
-                    .p(look.px(12.))
-                    .rounded(look.px(8.))
-                    .bg(look.c.created.opacity(0.12))
-                    .text_color(look.c.text)
-                    .child(c.new.clone()),
+                    .flex()
+                    .flex_col()
+                    .gap(look.px(4.))
+                    .child(kit::cap(look, "Now", look.c.faint))
+                    .child(kit::quote(look, c.new.clone(), look.c.created).text_color(look.c.text)),
             )
             .children(
                 c.edited_since
@@ -1828,7 +1649,7 @@ impl Shell {
                     .gap(look.px(8.))
                     .pt(look.px(6.))
                     .child(
-                        kit::button(look, "detail-right", "Looks right  ↩", Kind::Plain)
+                        kit::button_key(look, "detail-right", "Looks right", "↩", Kind::Plain)
                             .text_color(kit::ok(look))
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.mark_right(vec![receipt.clone()], cx)
@@ -1861,14 +1682,13 @@ impl Shell {
             .into_any_element()
     }
 
-    /// One lesson as a 28-point row (the grouped card's rows and
-    /// Home's): the profile mark (`mark`), the title, how often, ✓ ✎ ✕. A
-    /// click selects it in the Inbox.
+    /// One lesson as a row on a hairline (a group's rows): its mark, the
+    /// title, how often, and Keep, Edit and Dismiss. A click selects it in
+    /// the Inbox.
     pub(super) fn lesson_row(
         &self,
         l: &Lesson,
         base: usize,
-        mark: bool,
         sel: bool,
         look: &Look,
         cx: &mut Context<Self>,
@@ -1876,16 +1696,28 @@ impl Shell {
         let id = l.id;
         let key = id.to_string();
         let busy = self.inbox.busy == Some(id) && self.lesson_job_running();
-        let small = |id: (&'static str, usize), label: &'static str, tip: &'static str| {
-            kit::icon_button(look, id, label, tip).tooltip(super::tooltip::Tooltip::text(tip))
+        let small = |id: (&'static str, usize), word: &'static str, tip: &'static str| {
+            div()
+                .id(id)
+                .role(gpui::Role::Button)
+                .aria_label(tip)
+                .flex_shrink_0()
+                .flex()
+                .items_center()
+                .h(look.px(20.))
+                .px(look.px(6.))
+                .rounded(look.px(3.))
+                .cursor_pointer()
+                .font_family(kit::MONO)
+                .text_size(look.text(10.5))
+                .text_color(look.c.text_muted)
+                .hover(|h| h.bg(look.c.raised).text_color(look.c.text))
+                .child(word.to_uppercase())
+                .tooltip(super::tooltip::Tooltip::text(tip))
         };
-        let profile = l
-            .evidence
-            .first()
-            .and_then(|e| e.profile.clone())
-            .or_else(|| l.seen.profiles.first().cloned());
-        // ✓ ✎ ✕ show under the pointer (T3 Code's row controls),
-        // or on the selected row; at rest a row is its title and count.
+        // Keep, Edit and Dismiss show under the pointer (T3 Code's row
+        // controls), or on the selected row; at rest a row is its title and
+        // count.
         let actions = div()
             .flex()
             .items_center()
@@ -1898,15 +1730,15 @@ impl Shell {
             .group("lesson-row")
             .flex()
             .items_center()
-            .gap(look.px(8.))
-            .h(look.px(34.))
             .gap(look.px(10.))
+            .h(look.px(36.))
             .px(look.px(8.))
-            .rounded(look.px(8.))
+            .border_b(look.fixed(1.))
+            .border_color(look.c.border.opacity(0.6))
             .when(sel, |d| d.bg(look.c.raised))
             .cursor_pointer()
             .hover(|d| d.bg(look.c.hover))
-            .when(mark, |d| d.child(kit::mark(look, profile.as_deref(), 18.)))
+            .child(kit::square(look, kit::Mark::Note))
             .child(
                 div()
                     .flex_1()
@@ -1915,19 +1747,13 @@ impl Shell {
                     .text_color(look.c.text)
                     .child(kit::title(&l.title)),
             )
-            .child(
-                div()
-                    .flex_shrink_0()
-                    .text_size(look.text(12.))
-                    .text_color(kit::dim(look))
-                    .child(count_words(l)),
-            )
+            .child(kit::cap(look, &count_words(l), look.c.faint))
             .child(
                 actions
                     .child(
                         small(
                             ("r-keep", base),
-                            if busy { "…" } else { "✓" },
+                            if busy { "…" } else { "Keep" },
                             "Keep: write this rule into its note",
                         )
                         .on_click(cx.listener(move |this, _, _, cx| {
@@ -1936,7 +1762,7 @@ impl Shell {
                         })),
                     )
                     .child(
-                        small(("r-edit", base), "✎", "Edit the rule").on_click(cx.listener(
+                        small(("r-edit", base), "Edit", "Edit the rule").on_click(cx.listener(
                             move |this, _, window, cx| {
                                 cx.stop_propagation();
                                 this.edit_lesson(id, window, cx);
@@ -1947,7 +1773,7 @@ impl Shell {
                     .child(
                         small(
                             ("r-dismiss", base),
-                            "✕",
+                            "Dismiss",
                             "Dismiss: proposed again only if it recurs in 3 more sessions",
                         )
                         .on_click(cx.listener(move |this, _, _, cx| {

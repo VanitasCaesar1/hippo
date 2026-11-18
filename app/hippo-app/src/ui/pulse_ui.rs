@@ -578,43 +578,18 @@ impl Shell {
         let lanes = self.replay.lanes;
         let pulse = !lanes && self.pulse.on;
         let rows = !lanes && !self.pulse.on;
-        let tab = |id: &'static str, label: &'static str, on: bool| {
-            div()
-                .id(id)
-                .role(gpui::Role::Tab)
-                .aria_label(label)
-                .aria_selected(on)
-                .flex()
-                .items_center()
-                .h_full()
-                .border_b(look.fixed(1.))
-                .border_color(if on {
-                    look.c.text
-                } else {
-                    gpui::transparent_black()
-                })
-                .cursor_pointer()
-                .font_family(kit::MONO)
-                .text_size(look.text(10.5))
-                .text_color(if on { look.c.text } else { look.c.faint })
-                .hover(|h| h.text_color(look.c.text))
-                .child(label.to_uppercase())
-        };
-        div()
-            .flex_shrink_0()
-            .flex()
-            .items_center()
-            .gap(look.px(18.))
-            .h(look.px(28.))
+        kit::switches(look)
             .child(
-                tab("fleet-pulse", "Pulse", pulse).on_click(cx.listener(|this, _, _, cx| {
-                    this.replay.lanes = false;
-                    this.pulse.on = true;
-                    cx.notify();
-                })),
+                kit::switch(look, "fleet-pulse", "Pulse", pulse).on_click(cx.listener(
+                    |this, _, _, cx| {
+                        this.replay.lanes = false;
+                        this.pulse.on = true;
+                        cx.notify();
+                    },
+                )),
             )
             .child(
-                tab("fleet-lanes", "Lanes", lanes)
+                kit::switch(look, "fleet-lanes", "Lanes", lanes)
                     .tooltip(super::tooltip::Tooltip::text("The day as lanes (L)"))
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.replay.lanes = true;
@@ -622,11 +597,13 @@ impl Shell {
                     })),
             )
             .child(
-                tab("fleet-rows", "Rows", rows).on_click(cx.listener(|this, _, _, cx| {
-                    this.replay.lanes = false;
-                    this.pulse.on = false;
-                    cx.notify();
-                })),
+                kit::switch(look, "fleet-rows", "Rows", rows).on_click(cx.listener(
+                    |this, _, _, cx| {
+                        this.replay.lanes = false;
+                        this.pulse.on = false;
+                        cx.notify();
+                    },
+                )),
             )
     }
 

@@ -160,37 +160,6 @@ pub fn icon_btn(
         .tooltip(super::tooltip::Tooltip::text(label))
 }
 
-/// A small borderless icon button (for rows: ✓ ✎ ✕), its words in a
-/// tooltip set by the caller.
-pub fn icon_button(
-    look: &Look,
-    id: impl Into<gpui::ElementId>,
-    glyph: &'static str,
-    label: &'static str,
-) -> gpui::Stateful<gpui::Div> {
-    div()
-        .id(id.into())
-        .role(Role::Button)
-        .aria_label(label)
-        .flex_shrink_0()
-        .size(look.px(24.))
-        .flex()
-        .items_center()
-        .justify_center()
-        .rounded(look.px(6.))
-        .text_size(look.text(12.5))
-        .text_color(look.c.faint)
-        .cursor_pointer()
-        .hover(|h| h.bg(look.c.raised).text_color(look.c.text))
-        .active(|a| a.bg(look.c.text.opacity(0.14)))
-        .child(match glyph {
-            "✓" => icon(look, "check", 14., look.c.faint).into_any_element(),
-            "✎" => icon(look, "pencil", 14., look.c.faint).into_any_element(),
-            "✕" => icon(look, "x", 14., look.c.faint).into_any_element(),
-            other => other.into_any_element(),
-        })
-}
-
 /// A rounded chip: a suggestion, a filter, a count.
 pub fn chip(
     look: &Look,
@@ -1184,37 +1153,6 @@ pub fn kind_chip(look: &Look, label: &str) -> gpui::Div {
         .child(label.to_owned())
 }
 
-/// A count badge: `accent.surface` fill, `accent.text`, or the warning
-/// colour for Needs you.
-pub fn count_badge(look: &Look, n: usize, warn: bool) -> gpui::Div {
-    let (bg, fg) = if warn {
-        (
-            look.c.warn.opacity(if look.c.dark { 0.16 } else { 0.12 }),
-            look.c.warn,
-        )
-    } else {
-        (look.c.accent_surface, look.c.accent_text)
-    };
-    div()
-        .flex_shrink_0()
-        .min_w(look.px(18.))
-        .h(look.px(18.))
-        .px(look.px(5.))
-        .flex()
-        .items_center()
-        .justify_center()
-        .rounded_full()
-        .bg(bg)
-        .text_color(fg)
-        .text_size(look.text(11.))
-        .font_weight(FontWeight::SEMIBOLD)
-        .child(if n > 99 {
-            "99+".to_owned()
-        } else {
-            n.to_string()
-        })
-}
-
 /// A pane card: the surface, a hairline, radius 12; its title
 /// row is 38 high with the pane's name and one fact at the right. The
 /// caller adds the body.
@@ -1294,43 +1232,6 @@ pub fn segment(
         .hover(|h| h.text_color(look.c.text))
         .active(|a| a.bg(look.c.hover))
         .children(icon_name.map(|n| icon(look, n, 14., color)))
-        .child(label)
-}
-
-/// A segment led by an element (an account mark) instead of an icon.
-pub fn segment_lead(
-    look: &Look,
-    id: impl Into<gpui::ElementId>,
-    lead: impl IntoElement,
-    label: impl Into<String>,
-    on: bool,
-) -> gpui::Stateful<gpui::Div> {
-    let label = label.into();
-    let color = if on { look.c.text } else { look.c.text_muted };
-    div()
-        .id(id.into())
-        .role(Role::Tab)
-        .aria_label(label.clone())
-        .aria_selected(on)
-        .flex()
-        .items_center()
-        .gap(look.px(6.))
-        .h(look.px(24.))
-        .px(look.px(8.))
-        .rounded(look.px(2.))
-        .text_size(look.text(12.5))
-        .font_weight(FontWeight::MEDIUM)
-        .text_color(color)
-        .whitespace_nowrap()
-        .when(on, |d| {
-            d.bg(look.c.raised)
-                .border(look.fixed(1.))
-                .border_color(look.c.border)
-        })
-        .cursor_pointer()
-        .hover(|h| h.text_color(look.c.text))
-        .active(|a| a.bg(look.c.hover))
-        .child(lead)
         .child(label)
 }
 
@@ -1695,6 +1596,80 @@ pub fn square(look: &Look, m: Mark) -> gpui::Div {
         Mark::Dry => d.border(look.fixed(1.5)).border_color(look.c.err),
         Mark::Note => d.border(look.fixed(1.5)).border_color(look.c.faint),
     }
+}
+
+/// A switch: a label, the selected one underlined in the text colour
+/// (`PULSE LANES ROWS`, `STATE PROJECT ACCOUNT`, `DAY 6H 1H`).
+pub fn switch(
+    look: &Look,
+    id: impl Into<gpui::ElementId>,
+    label: &str,
+    on: bool,
+) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(id.into())
+        .role(Role::Tab)
+        .aria_label(label.to_owned())
+        .aria_selected(on)
+        .flex_shrink_0()
+        .flex()
+        .items_center()
+        .h(look.px(28.))
+        .border_b(look.fixed(1.))
+        .border_color(if on {
+            look.c.text
+        } else {
+            gpui::transparent_black()
+        })
+        .cursor_pointer()
+        .font_family(MONO)
+        .text_size(look.text(10.5))
+        .whitespace_nowrap()
+        .text_color(if on { look.c.text } else { look.c.faint })
+        .hover(|h| h.text_color(look.c.text))
+        .child(label.to_uppercase())
+}
+
+/// Switches in a row, 18 points apart.
+pub fn switches(look: &Look) -> gpui::Div {
+    div()
+        .flex_shrink_0()
+        .flex()
+        .items_center()
+        .gap(look.px(18.))
+}
+
+/// A heading: a label and its count in two digits (`NEEDS YOU 02`), the
+/// count in `color`.
+pub fn heading(look: &Look, label: &str, n: usize, color: Hsla) -> gpui::Div {
+    div()
+        .flex_shrink_0()
+        .flex()
+        .items_center()
+        .gap(look.px(8.))
+        .child(cap(look, label, look.c.faint))
+        .child(cap(look, &format!("{n:02}"), color))
+}
+
+/// A quotation with a 2-point rule at its left in `color`.
+pub fn quote(look: &Look, text: impl Into<String>, color: Hsla) -> gpui::Div {
+    div()
+        .min_w_0()
+        .border_l(look.fixed(2.))
+        .border_color(color)
+        .pl(look.px(10.))
+        .text_color(look.c.text_muted)
+        .child(text.into())
+}
+
+/// An account's 2-point bar in its colour, `h` points tall: where a row
+/// says which account it ran on.
+pub fn account_bar(look: &Look, profile: Option<&str>, h: f32) -> gpui::Div {
+    div()
+        .flex_shrink_0()
+        .w(look.fixed(2.))
+        .h(look.px(h))
+        .bg(profile.map_or(look.c.border_strong, profile_hue))
 }
 
 /// The scope band: one bar per beat, the newest lit, over a baseline,

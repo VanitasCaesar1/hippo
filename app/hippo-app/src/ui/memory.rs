@@ -68,18 +68,19 @@ const SIDE_PANEL: f32 = 900.;
 /// Below this window width the toggle uses its short words.
 const SHORT_WORDS: f32 = 900.;
 
-/// A shade's fill in mode `by`. Amber (the accent) only in Reads, where
-/// the colour is freshness; Edits has its own hue, the info colour;
-/// the categorical modes use the status colours.
+/// A shade's fill in mode `by`. In Reads the colour is freshness, in
+/// greys of the text colour (the instrument look keeps colour for a
+/// state); Edits has its own hue, the info colour; the categorical modes
+/// use the status colours.
 pub fn shade_color(look: &Look, s: Shade, by: SizeBy) -> Hsla {
     let a = if by == SizeBy::Edits {
         look.c.focus
     } else {
-        look.c.text_accent
+        look.c.text
     };
     match s {
-        Shade::Fresh(Fresh::Week) => a.opacity(0.85),
-        Shade::Fresh(Fresh::Month) => a.opacity(0.4),
+        Shade::Fresh(Fresh::Week) => a.opacity(0.34),
+        Shade::Fresh(Fresh::Month) => a.opacity(0.16),
         Shade::Fresh(Fresh::Older) => look.c.hover,
         Shade::Required => look.c.focus.opacity(0.75),
         Shade::Relevant => look.c.focus.opacity(0.35),
@@ -89,14 +90,6 @@ pub fn shade_color(look: &Look, s: Shade, by: SizeBy) -> Hsla {
         Shade::ManyReads => kit::ok(look).opacity(0.6),
         Shade::FewReads => kit::ok(look).opacity(0.28),
         Shade::Unread => look.c.hover,
-    }
-}
-
-/// The text colour on a tile of shade `s`.
-fn on_color(look: &Look, s: Shade) -> Hsla {
-    match s {
-        Shade::Fresh(Fresh::Week) => look.c.window,
-        _ => look.c.text,
     }
 }
 
@@ -319,7 +312,7 @@ impl Shell {
             .gap_x(look.px(14.))
             .gap_y(look.px(4.))
             .flex_shrink_0()
-            .text_size(look.text(11.5))
+            .text_size(look.text(12.))
             .text_color(look.c.text_muted)
             .child(div().text_color(kit::dim(look)).child(by.means()))
             .children(by.shades().iter().map(|s| {
@@ -327,13 +320,8 @@ impl Shell {
                     .flex()
                     .items_center()
                     .gap(look.px(6.))
-                    .child(
-                        div()
-                            .size(look.px(10.))
-                            .rounded(look.px(2.))
-                            .bg(shade_color(look, *s, by)),
-                    )
-                    .child(s.label())
+                    .child(div().size(look.px(8.)).bg(shade_color(look, *s, by)))
+                    .child(kit::cap(look, s.label(), look.c.faint))
             }))
             // The never-injected block names itself; no swatch.
             .child(div().flex_1())
@@ -343,8 +331,8 @@ impl Shell {
                     .flex_shrink_0()
                     .items_center()
                     .gap(look.px(6.))
-                    .child(kit::dot(look, look.c.warn))
-                    .child("review overdue"),
+                    .child(kit::square(look, kit::Mark::Wait))
+                    .child(kit::cap(look, "Review overdue", look.c.faint)),
             );
 
         let main = div()
@@ -411,13 +399,12 @@ impl Shell {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let by = self.memory_ui.by;
-        let modes = SizeBy::ALL.iter().fold(kit::segmented(look), |d, b| {
+        let modes = SizeBy::ALL.iter().fold(kit::switches(look), |d, b| {
             let b = *b;
             d.child(
-                kit::segment(
+                kit::switch(
                     look,
                     SharedString::from(format!("size-{}", b.label())),
-                    None,
                     if narrow { b.short() } else { b.label() },
                     b == by,
                 )
@@ -427,17 +414,17 @@ impl Shell {
             )
         });
         let list_on = self.memory_ui.list;
-        let views = kit::segmented(look)
+        let views = kit::switches(look)
             .child(
-                kit::segment(look, "memory-map", Some("layout-grid"), "", !list_on).on_click(
-                    cx.listener(|this, _, _, cx| {
+                kit::switch(look, "memory-map", "Map", !list_on).on_click(cx.listener(
+                    |this, _, _, cx| {
                         this.memory_ui.list = false;
                         cx.notify();
-                    }),
-                ),
+                    },
+                )),
             )
             .child(
-                kit::segment(look, "memory-list", Some("list"), "", list_on).on_click(cx.listener(
+                kit::switch(look, "memory-list", "List", list_on).on_click(cx.listener(
                     |this, _, _, cx| {
                         this.memory_ui.list = true;
                         cx.notify();
@@ -448,7 +435,7 @@ impl Shell {
             .flex()
             .flex_shrink_0()
             .items_center()
-            .gap(look.px(8.))
+            .gap(look.px(26.))
             .child(modes)
             .child(views)
             .child(
@@ -472,41 +459,43 @@ impl Shell {
         let filter = self.memory_ui.filter;
         let cost = map.cost.clone();
         let card = |id: &'static str, big: String, big_color: Hsla, words: String, on: bool| {
-            // Four cells of one card, the figure over its words,
-            // hairlines between; the chosen one raised.
+            // Four readouts between hairlines, the figure over its words;
+            // the chosen one underlined.
             div()
                 .id(id)
                 .role(Role::Button)
                 .aria_selected(on)
+                .relative()
                 .flex()
                 .flex_col()
                 .justify_center()
-                .gap(look.px(2.))
+                .gap(look.px(4.))
                 .flex_1()
                 .min_w_0()
-                .h(look.px(if short { 48. } else { 58. }))
+                .h(look.px(if short { 52. } else { 62. }))
                 .px(look.px(if short { 10. } else { 14. }))
                 .border_l(look.fixed(1.))
-                .border_color(look.c.border)
-                .when(on, |d| d.bg(look.c.raised))
+                .border_color(look.c.border.opacity(0.6))
                 .cursor_pointer()
                 .hover(|h| h.bg(look.c.hover))
-                .child(
-                    div()
-                        .flex_shrink_0()
-                        .text_size(look.text(if short { 15. } else { 18. }))
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(big_color)
-                        .child(big),
-                )
-                .child(
-                    div()
-                        .min_w_0()
-                        .truncate()
-                        .text_size(look.text(12.))
-                        .text_color(look.c.text_muted)
-                        .child(words),
-                )
+                .child(kit::figure(
+                    look,
+                    big,
+                    if short { 16. } else { 20. },
+                    big_color,
+                ))
+                .child(kit::cap(look, &words, look.c.faint).min_w_0().truncate())
+                .when(on, |d| {
+                    d.child(
+                        div()
+                            .absolute()
+                            .left_0()
+                            .right_0()
+                            .bottom_0()
+                            .h(look.fixed(2.))
+                            .bg(look.c.text),
+                    )
+                })
         };
         let mut row = div().flex().flex_1().min_w_0().ml(-look.fixed(1.));
         match &cost {
@@ -565,12 +554,12 @@ impl Shell {
                         .items_center()
                         .flex_1()
                         .min_w_0()
-                        .h(look.px(if short { 48. } else { 58. }))
+                        .h(look.px(if short { 52. } else { 62. }))
                         .px(look.px(14.))
                         .truncate()
                         .text_size(look.text(12.))
                         .text_color(look.c.text_muted)
-                        .child("no start blocks recorded this week"),
+                        .child("No start blocks recorded this week."),
                 );
             }
         }
@@ -630,10 +619,13 @@ impl Shell {
                     cx.notify();
                 })),
             );
-        kit::card(look)
+        div()
             .flex()
             .flex_shrink_0()
             .overflow_hidden()
+            .border_t(look.fixed(1.))
+            .border_b(look.fixed(1.))
+            .border_color(look.c.border)
             .child(row)
             .into_any_element()
     }
@@ -649,21 +641,7 @@ impl Shell {
     ) -> gpui::AnyElement {
         let stats = self.note_stats.get(&t.path);
         let week = map.cost.as_ref().map_or(0, |c| c.sessions);
-        let fact = |k: &str, v: gpui::AnyElement| {
-            div()
-                .flex()
-                .items_start()
-                .gap(look.px(10.))
-                .py(look.px(3.))
-                .child(
-                    div()
-                        .w(look.px(104.))
-                        .flex_shrink_0()
-                        .text_color(kit::dim(look))
-                        .child(k.to_owned()),
-                )
-                .child(div().flex_1().min_w_0().child(v))
-        };
+        let fact = |k: &str, v: gpui::AnyElement| kit::spec_row(look, k, v, None);
         let text = |s: String| div().child(s).into_any_element();
         let opened = t.read + t.cited;
         let mut facts: Vec<gpui::AnyElement> = Vec::new();
@@ -755,28 +733,15 @@ impl Shell {
             div()
                 .flex()
                 .items_center()
-                .gap(look.px(8.))
-                .h(look.px(22.))
-                .child(kit::dot(look, kit::profile_hue(p)))
-                .child(
-                    div()
-                        .w(look.px(96.))
-                        .truncate()
-                        .text_color(look.c.text_muted)
-                        .child(kit::profile_name(p)),
-                )
-                .child(div().flex_1().child(kit::meter(
+                .gap(look.px(10.))
+                .h(look.px(24.))
+                .child(kit::cap(look, &kit::profile_name(p), look.c.faint).w(look.px(96.)))
+                .child(div().flex_1().child(kit::segments(
                     look,
-                    *n as f32 / max as f32,
-                    look.c.text_muted,
+                    f64::from(*n) / f64::from(max),
+                    kit::profile_hue(p),
                 )))
-                .child(
-                    div()
-                        .w(look.px(28.))
-                        .flex()
-                        .justify_end()
-                        .child(n.to_string()),
-                )
+                .child(kit::figure(look, format!("{n:02}"), 12., look.c.text))
         });
         let badge = if t.carried_as == Some(PartKind::Required) || t.required {
             Some("REQUIRED")
@@ -794,40 +759,34 @@ impl Shell {
             .flex()
             .flex_col()
             .gap(look.px(10.))
-            .p(look.px(16.))
-            .rounded(look.px(8.))
-            .border(look.fixed(1.))
-            .border_color(look.c.border_variant)
-            .bg(look.c.elevated.opacity(0.5))
+            .pl(look.px(16.))
+            .pb(look.px(4.))
+            .border_l(look.fixed(1.))
+            .border_color(look.c.border)
             .text_size(look.text(12.5))
             .overflow_y_scroll()
-            .child(kit::label(
-                look,
-                &match badge {
-                    Some(b) => format!("{} · {b}", t.folder.clone()),
-                    None => t.folder.clone(),
-                },
-                look.c.text_muted,
-            ))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(look.px(10.))
+                    .child(kit::cap(look, &t.folder, look.c.faint))
+                    .children(badge.map(|b| kit::cap(look, b, look.c.text))),
+            )
             .child(
                 div()
                     .text_size(look.text(20.))
+                    .line_height(look.text(26.))
                     .font_weight(FontWeight::SEMIBOLD)
                     .child(t.title.clone()),
             )
-            .child(div().flex().flex_col().children(facts))
+            .child(kit::spec(look).mt(look.px(4.)).children(facts))
             .when(!by_profile.is_empty(), |d| {
-                d.child(
-                    div()
-                        .pt(look.px(6.))
-                        .border_t(look.fixed(1.))
-                        .border_color(look.c.border_variant)
-                        .child(kit::label(
-                            look,
-                            "READ BY PROFILE · 30 DAYS",
-                            look.c.text_muted,
-                        )),
-                )
+                d.child(div().pt(look.px(6.)).child(kit::cap(
+                    look,
+                    "Read by account · 30 days",
+                    look.c.faint,
+                )))
                 .children(bars)
             })
             .children(self.memory_tune(t, map, look, cx))
@@ -837,14 +796,13 @@ impl Shell {
                     .flex()
                     .gap(look.px(8.))
                     .child(
-                        kit::button(look, "memory-open", "Open note ↩", Kind::Primary).on_click(
-                            cx.listener(move |this, _, window, cx| {
+                        kit::button_key(look, "memory-open", "Open note", "↩", Kind::Primary)
+                            .on_click(cx.listener(move |this, _, window, cx| {
                                 this.open_memory_tile(path_open.clone(), window, cx);
-                            }),
-                        ),
+                            })),
                     )
                     .children(file.map(|f| {
-                        kit::button(look, "memory-editor", "Open in editor ⌘O", Kind::Plain)
+                        kit::button_key(look, "memory-editor", "Open in editor", "⌘O", Kind::Plain)
                             .on_click(cx.listener(move |_, _, _, cx| cx.open_with_system(&f)))
                     })),
             )
@@ -862,27 +820,15 @@ impl Shell {
     ) -> Option<gpui::AnyElement> {
         let tip = map.tip(&t.path)?.clone();
         // A light bulb and the text colour, not a warning callout.
-        let mut body = div().flex().flex_col().gap(look.px(8.)).child(
-            div()
-                .flex()
-                .gap(look.px(8.))
-                .child(kit::icon(look, "bulb", 15., look.c.text_muted))
-                .child(
-                    div().flex_1().min_w_0().child(
-                        gpui::StyledText::new(format!(
-                            "Tune. Never opened in {} of {} sessions. Relevant-only keeps it out of every start block; it is still offered when a task matches it.",
-                            tip.ignored, tip.sessions
-                        ))
-                        .with_highlights(vec![(
-                            0..5,
-                            gpui::HighlightStyle {
-                                font_weight: Some(FontWeight::SEMIBOLD),
-                                ..Default::default()
-                            },
-                        )]),
-                    ),
-                ),
-        );
+        let mut body = div()
+            .flex()
+            .flex_col()
+            .gap(look.px(8.))
+            .child(kit::cap(look, "Tune", look.c.faint))
+            .child(div().min_w_0().child(format!(
+                "Never opened in {} of {} sessions. Relevant-only keeps it out of every start block; it is still offered when a task matches it.",
+                tip.ignored, tip.sessions
+            )));
         match (&self.xray.confirm, tip.action.as_deref()) {
             (Some((c, before, after)), _) if c.note == tip.note => {
                 let note = c.note.clone();
@@ -893,9 +839,8 @@ impl Shell {
                             .flex_col()
                             .gap(look.px(2.))
                             .p(look.px(8.))
-                            .rounded(look.px(6.))
                             .bg(look.c.window.opacity(0.5))
-                            .font_family("Menlo")
+                            .font_family(kit::MONO)
                             .text_size(look.text(11.))
                             .child(
                                 div()
@@ -908,7 +853,7 @@ impl Shell {
                         div()
                             .text_size(look.text(11.))
                             .text_color(kit::dim(look))
-                            .font_family("Menlo")
+                            .font_family(kit::MONO)
                             .child(format!("hippo xray unrequire {} --yes", note.display())),
                     )
                     .child(
@@ -968,11 +913,9 @@ impl Shell {
         }
         Some(
             div()
-                .rounded(look.px(8.))
-                .border(look.fixed(1.))
+                .pt(look.px(12.))
+                .border_t(look.fixed(1.))
                 .border_color(look.c.border)
-                .bg(look.c.elevated.opacity(0.6))
-                .p(look.px(12.))
                 .child(body)
                 .into_any_element(),
         )
@@ -986,19 +929,10 @@ impl Shell {
             div()
                 .flex()
                 .flex_col()
+                .gap(look.px(3.))
                 .flex_shrink_0()
-                .child(
-                    div()
-                        .text_size(look.text(15.))
-                        .font_weight(FontWeight::MEDIUM)
-                        .child(n),
-                )
-                .child(
-                    div()
-                        .text_size(look.text(11.))
-                        .text_color(kit::dim(look))
-                        .child(w.to_owned()),
-                )
+                .child(kit::figure(look, n, 15., look.c.text))
+                .child(kit::cap(look, w, look.c.faint))
         };
         div()
             .id("memory-strip")
@@ -1007,27 +941,26 @@ impl Shell {
             .gap(look.px(16.))
             .h(look.px(72.))
             .flex_shrink_0()
-            .px(look.px(14.))
-            .rounded(look.px(8.))
-            .border(look.fixed(1.))
-            .border_color(look.c.border_variant)
-            .bg(look.c.elevated.opacity(0.5))
+            .border_t(look.fixed(1.))
+            .border_color(look.c.border)
             .child(
                 div()
                     .flex()
                     .flex_col()
+                    .gap(look.px(3.))
                     .flex_1()
                     .min_w_0()
                     .child(
-                        div()
-                            .truncate()
-                            .text_size(look.text(11.))
-                            .text_color(look.c.text_muted)
-                            .child(if t.required {
+                        kit::cap(
+                            look,
+                            &if t.required {
                                 format!("{} · required", t.folder)
                             } else {
                                 t.folder.clone()
-                            }),
+                            },
+                            look.c.faint,
+                        )
+                        .truncate(),
                     )
                     .child(
                         div()
@@ -1040,7 +973,7 @@ impl Shell {
             .child(count(t.ignored.to_string(), "never opened"))
             .child(count(t.reads.to_string(), "reads"))
             .child(
-                kit::button(look, "memory-open", "Open note ↩", Kind::Primary).on_click(
+                kit::button_key(look, "memory-open", "Open note", "↩", Kind::Primary).on_click(
                     cx.listener(move |this, _, window, cx| {
                         this.open_memory_tile(path.clone(), window, cx);
                     }),
@@ -1091,6 +1024,7 @@ impl Shell {
                 regular.weight = FontWeight::NORMAL;
                 let mut medium = regular.clone();
                 medium.weight = FontWeight::MEDIUM;
+                let mono = gpui::font(SharedString::from(kit::MONO));
                 let shape = |window: &mut Window,
                              text: &str,
                              font: &gpui::Font,
@@ -1105,15 +1039,10 @@ impl Shell {
                         continue;
                     }
                     let b = to_b(frame);
-                    let text = name.to_owned();
-                    if let Some(line) = shape(
-                        window,
-                        &text,
-                        &medium,
-                        lk.c.text_muted,
-                        lk.text(10.5),
-                        b.size.width,
-                    ) {
+                    let text = name.to_uppercase();
+                    if let Some(line) =
+                        shape(window, &text, &mono, lk.c.faint, lk.text(10.), b.size.width)
+                    {
                         line.paint(
                             point(b.origin.x + px(2.), b.origin.y + px(1.)),
                             lk.px(14.),
@@ -1142,10 +1071,9 @@ impl Shell {
                         outline = Some(b);
                     }
                     let is_hover = hover == Some(*i);
-                    let radius = lk.px(3.).min(b.size.width / 4.);
                     window.paint_quad(quad(
                         b,
-                        radius,
+                        px(0.),
                         bg,
                         if is_hover { lk.fixed(1.) } else { px(0.) },
                         lk.c.text_muted,
@@ -1155,7 +1083,7 @@ impl Shell {
                     if lit && b.size.width >= lk.px(44.) && b.size.height >= lk.px(30.) {
                         let pad = lk.px(6.);
                         let max = b.size.width - pad * 2.;
-                        let fg = on_color(&lk, sh);
+                        let fg = lk.c.text;
                         let mask = gpui::ContentMask { bounds: b };
                         window.with_content_mask(Some(mask), |window| {
                             if let Some(line) =
@@ -1175,7 +1103,7 @@ impl Shell {
                                 && let Some(line) = shape(
                                     window,
                                     &t.value_label(by),
-                                    &regular,
+                                    &mono,
                                     fg.opacity(0.75),
                                     lk.text(11.),
                                     max,
@@ -1197,18 +1125,15 @@ impl Shell {
                         && b.size.width >= lk.px(14.)
                         && b.size.height >= lk.px(14.)
                     {
-                        let d = lk.px(7.);
+                        let d = lk.px(8.);
                         let at = point(
                             b.origin.x + b.size.width - d - lk.px(4.),
                             b.origin.y + lk.px(4.),
                         );
-                        window.paint_quad(
-                            fill(
-                                Bounds::new(at, size(d, d)),
-                                lk.c.warn.opacity(if lit { 1.0 } else { 0.3 }),
-                            )
-                            .corner_radii(d / 2.),
-                        );
+                        window.paint_quad(fill(
+                            Bounds::new(at, size(d, d)),
+                            lk.c.warn.opacity(if lit { 1.0 } else { 0.3 }),
+                        ));
                     }
                 }
                 // The notes no start block carried: one muted block.
@@ -1216,7 +1141,7 @@ impl Shell {
                     let b = to_b(r);
                     window.paint_quad(quad(
                         b,
-                        lk.px(3.),
+                        px(0.),
                         lk.c.hover.opacity(0.5),
                         lk.fixed(1.),
                         lk.c.border_variant,
@@ -1228,7 +1153,7 @@ impl Shell {
                     window.with_content_mask(Some(mask), |window| {
                         // Short lines, so a narrow block still says it.
                         let lines = [
-                            ("NEVER INJECTED".to_owned(), &medium, lk.text(10.5)),
+                            ("NEVER INJECTED".to_owned(), &mono, lk.text(10.)),
                             (format!("{n} notes"), &medium, lk.text(12.)),
                             ("switch to Reads".to_owned(), &regular, lk.text(11.5)),
                             ("or Size to see them".to_owned(), &regular, lk.text(11.5)),
@@ -1258,7 +1183,7 @@ impl Shell {
                 if let Some(b) = outline {
                     window.paint_quad(quad(
                         b,
-                        lk.px(3.).min(b.size.width / 4.),
+                        px(0.),
                         gpui::transparent_black(),
                         lk.fixed(2.),
                         lk.c.text,
@@ -1309,7 +1234,6 @@ impl Shell {
                     .top(y)
                     .w(w)
                     .p(look.px(10.))
-                    .rounded(look.px(6.))
                     .bg(look.c.elevated)
                     .border(look.fixed(1.))
                     .border_color(look.c.border)
@@ -1317,12 +1241,7 @@ impl Shell {
                     .flex()
                     .flex_col()
                     .gap(look.px(3.))
-                    .child(
-                        div()
-                            .text_size(look.text(10.5))
-                            .text_color(look.c.text_muted)
-                            .child(t.folder.clone()),
-                    )
+                    .child(kit::cap(look, &t.folder, look.c.faint))
                     .child(
                         div()
                             .font_weight(FontWeight::MEDIUM)
@@ -1335,12 +1254,11 @@ impl Shell {
                             .text_color(look.c.text_muted)
                             .child(l)
                     }))
-                    .child(
-                        div()
-                            .text_size(look.text(11.))
-                            .text_color(kit::dim(look))
-                            .child("click selects · double-click opens"),
-                    ),
+                    .child(div().pt(look.px(2.)).child(kit::cap(
+                        look,
+                        "Click selects · double-click opens",
+                        look.c.faint,
+                    ))),
             )
         });
 
@@ -1353,10 +1271,6 @@ impl Shell {
             .relative()
             .flex_1()
             .min_h(look.px(120.))
-            .rounded(look.px(8.))
-            .border(look.fixed(1.))
-            .border_color(look.c.border_variant)
-            .p(look.px(6.))
             .cursor_pointer()
             .child(paint)
             .on_mouse_move(cx.listener(move |this, e: &gpui::MouseMoveEvent, _, cx| {
@@ -1409,11 +1323,12 @@ impl Shell {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let narrow_cols = false;
-        let head = |t: &str| {
+        let head = |t: &str| kit::cap(look, t, look.c.faint);
+        let num = |w: f32| {
             div()
-                .text_size(look.text(10.5))
-                .text_color(look.c.text_muted)
-                .child(super::kit::sentence(&t.to_uppercase()))
+                .w(look.px(w))
+                .font_family(kit::MONO)
+                .text_size(look.text(11.5))
         };
         let mut rows: Vec<gpui::AnyElement> = Vec::new();
         rows.push(
@@ -1422,7 +1337,10 @@ impl Shell {
                 .items_center()
                 .gap(look.px(10.))
                 .px(look.px(10.))
-                .h(look.px(26.))
+                .h(look.px(30.))
+                .border_b(look.fixed(1.))
+                .border_color(look.c.border)
+                .child(div().w(look.px(8.)).flex_shrink_0())
                 .child(div().flex_1().min_w_0().child(head("Note")))
                 .child(div().w(look.px(110.)).child(head("Folder")))
                 .child(div().w(look.px(52.)).child(head("Reads")))
@@ -1450,12 +1368,19 @@ impl Shell {
                     .items_center()
                     .gap(look.px(10.))
                     .px(look.px(10.))
-                    .h(look.px(30.))
-                    .rounded(look.px(5.))
+                    .h(look.px(32.))
+                    .border_b(look.fixed(1.))
+                    .border_color(look.c.border.opacity(0.6))
                     .text_size(look.text(12.5))
                     .cursor_pointer()
                     .when(sel, |d| d.bg(look.c.selected))
                     .hover(|h| h.bg(look.c.hover))
+                    .child(
+                        div()
+                            .flex_shrink_0()
+                            .w(look.px(8.))
+                            .children(t.overdue.map(|_| kit::square(look, kit::Mark::Wait))),
+                    )
                     .child(
                         div()
                             .flex()
@@ -1463,17 +1388,12 @@ impl Shell {
                             .gap(look.px(8.))
                             .flex_1()
                             .min_w_0()
-                            .child(
-                                div()
-                                    .flex_shrink_0()
-                                    .size(look.px(10.))
-                                    .rounded(look.px(2.))
-                                    .bg(shade_color(look, t.shade(by), by)),
-                            )
-                            .child(div().min_w_0().truncate().child(t.title.clone()))
-                            .when(t.overdue.is_some(), |d| {
-                                d.child(kit::dot(look, look.c.warn))
-                            }),
+                            .child(div().flex_shrink_0().size(look.px(8.)).bg(shade_color(
+                                look,
+                                t.shade(by),
+                                by,
+                            )))
+                            .child(div().min_w_0().truncate().child(t.title.clone())),
                     )
                     .child(
                         div()
@@ -1482,11 +1402,10 @@ impl Shell {
                             .text_color(look.c.text_muted)
                             .child(t.folder.clone()),
                     )
-                    .child(div().w(look.px(52.)).child(t.reads.to_string()))
-                    .child(div().w(look.px(56.)).child(t.injected.to_string()))
+                    .child(num(52.).child(t.reads.to_string()))
+                    .child(num(56.).child(t.injected.to_string()))
                     .child(
-                        div()
-                            .w(look.px(64.))
+                        num(64.)
                             .when(t.mostly_ignored(), |d| d.text_color(look.c.error))
                             .child(match t.ignored_share() {
                                 Some(s) => format!("{:.0}%", s * 100.0),
@@ -1494,12 +1413,11 @@ impl Shell {
                             }),
                     )
                     .child(
-                        div()
-                            .w(look.px(64.))
+                        num(64.)
                             .text_color(look.c.text_muted)
                             .child(memory::human(t.bytes)),
                     )
-                    .child(div().w(look.px(48.)).child(t.edits.to_string()))
+                    .child(num(48.).child(t.edits.to_string()))
                     .child(
                         div()
                             .w(look.px(96.))
@@ -1524,10 +1442,6 @@ impl Shell {
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
-            .rounded(look.px(8.))
-            .border(look.fixed(1.))
-            .border_color(look.c.border_variant)
-            .p(look.px(4.))
             .children(rows)
             .into_any_element()
     }
