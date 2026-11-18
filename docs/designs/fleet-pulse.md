@@ -1,6 +1,6 @@
 # Fleet Pulse
 
-Status: accepted, to build after 0.4.1.
+Status: accepted, to build after 0.4.1. Amended 17 Nov 2026: Pulse is a queue and one focused item, with the fleet in a sheet (the first build showed everything at once).
 
 ## Background
 
@@ -12,17 +12,21 @@ The rows answer "what is each session doing", one line at a time. They do not sh
 
 Fleet gets a third view, **Pulse**, and becomes its default. A switcher in the toolbar picks Pulse, Lanes or Rows; Lanes and Rows are unchanged.
 
-Pulse is one screen:
+Pulse answers "what should I do next?" first and "what is the fleet doing?" second. It is a queue and one item at a time, not a dashboard of everything at once:
 
-- **Header.** How many sessions are working, how many sub-agents run under them, how many need you; a histogram of tool calls and edits over the shown span (1 hour, 3 hours or the day), stacked by account and ending at a *now line*; tool calls in the last 5 minutes, agent work today, and lines added and removed today.
-- **Needs you.** Each waiting session as a lane with its question quoted, how long it has waited, and three ways in: open the thread in the app, open it in its client (T3 Code), or open a terminal. With exactly one session waiting, it is drawn as a large card with its last calls, its diff and pull request, its checked claims and the kept rules it started with.
-- **Next up.** One ranked list of what will want you soon: an account that runs dry before its reset (with *Resume them on* another account), a finished session's unverified claim (*Check*), a destructive command that did harm (*Open incident*), and a correction that is a rule candidate (*Keep now*).
-- **Working.** Each live session as a waveform of its activity in 2-minute steps up to the now line, its sub-agents as strands under it, and on the right its current call (verb, file, lines, running time) with *started with N kept rules* or *you corrected it at 16:22*.
-- **To review, Quiet, Settled.** Compact lanes and one-line summaries.
-- **Usage rail.** Per account: the 5-hour figure, a drain chart of the window so far with the projection to its reset, the burn rate per hour, the reset countdown, the 7-day bar, *use next* or *low*, and when an account will empty before its reset: *Empty about 16:48, 27m before the reset. 3 sessions will stop.*
-- **Memory today** (sessions that started with a kept rule; today's corrections and what will happen to each) and **Tonight** (what the next nightly pass will read).
+- **Strip.** One line above both panes: how many sessions are working and how many need you on the left; on the right each account's 5-hour meter (bar, figure, reset time). An account that will empty before its reset turns its meter red and says when (*empty 16:48*); nothing else in the strip calls for attention.
+- **Queue** (left pane). Two groups in one list. *Needs you*: each waiting session (a question, or a plan waiting for approval), oldest first. *Next up*: what will want you soon, in the ranking below: an account that runs dry before its reset, a finished session's unverified claim, a destructive command that did harm, and a correction that is a rule candidate. Each row is a status icon, a title, one line of reason, its age and its account's dot. One hint line at the foot of the pane names the keys.
+- **Focus** (right pane). The selected item, alone, in one centred column:
+  - *A waiting session*: its account and project, its title, one line of facts (branch, pull request with its diff, checks, *started with N kept rules*, each with its detail on hover), the question quoted large, and its ways in: **Open thread** (in the app), **T3 Code** (its client), **Terminal**, **Later**. Under them, the session's activity over the shown span as one strip of 2-minute beats with its marks and the time it has waited, and its last three calls, with *Show all* for the rest.
+  - *A plan waiting for approval*: the plan's steps as a numbered list, and the same ways in.
+  - *An account that runs dry*: its drain chart (the window so far, the projection to empty, the reset), the sessions that will stop and what each is doing, and **Resume them on** the account to use next.
+  - *An unverified claim, a destructive incident, a rule candidate*: the one fact, its evidence (what ran or did not; the command and what it overwrote; the corrections side by side), and the one action: **Check**, **Open incident**, **Keep now**.
+- **Fleet sheet.** A row pinned to the foot of the queue, *5 working · 7 sub-agents*, opens a sheet over the queue (`F`; `Esc` closes it) with Working, To review, Quiet and Settled: each working session as one row with a waveform of its last 30 minutes, its sub-agent count, its current call and its marks. Under the lists, **Memory today** (sessions that started with a kept rule; today's corrections and what will happen to each) and **Tonight** (what the next nightly pass will read).
+- **All clear.** With nothing in the queue, the focus pane shows the fleet's histogram of tool calls and edits over the span, stacked by account and ending at a now line, with tool calls in the last 5 minutes, agent work today, lines added and removed today, and the time of tonight's pass.
 
-Marks on the lanes: a ring where a session started with a kept rule, a diamond where you corrected it, a square for a destructive command, a dot for a merged pull request.
+Marks: a ring where a session started with a kept rule, a diamond where you corrected it, a square for a destructive command, a dot for a merged pull request.
+
+An item leaves the queue when what it reports is no longer true: the session answers or resumes, the account's window resets, the lesson is kept or dismissed; unverified claims and destructive incidents stay for the day, as Next up ranks them. Acting on an item opens the place where it is dealt with; Pulse keeps no state of its own beyond *Later* for the app's run. Hippo never writes into a session: the ways in open the session where it runs.
 
 Nothing new is written anywhere. Pulse is a reading of files hippo already has.
 
@@ -69,11 +73,21 @@ A session's start block is already recorded (`rollup` table `context`: the notes
 3. a destructive incident today;
 4. a correction today that a pending lesson already holds (a rule candidate), with that lesson.
 
+### 8. A waiting plan's steps
+
+`State::Waiting` holds the plan's last line (`asked`). The focus pane shows the whole plan: `fleet::Row` gains `plan`, the text of the unanswered `ExitPlanMode` call's `plan` input as the transcript tail already reads it, split into steps at its numbered or bulleted lines (at most 12; the rest are counted). A plan without such lines is shown as its text, wrapped. Nothing is written.
+
 ## The app
 
-Pulse is drawn by hand: each lane's beats, the histogram and the drain charts are painted on canvases; the time grid and the now line are one overlay across the scrolling lanes; marks are vector paths. Only needs-you lanes animate (a pulsing dot), and not when the system asks for reduced motion; with nothing waiting the view draws only on refresh. It follows the app's tokens in light and dark, and holds from the app's minimum window size up, dropping the right rail under the lanes, then the activity column, as the window narrows.
+How Pulse is drawn (its header readouts, the scope band, the marks, the focus pane's tables) is in [app-instrument.md](app-instrument.md), which takes precedence where the two differ: there the strip becomes the header's readouts and meters, the span picker and account filter leave Pulse, the focus pane's facts become a table, Memory today and Tonight move to Home, and the sidebar lists no sessions anywhere.
 
-Keys: `↵` opens the first waiting thread, `T` opens it in its client, `⌘T` opens a terminal, `S` (Later) skips to the next, `J`/`K` move in Next up, `U` resumes the runs-dry sessions on the account to use next.
+Pulse's charts are drawn by hand: the activity strip's beats, the sheet's waveforms, the histogram and the drain chart are painted on canvases, and marks are vector paths. Only the queue's waiting rows animate (a pulsing dot), and not when the system asks for reduced motion; with nothing waiting the view draws only on refresh. It follows the app's tokens in light and dark: one accent; the status colours only on icons, meters and marks, never on whole sentences; the account colours only on dots, bars and beats.
+
+Density is a requirement: the default view shows the strip, the queue and one item. Everything else is one key away (the sheet, *Show all*, the hover details), never on screen by default. While Pulse is shown, the sidebar keeps its sections but drops its list of sessions: the queue and the sheet are that list here, and the sidebar's Working shelf (live and quiet sessions) would contradict the strip's count of sessions working now.
+
+The queue is about 380 points wide and the focus column at most 640, centred in what is left. As the window narrows the queue narrows to 300; below about 900 points of content the panes stack: the queue fills the view and `↵` opens the item's focus with a back button (`Esc`).
+
+Keys: `J`/`K` (or the arrows) move in the queue; `↵` does the selected item's first action (Open thread, Resume them on, Check, Open incident, Keep now); `T` opens a waiting session in its client and `⌘T` in a terminal; `U` resumes the runs-dry sessions on the account to use next; `S` (Later) puts the item after the others in its group until the app restarts; `F` opens the fleet sheet; `Esc` closes it.
 
 ## Alternatives
 
@@ -81,3 +95,6 @@ Keys: `↵` opens the first waiting thread, `T` opens it in its client, `⌘T` o
 - **Record the rules served from the hook.** The start block is already recorded with the notes it carried; matching kept lessons to those notes needs no new record.
 - **Sample the usage meter on a timer.** It would need a writer. The messages already give the series; only the scale is needed.
 - **A radar view** of accounts and sessions was mocked and left for later; the switcher has room for it.
+- **Everything on one screen** (the first build): a header histogram, needs-you lanes, Next up, working waveforms, To review, Quiet and Settled, and a rail of usage, memory and tonight, all at once. Each fact appeared in two or three places and nothing said what to do first. A timeline of every session on one time axis, with usage drawn past the now line, was mocked too; it shows the fleet best but leaves the next action to the reader.
+- **Reply from Pulse.** A reply box under the question, with suggested replies, was mocked. Hippo has no way to write into a running session: T3 Code's link starts a new draft thread, and the other clients take input only in their own window. Suggested replies would also need a model call or a guess at the question's options. The ways in open the session where it runs instead.
+- **Approve a plan from Pulse.** The same: approval happens in the session's client.
