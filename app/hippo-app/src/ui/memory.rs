@@ -79,8 +79,8 @@ pub fn shade_color(look: &Look, s: Shade, by: SizeBy) -> Hsla {
         look.c.text
     };
     match s {
-        Shade::Fresh(Fresh::Week) => a.opacity(0.34),
-        Shade::Fresh(Fresh::Month) => a.opacity(0.16),
+        Shade::Fresh(Fresh::Week) => a.opacity(0.18),
+        Shade::Fresh(Fresh::Month) => a.opacity(0.09),
         Shade::Fresh(Fresh::Older) => look.c.hover,
         Shade::Required => look.c.focus.opacity(0.75),
         Shade::Relevant => look.c.focus.opacity(0.35),
@@ -700,7 +700,7 @@ impl Shell {
                     t.reads,
                     if t.reads == 1 { "" } else { "s" },
                     if t.edits > 0 {
-                        format!(" · {} edits", t.edits)
+                        format!(" · {} edit{}", t.edits, if t.edits == 1 { "" } else { "s" })
                     } else {
                         String::new()
                     }
@@ -1207,10 +1207,12 @@ impl Shell {
                 y = (pos.y - bounds.origin.y - look.px(110.)).max(px(0.));
             }
             let mut lines = vec![format!(
-                "{} reads · {} · {} edits (30 days)",
+                "{} read{} · {} · {} edit{} (30 days)",
                 t.reads,
+                if t.reads == 1 { "" } else { "s" },
                 memory::human(t.bytes),
-                t.edits
+                t.edits,
+                if t.edits == 1 { "" } else { "s" }
             )];
             if t.injected > 0 {
                 lines.push(format!(
