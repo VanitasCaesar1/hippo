@@ -41,7 +41,6 @@ impl Shell {
                 let p = f.use_next.clone()?;
                 let h = f.room(&p)?;
                 let l = tighter(h)?;
-                let guess = hippo_view::fleet::inferred(&l);
                 Some(
                     div()
                         .id("composer-account")
@@ -54,16 +53,10 @@ impl Shell {
                             super::home::pct_text(&l)
                         )))
                         .child(kit::cap(look, "Account", look.c.faint))
+                        // The share left is in Home's readouts; a second
+                        // figure here (the tighter of the two limits) read
+                        // as a contradiction.
                         .child(kit::cap(look, &kit::profile_name(&p), look.c.text))
-                        .child(kit::cap(
-                            look,
-                            &super::home::pct_left(&l),
-                            if guess {
-                                look.c.faint
-                            } else {
-                                look.c.text_muted
-                            },
-                        ))
                         .into_any_element(),
                 )
             })

@@ -2195,7 +2195,12 @@ pub fn harm_title(command: &str) -> String {
         .unwrap_or(command)
         .to_lowercase();
     let kind = if c.contains("push") && (c.contains("--force") || c.contains(" -f")) {
-        "A force push"
+        // The branch it overwrote tells two force pushes apart.
+        // From the command as typed: branch names keep their case.
+        return match push_target(command.strip_prefix("Bash: ").unwrap_or(command)) {
+            Some(b) => format!("A force push to {b} did harm"),
+            None => "A force push did harm".to_owned(),
+        };
     } else if c.contains("reset --hard") {
         "A hard reset"
     } else if c.contains("rm -rf") || c.contains("rm -fr") {
@@ -2208,6 +2213,24 @@ pub fn harm_title(command: &str) -> String {
         "A destructive command"
     };
     format!("{kind} did harm")
+}
+
+/// The branch a `git push` writes: the destination of its last refspec
+/// (`notes-draft`, or `main` in `HEAD:main`), when it names one after the
+/// remote.
+fn push_target(command: &str) -> Option<String> {
+    let words: Vec<&str> = command.split_whitespace().collect();
+    let at = words.iter().position(|w| *w == "push")?;
+    let args: Vec<&str> = words[at + 1..]
+        .iter()
+        .copied()
+        .take_while(|w| !matches!(*w, "&&" | "||" | ";" | "|"))
+        .filter(|w| !w.starts_with('-'))
+        .collect();
+    let spec = args.get(1..)?.last()?;
+    let dest = spec.rsplit(':').next()?.trim_start_matches('+');
+    let dest = dest.strip_prefix("refs/heads/").unwrap_or(dest);
+    (!dest.is_empty()).then(|| dest.to_owned())
 }
 
 /// A focused item's top line: its state label, a clock, and where it is
@@ -2609,8 +2632,13 @@ mod tests {
     fn hippo_names_what_a_destructive_command_was() {
         assert_eq!(
             harm_title("Bash: git push --force origin notes-draft"),
-            "A force push did harm"
+            "A force push to notes-draft did harm"
         );
+        assert_eq!(
+            harm_title("git push -f origin HEAD:refs/heads/main && echo ok"),
+            "A force push to main did harm"
+        );
+        assert_eq!(harm_title("git push --force"), "A force push did harm");
         assert_eq!(
             harm_title("git reset --hard HEAD~2"),
             "A hard reset did harm"
