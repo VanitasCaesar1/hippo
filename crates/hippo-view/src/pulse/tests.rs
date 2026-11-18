@@ -89,6 +89,7 @@ fn row(id: &str, profile: &str, state: State) -> Row {
         asked: None,
         outcome: None,
         rules: Vec::new(),
+        plan: None,
     }
 }
 

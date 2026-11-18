@@ -168,6 +168,93 @@ pub struct Row {
     /// The kept rules its recorded start block carried ([`serve_rules`]);
     /// empty when the block was not recorded.
     pub rules: Vec<ServedRule>,
+    /// A plan waiting for approval, as its steps.
+    #[serde(skip)]
+    pub plan: Option<Plan>,
+}
+
+/// The most steps a [`Plan`] lists.
+pub const PLAN_STEPS: usize = 12;
+
+/// A plan waiting for approval: its numbered or bulleted lines, or its
+/// text when it has none.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Plan {
+    /// Its steps, in order, at most [`PLAN_STEPS`].
+    pub steps: Vec<String>,
+    /// Steps past those.
+    pub more: usize,
+    /// The plan's text, when it has no steps.
+    pub text: Option<String>,
+}
+
+/// A plan's text as its steps: its top-level numbered lines (`1.`, `2)`)
+/// when it has any, else its least indented bulleted lines (`-`, `*`,
+/// `+`), else the text itself. Markdown emphasis and checkboxes are
+/// dropped and each step is redacted.
+pub fn plan_steps(text: &str) -> Plan {
+    fn numbered(l: &str) -> Option<&str> {
+        let digits = l.find(|c: char| !c.is_ascii_digit())?;
+        if digits == 0 || digits > 3 {
+            return None;
+        }
+        let rest = l[digits..].strip_prefix(['.', ')'])?;
+        rest.starts_with(' ').then(|| rest.trim())
+    }
+    fn bulleted(l: &str) -> Option<&str> {
+        let rest = l.strip_prefix(['-', '*', '+'])?;
+        rest.starts_with(' ').then(|| rest.trim())
+    }
+    fn clean(s: &str) -> String {
+        let s = s
+            .trim_start_matches("[ ] ")
+            .trim_start_matches("[x] ")
+            .trim_start_matches("[X] ")
+            .replace("**", "")
+            .replace("__", "");
+        let s = s.trim().trim_end_matches(':').trim();
+        hippo_core::redact::redact(s).as_str().to_owned()
+    }
+    let lines: Vec<(usize, &str)> = text
+        .lines()
+        .map(|l| (l.len() - l.trim_start().len(), l.trim()))
+        .collect();
+    let mut steps: Vec<String> = lines
+        .iter()
+        .filter(|(indent, _)| *indent < 2)
+        .filter_map(|(_, l)| numbered(l))
+        .map(clean)
+        .filter(|s| !s.is_empty())
+        .collect();
+    if steps.is_empty() {
+        let least = lines
+            .iter()
+            .filter(|(_, l)| bulleted(l).is_some())
+            .map(|(indent, _)| *indent)
+            .min();
+        steps = lines
+            .iter()
+            .filter(|(indent, _)| Some(*indent) == least)
+            .filter_map(|(_, l)| bulleted(l))
+            .map(clean)
+            .filter(|s| !s.is_empty())
+            .collect();
+    }
+    if steps.is_empty() {
+        let text = text.trim();
+        return Plan {
+            steps,
+            more: 0,
+            text: (!text.is_empty()).then(|| hippo_core::redact::redact(text).as_str().to_owned()),
+        };
+    }
+    let more = steps.len().saturating_sub(PLAN_STEPS);
+    steps.truncate(PLAN_STEPS);
+    Plan {
+        steps,
+        more,
+        text: None,
+    }
 }
 
 /// A kept rule a session started with: a kept lesson whose note was in
@@ -978,6 +1065,10 @@ pub fn build(inp: &Inputs<'_>) -> Fleet {
             .waiting
             .clone()
             .filter(|w| newest_sub.is_none_or(|t| t <= w.at) && !limited);
+        let plan = waiting
+            .as_ref()
+            .and_then(|w| w.plan_text.as_deref())
+            .map(plan_steps);
         let state = if let Some(w) = waiting {
             State::Waiting {
                 at: w.at,
@@ -1105,6 +1196,7 @@ pub fn build(inp: &Inputs<'_>) -> Fleet {
             asked: f.and_then(|f| f.asked.clone()),
             outcome: f.and_then(|f| f.outcome.clone()),
             rules: Vec::new(),
+            plan,
             transcript: path,
             tool,
             id,
