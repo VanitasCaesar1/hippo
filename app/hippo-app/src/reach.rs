@@ -231,7 +231,10 @@ pub fn menu(
         };
     };
     let shelves = crate::shelving::Shelves::of(f, marks);
-    let tally = shelves.tally();
+    // Working is sessions working now (`Row::working`), as Home and Pulse
+    // count them; the Working shelf also holds quiet ones.
+    let mut tally = shelves.tally();
+    tally.working = f.rows.iter().filter(|r| r.working()).count();
     let needs = f.needs_you();
     let rows: Vec<MenuRow> = needs
         .iter()
@@ -255,11 +258,11 @@ pub fn menu(
         })
         .collect();
     let working = tally.working;
-    // What working agents are doing, as Home and Fleet say it,
-    // and the sidebar's Working shelf.
+    // What working agents are doing, as Home and Pulse say it.
     let live: Vec<MenuRow> = shelves
         .rows(fleet::Shelf::Working)
         .iter()
+        .filter(|r| r.working())
         .take(LIVE_ROWS)
         .map(|r| MenuRow {
             title: cut(&title_of(r), TITLE_CHARS),

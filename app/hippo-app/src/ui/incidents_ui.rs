@@ -112,25 +112,6 @@ impl Shell {
         self.incident_list().iter().find(|i| i.id == id).cloned()
     }
 
-    /// The sidebar's count: incidents newer than the page was last opened.
-    pub(crate) fn incidents_new(&self) -> usize {
-        inc::count_new(
-            self.incident_list(),
-            &self.incidents_ui.dismissed,
-            self.incidents_ui.seen_at,
-        )
-    }
-
-    /// Home's `n incidents today`.
-    pub(crate) fn incidents_today(&self) -> usize {
-        inc::count_today(
-            self.incident_list(),
-            &self.incidents_ui.dismissed,
-            OffsetDateTime::now_utc(),
-            super::status::local_offset(),
-        )
-    }
-
     /// Manage's row: `Incidents: 2 marked not an incident of 31 this week`.
     pub(crate) fn incidents_alarm_line(&self) -> Option<String> {
         let (n, m) = inc::false_alarms(self.incident_list(), &self.incidents_ui.dismissed);
@@ -212,11 +193,6 @@ impl Shell {
         self.state.tabs.open(Tab::Incident(id.to_owned()));
         window.focus(&self.focus, cx);
         self.after_state_change(window, cx);
-    }
-
-    /// Opens the list filtered to nothing (Home's link).
-    pub(crate) fn open_incidents(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.show_section(Section::Incidents, window, cx);
     }
 
     /// Shows a line at the bottom right for a few seconds.
@@ -1736,41 +1712,6 @@ impl Shell {
                 )
                 .into_any_element(),
         )
-    }
-
-    /// Home's `n incidents today` link, when n > 0.
-    pub(super) fn incidents_home_link(
-        &self,
-        look: &Look,
-        cx: &mut Context<Self>,
-    ) -> Option<gpui::AnyElement> {
-        let n = self.incidents_today();
-        (n > 0).then(|| {
-            div()
-                .flex()
-                .flex_shrink_0()
-                .items_baseline()
-                .gap(look.px(6.))
-                .text_size(look.text(13.))
-                .child(div().text_color(look.c.faint).child("·"))
-                .child(
-                    div()
-                        .id("hero-incidents")
-                        .role(Role::Link)
-                        .flex_shrink_0()
-                        .text_color(look.c.accent_text)
-                        .cursor_pointer()
-                        .hover(|h| h.underline())
-                        .child(format!(
-                            "{n} incident{} today",
-                            if n == 1 { "" } else { "s" }
-                        ))
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.open_incidents(window, cx);
-                        })),
-                )
-                .into_any_element()
-        })
     }
 }
 

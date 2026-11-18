@@ -73,34 +73,6 @@ pub fn restore(dismissed: &BTreeMap<String, i64>, id: &str, now: i64) -> BTreeMa
     out
 }
 
-/// The sidebar's count: incidents (not quiet, not dismissed) newer than
-/// `seen_at`; all of them when the page was never opened.
-pub fn count_new(
-    list: &[Incident],
-    dismissed: &BTreeMap<String, i64>,
-    seen_at: Option<i64>,
-) -> usize {
-    shown(list, dismissed)
-        .into_iter()
-        .filter(|i| !i.quiet && !i.kind.is_hint())
-        .filter(|i| seen_at.is_none_or(|s| i.at.unix_timestamp() > s))
-        .count()
-}
-
-/// Home's `n incidents today` (local day, not quiet, not dismissed).
-pub fn count_today(
-    list: &[Incident],
-    dismissed: &BTreeMap<String, i64>,
-    now: OffsetDateTime,
-    offset: UtcOffset,
-) -> usize {
-    let today = now.to_offset(offset).date();
-    shown(list, dismissed)
-        .into_iter()
-        .filter(|i| !i.quiet && !i.kind.is_hint() && i.at.to_offset(offset).date() == today)
-        .count()
-}
-
 /// Manage's row: `(marked, of)`: incidents this week marked "Not an
 /// incident", and all of the week's (quiet ones left out).
 pub fn false_alarms(list: &[Incident], dismissed: &BTreeMap<String, i64>) -> (usize, usize) {
@@ -838,51 +810,6 @@ mod tests {
         let f = [mk("d", Kind::Failed)];
         let r: Vec<&Incident> = f.iter().collect();
         assert_eq!(quiet_label(&r), "Not counted: 1 failed and left");
-    }
-
-    #[test]
-    fn counts_leave_out_quiet_and_dismissed_and_what_was_seen() {
-        let a = inc("a", Kind::Corrected, NOW - Duration::hours(1));
-        let b = inc("b", Kind::Blocked, NOW - Duration::hours(5));
-        let mut q = inc("q", Kind::Destructive, NOW - Duration::minutes(5));
-        q.quiet = true;
-        let yesterday = inc("y", Kind::Failed, NOW - Duration::days(1));
-        let list = [a, b, q, yesterday];
-        let none = BTreeMap::new();
-        assert_eq!(count_new(&list, &none, None), 3, "quiet ones never count");
-        let seen = (NOW - Duration::hours(2)).unix_timestamp();
-        assert_eq!(count_new(&list, &none, Some(seen)), 1);
-        let mut dismissed = BTreeMap::new();
-        dismissed.insert("a".to_owned(), 0);
-        assert_eq!(count_new(&list, &dismissed, Some(seen)), 0);
-        assert_eq!(count_today(&list, &none, NOW, UtcOffset::UTC), 2);
-        assert_eq!(count_today(&list, &dismissed, NOW, UtcOffset::UTC), 1);
-        assert_eq!(false_alarms(&list, &dismissed), (1, 3));
-        assert_eq!(false_alarms(&[], &none), (0, 0));
-    }
-
-    #[test]
-    fn a_hint_to_check_is_counted_nowhere_and_listed_apart() {
-        let a = inc("a", Kind::Corrected, NOW - Duration::hours(1));
-        let h = inc("h", Kind::Unverified, NOW - Duration::hours(2));
-        let list = [a, h];
-        let none = BTreeMap::new();
-        assert_eq!(count_new(&list, &none, None), 1);
-        assert_eq!(count_today(&list, &none, NOW, UtcOffset::UTC), 1);
-        let rows: Vec<&Incident> = list.iter().collect();
-        let d = days(&rows, UtcOffset::UTC);
-        assert_eq!(d.len(), 1);
-        assert_eq!(
-            d[0].rows.iter().map(|i| i.id.as_str()).collect::<Vec<_>>(),
-            ["a"]
-        );
-        assert_eq!(
-            hints(&rows)
-                .iter()
-                .map(|i| i.id.as_str())
-                .collect::<Vec<_>>(),
-            ["h"]
-        );
     }
 
     #[test]

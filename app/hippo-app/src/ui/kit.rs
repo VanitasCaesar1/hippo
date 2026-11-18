@@ -33,7 +33,7 @@ pub enum Kind {
     Disabled,
 }
 
-/// A button: 28 points high, radius 8, its label on one line.
+/// A button: 28 points high, 3-point corners, its label on one line.
 pub fn button(
     look: &Look,
     id: impl Into<gpui::ElementId>,
@@ -44,7 +44,7 @@ pub fn button(
 }
 
 /// A button with its own key written inside after the label (`Keep ↵`,
-/// `Copy resume ⌘C`), in micro type: faint, or the primary text at 55 %.
+/// `Copy resume ⌘C`), in SF Mono: faint, or the primary text at 55 %.
 pub fn button_key(
     look: &Look,
     id: impl Into<gpui::ElementId>,
@@ -85,8 +85,8 @@ pub fn button_icon(
         .flex()
         .items_center()
         .justify_center()
-        .gap(look.px(6.))
-        .rounded(look.px(8.))
+        .gap(look.px(10.))
+        .rounded(look.px(3.))
         .border(look.fixed(1.))
         .border_color(gpui::transparent_black())
         .text_size(look.text(12.5))
@@ -96,7 +96,8 @@ pub fn button_icon(
         .when(!key.is_empty(), |d| {
             d.child(
                 div()
-                    .text_size(look.text(11.))
+                    .font_family(MONO)
+                    .text_size(look.text(10.5))
                     .text_color(key_color)
                     .child(key.to_owned()),
             )
@@ -508,28 +509,6 @@ fn mark_sized(look: &Look, profile: Option<&str>, size: f32, ring: Option<Hsla>)
         .child(profile_letter(profile))
 }
 
-/// A project's mark: its first two letters, muted, on the raised fill.
-pub fn project_mark(look: &Look, project: &str, size: f32) -> gpui::Div {
-    let letters: String = {
-        let mut c = project.chars().filter(|c| c.is_alphanumeric());
-        let a = c.next().map(|c| c.to_ascii_lowercase());
-        let b = c.next().map(|c| c.to_ascii_lowercase());
-        a.into_iter().chain(b).collect()
-    };
-    div()
-        .flex_shrink_0()
-        .size(look.px(size))
-        .flex()
-        .items_center()
-        .justify_center()
-        .rounded(look.px(4.))
-        .bg(look.c.raised)
-        .text_size(look.text(9.5))
-        .font_weight(FontWeight::SEMIBOLD)
-        .text_color(look.c.text_muted)
-        .child(letters)
-}
-
 /// An icon from the app's assets, in the current text colour.
 pub fn icon(look: &Look, name: &str, size: f32, color: Hsla) -> gpui::Svg {
     svg()
@@ -560,24 +539,6 @@ pub fn title(s: &str) -> String {
     }
 }
 
-/// A small filled tag in the accent (the accent is a fill, never
-/// text): `use next`.
-pub fn tag(look: &Look, label: impl Into<String>) -> gpui::Div {
-    div()
-        .flex_shrink_0()
-        .flex()
-        .items_center()
-        .h(look.px(18.))
-        .px(look.px(7.))
-        .rounded_full()
-        .bg(look.c.accent_surface)
-        .text_color(look.c.accent_text)
-        .text_size(look.text(11.))
-        .font_weight(FontWeight::SEMIBOLD)
-        .whitespace_nowrap()
-        .child(label.into())
-}
-
 /// A text link: the text colour, underlined on hover.
 pub fn link(
     look: &Look,
@@ -598,6 +559,16 @@ pub fn link(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_meter_lights_one_segment_per_tenth_and_one_while_anything_is_left() {
+        assert_eq!(lit_segments(0.0), 0);
+        assert_eq!(lit_segments(0.02), 1);
+        assert_eq!(lit_segments(0.26), 3);
+        assert_eq!(lit_segments(0.69), 7);
+        assert_eq!(lit_segments(1.0), 10);
+        assert_eq!(lit_segments(1.4), 10);
+    }
 
     #[test]
     fn profiles_read_without_claude_and_marks_are_unique() {
@@ -760,65 +731,6 @@ pub fn status(look: &Look, s: Status, detail: Option<String>) -> gpui::Div {
         .child(icon(look, glyph, 14., gc))
         // A word too long for its column ends in an ellipsis.
         .child(div().min_w_0().truncate().child(word))
-}
-
-/// A sidebar row's status (T3 Code's top status): a 16-point
-/// glyph, 4 apart, the word and its time in 12-point medium, all in the
-/// state's colour (Done green too).
-pub fn top_status(look: &Look, s: Status, detail: Option<String>) -> gpui::Div {
-    let (glyph, gc) = s.glyph(look);
-    let word = match detail {
-        Some(d) if !d.is_empty() => format!("{} {d}", s.word()),
-        _ => s.word().to_owned(),
-    };
-    div()
-        .flex_shrink_0()
-        .flex()
-        .items_center()
-        .gap(look.px(4.))
-        .text_size(look.text(12.))
-        .font_weight(FontWeight::MEDIUM)
-        .text_color(gc)
-        .whitespace_nowrap()
-        .child(icon(look, glyph, 16., gc))
-        .child(word)
-}
-
-/// A pull request's tone (T3 Code's `PULL_REQUEST_STATE_PRESENTATION`,
-/// MIT): open emerald, merged violet, at 90 % in dark.
-pub fn pr_tone(look: &Look, merged: bool) -> Hsla {
-    let hex = match (merged, look.c.dark) {
-        (false, true) => 0x6ee7b7e6,
-        (true, true) => 0xc4b5fde6,
-        (false, false) => 0x059669ff,
-        (true, false) => 0x7c3aedff,
-    };
-    gpui::rgba(hex).into()
-}
-
-/// A pull-request badge (T3 Code's sidebar badge): the 12-point glyph in
-/// its tone, then the number in the meta colour (`2`, or `3 open`).
-pub fn pr_badge(look: &Look, merged: bool, text: impl Into<String>) -> gpui::Div {
-    let tone = pr_tone(look, merged);
-    div()
-        .flex_shrink_0()
-        .flex()
-        .items_center()
-        .gap(look.px(3.))
-        .text_size(look.text(12.))
-        .text_color(look.c.faint)
-        .whitespace_nowrap()
-        .child(icon(
-            look,
-            if merged {
-                "git-merge"
-            } else {
-                "git-pull-request-arrow"
-            },
-            12.,
-            tone,
-        ))
-        .child(text.into())
 }
 
 /// A path cut in the middle to at most `max` characters: `src/…/kit.rs`.
@@ -1343,7 +1255,7 @@ pub fn segmented(look: &Look) -> gpui::Div {
         .gap(look.px(2.))
         .h(look.px(30.))
         .p(look.px(2.))
-        .rounded(look.px(8.))
+        .rounded(look.px(3.))
         .bg(look.c.surface)
         .border(look.fixed(1.))
         .border_color(look.c.border)
@@ -1369,7 +1281,7 @@ pub fn segment(
         .gap(look.px(5.))
         .h(look.px(24.))
         .px(look.px(9.))
-        .rounded(look.px(6.))
+        .rounded(look.px(2.))
         .text_size(look.text(12.5))
         .font_weight(FontWeight::MEDIUM)
         .text_color(color)
@@ -1405,7 +1317,7 @@ pub fn segment_lead(
         .gap(look.px(6.))
         .h(look.px(24.))
         .px(look.px(8.))
-        .rounded(look.px(6.))
+        .rounded(look.px(2.))
         .text_size(look.text(12.5))
         .font_weight(FontWeight::MEDIUM)
         .text_color(color)
@@ -1483,35 +1395,6 @@ pub fn usage_ring(look: &Look, left: f64, inferred: bool, size: f32) -> impl Int
     )
     .flex_shrink_0()
     .size(look.px(size))
-}
-
-/// A sidebar row's fills (T3 Code's `--sidebar-row-*`, MIT): in
-/// dark the text colour at 8 % on hover and 11 % for the open row; in
-/// light a lighter hover and the open row white with a hairline ring.
-pub fn sidebar_fill(
-    d: gpui::Stateful<gpui::Div>,
-    look: &Look,
-    active: bool,
-) -> gpui::Stateful<gpui::Div> {
-    if look.c.dark {
-        let hover = look.c.text.opacity(0.08);
-        let pressed = look.c.text.opacity(0.14);
-        if active {
-            d.bg(look.c.text.opacity(0.11))
-        } else {
-            d.hover(move |h| h.bg(hover)).active(move |a| a.bg(pressed))
-        }
-    } else if active {
-        d.bg(gpui::white())
-            .border(look.fixed(1.))
-            .border_color(look.c.border.opacity(0.7))
-    } else {
-        let (hover, pressed) = (look.c.canvas, look.c.raised);
-        d.border(look.fixed(1.))
-            .border_color(gpui::transparent_black())
-            .hover(move |h| h.bg(hover))
-            .active(move |a| a.bg(pressed))
-    }
 }
 
 /// A row's hover and selection fills: hover `bg.hover`, selected
@@ -1679,4 +1562,226 @@ mod run_tests {
             })
         );
     }
+}
+
+// The instrument look (docs/designs/app-instrument.md): labels, readouts,
+// meters, spec tables, marks and the scope band.
+
+/// A label: SF Mono capitals at 10.5 points.
+pub fn cap(look: &Look, text: &str, color: Hsla) -> gpui::Div {
+    div()
+        .flex_shrink_0()
+        .font_family(MONO)
+        .text_size(look.text(10.5))
+        .text_color(color)
+        .whitespace_nowrap()
+        .child(text.to_uppercase())
+}
+
+/// A figure in SF Mono at `size` points.
+pub fn figure(look: &Look, text: impl Into<String>, size: f32, color: Hsla) -> gpui::Div {
+    div()
+        .flex_shrink_0()
+        .font_family(MONO)
+        .text_size(look.text(size))
+        .text_color(color)
+        .whitespace_nowrap()
+        .child(text.into())
+}
+
+/// A readout: a label over a large figure, and a label under it.
+pub fn readout(
+    look: &Look,
+    label: &str,
+    big: impl Into<String>,
+    color: Hsla,
+    under: Option<(String, Hsla)>,
+) -> gpui::Div {
+    div()
+        .flex()
+        .flex_col()
+        .min_w_0()
+        .child(cap(look, label, look.c.faint))
+        .child(
+            figure(look, big, 34., color)
+                .line_height(look.text(38.))
+                .mt(look.px(8.)),
+        )
+        .children(under.map(|(t, c)| cap(look, &t, c).mt(look.px(4.))))
+}
+
+/// A meter of 10 segments, `frac` of them lit in `color`.
+pub fn segments(look: &Look, frac: f64, color: Hsla) -> gpui::Div {
+    let lit = lit_segments(frac);
+    div()
+        .flex_shrink_0()
+        .flex()
+        .gap(look.fixed(2.))
+        .children((0..10).map(|i| {
+            div()
+                .w(look.px(4.))
+                .h(look.px(10.))
+                .bg(if i < lit { color } else { look.c.border })
+        }))
+}
+
+/// How many of 10 segments a fraction lights: at least one while
+/// anything is left.
+pub fn lit_segments(frac: f64) -> usize {
+    let f = frac.clamp(0., 1.);
+    let n = (f * 10.).round() as usize;
+    if f > 0. && n == 0 { 1 } else { n.min(10) }
+}
+
+/// A spec table's row: a label column, the value, and an optional
+/// status label at the right; a faint hairline under it.
+pub fn spec_row(
+    look: &Look,
+    label: &str,
+    value: impl IntoElement,
+    status: Option<(String, Hsla)>,
+) -> gpui::Div {
+    div()
+        .flex()
+        .items_start()
+        .gap(look.px(12.))
+        .py(look.px(8.))
+        .border_b(look.fixed(1.))
+        .border_color(look.c.border.opacity(0.6))
+        .child(
+            cap(look, label, look.c.faint)
+                .w(look.px(104.))
+                .pt(look.px(2.)),
+        )
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .text_size(look.text(13.))
+                .text_color(look.c.text)
+                .child(value),
+        )
+        .children(status.map(|(t, c)| cap(look, &t, c).pt(look.px(2.))))
+}
+
+/// A spec table: its rows under a hairline.
+pub fn spec(look: &Look) -> gpui::Div {
+    div()
+        .flex()
+        .flex_col()
+        .border_t(look.fixed(1.))
+        .border_color(look.c.border)
+}
+
+/// A state's mark.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mark {
+    /// Waiting on the person: filled amber.
+    Wait,
+    /// Harm: filled red.
+    Harm,
+    /// Runs dry: hollow red.
+    Dry,
+    /// A note (an unverified claim, a rule to keep): hollow grey.
+    Note,
+}
+
+/// An 8-point square mark.
+pub fn square(look: &Look, m: Mark) -> gpui::Div {
+    let d = div().flex_shrink_0().size(look.px(8.));
+    match m {
+        Mark::Wait => d.bg(look.c.warn),
+        Mark::Harm => d.bg(look.c.err),
+        Mark::Dry => d.border(look.fixed(1.5)).border_color(look.c.err),
+        Mark::Note => d.border(look.fixed(1.5)).border_color(look.c.faint),
+    }
+}
+
+/// The scope band: one bar per beat, the newest lit, over a baseline,
+/// with a hairline grid and SF Mono time labels at `ticks` (fractions of
+/// the width with their text; the last says `NOW`).
+pub fn scope(look: &Look, beats: Vec<u32>, ticks: Vec<(f32, String)>, h: f32) -> gpui::AnyElement {
+    let lk = look.clone();
+    canvas(
+        |_, _, _| {},
+        move |bounds, _, window, cx| {
+            let o = bounds.origin;
+            let w = f32::from(bounds.size.width);
+            let height = f32::from(bounds.size.height);
+            let label_h = 14.;
+            let base = height - label_h;
+            let top = 14.;
+            for (f, _) in &ticks {
+                let x = (f * w).clamp(0., w - 1.);
+                window.paint_quad(gpui::fill(
+                    gpui::Bounds::new(
+                        point(o.x + px(x), o.y + px(2.)),
+                        gpui::size(px(1.), px(base - 2.)),
+                    ),
+                    lk.c.border.opacity(0.55),
+                ));
+            }
+            window.paint_quad(gpui::fill(
+                gpui::Bounds::new(point(o.x, o.y + px(base)), gpui::size(px(w), px(1.))),
+                lk.c.border_strong,
+            ));
+            let n = beats.len().max(1);
+            let peak = beats.iter().copied().max().unwrap_or(0).max(4) as f32;
+            let slot = w / n as f32;
+            let bw = (slot - 1.5).max(1.);
+            for (i, v) in beats.iter().enumerate() {
+                let frac = (*v as f32 / peak).sqrt().min(1.);
+                let bh = (frac * (base - top)).max(if *v > 0 { 1.5 } else { 1. });
+                let last = i + 1 == beats.len();
+                window.paint_quad(gpui::fill(
+                    gpui::Bounds::new(
+                        point(o.x + px(i as f32 * slot), o.y + px(base - bh)),
+                        gpui::size(px(bw), px(bh)),
+                    ),
+                    if last {
+                        lk.c.text
+                    } else {
+                        lk.c.text.opacity(0.32)
+                    },
+                ));
+            }
+            let mut draw = |text: String, x: f32, y: f32, align_end: bool, align_mid: bool| {
+                let text: gpui::SharedString = text.into();
+                let run = gpui::TextRun {
+                    len: text.len(),
+                    font: gpui::font(MONO),
+                    color: lk.c.faint,
+                    background_color: None,
+                    underline: None,
+                    strikethrough: None,
+                };
+                let size_px = lk.text(10.);
+                let line = window.text_system().shape_line(text, size_px, &[run], None);
+                let lw = f32::from(line.width);
+                let x = if align_end {
+                    x - lw
+                } else if align_mid {
+                    x - lw / 2.
+                } else {
+                    x
+                };
+                let _ = line.paint(
+                    point(o.x + px(x.clamp(0., (w - lw).max(0.))), o.y + px(y)),
+                    size_px * 1.2,
+                    gpui::TextAlign::Left,
+                    None,
+                    window,
+                    cx,
+                );
+            };
+            draw("TOOL CALLS / 2 MIN".into(), 0., 0., false, false);
+            let k = ticks.len();
+            for (i, (f, t)) in ticks.iter().enumerate() {
+                draw(t.clone(), f * w, base + 2., i + 1 == k, i > 0 && i + 1 < k);
+            }
+        },
+    )
+    .w_full()
+    .h(look.px(h))
+    .into_any_element()
 }

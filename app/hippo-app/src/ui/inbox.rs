@@ -390,24 +390,6 @@ impl Shell {
             .into_any_element()
     }
 
-    /// What the last Looks right did: its command and whether it worked.
-    pub(super) fn review_result(&self, look: &Look) -> Option<gpui::Div> {
-        let (line, result) = self.flow.review.as_ref()?;
-        let (text, err) = match result {
-            Ok(()) => (format!("{line}: done"), false),
-            Err(e) => (e.clone(), true),
-        };
-        Some(
-            div()
-                .mt(look.px(6.))
-                .font_family("Menlo")
-                .text_size(look.text(11.))
-                .truncate()
-                .text_color(if err { look.c.error } else { dim(look) })
-                .child(text),
-        )
-    }
-
     /// The recent dreaming runs, each opening its run tab.
     pub(super) fn runs_card(&self, look: &Look, cx: &mut Context<Self>) -> gpui::AnyElement {
         let runs: Vec<hippo_view::dreaming::Run> = self

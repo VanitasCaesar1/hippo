@@ -89,7 +89,7 @@ pub fn quiet_note(look: &Look, text: &str, error: bool) -> gpui::AnyElement {
 }
 
 /// From this window width the x-ray shows its pane column.
-pub const PANES_FROM: f32 = super::home_panes::PANES_FROM;
+pub const PANES_FROM: f32 = 1100.;
 
 /// What an x-ray says while its session is newer than the index.
 pub const NOT_YET: &str = "not in the index yet";

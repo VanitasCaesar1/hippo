@@ -905,7 +905,12 @@ impl Shell {
                 d.child(col(CLAIMS_W).pt(look.px(1.)).child(claims_cell))
                     .child(col(PRS_W).pt(look.px(1.)).child(prs_cell))
             })
-            .child(col(STATE_W).flex().justify_end().child(state_cell));
+            .child(col(STATE_W).flex().justify_end().child(
+                match self.row_hover_controls(look, r, cx) {
+                    Some(c) => c,
+                    None => state_cell.into_any_element(),
+                },
+            ));
         let row = div()
             .id(("fleet-row", i))
             .role(Role::Row)
@@ -923,6 +928,7 @@ impl Shell {
             })
             .child(main)
             .children(trail)
+            .on_hover(self.row_hover(&r.id, cx))
             .on_click(cx.listener(move |this, e: &gpui::ClickEvent, window, cx| {
                 // A click selects (a live row opens its trail); a second
                 // click, a double-click or ↩ opens the x-ray.

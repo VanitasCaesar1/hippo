@@ -113,9 +113,8 @@ pub struct Shell {
     pub(crate) health_open: bool,
     /// The Home's scroll, which its scrollbar reads.
     pub(crate) home_scroll: gpui::ScrollHandle,
-    /// The sidebar's shelves folded by hand, and its scroll.
+    /// The sidebar: its width and the hovered row.
     pub(crate) sidebar: sidebar::SidebarUi,
-    pub(crate) sidebar_scroll: gpui::ScrollHandle,
     /// Pane toggles that are off (`pane-headroom`, `pane-memory`).
     pub(crate) panes_off: std::collections::HashSet<&'static str>,
     /// The scroll of the other section views (Ask, Fleet, Inbox, Manage).
@@ -323,7 +322,6 @@ impl Shell {
                 width: saved.sidebar_width.map(|w| w as f32),
                 ..Default::default()
             },
-            sidebar_scroll: gpui::ScrollHandle::new(),
             panes_off: std::collections::HashSet::new(),
             page_scroll: gpui::ScrollHandle::new(),
             ask_field,

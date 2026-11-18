@@ -200,15 +200,6 @@ impl<'a> Shelves<'a> {
             .1
     }
 
-    /// How many of the Working shelf's sessions are on `profile` (the
-    /// Headroom pane's `2 working`).
-    pub fn working_on(&self, profile: &str) -> usize {
-        let rows = self.rows(Shelf::Working);
-        rows.iter()
-            .filter(|r| r.profile.as_deref() == Some(profile) && !nested_in(r, rows))
-            .count()
-    }
-
     pub fn tally(&self) -> Tally {
         Tally {
             needs_you: count_own(self.rows(Shelf::NeedsYou)),
@@ -380,21 +371,6 @@ pub fn presets(now: OffsetDateTime, offset: UtcOffset) -> Vec<Preset> {
             Preset { label, when, until }
         })
         .collect()
-}
-
-/// How long until a snoozed session wakes: `40m`, `3h`, `2d` (T3 Code's
-/// `snoozeWakeLabel`).
-pub fn wake_label(until: i64, now: i64) -> String {
-    let s = until - now;
-    if s <= 0 {
-        "now".into()
-    } else if s < 3600 {
-        format!("{}m", ((s + 59) / 60).max(1))
-    } else if s < 86_400 {
-        format!("{}h", (s + 3599) / 3600)
-    } else {
-        format!("{}d", (s + 86_399) / 86_400)
-    }
 }
 
 #[cfg(test)]

@@ -21,17 +21,6 @@ pub fn title(setup: Option<&Setup>) -> String {
     }
 }
 
-/// `Mon 9 Nov · 20:24`, local.
-pub fn now_label() -> String {
-    let t = time::OffsetDateTime::now_utc();
-    let local = t.to_offset(super::status::local_offset());
-    format!(
-        "{} · {}",
-        crate::state::edition_title(local.date()),
-        kit::hm(t)
-    )
-}
-
 /// The title bar's height: 44 points, 36 under 900. The traffic
 /// lights are placed in the sidebar head's vertical middle by
 /// [`super::window_options`].
@@ -119,7 +108,6 @@ impl Shell {
                 .collect(),
             _ => Vec::new(),
         };
-        let home = matches!(active_tab, None | Some(Tab::Home)) && ready && !onboarding;
         // The same inset at every width and in full screen.
         let left = if !ready || onboarding || !docked {
             TRAFFIC_LIGHTS
@@ -178,18 +166,6 @@ impl Shell {
                     .child(c.clone()),
             );
         }
-        let toggle = |id: &'static str,
-                      icon: &'static str,
-                      label: &'static str,
-                      cx: &mut Context<Self>| {
-            let on = !self.panes_off.contains(id);
-            kit::icon_btn(look, id, icon, label, on).on_click(cx.listener(move |this, _, _, cx| {
-                if !this.panes_off.remove(id) {
-                    this.panes_off.insert(id);
-                }
-                cx.notify();
-            }))
-        };
         div()
             .id("title-bar")
             .role(Role::TitleBar)
@@ -231,27 +207,6 @@ impl Shell {
             .child(div().flex_1())
             .when(ready && !onboarding, |d| {
                 d.children(self.title_actions(active_tab.as_ref(), narrow, look, window, cx))
-            })
-            .when(home && !narrow, |d| {
-                let fits = f32::from(window.viewport_size().width) >= super::home_panes::PANES_FROM;
-                d.child(
-                    div()
-                        .flex_shrink_0()
-                        .text_size(look.text(12.5))
-                        .text_color(look.c.text_muted)
-                        .child(now_label()),
-                )
-                .child(
-                    div()
-                        .w(look.fixed(1.))
-                        .h(look.px(18.))
-                        .mx(look.px(4.))
-                        .bg(look.c.border),
-                )
-                .child(toggle("pane-headroom", "gauge", "Headroom", cx))
-                .when(fits, |d| {
-                    d.child(toggle("pane-memory", "brain", "Memory", cx))
-                })
             })
     }
 }
@@ -319,6 +274,8 @@ impl Shell {
                 cx,
             )),
             Tab::Incident(id) => self.incident_page_actions(id, look, cx),
+            // Pulse has its own header and actions.
+            Tab::Fleet if self.pulse.on && !self.replay.lanes => None,
             Tab::Fleet => {
                 let sel = self.fleet_selected_row();
                 let has = sel.is_some();
