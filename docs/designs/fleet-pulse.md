@@ -79,6 +79,8 @@ A session's start block is already recorded (`rollup` table `context`: the notes
 
 ## The app
 
+How Pulse is drawn (its header readouts, the scope band, the marks, the focus pane's tables) is in [app-instrument.md](app-instrument.md), which takes precedence where the two differ: there the strip becomes the header's readouts and meters, the span picker and account filter leave Pulse, the focus pane's facts become a table, Memory today and Tonight move to Home, and the sidebar lists no sessions anywhere.
+
 Pulse's charts are drawn by hand: the activity strip's beats, the sheet's waveforms, the histogram and the drain chart are painted on canvases, and marks are vector paths. Only the queue's waiting rows animate (a pulsing dot), and not when the system asks for reduced motion; with nothing waiting the view draws only on refresh. It follows the app's tokens in light and dark: one accent; the status colours only on icons, meters and marks, never on whole sentences; the account colours only on dots, bars and beats.
 
 Density is a requirement: the default view shows the strip, the queue and one item. Everything else is one key away (the sheet, *Show all*, the hover details), never on screen by default. While Pulse is shown, the sidebar keeps its sections but drops its list of sessions: the queue and the sheet are that list here, and the sidebar's Working shelf (live and quiet sessions) would contradict the strip's count of sessions working now.
