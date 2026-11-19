@@ -512,6 +512,8 @@ fn notes_a_session_read_and_edited_are_kept() {
         lessons: true,
         snapshot_keep_days: None,
         log_notes: None,
+        min_hippo_version: None,
+        unknown_keys: Vec::new(),
     };
     let deploy = root_path.join("notes/ops/Deploy.md");
     let billing = root_path.join("notes/Billing.md");

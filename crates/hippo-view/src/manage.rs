@@ -61,7 +61,7 @@ impl Agent {
     }
 }
 
-/// One workspace and whether its `.claude/settings.json` has hippo's hooks.
+/// One workspace and whether its Claude Code settings have hippo's hooks.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HookDir {
     pub dir: PathBuf,

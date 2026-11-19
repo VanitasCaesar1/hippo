@@ -160,6 +160,9 @@ enum Command {
 
 fn main() -> ExitCode {
     hippo_core::default_sigpipe();
+    // Everything hippo creates is the person's alone: 0700 directories and
+    // 0600 files (docs/designs/common.md, rule 4).
+    hippo_core::perms::private_umask();
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn"));
     tracing_subscriber::fmt()
         .with_env_filter(filter)

@@ -934,15 +934,20 @@ impl Shell {
                 this.ask_commands(
                     format!("{verb} {}", h2.label),
                     format!(
-                        "{} its .claude/settings.json: hippo's three entries only; every other key and hook stays.",
+                        "{} its .claude/settings.local.json, which is yours alone (and takes hippo's entries out of a shared .claude/settings.json): hippo's three entries only; every other key and hook stays.",
                         if sub == "install" { "Adds to" } else { "Removes from" },
                     ),
-                    vec![vec![
-                        "hooks".into(),
-                        sub.into(),
-                        "--workspace".into(),
-                        dir,
-                    ]],
+                    vec![if sub == "install" {
+                        vec![
+                            "hooks".into(),
+                            sub.into(),
+                            "--workspace".into(),
+                            dir,
+                            "--yes".into(),
+                        ]
+                    } else {
+                        vec!["hooks".into(), sub.into(), "--workspace".into(), dir]
+                    }],
                     window,
                     cx,
                 );

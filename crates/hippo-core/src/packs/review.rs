@@ -15,7 +15,7 @@ use super::validate::{pass_line, theme_lines, Validation};
 use crate::dream::reviewer::{parse_reply, reply_object};
 use crate::error::{Error, Result};
 use crate::model;
-use crate::records::{decode, encode, Verdict};
+use crate::records::{decode, Verdict};
 use crate::util::{hex, sha256, write_new};
 
 /// The system prompt of every pack review: hippo's own, built in.
@@ -67,7 +67,7 @@ impl PackReview {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|e| Error::io_at(parent, e))?;
         }
-        write_new(path, &encode(self)?)
+        write_new(path, &crate::records::encode_shared(self)?)
     }
 
     /// Reads a record, refusing a missing or different `protocol`.
@@ -593,7 +593,10 @@ mod tests {
         record.save_new(&path).unwrap();
         let text = fs::read_to_string(&path).unwrap();
         assert!(
-            text.starts_with("{\n  \"protocol\": \"HIPPO_V1\",\n  \"id\""),
+            text.starts_with(&format!(
+                "{{\n  \"protocol\": \"HIPPO_V1\",\n  \"hippo_version\": \"{}\",\n  \"id\"",
+                crate::config::HIPPO_VERSION
+            )),
             "{text}"
         );
         assert!(text.contains("\"at\": \"2026-"), "{text}");

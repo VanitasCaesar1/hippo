@@ -47,7 +47,7 @@ pub fn run(args: Args) -> ExitCode {
 /// first scan; skipped when the workspace sets
 /// `lessons = false`.
 fn lessons() {
-    let Ok((config, workspace)) = super::load() else {
+    let Ok((config, workspace)) = super::load_for_write() else {
         return;
     };
     if !workspace.lessons {
@@ -106,7 +106,7 @@ fn explain_nothing(report: &std::path::Path) {
 }
 
 fn dream(args: &Args) -> Result<RunSummary> {
-    let (config, workspace) = super::load()?;
+    let (config, workspace) = super::load_for_write()?;
     Ok(dream::run(
         &config,
         &workspace,

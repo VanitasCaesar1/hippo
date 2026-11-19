@@ -132,9 +132,12 @@ fn install_writes_cursors_hooks_file_in_home() {
     let path = s.user_home.path().join(".cursor/hooks.json");
     let value: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
     assert_eq!(value["version"], 1);
-    assert_eq!(
-        value["hooks"]["sessionStart"][0]["command"],
-        "hippo hook session-start --agent cursor"
+    let command = value["hooks"]["sessionStart"][0]["command"]
+        .as_str()
+        .unwrap();
+    assert!(
+        command.starts_with('/') && command.ends_with("/hippo hook session-start --agent cursor"),
+        "{command}"
     );
     let status = s.run(&["hooks", "status", "--agent", "cursor"], None);
     assert_eq!(

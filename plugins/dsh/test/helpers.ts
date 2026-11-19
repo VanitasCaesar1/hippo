@@ -91,6 +91,8 @@ export function useFakeHippo(env: Record<string, string | undefined> = {}): { ca
   const log = join(dir, 'calls.log')
   for (const key of Object.keys(process.env)) if (key.startsWith('FAKE_HIPPO_')) delete process.env[key]
   process.env.FAKE_HIPPO_LOG = log
+  // An empty hippo home, so no real bin-path is read: the fake on PATH runs.
+  process.env.HIPPO_HOME = join(dir, 'hippo-home')
   for (const [key, value] of Object.entries(env)) {
     if (value === undefined) delete process.env[key]
     else process.env[key] = value

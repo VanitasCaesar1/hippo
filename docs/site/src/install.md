@@ -10,7 +10,7 @@ On macOS (Apple silicon or Intel) and Linux (x86_64 or arm64):
 curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippo/main/install.sh | sh
 ```
 
-The script picks the binary for your machine from the latest [release](https://github.com/VanitasCaesar1/hippo/releases), checks its SHA-256, and copies it to `~/.local/bin`, without `sudo`. If that folder is not on your `PATH`, it prints the line that adds it. Set `HIPPO_INSTALL_DIR` to install somewhere else, or `HIPPO_VERSION` to pick a release. The Linux binaries are static (musl), so they need no system libraries.
+The script picks the binary for your machine from the latest [release](https://github.com/VanitasCaesar1/hippo/releases), checks it against the release's published SHA-256 (and installs nothing when it does not match), and copies it to `~/.local/bin`, without `sudo`. It records the binary's path and checksum in `~/.hippo/install.json`, which `hippo doctor` checks the binary against later, and the path in `~/.hippo/bin-path`, which the plugins run (both 0600; `HIPPO_HOME` moves them). If that folder is not on your `PATH`, it prints the line that adds it. Set `HIPPO_INSTALL_DIR` to install somewhere else, or `HIPPO_VERSION` to pick a release. The Linux binaries are static (musl), so they need no system libraries.
 
 ## With Cargo
 
@@ -41,7 +41,7 @@ The repository is also a Claude Code plugin marketplace. In a Claude Code sessio
 /plugin install hippo@hippo
 ```
 
-Then `/hippo:setup` installs the binary with the script above if it is missing (after asking you) and runs `hippo start`. `/hippo:ask <question>` asks whether an agent already solved something, and `/hippo:day [date]` shows a day's work. Once you have a notes folder (`hippo init`), the plugin gives every session in that workspace the start block; it stays silent everywhere else, and when `hippo hooks install` has already added the workspace's own hooks.
+Then `/hippo:setup` installs the binary with the script above if it is missing (after asking you) and runs `hippo start`. `/hippo:ask <question>` asks whether an agent already solved something, and `/hippo:day [date]` shows a day's work. Once you have a notes folder (`hippo init`), the plugin gives every session in that workspace the start block; it stays silent everywhere else, and when `hippo hooks install` has already added the workspace's own hooks. The plugin's hook runs the binary named in `~/.hippo/bin-path`, and looks on `PATH` only when that file is missing.
 
 ## In Cursor, Gemini CLI and other agents
 

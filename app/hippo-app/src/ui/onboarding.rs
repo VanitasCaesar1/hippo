@@ -1977,6 +1977,7 @@ impl Shell {
                 "install".to_owned(),
                 "--workspace".to_owned(),
                 ws,
+                "--yes".to_owned(),
             ]
         });
         let mut writes: Vec<&str> = vec!["~/.hippo/config.toml", "the workspace's .hippo/"];
@@ -2117,7 +2118,7 @@ impl Shell {
                         &[
                             ("Each new Claude Code session in this workspace starts with the notes its task needs, within ", false),
                             ("25 KB", true),
-                            (". Three hooks in the workspace's .claude/settings.json; a hook never fails a session.", false),
+                            (". Three hooks in the workspace's .claude/settings.local.json, which is yours alone; a hook never fails a session.", false),
                         ],
                         look,
                     ))

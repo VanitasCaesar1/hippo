@@ -180,19 +180,7 @@ pub fn merge(path: &Path, key: &str, entry: Json, stamp: &str) -> Result<Written
 /// binary (a Homebrew link stays valid across upgrades, its target does
 /// not), this binary's own path otherwise.
 pub fn command_path() -> Result<PathBuf> {
-    let exe = std::env::current_exe().context("finding this binary's path")?;
-    let real = fs::canonicalize(&exe).unwrap_or_else(|_| exe.clone());
-    if let Some(paths) = std::env::var_os("PATH") {
-        for dir in std::env::split_paths(&paths) {
-            let candidate = dir.join("hippo");
-            if candidate.is_absolute()
-                && fs::canonicalize(&candidate).ok().as_deref() == Some(real.as_path())
-            {
-                return Ok(candidate);
-            }
-        }
-    }
-    Ok(exe)
+    hippo_core::hooks::binary_path().context("finding this binary's path")
 }
 
 /// `YYYYMMDDTHHMMSSZ`, for backup names.

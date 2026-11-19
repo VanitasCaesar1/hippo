@@ -63,6 +63,9 @@ Paths in this file are relative to the workspace, must not be absolute and must 
 | `budget_bytes` | integer | `25600` | The hard limit on the context block, in bytes. |
 | `log_path` | path | `<notes_dir>/Session log.md` | Where `hippo log` writes the session log. Must stay inside the workspace; hippo checks this when it writes. |
 | `sample_tasks` | list of strings | `[]` | Tasks `hippo doctor` compiles a context block for, to check that each stays within `budget_bytes`. |
+| `min_hippo_version` | string `X.Y.Z` | unset | The oldest hippo that may write a note or a shared record in this workspace, or call a model for it. An older hippo refuses `dream`, `lessons` (scan, keep, dismiss), `add`, `packs update` and `remove`, `review`, `revert` and `ask` (unless `--sources-only`), naming the version it needs; hooks, `context` and `brief` keep working, so a teammate's agents are not stranded. Read from hippo 0.5.0. |
+
+A key or table this hippo does not know (one a newer release added) does not stop the file from loading. It is a `hippo doctor` problem, and the commands above refuse while it is there, as they do below `min_hippo_version`. Set `min_hippo_version` to the release that introduced a setting before relying on it in a team.
 
 `hippo init` writes `log_path` out in full as `"<notes_dir>/Session log.md"` using the directory you gave.
 

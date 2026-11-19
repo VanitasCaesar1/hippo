@@ -2,9 +2,12 @@
 //! hippo runs a model only through an argv such as `model_command`.
 //!
 //! The element `{system_prompt}` is replaced by the system prompt, and the
-//! user prompt is written to the child's stdin. The child runs in
-//! `$HIPPO_HOME/model-runs/`, emptied first, so it starts with nothing to
-//! read. Its reply is the `result` string of the JSON it prints; a non-zero
+//! user prompt is written to the child's stdin. Each call runs in its own
+//! new folder, `$HIPPO_HOME/model-runs/<ulid>/` (0700), so it starts with
+//! nothing to read, and two calls at once never see or remove each other's
+//! files; the folder is removed when the call ends, whatever the outcome.
+//! A call that starts removes sibling folders older than a day, which only
+//! a crashed call leaves (`docs/designs/common.md`, rule 1). Its reply is the `result` string of the JSON it prints; a non-zero
 //! exit, output without a string `result`, or 600 seconds without exit is
 //! [`Error::Model`].
 
@@ -27,6 +30,10 @@ pub const SYSTEM_PROMPT: &str = "{system_prompt}";
 
 /// How long a model may run before it is killed.
 pub const TIMEOUT: Duration = Duration::from_secs(600);
+
+/// How old a folder under `model-runs/` must be before a starting call
+/// removes it as a crashed call's leftover.
+const STALE_RUN: Duration = Duration::from_secs(24 * 60 * 60);
 
 /// How long to wait for the output pipes to close once the child exited. A
 /// grandchild that keeps them open does not hold the run up for longer.
@@ -95,8 +102,45 @@ fn run_with_timeout(
     timeout: Duration,
 ) -> Result<ModelReply> {
     let runs = home.join("model-runs");
-    empty_dir(&runs)?;
-    run_in(&runs, command, system_prompt, user_prompt, timeout)
+    crate::perms::create_private_dir(&runs)?;
+    sweep_stale(&runs, STALE_RUN);
+    let dir = runs.join(ulid::Ulid::generate().to_string());
+    // `create_dir`, not `create_dir_all`: a folder that exists already is
+    // another call's, never shared.
+    fs::create_dir(&dir).map_err(|e| Error::io_at(&dir, e))?;
+    crate::perms::create_private_dir(&dir)?;
+    let reply = run_in(&dir, command, system_prompt, user_prompt, timeout);
+    let _ = fs::remove_dir_all(&dir);
+    reply
+}
+
+/// Removes what sits in `runs` unchanged for longer than `age`: folders a
+/// crashed call left, and files an older hippo left when every call shared
+/// the folder. Links are removed, not followed. Failures are ignored; the
+/// next call tries again.
+fn sweep_stale(runs: &Path, age: Duration) {
+    let Ok(entries) = fs::read_dir(runs) else {
+        return;
+    };
+    let now = std::time::SystemTime::now();
+    for entry in entries.flatten() {
+        let Ok(meta) = fs::symlink_metadata(entry.path()) else {
+            continue;
+        };
+        let old = meta
+            .modified()
+            .ok()
+            .and_then(|m| now.duration_since(m).ok())
+            .is_some_and(|d| d > age);
+        if !old {
+            continue;
+        }
+        let _ = if meta.is_dir() {
+            fs::remove_dir_all(entry.path())
+        } else {
+            fs::remove_file(entry.path())
+        };
+    }
 }
 
 /// Waits for `child` to exit, at most `timeout`, by polling: a SIGCHLD
@@ -235,17 +279,6 @@ pub(crate) fn spawn_error(program: &str, e: &io::Error) -> String {
     } else {
         format!("cannot run {program}: {e}")
     }
-}
-
-/// Removes `dir` with everything in it, then creates it empty. A symlink in
-/// its place is removed, not followed.
-fn empty_dir(dir: &Path) -> Result<()> {
-    match fs::remove_dir_all(dir) {
-        Ok(()) => {}
-        Err(e) if e.kind() == io::ErrorKind::NotFound => {}
-        Err(e) => return Err(Error::io_at(dir, e)),
-    }
-    fs::create_dir_all(dir).map_err(|e| Error::io_at(dir, e))
 }
 
 /// Reads `pipe` to its end on a thread and sends the bytes.
@@ -417,16 +450,74 @@ mod tests {
     }
 
     #[test]
-    fn runs_in_an_emptied_model_runs_directory() {
+    fn runs_in_its_own_empty_folder_removed_afterwards() {
         let home = tempfile::tempdir().unwrap();
         let runs = home.path().join("model-runs");
-        fs::create_dir_all(runs.join("old")).unwrap();
-        fs::write(runs.join("stale.txt"), "left over").unwrap();
+        fs::create_dir_all(runs.join("recent")).unwrap();
+        fs::write(runs.join("recent.txt"), "another call's").unwrap();
         let command = sh(
-            r#"cat >/dev/null; printf '{"result":"%s %s"}' "$(basename "$PWD")" "$(ls -A | wc -l | tr -d ' ')""#,
+            r#"cat >/dev/null; printf '{"result":"%s %s %s"}' "$(basename "$(dirname "$PWD")")" "$(basename "$PWD" | wc -c | tr -d ' ')" "$(ls -A | wc -l | tr -d ' ')""#,
         );
         let reply = call(home.path(), &command, "s", "u").unwrap();
-        assert_eq!(reply.text, "model-runs 0");
+        // In model-runs/<26-character ulid>/, empty.
+        assert_eq!(reply.text, "model-runs 27 0");
+        // Its folder is gone; a recent sibling is another call's and stays.
+        let mut left: Vec<_> = fs::read_dir(&runs)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        left.sort();
+        assert_eq!(left, ["recent", "recent.txt"]);
+        #[cfg(unix)]
+        assert_eq!(crate::perms::mode(&runs), Some(0o700));
+        // A failed call removes its folder too.
+        let failing = sh("cat >/dev/null; exit 3");
+        assert!(call(home.path(), &failing, "s", "u").is_err());
+        assert_eq!(fs::read_dir(&runs).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn a_starting_call_sweeps_only_leftovers_older_than_a_day() {
+        let home = tempfile::tempdir().unwrap();
+        let runs = home.path().join("model-runs");
+        fs::create_dir_all(runs.join("crashed")).unwrap();
+        fs::create_dir_all(runs.join("running")).unwrap();
+        let old = std::time::SystemTime::now() - Duration::from_secs(25 * 60 * 60);
+        let dir = fs::File::open(runs.join("crashed")).unwrap();
+        dir.set_modified(old).unwrap();
+        sweep_stale(&runs, STALE_RUN);
+        let left: Vec<_> = fs::read_dir(&runs)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        assert_eq!(left, ["running"]);
+    }
+
+    #[test]
+    fn two_calls_at_once_each_read_their_own_reply() {
+        let home = tempfile::tempdir().unwrap();
+        // Writes its stdin to last.txt, waits for the other call to have
+        // done the same, then answers with what its own last.txt holds.
+        let command = sh(r#"cat > last.txt; sleep 1; printf '{"result":"%s"}' "$(cat last.txt)""#);
+        let _serial = crate::util::serial();
+        let replies: Vec<_> = ["first", "second"]
+            .map(|word| {
+                let home = home.path().to_path_buf();
+                let command = command.clone();
+                thread::spawn(move || {
+                    run_with_timeout(&home, &command, "s", word, Duration::from_secs(20))
+                })
+            })
+            .into_iter()
+            .map(|t| t.join().unwrap().unwrap().text)
+            .collect();
+        assert_eq!(replies, ["first", "second"]);
+        assert_eq!(
+            fs::read_dir(home.path().join("model-runs"))
+                .unwrap()
+                .count(),
+            0
+        );
     }
 
     #[test]

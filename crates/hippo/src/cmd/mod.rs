@@ -97,6 +97,23 @@ pub fn load_history() -> Result<(Config, Option<Workspace>)> {
     Ok((config, workspace))
 }
 
+/// [`load`] for a command that writes a note or a shared record, or calls
+/// a model: refused when the workspace's `hippo.toml` asks for a newer
+/// hippo (`min_hippo_version`, or keys this one does not know).
+pub fn load_for_write() -> Result<(Config, Workspace)> {
+    let (config, workspace) = load()?;
+    workspace.check_can_write()?;
+    Ok((config, workspace))
+}
+
+/// [`load_recovered`] for a command that writes: refused as
+/// [`load_for_write`] is, before any recovery runs.
+pub fn load_recovered_for_write() -> Result<(Config, Workspace)> {
+    let (_, workspace) = load()?;
+    workspace.check_can_write()?;
+    load_recovered()
+}
+
 /// [`load`], then finishes an interrupted pack update and prints what it
 /// did: the first step of `hippo add` and of every `hippo packs` command
 /// that works on installed packs.
@@ -128,6 +145,25 @@ pub fn print_schedule_warning() {
     let agents = home.join("Library").join("LaunchAgents");
     if let Some(text) = install::schedule_warning(&agents, &exe) {
         println!("warning: {text}");
+    }
+}
+
+/// Writes this binary's path to `$HIPPO_HOME/bin-path` for the plugins,
+/// saying so when it changed. A failure is a warning: the plugins then
+/// find hippo through `PATH`, and `doctor` says so.
+pub fn write_bin_path() {
+    let home = hippo_core::config::home();
+    match hippo_core::hooks::binary_path() {
+        Ok(bin) => match hippo_core::hooks::write_bin_path(&home, &bin) {
+            Ok(true) => println!(
+                "wrote {} ({})",
+                hippo_core::hooks::bin_path_file(&home).display(),
+                bin.display()
+            ),
+            Ok(false) => {}
+            Err(e) => eprintln!("hippo: could not write bin-path: {e}"),
+        },
+        Err(e) => eprintln!("hippo: could not find this binary's path: {e}"),
     }
 }
 

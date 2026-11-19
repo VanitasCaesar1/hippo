@@ -25,7 +25,7 @@ dsh plugin --profile web add /path/to/hippo/plugins/dsh
 
 The repository holds the built plugin (`lib/`), so installing it runs no build script. Start a new dsh session in your workspace; `dsh --profile web --dump-config` shows a `# == dsh-plugin-hippo` layer. `dsh plugin --profile web remove dsh-plugin-hippo` removes it.
 
-The plugin looks for `hippo` on `PATH`, then in `~/.local/bin` and `~/.cargo/bin`.
+The plugin runs the path in `$HIPPO_HOME/bin-path` (default `~/.hippo/bin-path`), which `hippo init`, `hippo hooks install` and the installer write, so another program named `hippo` earlier on `PATH` is not the one that runs. Without that file it looks for `hippo` on `PATH`, then in `~/.local/bin` and `~/.cargo/bin`, and `hippo doctor` says so.
 
 ## What reaches the model
 

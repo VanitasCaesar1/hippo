@@ -127,6 +127,7 @@ fn first_run(args: &Args, asked_for_start: bool) -> Result<ExitCode> {
         add_roots: args.add_roots.clone(),
         force: false,
     })?;
+    super::write_bin_path();
     for path in &report.written {
         println!("wrote {}", path.display());
     }

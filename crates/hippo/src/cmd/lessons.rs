@@ -14,7 +14,7 @@ use serde_json::json;
 use time::OffsetDateTime;
 use ulid::Ulid;
 
-use super::load;
+use super::{load, load_for_write};
 
 #[derive(clap::Args)]
 #[command(args_conflicts_with_subcommands = true)]
@@ -97,7 +97,7 @@ pub fn run(args: Args) -> Result<ExitCode> {
             scan(days, dry_run, json)
         }
         Some(Command::Keep { id, text, title }) => {
-            let (cfg, ws) = load()?;
+            let (cfg, ws) = load_for_write()?;
             let id = parse_id(&id)?;
             let kept = lessons::keep(
                 &cfg,
@@ -116,7 +116,7 @@ pub fn run(args: Args) -> Result<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }
         Some(Command::Dismiss { id }) => {
-            let (cfg, _) = load()?;
+            let (cfg, _) = load_for_write()?;
             let id = parse_id(&id)?;
             let l = lessons::dismiss(&cfg, id, OffsetDateTime::now_utc())?;
             println!(
@@ -232,7 +232,7 @@ fn list(as_json: bool, all: bool) -> Result<ExitCode> {
 }
 
 fn scan(days: u32, dry_run: bool, as_json: bool) -> Result<ExitCode> {
-    let (cfg, ws) = load()?;
+    let (cfg, ws) = load_for_write()?;
     let result = lessons::scan(&cfg, &ws, days, dry_run);
     let scanned = match result {
         Ok(s) => s,

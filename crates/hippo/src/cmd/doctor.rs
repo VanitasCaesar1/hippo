@@ -1,4 +1,4 @@
-//! `hippo doctor [--model]`: prints the `check | status | detail` table and
+//! `hippo doctor [--model] [--fix-permissions]`: prints the `check | status | detail` table and
 //! exits 1 on any problem. Nothing leaves the machine unless `--model` asks
 //! for the one-word model check.
 
@@ -12,10 +12,21 @@ pub struct Args {
     /// Also send one word through model_command to check it answers (a nightly check should pass this)
     #[arg(long)]
     model: bool,
+    /// First make every file under $HIPPO_HOME 0600 and every folder 0700
+    #[arg(long)]
+    fix_permissions: bool,
 }
 
 pub fn run(args: Args) -> Result<ExitCode> {
-    let report = doctor::run_in(&config::home(), args.model);
+    let home = config::home();
+    if args.fix_permissions {
+        let fixed = doctor::fix_permissions(&home)?;
+        println!(
+            "{}: {fixed} files and folders made private (0600 files, 0700 folders)",
+            home.display()
+        );
+    }
+    let report = doctor::run_in(&home, args.model);
     print!("{report}");
     Ok(if report.has_problem() {
         ExitCode::FAILURE

@@ -23,7 +23,7 @@ The plugin is not on npm. Add it to `plugins` in `~/.config/opencode/opencode.js
 
 `::path:` is npm's syntax for a package in a subfolder of a git repository; OpenCode fetches it into its cache (`$XDG_CACHE_HOME/opencode`) on the next start. The repository holds the built plugin (`lib/`), and its `package.json` has no `build`, `prepare` or install script, so OpenCode installs it without running anything. (npm's installer runs `npm install` in a git dependency that has one of those scripts, and inside OpenCode's single binary that step fails.) From a clone of this repository, use the folder instead: `"plugins": ["/path/to/hippo/plugins/opencode"]`.
 
-Remove the entry to remove the plugin. The plugin looks for `hippo` on `PATH`, then in `~/.local/bin` and `~/.cargo/bin`.
+Remove the entry to remove the plugin. The plugin runs the path in `$HIPPO_HOME/bin-path` (default `~/.hippo/bin-path`), which `hippo init`, `hippo hooks install` and the installer write, so another program named `hippo` earlier on `PATH` is not the one that runs. Without that file it looks for `hippo` on `PATH`, then in `~/.local/bin` and `~/.cargo/bin`, and `hippo doctor` says so.
 
 ## What reaches the model
 

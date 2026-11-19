@@ -42,9 +42,28 @@ pub(crate) fn copy_dir(from: &Path, to: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Opens `path` for writing, truncating it, and creates it 0600 when it is
+/// new (`docs/designs/common.md`, rule 4).
+fn create_private(path: &Path, new_only: bool) -> io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.write(true);
+    if new_only {
+        options.create_new(true);
+    } else {
+        options.create(true).truncate(true);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        options.mode(crate::perms::FILE_MODE);
+    }
+    options.open(path)
+}
+
 /// Replaces `path` with `bytes` atomically. A hidden temporary file beside
-/// it, `.<name>.tmp` (for a record, `.<id>.json.tmp`), is written and
-/// synced, takes the old file's permissions, and is renamed over `path`. A
+/// it, `.<name>.tmp` (for a record, `.<id>.json.tmp`), is created 0600,
+/// written and synced, takes the old file's permissions when there was
+/// one (so a write never widens them), and is renamed over `path`. A
 /// reader sees the old bytes or the new ones, never a mix.
 pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     let Some(temp) = temp_beside(path) else {
@@ -52,7 +71,8 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
         return Err(Error::io_at(path, err));
     };
     let permissions = fs::metadata(path).ok().map(|m| m.permissions());
-    let written = File::create(&temp)
+    let _ = fs::remove_file(&temp);
+    let written = create_private(&temp, false)
         .and_then(|mut file| {
             file.write_all(bytes)?;
             if let Some(permissions) = permissions {
@@ -71,11 +91,7 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
 /// Creates `path` holding `bytes` and never replaces an existing file: the
 /// name is claimed with `create_new`, then filled by [`write_atomic`].
 pub(crate) fn write_new(path: &Path, bytes: &[u8]) -> Result<()> {
-    OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-        .map_err(|e| Error::io_at(path, e))?;
+    create_private(path, true).map_err(|e| Error::io_at(path, e))?;
     write_atomic(path, bytes).inspect_err(|_| {
         let _ = fs::remove_file(path);
     })

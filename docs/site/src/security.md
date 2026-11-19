@@ -65,7 +65,7 @@ The reviewer receives only its persona (as the system prompt), the note, the pro
 
 Each model run:
 
-- starts in `$HIPPO_HOME/model-runs/`, an empty directory hippo creates and empties first;
+- starts in its own new, empty folder, `$HIPPO_HOME/model-runs/<ulid>/` (mode 0700), which is removed when the run ends, so two runs at once never see each other's files; a run that starts removes folders older than a day, which only a crashed run leaves;
 - with the default command, runs `claude` with no tools, no settings files, no MCP servers and no saved session, so the model can read nothing on your disk and leaves no transcript. A canary test in the repository checks that this command cannot read a planted file in its working directory;
 - is stopped after 600 seconds;
 - receives transcript text on standard input, not in its arguments, so it does not show in the process list.
@@ -91,6 +91,13 @@ Pass and persona files are text, and hippo never executes anything a pack contai
 |---|---|
 | `$HIPPO_HOME/index.sqlite` | Redacted transcript turns. Rebuildable. Never committed. |
 | `$HIPPO_HOME/` other files | `config.toml`, `ingest.lock`, `ingest-state.json`, `logs/`, `model-runs/` |
+| `$HIPPO_HOME/bin-path` | The absolute path of the `hippo` binary, written by `hippo init`, `hippo hooks install` and `install.sh`. The Claude Code, dsh and OpenCode plugins run that path, and look on `PATH` only when the file is missing |
+| `$HIPPO_HOME/install.json` | Written by `install.sh` after it checked the release against its published checksum: the version, the binary's path and its sha256. `hippo doctor` compares the binary, and the ones the hooks run, against it |
+| `<workspace>/.claude/settings.local.json` | hippo's three Claude Code hooks, running hippo by its absolute path. Per person: hippo writes nothing to the shared `.claude/settings.json` |
+
+Everything hippo creates under `$HIPPO_HOME` is private: folders 0700, files 0600, the index included. hippo runs with a umask of 077, so files it writes elsewhere (notes, `.hippo/` records, hook files) are created 0600 too; a file that exists keeps its mode. A command that finds `$HIPPO_HOME` itself open to other accounts makes it 0700 and says so once; `hippo doctor` lists anything inside still readable by others, and `hippo doctor --fix-permissions` tightens it.
+
+Proposals, receipts, review marks, pack reviews and lessons carry `hippo_version`, the version of the hippo that wrote them. A workspace's `hippo.toml` can set `min_hippo_version`: an older hippo then refuses to write notes or records there, or to call a model for it, and so does a hippo that finds keys in `hippo.toml` it does not know ([Configuration](configuration.md)).
 | `<workspace>/.hippo/` | Settings, the core pack, session records, proposals, receipts, reports, dream state; `snapshots/` is gitignored |
 | `<notes_dir>/` | Your notes, changed only by confirmed dreaming changes or by you |
 | `log_path` | The generated session log |

@@ -47,6 +47,12 @@ pub enum Error {
     #[error("hippo is not set up yet (no {}): run hippo to find your agents' history and index it", .0.display())]
     NotSetUp(PathBuf),
 
+    /// The workspace's `hippo.toml` asks for a newer hippo, by
+    /// `min_hippo_version` or by keys this one does not know, so this
+    /// command does not write or call a model.
+    #[error("{0}")]
+    Refused(String),
+
     /// The transcript index does not exist.
     #[error("no index; run hippo ingest")]
     MissingIndex,

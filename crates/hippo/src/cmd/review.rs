@@ -26,7 +26,7 @@ pub fn run(args: Args) -> Result<ExitCode> {
             "say what you found: --ok marks the change as right; hippo revert <receipt> undoes it"
         );
     }
-    let (_, workspace) = super::load()?;
+    let (_, workspace) = super::load_for_write()?;
     let now = OffsetDateTime::now_utc();
     for text in &args.receipts {
         let id: Ulid = text

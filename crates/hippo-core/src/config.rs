@@ -135,6 +135,15 @@ impl Config {
                 return Err(Error::NotSetUp(path));
             }
         }
+        // A home an older hippo left open to other accounts is closed on
+        // the first command that loads it, once.
+        if let Some(old) = crate::perms::tighten_home(home) {
+            eprintln!(
+                "hippo: {} was open to other accounts (mode {old:o}); it is 0700 now. \
+                 hippo doctor lists files inside that are still readable by others.",
+                home.display()
+            );
+        }
         let mut config: Config = toml::from_str(&read(&path)?)?;
         config.home = home.to_path_buf();
         if let Some(workspace) = &mut config.workspace {
@@ -207,6 +216,17 @@ pub struct Workspace {
     /// `None` finds them automatically ([`crate::log_notes`]).
     #[serde(default, deserialize_with = "log_note_patterns")]
     pub log_notes: Option<Vec<String>>,
+    /// The oldest hippo that may write a note or a shared record here, or
+    /// call a model for this workspace (`docs/designs/common.md`, rule 2).
+    /// An older hippo refuses those commands; hooks and `context` keep
+    /// working.
+    #[serde(default)]
+    pub min_hippo_version: Option<String>,
+    /// Keys and tables in the file that this hippo does not know, in file
+    /// order: settings a newer hippo added. They make the same commands
+    /// refuse, and `doctor` reports them. Not a key in the file.
+    #[serde(skip)]
+    pub unknown_keys: Vec<String>,
 }
 
 fn default_true() -> bool {
@@ -287,7 +307,78 @@ pub(crate) fn stays_inside(path: &Path) -> bool {
         .all(|c| matches!(c, Component::Normal(_) | Component::CurDir))
 }
 
+/// Every key `hippo.toml` may hold in this release.
+pub const WORKSPACE_KEYS: [&str; 11] = [
+    "notes_dir",
+    "entry_note",
+    "required_notes",
+    "budget_bytes",
+    "log_path",
+    "sample_tasks",
+    "passes_off",
+    "lessons",
+    "snapshot_keep_days",
+    "log_notes",
+    "min_hippo_version",
+];
+
+/// This hippo's version.
+pub const HIPPO_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// `major.minor.patch` of a version such as `0.5.0` or `v0.5.0-rc.1`; a
+/// pre-release suffix is ignored. `None` for anything else.
+pub fn parse_version(text: &str) -> Option<(u64, u64, u64)> {
+    let text = text.trim().trim_start_matches('v');
+    let core = text.split(['-', '+']).next()?;
+    let mut parts = core.split('.');
+    let mut next = || parts.next()?.parse::<u64>().ok();
+    let version = (next()?, next()?, next()?);
+    parts.next().is_none().then_some(version)
+}
+
 impl Workspace {
+    /// Why this hippo must not write a note or a shared record here, or
+    /// call a model for this workspace: a `min_hippo_version` above its
+    /// own (or one it cannot read), or keys it does not know. `None` when
+    /// it may. Hooks, `context` and `brief` never ask.
+    pub fn write_refusal(&self) -> Option<String> {
+        let file = self.hippo_dir().join("hippo.toml");
+        if let Some(floor) = &self.min_hippo_version {
+            let ours = parse_version(HIPPO_VERSION);
+            match parse_version(floor) {
+                None => {
+                    return Some(format!(
+                        "{} sets min_hippo_version = {floor:?}, which this hippo ({HIPPO_VERSION}) cannot read; update hippo",
+                        file.display()
+                    ))
+                }
+                Some(needed) if ours.is_some_and(|ours| ours < needed) => {
+                    return Some(format!(
+                        "{} needs hippo {floor} or newer (min_hippo_version); this is {HIPPO_VERSION}. Update hippo before it writes here or calls a model.",
+                        file.display()
+                    ))
+                }
+                Some(_) => {}
+            }
+        }
+        if !self.unknown_keys.is_empty() {
+            return Some(format!(
+                "{} has settings this hippo ({HIPPO_VERSION}) does not know: {}. A newer hippo wrote them; update hippo before it writes here or calls a model.",
+                file.display(),
+                self.unknown_keys.join(", ")
+            ));
+        }
+        None
+    }
+
+    /// [`Workspace::write_refusal`] as an error.
+    pub fn check_can_write(&self) -> Result<()> {
+        match self.write_refusal() {
+            Some(why) => Err(Error::Refused(why)),
+            None => Ok(()),
+        }
+    }
+
     /// `<root>/<notes_dir>`: the notes directory on disk.
     pub fn notes_root(&self) -> PathBuf {
         self.root.join(&self.notes_dir)
@@ -319,6 +410,13 @@ impl Workspace {
     fn parse(text: &str, root: &Path) -> Result<Workspace> {
         let mut workspace: Workspace = toml::from_str(text)?;
         workspace.root = root.to_path_buf();
+        if let Ok(table) = text.parse::<toml::Table>() {
+            workspace.unknown_keys = table
+                .keys()
+                .filter(|k| !WORKSPACE_KEYS.contains(&k.as_str()))
+                .cloned()
+                .collect();
+        }
         if workspace.log_path.as_os_str().is_empty() {
             workspace.log_path = workspace.notes_dir.join("Session log.md");
         }
@@ -623,7 +721,7 @@ pub fn init_in(home: &Path, options: InitOptions) -> Result<InitReport> {
             crate::util::write_atomic(&config_path, text.as_bytes())?;
         }
         None => {
-            fs::create_dir_all(home).map_err(|e| Error::io_at(home, e))?;
+            crate::perms::create_private_dir(home)?;
             let workspace_line = match workspace_text {
                 Some(path) => format!("workspace = \"{}\"", toml_escape(path)),
                 None => NO_WORKSPACE_LINE.to_owned(),
@@ -953,6 +1051,8 @@ mod tests {
             lessons: true,
             snapshot_keep_days: None,
             log_notes: None,
+            min_hippo_version: None,
+            unknown_keys: Vec::new(),
         };
         let text = read(&hippo.join("hippo.toml")).unwrap();
         assert_eq!(Workspace::parse(&text, &root).unwrap(), records_workspace);
@@ -1234,6 +1334,46 @@ mod tests {
             written.workspace,
             Some(fs::canonicalize(&workspace).unwrap())
         );
+    }
+
+    #[test]
+    fn a_version_floor_and_unknown_keys_refuse_writes_and_say_why() {
+        let root = Path::new("/w");
+        let base = "notes_dir = \"n\"\nentry_note = \"n/E.md\"\n";
+        let ws = Workspace::parse(base, root).unwrap();
+        assert!(ws.write_refusal().is_none());
+
+        let ws = Workspace::parse(&format!("{base}min_hippo_version = \"0.1.0\"\n"), root).unwrap();
+        assert!(ws.check_can_write().is_ok());
+        let ws =
+            Workspace::parse(&format!("{base}min_hippo_version = \"99.0.0\"\n"), root).unwrap();
+        let why = ws.write_refusal().unwrap();
+        assert!(why.contains("needs hippo 99.0.0 or newer"), "{why}");
+        let ws = Workspace::parse(&format!("{base}min_hippo_version = \"soon\"\n"), root).unwrap();
+        assert!(ws.write_refusal().unwrap().contains("cannot read"));
+
+        // A table from a newer release loads, and refuses writes.
+        let ws = Workspace::parse(
+            &format!("{base}[guard]\nfail = \"closed\"\n\n[team]\ninbox = \"shared\"\n"),
+            root,
+        )
+        .unwrap();
+        assert_eq!(ws.unknown_keys, ["guard", "team"]);
+        assert!(ws
+            .write_refusal()
+            .unwrap()
+            .contains("does not know: guard, team"));
+        assert!(matches!(ws.check_can_write(), Err(Error::Refused(_))));
+    }
+
+    #[test]
+    fn versions_compare_by_their_three_numbers() {
+        assert_eq!(parse_version("0.5.0"), Some((0, 5, 0)));
+        assert_eq!(parse_version("v1.2.3-rc.1"), Some((1, 2, 3)));
+        assert_eq!(parse_version("1.2"), None);
+        assert_eq!(parse_version("1.2.3.4"), None);
+        assert!(parse_version("0.10.0") > parse_version("0.9.9"));
+        assert!(parse_version(HIPPO_VERSION).is_some());
     }
 
     #[test]

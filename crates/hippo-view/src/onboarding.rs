@@ -709,6 +709,7 @@ pub fn step_two_commands(
             "install".into(),
             "--workspace".into(),
             ws,
+            "--yes".into(),
         ]);
     }
     Some(out)

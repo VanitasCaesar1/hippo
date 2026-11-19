@@ -30,6 +30,11 @@ pub fn run(args: Args) -> Result<ExitCode> {
     let (config, ws) = load_history()?;
     let mut asked = ask::run(&config, ws.as_ref(), &args.question, args.limit)?;
     if !args.sources_only {
+        // The answer is a model call: refused as writes are when the
+        // workspace asks for a newer hippo; the sources still print.
+        if let Some(why) = ws.as_ref().and_then(|ws| ws.write_refusal()) {
+            anyhow::bail!("{why} (hippo ask --sources-only still works)");
+        }
         ask::answer(&config, &mut asked);
     }
     let mut out = io::stdout().lock();

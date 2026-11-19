@@ -374,12 +374,14 @@ The second command restores the default.
 ## hippo hooks
 
 ```text
-hippo hooks install [--agent <claude-code|codex|cursor|gemini>] [--workspace <dir>]
+hippo hooks install [--agent <claude-code|codex|cursor|gemini>] [--workspace <dir>] [--yes]
 hippo hooks uninstall [--agent <claude-code|codex|cursor|gemini>] [--workspace <dir>]
 hippo hooks status [--agent <claude-code|codex|cursor|gemini>] [--workspace <dir>]
 ```
 
-Adds, removes or checks hippo's three hooks (`SessionStart`, `UserPromptSubmit`, `SessionEnd`). For Claude Code, the default, they go in the workspace's `.claude/settings.json` (`--workspace` names another workspace). With `--agent codex` they go in `$CODEX_HOME/hooks.json` (`~/.codex/hooks.json`), which Codex runs for every session; the hooks themselves act only for sessions in the workspace. `install` adds each once and keeps everything else in the file. `uninstall` removes only hippo's three. `status` says which of the three are there.
+Adds, removes or checks hippo's three hooks (`SessionStart`, `UserPromptSubmit`, `SessionEnd`). For Claude Code, the default, they go in the workspace's `.claude/settings.local.json`, which is per person (`--workspace` names another workspace). With `--agent codex` they go in `$CODEX_HOME/hooks.json` (`~/.codex/hooks.json`), which Codex runs for every session; the hooks themselves act only for sessions in the workspace. `install` adds each once and keeps everything else in the file. `uninstall` removes only hippo's three. `status` says which of the three are there.
+
+Every hook runs the binary that installed it by its absolute path (or the `hippo` link on `PATH` that points to it, which stays valid across upgrades). `install` rewrites an existing hippo hook that runs a bare `hippo` or another path, and writes the same path to `$HIPPO_HOME/bin-path` for the plugins. Hooks an older hippo put in a workspace's shared `.claude/settings.json` are moved to `.claude/settings.local.json`: without `--yes`, `install` says what it would move and writes nothing; with `--yes` it takes hippo's entries out of `settings.json` (no one else's) and adds them to `settings.local.json`. `uninstall` takes them out of both files.
 
 Codex runs a new hook only after you trust it: it lists hippo's hooks for review the next time it starts, or use `/hooks`. hippo never writes that trust for you.
 
@@ -430,7 +432,7 @@ Writes the session log to `log_path` and prints the path. With `--stdout` it pri
 ## hippo doctor
 
 ```text
-hippo doctor [--model]
+hippo doctor [--model] [--fix-permissions]
 ```
 
 Prints a table `check | status | detail`, one row per check. Status is `ok`, `warn` or `problem`. Exits 1 if any row is a problem, else 0. A healthy new setup passes: a schedule or a dreaming run that does not exist yet is an `ok` row whose detail starts `not set up yet:`. See [Troubleshooting](troubleshooting.md).
@@ -438,8 +440,17 @@ Prints a table `check | status | detail`, one row per check. Status is `ok`, `wa
 | Flag | Meaning |
 |---|---|
 | `--model` | Also send one word through `model_command` to check that it answers. This is one model call. A nightly check should pass it ([Scheduling](scheduling.md#a-nightly-check)). |
+| `--fix-permissions` | First make every file under `$HIPPO_HOME` 0600 and every folder 0700, then check. |
 
 Without `--model` the `model` row says `not checked`, or warns when the program is not on `PATH`.
+
+Five rows check what keeps hippo's data and hooks private ([Security and privacy](security.md#what-is-written-where)):
+
+- `workspace settings`: a problem when the workspace's `hippo.toml` sets `min_hippo_version` above this hippo, or holds keys this hippo does not know. Commands that write a note or a shared record or call a model (`dream`, `lessons`, `add`, `packs update` and `remove`, `review`, `revert`, and `ask` unless `--sources-only`) then refuse, naming the version needed; hooks, `context` and `brief` keep working.
+- `permissions`: a warning naming anything under `$HIPPO_HOME` that another account could read. hippo creates folders 0700 and files 0600, and a command that finds `$HIPPO_HOME` itself open closes it and says so once; files an older hippo wrote keep their mode until `--fix-permissions`.
+- `hooks`: a warning for a hippo hook (Claude Code, Codex, Cursor, Gemini CLI) or MCP entry that finds hippo through `PATH`, names a binary that is gone, or sits in a workspace's shared `.claude/settings.json`; also when git tracks `.claude/settings.local.json`.
+- `bin-path`: a warning when `$HIPPO_HOME/bin-path` is missing or names no file, so the Claude Code, dsh and OpenCode plugins fall back to `PATH`.
+- `install`: when `install.sh` installed hippo, a problem if that binary no longer has the checksum it recorded in `$HIPPO_HOME/install.json`, and a warning if the hooks, MCP entries or `bin-path` run another binary.
 
 The `git` row reads git (it never writes through it): when the workspace is in a git work tree, it warns when git tracks a per-person file (`.hippo/sessions/`, `reports/`, `snapshots/`, `dream-state.json`, the session log), naming them and the two commands that stop tracking them, or when one is not ignored, naming `hippo init`. See [Sharing a brain in a team](sharing.md).
 

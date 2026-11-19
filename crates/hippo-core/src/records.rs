@@ -391,10 +391,13 @@ impl Pass {
     }
 }
 
-/// A record behind its `protocol` key, the order `save` writes them in.
+/// A record behind its `protocol` key and the version of the hippo that
+/// wrote it, the order `save` writes them in.
 #[derive(Serialize)]
 struct Tagged<'a, T> {
     protocol: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hippo_version: Option<&'static str>,
     #[serde(flatten)]
     record: &'a T,
 }
@@ -402,8 +405,21 @@ struct Tagged<'a, T> {
 /// The bytes `save` writes: pretty JSON with `protocol` first, and a final
 /// newline.
 pub(crate) fn encode<T: Serialize>(record: &T) -> Result<Vec<u8>> {
+    encode_tagged(record, None)
+}
+
+/// [`encode`] for a record others read (a proposal, a receipt, a review,
+/// a lesson): `hippo_version` follows `protocol`, the writer's version, so
+/// a reader can tell a record written by a hippo below the workspace's
+/// `min_hippo_version`. Readers ignore it.
+pub(crate) fn encode_shared<T: Serialize>(record: &T) -> Result<Vec<u8>> {
+    encode_tagged(record, Some(crate::config::HIPPO_VERSION))
+}
+
+fn encode_tagged<T: Serialize>(record: &T, hippo_version: Option<&'static str>) -> Result<Vec<u8>> {
     let tagged = Tagged {
         protocol: PROTOCOL,
+        hippo_version,
         record,
     };
     let mut bytes = serde_json::to_vec_pretty(&tagged)?;
@@ -435,17 +451,24 @@ fn save_record<T: Serialize>(record: &T, path: &Path) -> Result<()> {
     write_atomic(path, &encode(record)?)
 }
 
+fn save_shared_record<T: Serialize>(record: &T, path: &Path) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| Error::io_at(parent, e))?;
+    }
+    write_atomic(path, &encode_shared(record)?)
+}
+
 fn load_record<T: DeserializeOwned>(path: &Path) -> Result<T> {
     decode(&fs::read(path).map_err(|e| Error::io_at(path, e))?)
 }
 
 macro_rules! json_records {
-    ($($record:ident),*) => {$(
+    ($save:ident: $($record:ident),*) => {$(
         impl $record {
             /// Writes the record to `path` atomically, `protocol` first,
             /// creating the parent directory.
             pub fn save(&self, path: &Path) -> Result<()> {
-                save_record(self, path)
+                $save(self, path)
             }
 
             /// Reads a record, refusing a missing or different `protocol`
@@ -457,7 +480,8 @@ macro_rules! json_records {
     )*};
 }
 
-json_records!(Session, Proposal, Receipt, DreamState, IngestState);
+json_records!(save_record: Session, DreamState, IngestState);
+json_records!(save_shared_record: Proposal, Receipt);
 
 /// One record file of a list: its path, and the record or the text of the
 /// error that kept it from loading.
@@ -617,6 +641,16 @@ mod tests {
         let copy = dir.join(name);
         save_record(&record, &copy).unwrap();
         assert_eq!(json(&copy), json(&fixture(name)), "{name}");
+        // A shared record also names the hippo that wrote it.
+        save_shared_record(&record, &copy).unwrap();
+        let mut shared = json(&copy);
+        assert_eq!(
+            shared["hippo_version"],
+            crate::config::HIPPO_VERSION,
+            "{name}"
+        );
+        shared.as_object_mut().unwrap().remove("hippo_version");
+        assert_eq!(shared, json(&fixture(name)), "{name}");
         let text = fs::read_to_string(&copy).unwrap();
         assert!(
             text.starts_with("{\n  \"protocol\": \"HIPPO_V1\",\n"),
@@ -972,6 +1006,8 @@ mod tests {
             lessons: true,
             snapshot_keep_days: None,
             log_notes: None,
+            min_hippo_version: None,
+            unknown_keys: Vec::new(),
         }
     }
 

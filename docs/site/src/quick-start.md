@@ -113,17 +113,19 @@ The block starts with the part of your entry note before its first `## ` heading
 
 ## 6. Add the Claude Code hooks
 
-To give every Claude Code session this context, run `hippo hooks install`. It adds three hooks to the workspace's `.claude/settings.json`, once each, and keeps everything else in the file. `hippo hooks status` checks them. Or add them by hand:
+To give every Claude Code session this context, run `hippo hooks install`. It adds three hooks to the workspace's `.claude/settings.local.json`, once each, and keeps everything else in the file. That file is yours alone (the team commits `.claude/settings.json`), and each hook runs hippo by its absolute path, so another program named `hippo` earlier on `PATH` never sees your sessions. `hippo hooks status` checks them. Or add them by hand, with your binary's path (`command -v hippo`):
 
 ```json
 {
   "hooks": {
-    "SessionStart": [{ "hooks": [{ "type": "command", "command": "hippo hook session-start" }] }],
-    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "hippo hook prompt" }] }],
-    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "hippo hook session-end" }] }]
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "/home/you/.local/bin/hippo hook session-start" }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "/home/you/.local/bin/hippo hook prompt" }] }],
+    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "/home/you/.local/bin/hippo hook session-end" }] }]
   }
 }
 ```
+
+hippo before 0.5.0 put these hooks in `.claude/settings.json`. `hippo hooks install` finds them there, says it will move them, and moves them with `--yes`, taking out hippo's entries only.
 
 - `session-start` records a declared session and prints the required part of the context.
 - `prompt` runs on the first prompt of a session only. It records the prompt as the session's task and prints the relevant notes and the linter counts.

@@ -278,9 +278,14 @@ fn codex_hooks_act_only_in_the_workspace_and_answer_in_json() {
     );
     let file = hippo.user_home.path().join(".codex/hooks.json");
     let hooks: Value = serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
-    assert_eq!(
-        hooks["hooks"]["SessionStart"][0]["hooks"][0]["command"],
-        "hippo hook session-start --agent codex"
+    // Run by this binary's absolute path, never through PATH.
+    let command = hooks["hooks"]["SessionStart"][0]["hooks"][0]["command"]
+        .as_str()
+        .unwrap();
+    assert!(command.starts_with('/'), "{command}");
+    assert!(
+        command.ends_with("/hippo hook session-start --agent codex"),
+        "{command}"
     );
     assert_eq!(hooks["hooks"]["SessionEnd"][0]["hooks"][0]["timeout"], 3);
     let out = hippo.run(&["hooks", "install", "--agent", "codex"], None);
@@ -430,9 +435,12 @@ fn gemini_hooks_act_only_in_the_workspace_and_answer_in_json() {
     );
     let settings: Value = serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
     assert_eq!(settings["mcpServers"]["x"]["command"], "x");
-    assert_eq!(
-        settings["hooks"]["BeforeAgent"][0]["hooks"][0]["command"],
-        "hippo hook prompt --agent gemini"
+    let command = settings["hooks"]["BeforeAgent"][0]["hooks"][0]["command"]
+        .as_str()
+        .unwrap();
+    assert!(
+        command.starts_with('/') && command.ends_with("/hippo hook prompt --agent gemini"),
+        "{command}"
     );
 
     let start = format!(

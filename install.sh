@@ -4,7 +4,10 @@
 #   curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippo/main/install.sh | sh
 #
 # It picks the binary for this machine, checks its sha256, and copies it to
-# $HIPPO_INSTALL_DIR (default ~/.local/bin). No sudo.
+# $HIPPO_INSTALL_DIR (default ~/.local/bin). No sudo. It then records the
+# binary's path and checksum in $HIPPO_HOME/install.json, which hippo doctor
+# compares the binary against, and the path in $HIPPO_HOME/bin-path, which
+# the plugins run (HIPPO_HOME defaults to ~/.hippo; both files are 0600).
 #
 #   HIPPO_VERSION       a version to install instead of the latest (0.4.2)
 #   HIPPO_INSTALL_DIR   where the binary goes
@@ -109,15 +112,21 @@ say "Downloading hippo $version for $target"
 fetch "$base/$asset" "$tmp/$asset" || die "could not download $base/$asset"
 fetch "$base/$asset.sha256" "$tmp/$asset.sha256" || die "could not download $base/$asset.sha256"
 
+# sum <file>: its sha256, lowercase hex.
+sum() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | cut -d ' ' -f 1
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | cut -d ' ' -f 1
+  else
+    die "needs sha256sum or shasum to check the download"
+  fi
+}
+
 want=$(cut -d ' ' -f 1 "$tmp/$asset.sha256")
-if command -v sha256sum >/dev/null 2>&1; then
-  have=$(sha256sum "$tmp/$asset" | cut -d ' ' -f 1)
-elif command -v shasum >/dev/null 2>&1; then
-  have=$(shasum -a 256 "$tmp/$asset" | cut -d ' ' -f 1)
-else
-  die "needs sha256sum or shasum to check the download"
-fi
+have=$(sum "$tmp/$asset")
 [ -n "$want" ] && [ "$want" = "$have" ] || die "the checksum of $asset does not match (expected $want, got $have); nothing was installed"
+say "Checked $asset against its published sha256"
 
 (cd "$tmp" && tar -xzf "$asset")
 bin=$tmp/hippo-$version-$target/hippo
@@ -128,6 +137,36 @@ cp "$bin" "$dir/.hippo.new.$$"
 chmod 755 "$dir/.hippo.new.$$"
 mv -f "$dir/.hippo.new.$$" "$dir/hippo"
 say "Installed hippo $version to $dir/hippo"
+
+# What doctor checks the binary against, and the path the plugins run.
+case $dir in
+  /*) bin=$dir/hippo ;;
+  *) bin=$(pwd)/$dir/hippo ;;
+esac
+home=${HIPPO_HOME:-$HOME/.hippo}
+binsum=$(sum "$bin")
+json_string() {
+  printf '"%s"' "$(printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+}
+(
+  umask 077
+  mkdir -p "$home"
+  chmod 700 "$home"
+  {
+    printf '{\n'
+    printf '  "version": %s,\n' "$(json_string "$version")"
+    printf '  "target": %s,\n' "$(json_string "$target")"
+    printf '  "binary": %s,\n' "$(json_string "$bin")"
+    printf '  "sha256": %s,\n' "$(json_string "$binsum")"
+    printf '  "asset": %s,\n' "$(json_string "$asset")"
+    printf '  "asset_sha256": %s\n' "$(json_string "$have")"
+    printf '}\n'
+  } > "$home/.install.json.$$"
+  mv -f "$home/.install.json.$$" "$home/install.json"
+  printf '%s\n' "$bin" > "$home/.bin-path.$$"
+  mv -f "$home/.bin-path.$$" "$home/bin-path"
+) || die "installed $bin, but could not write $home/install.json and $home/bin-path"
+say "Recorded its sha256 in $home/install.json"
 
 next=hippo
 case ":$PATH:" in

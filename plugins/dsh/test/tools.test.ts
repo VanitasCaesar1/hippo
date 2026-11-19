@@ -139,3 +139,25 @@ test('the config fills defaults and refuses what it does not know', () => {
 test('apply refuses an invalid config', async () => {
   await assert.rejects(apply(fakeContext(), { timeoutMs: 0 }), /timeoutMs must be a positive whole number/)
 })
+
+test('hippo runs by the path in $HIPPO_HOME/bin-path, else from PATH', async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { resolveCommand } = await import('../src/hippo.ts')
+  const home = mkdtempSync(join(tmpdir(), 'hippo-bin-path-'))
+  scratch.push(home)
+  const env = { HIPPO_HOME: join(home, 'h') }
+  assert.equal(resolveCommand('hippo', env), 'hippo')
+  mkdirSync(env.HIPPO_HOME)
+  const bin = join(home, 'hippo-binary')
+  writeFileSync(bin, '#!/bin/sh\n')
+  writeFileSync(join(env.HIPPO_HOME, 'bin-path'), `${bin}\n`)
+  assert.equal(resolveCommand('hippo', env), bin)
+  // A configured command is used as given; a relative or missing path falls back.
+  assert.equal(resolveCommand('/opt/other/hippo', env), '/opt/other/hippo')
+  writeFileSync(join(env.HIPPO_HOME, 'bin-path'), 'relative/hippo\n')
+  assert.equal(resolveCommand('hippo', env), 'hippo')
+  writeFileSync(join(env.HIPPO_HOME, 'bin-path'), join(home, 'gone'))
+  assert.equal(resolveCommand('hippo', env), 'hippo')
+})

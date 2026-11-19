@@ -10,7 +10,7 @@ use hippo_core::config;
 use hippo_core::packs::install::{self, AddOutcome};
 use hippo_core::packs::source;
 
-use super::{git_options, load_recovered, print_schedule_warning};
+use super::{git_options, print_schedule_warning};
 
 #[derive(clap::Args)]
 pub struct Args {
@@ -27,7 +27,7 @@ pub struct Args {
 }
 
 pub fn run(args: Args) -> Result<ExitCode> {
-    let (config, workspace) = load_recovered()?;
+    let (config, workspace) = super::load_recovered_for_write()?;
     print_schedule_warning();
     let cwd = std::env::current_dir()?;
     let source = source::parse(&args.source, &cwd, config::user_home().as_deref())?;

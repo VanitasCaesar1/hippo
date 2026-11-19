@@ -35,6 +35,7 @@
 //! - [`hooks`]: the three Claude Code hooks in a workspace's
 //!   `.claude/settings.json`, merged with what is there.
 //! - [`model`]: isolated model invocation through `model_command`.
+//! - [`perms`]: `$HIPPO_HOME` private: 0700 directories, 0600 files.
 //! - [`dream`]: the nightly run, from the window to the report, and
 //!   [`revert`](dream::revert).
 //! - [`eval`]: `hippo eval`, the three suites over a synthetic set.
@@ -58,6 +59,7 @@ pub mod log_notes;
 pub mod model;
 pub mod notes;
 pub mod packs;
+pub mod perms;
 pub mod records;
 pub mod redact;
 pub mod resume;

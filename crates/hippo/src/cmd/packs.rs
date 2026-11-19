@@ -265,7 +265,7 @@ fn diff(name: &str, git_ref: Option<String>, registry: Option<PathBuf>) -> Resul
 }
 
 fn update(name: &str, options: UpdateOptions, flags: Flags) -> Result<ExitCode> {
-    let (config, workspace) = load_recovered()?;
+    let (config, workspace) = super::load_recovered_for_write()?;
     print_schedule_warning();
     let plan = install::plan_update(&workspace, name, &options, &git_options())?;
     let up_to_date = plan.up_to_date;
@@ -284,7 +284,7 @@ fn update(name: &str, options: UpdateOptions, flags: Flags) -> Result<ExitCode> 
 }
 
 fn remove(name: &str, force: bool) -> Result<ExitCode> {
-    let (_, workspace) = load_recovered()?;
+    let (_, workspace) = super::load_recovered_for_write()?;
     install::remove(&workspace, name, force)?;
     println!("removed .hippo/packs/{name}/");
     Ok(ExitCode::SUCCESS)

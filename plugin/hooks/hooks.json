@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "PATH=\"$PATH:$HOME/.local/bin:$HOME/.cargo/bin\"; command -v hippo >/dev/null 2>&1 && hippo hook session-start --plugin 2>/dev/null; exit 0",
+            "command": "b=$(head -n 1 \"${HIPPO_HOME:-$HOME/.hippo}/bin-path\" 2>/dev/null); case $b in /*) [ -x \"$b\" ] || b= ;; *) b= ;; esac; if [ -z \"$b\" ]; then PATH=\"$PATH:$HOME/.local/bin:$HOME/.cargo/bin\"; b=$(command -v hippo 2>/dev/null); fi; [ -n \"$b\" ] && \"$b\" hook session-start --plugin 2>/dev/null; exit 0",
             "timeout": 10
           }
         ]

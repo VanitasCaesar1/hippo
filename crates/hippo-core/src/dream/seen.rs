@@ -24,6 +24,9 @@ use crate::records::{list_receipts, Verdict};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Seen {
     pub protocol: String,
+    /// The version of the hippo that wrote the mark; absent before 0.5.0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hippo_version: Option<String>,
     pub receipt: Ulid,
     /// `looks-right`.
     pub verdict: String,
@@ -60,6 +63,7 @@ pub fn mark(ws: &Workspace, receipt: Ulid, now: OffsetDateTime) -> Result<PathBu
     }
     let seen = Seen {
         protocol: crate::PROTOCOL.to_owned(),
+        hippo_version: Some(crate::config::HIPPO_VERSION.to_owned()),
         receipt,
         verdict: "looks-right".to_owned(),
         by: "person".to_owned(),
@@ -110,6 +114,8 @@ mod tests {
             lessons: true,
             snapshot_keep_days: None,
             log_notes: None,
+            min_hippo_version: None,
+            unknown_keys: Vec::new(),
         }
     }
 

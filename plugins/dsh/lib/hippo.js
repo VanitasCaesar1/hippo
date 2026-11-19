@@ -3,9 +3,9 @@
  * timeout, and only its standard output and exit status read back.
  */
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { delimiter, join } from 'node:path';
+import { delimiter, isAbsolute, join } from 'node:path';
 /** Why a hippo command did not give its output. */
 export class HippoError extends Error {
     reason;
@@ -23,11 +23,33 @@ export function searchPath(path = process.env.PATH ?? '', home = homedir()) {
     const extra = [join(home, '.local', 'bin'), join(home, '.cargo', 'bin')];
     return [...path.split(delimiter).filter(Boolean), ...extra].join(delimiter);
 }
+/**
+ * The binary to run for `command`. For the default name `hippo`, the
+ * absolute path `hippo init` and the installer wrote to
+ * `$HIPPO_HOME/bin-path` (default `~/.hippo/bin-path`), so a `hippo`
+ * placed earlier on PATH is not the one that runs; PATH only when that file
+ * is missing or names no executable file (`hippo doctor` says so). A
+ * command the person configured is used as given.
+ */
+export function resolveCommand(command, env = process.env, home = homedir()) {
+    if (command !== 'hippo')
+        return command;
+    const hippoHome = env.HIPPO_HOME ? env.HIPPO_HOME : join(home, '.hippo');
+    try {
+        const path = readFileSync(join(hippoHome, 'bin-path'), 'utf8').split('\n')[0]?.trim() ?? '';
+        if (isAbsolute(path) && statSync(path).isFile())
+            return path;
+    }
+    catch {
+        // No bin-path: PATH, below.
+    }
+    return command;
+}
 /** Run `hippo <args>` and return its standard output. */
 export function runHippo(args, options) {
     const shown = `hippo ${args.join(' ')}`;
     return new Promise((resolve, reject) => {
-        execFile(options.command, [...args], {
+        execFile(resolveCommand(options.command), [...args], {
             cwd: options.cwd,
             env: { ...process.env, PATH: searchPath() },
             timeout: options.timeoutMs,

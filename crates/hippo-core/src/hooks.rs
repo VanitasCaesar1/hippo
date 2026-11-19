@@ -1,16 +1,26 @@
 //! `hippo hooks install|uninstall|status`: hippo's three hooks in an
 //! agent's hooks file, for Claude Code a workspace's
-//! `.claude/settings.json` and for Codex the user's `$CODEX_HOME/hooks.json`
-//! (the same `hooks` shape).
+//! `.claude/settings.local.json` and for Codex the user's
+//! `$CODEX_HOME/hooks.json` (the same `hooks` shape).
 //!
 //! [`install_file`] adds, for `SessionStart`, `UserPromptSubmit` and
-//! `SessionEnd`, a command hook running `hippo hook session-start`, `hippo
-//! hook prompt` and `hippo hook session-end` (with `--agent codex` for
-//! Codex), unless the event already has a hook whose command runs that
-//! subcommand for that agent. Everything else in the file is kept, in its
-//! order: the file is read into an order-keeping tree, the entries are
-//! appended, and the tree is written back with two-space indentation,
-//! atomically. A file that is not a JSON object is refused and left alone.
+//! `SessionEnd`, a command hook running `<hippo> hook session-start`,
+//! `<hippo> hook prompt` and `<hippo> hook session-end` (with `--agent
+//! codex` for Codex), unless the event already has a hook whose command
+//! runs that subcommand for that agent. `<hippo>` is the absolute path of
+//! the binary ([`binary_path`]), so a `hippo` placed earlier on `PATH`
+//! never sees a session (`docs/designs/common.md`, rule 4); an existing
+//! entry that runs another path, or a bare `hippo`, is rewritten to it.
+//! Everything else in the file is kept, in its order: the file is read
+//! into an order-keeping tree, the entries are appended, and the tree is
+//! written back with two-space indentation, atomically. A file that is not
+//! a JSON object is refused and left alone.
+//!
+//! Claude Code's hooks live in `.claude/settings.local.json`, which is the
+//! person's own. `.claude/settings.json` is the file teams commit; an
+//! absolute path there would break for teammates and name the owner's home
+//! folder, so hippo writes nothing there, and [`claude_code_shared`] finds
+//! the entries an older hippo put there, for `hooks install` to move.
 //! [`status_file`] reports which events have their hook. Codex's trust in
 //! a hook is Codex's own: nothing here reads or writes its `config.toml`.
 //!
@@ -78,12 +88,18 @@ impl Agent {
         }
     }
 
+    /// The command hippo's hook for `sub` runs: `bin`, quoted for a shell
+    /// when it needs it, then [`Agent::suffix`].
+    pub fn command(self, bin: &str, sub: &str) -> String {
+        format!("{} {}", shell_quote(bin), self.suffix(sub))
+    }
+
     /// The group hippo adds for `sub`. Codex keeps the start block and the
     /// relevant notes in context rather than in a file
     /// (`additionalContextLimit: 0`; hippo holds them under the budget),
     /// and gives `SessionEnd` the longest timeout it allows, 3 seconds.
-    fn entry(self, sub: &str) -> J {
-        let command = J::Scalar(Value::from(format!("hippo {}", self.suffix(sub))));
+    fn entry(self, bin: &str, sub: &str) -> J {
+        let command = J::Scalar(Value::from(self.command(bin, sub)));
         if self == Agent::Cursor {
             return J::Object(vec![("command".into(), command)]);
         }
@@ -113,9 +129,78 @@ impl Agent {
     }
 }
 
-/// `<workspace>/.claude/settings.json`.
+/// `<workspace>/.claude/settings.local.json`, the person's own Claude Code
+/// settings for the workspace, where hippo's hooks go.
 pub fn settings_path(workspace: &Path) -> PathBuf {
+    workspace.join(".claude").join("settings.local.json")
+}
+
+/// `<workspace>/.claude/settings.json`, the settings a team commits, where
+/// hippo before 0.5.0 put its hooks.
+pub fn shared_settings_path(workspace: &Path) -> PathBuf {
     workspace.join(".claude").join("settings.json")
+}
+
+/// `word` as one shell word: as it is when it holds only characters a
+/// shell leaves alone, else in single quotes.
+pub fn shell_quote(word: &str) -> String {
+    let plain = !word.is_empty()
+        && word
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"/._-+:@%,=".contains(&b));
+    if plain {
+        word.to_owned()
+    } else {
+        format!("'{}'", word.replace('\'', "'\\''"))
+    }
+}
+
+/// The path hooks and plugins should run: the `hippo` on `PATH` when it is
+/// this binary (a Homebrew or `~/.local/bin` link stays valid across
+/// upgrades, its target does not), this binary's own absolute path
+/// otherwise.
+pub fn binary_path() -> io::Result<PathBuf> {
+    let exe = std::env::current_exe()?;
+    let real = fs::canonicalize(&exe).unwrap_or_else(|_| exe.clone());
+    if let Some(paths) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&paths) {
+            let candidate = dir.join("hippo");
+            if candidate.is_absolute()
+                && fs::canonicalize(&candidate).ok().as_deref() == Some(real.as_path())
+            {
+                return Ok(candidate);
+            }
+        }
+    }
+    Ok(real)
+}
+
+/// `$HIPPO_HOME/bin-path`: the binary's absolute path, for the plugins
+/// (Claude Code, dsh, OpenCode), which ship in repositories and so cannot
+/// carry one. They run the path in it and fall back to `PATH` only when it
+/// is missing.
+pub fn bin_path_file(home: &Path) -> PathBuf {
+    home.join("bin-path")
+}
+
+/// Writes `bin` to `$HIPPO_HOME/bin-path` (0600), unless it already says
+/// that; returns whether it wrote.
+pub fn write_bin_path(home: &Path, bin: &Path) -> Result<bool> {
+    let path = bin_path_file(home);
+    let text = format!("{}\n", bin.display());
+    if fs::read_to_string(&path).is_ok_and(|t| t == text) {
+        return Ok(false);
+    }
+    crate::perms::create_private_dir(home)?;
+    crate::util::write_atomic(&path, text.as_bytes())?;
+    Ok(true)
+}
+
+/// The path in `$HIPPO_HOME/bin-path`, if the file holds one.
+pub fn read_bin_path(home: &Path) -> Option<PathBuf> {
+    let text = fs::read_to_string(bin_path_file(home)).ok()?;
+    let line = text.lines().next()?.trim();
+    (!line.is_empty()).then(|| PathBuf::from(line))
 }
 
 /// Codex's home: `$CODEX_HOME` when set and not empty, else `~/.codex`.
@@ -262,6 +347,34 @@ impl J {
         }
     }
 
+    /// Sets the command of every hippo hook under this event's entries
+    /// that ends with `wanted` to `command`; returns whether any changed.
+    fn repoint(&mut self, wanted: &str, command: &str) -> bool {
+        let J::Array(entries) = self else {
+            return false;
+        };
+        let mut changed = false;
+        let mut fix = |h: &mut J| {
+            if is_hippo(h, wanted) {
+                if let J::Object(fields) = h {
+                    for (k, v) in fields.iter_mut() {
+                        if k == "command" && *v != J::Scalar(Value::from(command)) {
+                            *v = J::Scalar(Value::from(command));
+                            changed = true;
+                        }
+                    }
+                }
+            }
+        };
+        for entry in entries.iter_mut() {
+            fix(entry);
+            if let Some(J::Array(hooks)) = entry.get_mut("hooks") {
+                hooks.iter_mut().for_each(&mut fix);
+            }
+        }
+        changed
+    }
+
     /// Whether any hook command under this event's entries is hippo's,
     /// ending with `wanted` ([`Agent::suffix`]).
     fn runs(&self, wanted: &str) -> bool {
@@ -299,9 +412,29 @@ fn read(path: &Path) -> Result<Option<J>> {
     }
 }
 
-/// Which of the three events have their hook in `workspace`'s settings.
+/// Which of the three events have their hook for a Claude Code session in
+/// `workspace`: in `.claude/settings.local.json`, or in the shared
+/// `.claude/settings.json` where an older hippo put it.
 pub fn status(workspace: &Path) -> Result<Vec<(&'static str, bool)>> {
-    status_file(&settings_path(workspace), Agent::ClaudeCode)
+    let local = status_file(&settings_path(workspace), Agent::ClaudeCode)?;
+    let shared = status_file(&shared_settings_path(workspace), Agent::ClaudeCode)?;
+    Ok(local
+        .into_iter()
+        .zip(shared)
+        .map(|((event, a), (_, b))| (event, a || b))
+        .collect())
+}
+
+/// The events whose hippo hook sits in `workspace`'s shared
+/// `.claude/settings.json`, where hippo before 0.5.0 put it.
+pub fn claude_code_shared(workspace: &Path) -> Result<Vec<&'static str>> {
+    Ok(
+        status_file(&shared_settings_path(workspace), Agent::ClaudeCode)?
+            .into_iter()
+            .filter(|(_, has)| *has)
+            .map(|(event, _)| event)
+            .collect(),
+    )
 }
 
 /// Which of the three events have `agent`'s hippo hook in the hooks file
@@ -322,6 +455,57 @@ pub fn status_file(path: &Path, agent: Agent) -> Result<Vec<(&'static str, bool)
         .collect())
 }
 
+/// The command of every hippo hook for `agent` in the hooks file at
+/// `path`, in file order; none when the file is missing or unreadable.
+pub fn hippo_commands(path: &Path, agent: Agent) -> Vec<String> {
+    let Ok(Some(tree)) = read(path) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for &(event, sub) in agent.events() {
+        let wanted = agent.suffix(sub);
+        let Some(J::Array(entries)) = tree.get("hooks").and_then(|h| h.get(event)) else {
+            continue;
+        };
+        for entry in entries {
+            let mut hooks = vec![entry];
+            if let Some(J::Array(inner)) = entry.get("hooks") {
+                hooks.extend(inner.iter());
+            }
+            for h in hooks {
+                if is_hippo(h, &wanted) {
+                    if let Some(J::Scalar(Value::String(c))) = h.get("command") {
+                        out.push(c.clone());
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+/// The program a hook command runs: its first shell word, unquoted. `None`
+/// for a command this simple reading cannot split.
+pub fn command_program(command: &str) -> Option<String> {
+    let command = command.trim_start();
+    if let Some(rest) = command.strip_prefix('\'') {
+        let mut out = String::new();
+        let mut rest = rest;
+        loop {
+            let end = rest.find('\'')?;
+            out.push_str(&rest[..end]);
+            rest = &rest[end + 1..];
+            if let Some(more) = rest.strip_prefix("\\''") {
+                out.push('\'');
+                rest = more;
+            } else {
+                return Some(out);
+            }
+        }
+    }
+    command.split_whitespace().next().map(str::to_owned)
+}
+
 /// Whether the Claude Code settings file at `path` has a `SessionStart`
 /// hook that runs `hippo hook session-start` (the plugin's `--plugin`
 /// form does not count). A missing or unreadable file does not have it.
@@ -332,19 +516,35 @@ pub fn file_runs_session_start(path: &Path) -> bool {
         .is_some_and(|e| e.runs(&Agent::ClaudeCode.suffix("session-start"))))
 }
 
-/// Adds the missing hooks to `workspace`'s settings and returns the events
-/// it added; an empty list means they were all there and nothing was
-/// written.
-pub fn install(workspace: &Path) -> Result<Vec<&'static str>> {
-    install_file(&settings_path(workspace), Agent::ClaudeCode)
+/// What [`install_file`] changed: the events whose hook it added, and those
+/// whose existing hippo hook it pointed at the binary.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Installed {
+    pub added: Vec<&'static str>,
+    pub updated: Vec<&'static str>,
 }
 
-/// Adds `agent`'s missing hooks to the hooks file at `path`, creating it
-/// and its folder when missing, and returns the events it added; an empty
-/// list means they were all there and nothing was written.
-pub fn install_file(path: &Path, agent: Agent) -> Result<Vec<&'static str>> {
+impl Installed {
+    /// Nothing was written.
+    pub fn is_empty(&self) -> bool {
+        self.added.is_empty() && self.updated.is_empty()
+    }
+}
+
+/// Adds the missing hooks to `workspace`'s `.claude/settings.local.json`,
+/// running `bin`, as [`install_file`] does.
+pub fn install(workspace: &Path, bin: &str) -> Result<Installed> {
+    install_file(&settings_path(workspace), Agent::ClaudeCode, bin)
+}
+
+/// Adds `agent`'s missing hooks to the hooks file at `path`, each running
+/// `bin`, creating the file and its folder when missing, and rewrites an
+/// existing hippo hook that runs anything else (a bare `hippo` found on
+/// `PATH`, an old path) to run `bin`. Nothing is written when every hook is
+/// there and runs `bin`.
+pub fn install_file(path: &Path, agent: Agent, bin: &str) -> Result<Installed> {
     let mut tree = read(path)?.unwrap_or(J::Object(Vec::new()));
-    let mut added = Vec::new();
+    let mut done = Installed::default();
     if agent == Agent::Cursor && tree.get("version").is_none() {
         if let J::Object(entries) = &mut tree {
             entries.insert(0, ("version".into(), J::Scalar(Value::from(1))));
@@ -363,14 +563,17 @@ pub fn install_file(path: &Path, agent: Agent) -> Result<Vec<&'static str>> {
     };
     for &(event, sub) in agent.events() {
         let wanted = agent.suffix(sub);
-        let has = events
-            .iter()
-            .find(|(k, _)| k == event)
-            .is_some_and(|(_, v)| v.runs(&wanted));
-        if has {
-            continue;
+        let command = agent.command(bin, sub);
+        let existing = events.iter_mut().find(|(k, _)| k == event);
+        if let Some((_, value)) = existing {
+            if value.runs(&wanted) {
+                if value.repoint(&wanted, &command) {
+                    done.updated.push(event);
+                }
+                continue;
+            }
         }
-        let entry = agent.entry(sub);
+        let entry = agent.entry(bin, sub);
         match events.iter_mut().find(|(k, _)| k == event) {
             Some((_, J::Array(items))) => items.push(entry),
             Some(_) => {
@@ -381,10 +584,10 @@ pub fn install_file(path: &Path, agent: Agent) -> Result<Vec<&'static str>> {
             }
             None => events.push((event.to_owned(), J::Array(vec![entry]))),
         }
-        added.push(event);
+        done.added.push(event);
     }
-    if added.is_empty() {
-        return Ok(added);
+    if done.is_empty() {
+        return Ok(done);
     }
     let mut text = String::new();
     tree.write(&mut text, 0);
@@ -393,7 +596,7 @@ pub fn install_file(path: &Path, agent: Agent) -> Result<Vec<&'static str>> {
         fs::create_dir_all(dir).map_err(|e| Error::io_at(dir, e))?;
     }
     crate::util::write_atomic(path, text.as_bytes())?;
-    Ok(added)
+    Ok(done)
 }
 
 /// Whether hook object `h` is hippo's, its command ending with `wanted`.
@@ -404,10 +607,18 @@ fn is_hippo(h: &J, wanted: &str) -> bool {
     }
 }
 
-/// Removes hippo's three hooks from `workspace`'s settings, as
-/// [`uninstall_file`] does.
+/// Removes hippo's three hooks from `workspace`'s Claude Code settings,
+/// `.claude/settings.local.json` and the shared `.claude/settings.json`
+/// both, as [`uninstall_file`] does. Returns the events removed from
+/// either.
 pub fn uninstall(workspace: &Path) -> Result<Vec<&'static str>> {
-    uninstall_file(&settings_path(workspace), Agent::ClaudeCode)
+    let mut removed = uninstall_file(&settings_path(workspace), Agent::ClaudeCode)?;
+    for event in uninstall_file(&shared_settings_path(workspace), Agent::ClaudeCode)? {
+        if !removed.contains(&event) {
+            removed.push(event);
+        }
+    }
+    Ok(removed)
 }
 
 /// Removes `agent`'s three hippo hooks from the hooks file at `path` and
@@ -487,9 +698,17 @@ mod tests {
         let ws = tempfile::tempdir().unwrap();
         // No file: written fresh.
         assert_eq!(status(ws.path()).unwrap().iter().filter(|s| s.1).count(), 0);
-        assert_eq!(install(ws.path()).unwrap().len(), 3);
+        assert_eq!(
+            install(ws.path(), "/usr/local/bin/hippo")
+                .unwrap()
+                .added
+                .len(),
+            3
+        );
         assert!(status(ws.path()).unwrap().iter().all(|s| s.1));
-        assert!(install(ws.path()).unwrap().is_empty());
+        assert!(install(ws.path(), "/usr/local/bin/hippo")
+            .unwrap()
+            .is_empty());
 
         // An existing file keeps its keys, its order and its own hooks.
         let path = settings_path(ws.path());
@@ -503,8 +722,9 @@ mod tests {
   "env": {"B": "2", "A": "1"}
 }"#;
         fs::write(&path, before).unwrap();
-        let added = install(ws.path()).unwrap();
-        assert_eq!(added, ["SessionStart", "UserPromptSubmit"]);
+        let added = install(ws.path(), "/usr/local/bin/hippo").unwrap();
+        assert_eq!(added.added, ["SessionStart", "UserPromptSubmit"]);
+        assert!(added.updated.is_empty());
         let text = fs::read_to_string(&path).unwrap();
         let keys: Vec<usize> = [
             "\"permissions\"",
@@ -543,7 +763,7 @@ mod tests {
 
         // Not an object: refused, untouched.
         fs::write(&path, "[1]").unwrap();
-        assert!(install(ws.path()).is_err());
+        assert!(install(ws.path(), "/usr/local/bin/hippo").is_err());
         assert_eq!(fs::read_to_string(&path).unwrap(), "[1]");
     }
 
@@ -564,8 +784,16 @@ mod tests {
             .unwrap()
             .iter()
             .all(|s| !s.1));
-        assert_eq!(install_file(&path, Agent::Codex).unwrap().len(), 3);
-        assert!(install_file(&path, Agent::Codex).unwrap().is_empty());
+        assert_eq!(
+            install_file(&path, Agent::Codex, "hippo")
+                .unwrap()
+                .added
+                .len(),
+            3
+        );
+        assert!(install_file(&path, Agent::Codex, "hippo")
+            .unwrap()
+            .is_empty());
         let value: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(value["description"], "mine");
         let start = &value["hooks"]["SessionStart"];
@@ -606,7 +834,7 @@ mod tests {
         // A wrong-typed event is refused and left alone.
         let bad = r#"{"hooks": {"SessionStart": {}}}"#;
         fs::write(&path, bad).unwrap();
-        assert!(install_file(&path, Agent::Codex).is_err());
+        assert!(install_file(&path, Agent::Codex, "hippo").is_err());
         assert_eq!(fs::read_to_string(&path).unwrap(), bad);
     }
 
@@ -635,10 +863,12 @@ mod tests {
             [("sessionStart", false)]
         );
         assert_eq!(
-            install_file(&path, Agent::Cursor).unwrap(),
+            install_file(&path, Agent::Cursor, "hippo").unwrap().added,
             ["sessionStart"]
         );
-        assert!(install_file(&path, Agent::Cursor).unwrap().is_empty());
+        assert!(install_file(&path, Agent::Cursor, "hippo")
+            .unwrap()
+            .is_empty());
         let text = fs::read_to_string(&path).unwrap();
         let value: Value = serde_json::from_str(&text).unwrap();
         assert_eq!(value["version"], 1);
@@ -679,10 +909,12 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            install_file(&path, Agent::Gemini).unwrap(),
+            install_file(&path, Agent::Gemini, "hippo").unwrap().added,
             ["SessionStart", "BeforeAgent", "SessionEnd"]
         );
-        assert!(install_file(&path, Agent::Gemini).unwrap().is_empty());
+        assert!(install_file(&path, Agent::Gemini, "hippo")
+            .unwrap()
+            .is_empty());
         let value: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(value["theme"], "Default");
         assert_eq!(value["mcpServers"]["x"]["command"], "x");
@@ -702,5 +934,86 @@ mod tests {
             .get("hooks")
             .is_some_and(|h| h.as_object().unwrap().is_empty()));
         assert_eq!(value["mcpServers"]["x"]["command"], "x");
+    }
+
+    #[test]
+    fn hooks_run_the_absolute_path_and_a_bare_hippo_is_repointed() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = codex_hooks_path(dir.path());
+        fs::write(
+            &path,
+            r#"{"hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "hippo hook session-start --agent codex"}]}]}}"#,
+        )
+        .unwrap();
+        let bin = "/opt/my tools/hippo";
+        let done = install_file(&path, Agent::Codex, bin).unwrap();
+        assert_eq!(done.added, ["UserPromptSubmit", "SessionEnd"]);
+        assert_eq!(done.updated, ["SessionStart"]);
+        let commands = hippo_commands(&path, Agent::Codex);
+        assert_eq!(commands.len(), 3);
+        assert!(commands
+            .iter()
+            .all(|c| c.starts_with("'/opt/my tools/hippo' hook ")));
+        assert_eq!(
+            command_program(&commands[0]).as_deref(),
+            Some("/opt/my tools/hippo")
+        );
+        assert!(install_file(&path, Agent::Codex, bin).unwrap().is_empty());
+        // Another binary later: every entry follows it, none is added.
+        let done = install_file(&path, Agent::Codex, "/usr/bin/hippo").unwrap();
+        assert!(done.added.is_empty());
+        assert_eq!(done.updated.len(), 3);
+    }
+
+    #[test]
+    fn claude_code_hooks_go_to_settings_local_and_old_ones_are_found_in_settings() {
+        let ws = tempfile::tempdir().unwrap();
+        let shared = shared_settings_path(ws.path());
+        fs::create_dir_all(shared.parent().unwrap()).unwrap();
+        fs::write(
+            &shared,
+            r#"{"hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "hippo hook session-start"}, {"type": "command", "command": "team-tool start"}]}]}}"#,
+        )
+        .unwrap();
+        // The old entry counts as installed, and is found for moving.
+        assert!(status(ws.path()).unwrap()[0].1);
+        assert_eq!(claude_code_shared(ws.path()).unwrap(), ["SessionStart"]);
+        install(ws.path(), "/usr/bin/hippo").unwrap();
+        assert!(settings_path(ws.path()).ends_with(".claude/settings.local.json"));
+        assert_eq!(
+            hippo_commands(&settings_path(ws.path()), Agent::ClaudeCode).len(),
+            3
+        );
+        // Moving takes only hippo's entry out of the shared file.
+        uninstall_file(&shared, Agent::ClaudeCode).unwrap();
+        let value: Value = serde_json::from_str(&fs::read_to_string(&shared).unwrap()).unwrap();
+        assert_eq!(
+            value["hooks"]["SessionStart"][0]["hooks"][0]["command"],
+            "team-tool start"
+        );
+        assert!(claude_code_shared(ws.path()).unwrap().is_empty());
+    }
+
+    #[test]
+    fn shell_quote_leaves_plain_paths_and_quotes_the_rest() {
+        assert_eq!(shell_quote("/usr/local/bin/hippo"), "/usr/local/bin/hippo");
+        assert_eq!(shell_quote("/a b/hippo"), "'/a b/hippo'");
+        assert_eq!(shell_quote("/it's/hippo"), "'/it'\\''s/hippo'");
+        assert_eq!(
+            command_program(&format!("{} hook prompt", shell_quote("/it's/hippo"))).as_deref(),
+            Some("/it's/hippo")
+        );
+    }
+
+    #[test]
+    fn bin_path_is_written_private_and_only_when_it_changes() {
+        let home = tempfile::tempdir().unwrap();
+        let home = home.path().join("h");
+        assert!(read_bin_path(&home).is_none());
+        assert!(write_bin_path(&home, Path::new("/usr/bin/hippo")).unwrap());
+        assert!(!write_bin_path(&home, Path::new("/usr/bin/hippo")).unwrap());
+        assert_eq!(read_bin_path(&home).unwrap(), Path::new("/usr/bin/hippo"));
+        #[cfg(unix)]
+        assert_eq!(crate::perms::mode(&bin_path_file(&home)), Some(0o600));
     }
 }

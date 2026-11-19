@@ -52,6 +52,7 @@ pub fn run(args: Args) -> Result<ExitCode> {
     for path in &report.kept {
         println!("kept {}", path.display());
     }
+    super::write_bin_path();
     if report.workspace.is_some()
         && names.is_none()
         && report.written.is_empty()

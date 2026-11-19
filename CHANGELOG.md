@@ -4,6 +4,17 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Security
+
+- **Hooks run hippo by its absolute path, from per-person files.** `hippo hooks install` writes Claude Code's hooks to the workspace's `.claude/settings.local.json`, not the `.claude/settings.json` a team commits, and every hook (Claude Code, Codex, Cursor, Gemini CLI) runs the binary by its absolute path, so another program named `hippo` earlier on `PATH` never sees a session. Hooks an older hippo put in `.claude/settings.json` are moved: `hippo hooks install` says what it will move and moves hippo's entries only with `--yes`; it also rewrites a bare `hippo` in the other agents' hooks files. `hippo init`, `hippo hooks install` and `install.sh` write the binary's path to `$HIPPO_HOME/bin-path`, which the Claude Code, dsh and OpenCode plugins run before they look on `PATH`.
+- **`$HIPPO_HOME` is private.** hippo runs with a umask of 077: folders it creates are 0700 and files 0600, the index included, and an atomic write never widens a file's mode. A command that finds `$HIPPO_HOME` open to other accounts closes it and says so once. `hippo doctor` lists anything inside still readable by others, and `hippo doctor --fix-permissions` tightens it.
+- **`install.sh` records what it checked.** After checking the release against its published SHA-256 it records the binary's path and checksum in `$HIPPO_HOME/install.json`; `hippo doctor` reports a problem when that binary changed, and a warning when hooks, MCP entries or `bin-path` run another binary.
+- **A version floor for shared workspaces.** `.hippo/hippo.toml` can set `min_hippo_version`. An older hippo, and a hippo that finds keys it does not know, refuse to write notes or records there or to call a model for it (`dream`, `lessons`, `add`, `packs update` and `remove`, `review`, `revert`, `ask` without `--sources-only`); hooks, `context` and `brief` keep working. Proposals, receipts, review marks, pack reviews and lessons carry `hippo_version`.
+
+### Fixed
+
+- Two model calls at once (a nightly dream and an `ask`) could delete each other's files: every call emptied the one `model-runs/` folder. Each call now runs in its own `model-runs/<ulid>/` (0700), removed when it ends; leftovers older than a day are swept.
+
 ## [0.4.2] - 2026-11-19
 
 ### Added

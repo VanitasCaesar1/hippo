@@ -4,9 +4,9 @@
  */
 
 import { execFile } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { delimiter, join } from 'node:path'
+import { delimiter, isAbsolute, join } from 'node:path'
 
 export interface RunOptions {
   /** The binary: a name looked up on PATH, or a path. */
@@ -37,12 +37,32 @@ export function searchPath(path = process.env.PATH ?? '', home = homedir()): str
   return [...path.split(delimiter).filter(Boolean), ...extra].join(delimiter)
 }
 
+/**
+ * The binary to run for `command`. For the default name `hippo`, the
+ * absolute path `hippo init` and the installer wrote to
+ * `$HIPPO_HOME/bin-path` (default `~/.hippo/bin-path`), so a `hippo`
+ * placed earlier on PATH is not the one that runs; PATH only when that file
+ * is missing or names no executable file (`hippo doctor` says so). A
+ * command the person configured is used as given.
+ */
+export function resolveCommand(command: string, env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
+  if (command !== 'hippo') return command
+  const hippoHome = env.HIPPO_HOME ? env.HIPPO_HOME : join(home, '.hippo')
+  try {
+    const path = readFileSync(join(hippoHome, 'bin-path'), 'utf8').split('\n')[0]?.trim() ?? ''
+    if (isAbsolute(path) && statSync(path).isFile()) return path
+  } catch {
+    // No bin-path: PATH, below.
+  }
+  return command
+}
+
 /** Run `hippo <args>` and return its standard output. */
 export function runHippo(args: readonly string[], options: RunOptions): Promise<string> {
   const shown = `hippo ${args.join(' ')}`
   return new Promise((resolve, reject) => {
     execFile(
-      options.command,
+      resolveCommand(options.command),
       [...args],
       {
         cwd: options.cwd,

@@ -185,7 +185,7 @@ impl Lesson {
         fs::create_dir_all(&dir).map_err(|e| Error::io_at(&dir, e))?;
         write_atomic(
             &dir.join(format!("{}.json", self.id)),
-            &records::encode(self)?,
+            &records::encode_shared(self)?,
         )
     }
 

@@ -76,6 +76,8 @@ fn ingest_reads_a_command_code_session_without_leaks() {
         lessons: true,
         snapshot_keep_days: None,
         log_notes: None,
+        min_hippo_version: None,
+        unknown_keys: Vec::new(),
     };
 
     let first = ingest(&config, Some(&ws), false).unwrap();

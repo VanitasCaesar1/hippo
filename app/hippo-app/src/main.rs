@@ -139,6 +139,8 @@ pub static STARTED: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLoc
 
 fn main() {
     STARTED.get_or_init(std::time::Instant::now);
+    // What the app writes under $HIPPO_HOME is the person's alone.
+    hippo_core::perms::private_umask();
     // Before any thread starts: the time crate refuses to read the zone later.
     ui::status::init_local_offset();
     application().with_assets(Assets).run(|cx: &mut App| {

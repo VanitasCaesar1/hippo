@@ -27,6 +27,17 @@
 //! success with no job to refresh it; the result of a one-word
 //! `model_command` run, sent only with `hippo doctor --model`. The size of
 //! `snapshots/` is reported.
+//!
+//! The hardening rows ([`security`]): files under `$HIPPO_HOME` that others
+//! can read, hooks that find hippo through `PATH` or sit in a workspace's
+//! shared `.claude/settings.json`, a missing `bin-path` (warnings); the
+//! workspace's `min_hippo_version` above this hippo or keys it does not
+//! know, and a binary that no longer matches the checksum `install.sh`
+//! recorded (problems).
+
+mod security;
+
+pub use security::{install_record, install_record_path, InstallRecord};
 
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
@@ -155,7 +166,49 @@ fn run_history(cfg: &Config, env: &Env) -> Report {
     if let Some(dir) = &env.launch_agents {
         checks.push(launchd_jobs_check(dir, &["dev.hippo.ingest"], cfg));
     }
+    checks.extend(security_checks(cfg, None, env));
     Report { checks }
+}
+
+/// Codex's, Cursor's and Gemini CLI's hooks files, where they can be found.
+fn user_hook_files() -> Vec<(PathBuf, crate::hooks::Agent)> {
+    use crate::hooks::{self, Agent};
+    let mut out = Vec::new();
+    if let Some(home) = hooks::codex_home() {
+        out.push((hooks::codex_hooks_path(&home), Agent::Codex));
+    }
+    out.extend(hooks::cursor_hooks_path().map(|p| (p, Agent::Cursor)));
+    out.extend(hooks::gemini_settings_path().map(|p| (p, Agent::Gemini)));
+    out
+}
+
+/// The hardening rows, for a configuration with or without a workspace.
+fn security_checks(cfg: &Config, ws: Option<&Workspace>, env: &Env) -> Vec<Check> {
+    let mut out = Vec::new();
+    if let Some(ws) = ws {
+        out.push(security::workspace_settings_check(ws));
+    }
+    out.push(security::permissions_check(&cfg.home));
+    out.push(security::hooks_check(
+        ws,
+        &env.user_hook_files,
+        &env.mcp_files,
+    ));
+    out.push(security::bin_path_check(&cfg.home));
+    out.push(security::install_check(
+        &cfg.home,
+        &env.user_hook_files,
+        &env.mcp_files,
+        ws,
+    ));
+    out
+}
+
+/// Tightens every file and folder under `home` that others can read (0600
+/// files, 0700 folders): `hippo doctor --fix-permissions`. Returns how
+/// many it changed.
+pub fn fix_permissions(home: &Path) -> Result<usize> {
+    crate::perms::fix(home)
 }
 
 /// Runs every check for a loaded configuration and workspace.
@@ -175,6 +228,11 @@ struct Env {
     model_timeout: std::time::Duration,
     /// Whether to send the one-word model run (`hippo doctor --model`).
     check_model: bool,
+    /// The per-person hooks files outside a workspace: Codex's, Cursor's,
+    /// Gemini CLI's.
+    user_hook_files: Vec<(PathBuf, crate::hooks::Agent)>,
+    /// The MCP client files that may run hippo's MCP server.
+    mcp_files: Vec<PathBuf>,
 }
 
 impl Env {
@@ -190,6 +248,10 @@ impl Env {
             exe: std::env::current_exe().ok(),
             model_timeout: std::time::Duration::from_secs(60),
             check_model: false,
+            user_hook_files: user_hook_files(),
+            mcp_files: crate::config::user_home()
+                .map(|home| security::mcp_files(&home))
+                .unwrap_or_default(),
         }
     }
 
@@ -252,6 +314,7 @@ fn run_with(cfg: &Config, ws: &Workspace, env: &Env) -> Report {
     checks.push(records_check(&records, &unreadable, index.as_ref()));
     checks.push(git_check(ws));
     checks.push(lessons_check(cfg));
+    checks.extend(security_checks(cfg, Some(ws), env));
     checks.push(model_check(cfg, env));
     Report { checks }
 }
@@ -1362,6 +1425,8 @@ mod tests {
             lessons: true,
             snapshot_keep_days: None,
             log_notes: None,
+            min_hippo_version: None,
+            unknown_keys: Vec::new(),
         };
         Setup {
             _home: home,
@@ -1378,6 +1443,8 @@ mod tests {
             exe: None,
             model_timeout: std::time::Duration::from_secs(10),
             check_model: true,
+            user_hook_files: Vec::new(),
+            mcp_files: Vec::new(),
         }
     }
 

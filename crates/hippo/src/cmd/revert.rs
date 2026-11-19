@@ -24,7 +24,7 @@ pub fn run(args: Args) -> Result<ExitCode> {
         .receipt
         .parse()
         .with_context(|| format!("not a receipt id: {}", args.receipt))?;
-    let (_config, workspace) = super::load()?;
+    let (_config, workspace) = super::load_for_write()?;
     let receipt = match dream::revert(&workspace, id, args.force) {
         Ok(receipt) => receipt,
         Err(err @ Error::NoteChanged { .. }) => {

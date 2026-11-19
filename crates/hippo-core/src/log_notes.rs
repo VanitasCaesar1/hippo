@@ -206,6 +206,8 @@ mod tests {
             lessons: true,
             snapshot_keep_days: None,
             log_notes,
+            min_hippo_version: None,
+            unknown_keys: Vec::new(),
         }
     }
 

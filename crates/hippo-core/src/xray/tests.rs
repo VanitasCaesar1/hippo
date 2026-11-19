@@ -384,6 +384,8 @@ fn workspace() -> (tempfile::TempDir, Workspace) {
         lessons: true,
         snapshot_keep_days: None,
         log_notes: None,
+        min_hippo_version: None,
+        unknown_keys: Vec::new(),
     };
     (dir, ws)
 }
