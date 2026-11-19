@@ -126,6 +126,8 @@ Redaction on ingest is unchanged in what it removes. Two additions:
 - **Every redaction is recorded.** Ingest writes a row per replaced match: session, turn, the turn's role (person, tool result, assistant, tool call), the kind, and, when the turn was a tool result, the call that produced it. Never the value, a hash of it, or its length. This is what turns redaction into detection. The rows are a new store of transcript-derived data, so they ship only after `$HIPPO_HOME` permissions are enforced ([common.md, rule 4](common.md#rule-4-the-hardening-gate)).
 - **Rows exist only for text ingested after the upgrade.** Ingest skips files it already holds, so older sessions have no rows until `hippo ingest --full` re-reads everything. The release notes say so, `secret-to-model` shows "counted since <date>", and `doctor` suggests `--full` once.
 
+**As built in v0.5.0.** The rows live in a `redactions` table in `index.sqlite` (0600), beside `index_meta` whose `redactions_since` is `full` for an index built new or by `ingest --full`, else the time a 0.5.0 writer added the table. The role words are `person`, `assistant`, `tool call` and `tool result`; a tool result's call is the latest earlier call of the same tool with no result yet. Each row also says whether the matched text is a published example or a test key (`example`), decided at redaction time, since the row cannot hold the value. `hippo incidents` prints the "counted since" line while `redactions_since` is not `full`; `doctor`'s `secrets` row names `ingest --full` as an `ok` row, not a warning.
+
 ### Detection: `secret-to-model`
 
 An incident kind (listed with the others in [guard.md](guard.md#part-a-after-the-fact-from-transcripts)) built from those rows, with no model call.
@@ -137,7 +139,7 @@ An incident kind (listed with the others in [guard.md](guard.md#part-a-after-the
 | high | `pem` (private keys), `aws`, `github`, `provider` (keys with a known vendor prefix) | rotate |
 | medium | `auth` (bearer and basic headers), `jwt` | check whether it was live; rotate if so |
 
-`kv`, `email`, `phone` and `aadhaar` never raise it. Known example and test values never raise it either: AWS's documentation keys (`AKIAIOSFODNN7EXAMPLE` and its secret), Stripe's `sk_test_`/`pk_test_`/`rk_test_` keys, and a short list kept with the redaction patterns, each with its source. Fleet and Incidents show high-confidence incidents by default, with medium ones one click away.
+`kv`, `email`, `phone` and `aadhaar` never raise it. Known example and test values never raise it either: AWS's documentation keys (`AKIAIOSFODNN7EXAMPLE` and its secret), Stripe's `sk_test_`/`pk_test_`/`rk_test_` keys, and a short list kept with the redaction patterns, each with its source. As built: the list in `redact.rs` holds AWS's and GitHub's documentation keys and jwt.io's example payload, any match holding `example`, `xxxxxxxx` or `00000000` counts as a placeholder, and Stripe's `sk_test_` keys are excluded (the `pk_`/`rk_` forms match no redaction pattern). Medium-confidence incidents are listed with `--all` and in the app's folded row, as destructive commands with no harm after them are. Fleet and Incidents show high-confidence incidents by default, with medium ones one click away.
 
 ```text
 secret-to-model  codex  2026-11-10 14:02  provider key (sk-live…), high, in a tool result

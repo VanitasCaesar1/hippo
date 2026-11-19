@@ -383,3 +383,77 @@ fn signals_in_an_index() {
     }
     println!("read\t{sessions} sessions\t{calls} calls");
 }
+
+#[test]
+fn secrets_that_reached_a_model_are_signals_with_their_source() {
+    use crate::incidents::signals::secret_signals;
+    use crate::index::Redaction;
+    let turns = [
+        StoredTurn {
+            ordinal: 0,
+            role: "user".into(),
+            ts: "2026-11-10T10:00:00Z".into(),
+            tool_name: None,
+            text: "here is my key [redacted:provider]".into(),
+        },
+        bash(1, "cat .env"),
+        StoredTurn {
+            ordinal: 2,
+            role: "tool".into(),
+            ts: "2026-11-10T10:02:00Z".into(),
+            tool_name: Some("Bash".into()),
+            text: "STRIPE=[redacted:provider] JWT=[redacted:jwt] mail [redacted:email]".into(),
+        },
+    ];
+    let row = |ordinal: u32, role: &str, kind: &str, example: bool, call: Option<u32>| Redaction {
+        ordinal,
+        role: role.into(),
+        kind: kind.into(),
+        example,
+        call,
+    };
+    let rows = [
+        row(0, "person", "provider", false, None),
+        row(2, "tool result", "provider", false, Some(1)),
+        row(2, "tool result", "provider", false, Some(1)),
+        row(2, "tool result", "jwt", false, Some(1)),
+        row(2, "tool result", "email", false, Some(1)),
+        row(2, "tool result", "aws", true, Some(1)),
+    ];
+    let got = secret_signals(&turns, &rows);
+    let short: Vec<(u32, &str, &str, &str)> = got
+        .iter()
+        .map(|s| {
+            (
+                s.ordinal,
+                s.extra.as_str(),
+                s.step.as_str(),
+                s.text.as_str(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        short,
+        [
+            (
+                0,
+                "provider:high",
+                "you pasted it",
+                "provider key, high, in your message"
+            ),
+            (
+                2,
+                "provider:high",
+                "Bash {\"command\":\"cat .env\"}",
+                "provider key, high, in a tool result"
+            ),
+            (
+                2,
+                "jwt:medium",
+                "Bash {\"command\":\"cat .env\"}",
+                "JWT, medium, in a tool result"
+            ),
+        ]
+    );
+    assert_eq!(got[1].step_ordinal, Some(1));
+}

@@ -92,6 +92,24 @@ fn ingest_reads_cursor_transcripts_without_leaks() {
     };
     assert_eq!((indexed, skipped), (3, 0), "{first:?}");
     let index = Index::open(&config.home, false).unwrap();
+
+    // Redaction rows: one per replaced match, with its role, and no part of
+    // any value.
+    let mut rows = Vec::new();
+    for id in index.turn_counts().unwrap().into_keys() {
+        rows.extend(index.redactions(&id).unwrap());
+    }
+    assert!(!rows.is_empty(), "no redaction rows");
+    assert!(rows
+        .iter()
+        .all(|r| ["person", "assistant", "tool call", "tool result"].contains(&r.role.as_str())));
+    for leak in leaks() {
+        assert!(
+            rows.iter().all(|r| !format!("{r:?}").contains(&leak)),
+            "a row holds {leak:?}"
+        );
+    }
+    assert_eq!(index.redactions_since().unwrap(), None);
     let turns = index.turns_for_session(MAIN).unwrap();
     assert_eq!(turns.len(), 8);
     assert_eq!(turns[0].role.as_str(), "user");

@@ -15,7 +15,7 @@
 use std::borrow::Cow;
 use std::sync::LazyLock;
 
-use regex::{Captures, NoExpand, Regex};
+use regex::{Captures, Regex};
 
 /// Text that has been through [`redact`]. Its field is private, so only
 /// `redact` makes one, and the index can require it.
@@ -96,13 +96,76 @@ pub fn cap_note(text: &str) -> String {
     }
 }
 
+/// One match redaction replaced: its kind, and whether the text it
+/// replaced is a known example or test key, which never counts as a
+/// secret reaching a model. Never the value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Hit {
+    pub kind: &'static str,
+    pub example: bool,
+}
+
+/// How sure a match of `kind` is to be a live credential
+/// (`docs/designs/secrets.md`, Detection): `high` for private keys and
+/// keys with a vendor's prefix, `medium` for authorization headers and
+/// JWTs. `None` for kinds that protect the index but are not credentials
+/// (`kv`, `email`, `aadhaar`, `phone`).
+pub fn confidence(kind: &str) -> Option<&'static str> {
+    match kind {
+        "pem" | "aws" | "github" | "provider" => Some("high"),
+        "auth" | "jwt" => Some("medium"),
+        _ => None,
+    }
+}
+
+/// Values that look like secrets and are published as examples or are
+/// test-mode keys, each with its source. Pieces are joined at run time so
+/// no secret-shaped literal sits in the source.
+static EXAMPLES: LazyLock<Vec<String>> = LazyLock::new(|| {
+    vec![
+        // AWS's documentation key: docs.aws.amazon.com, "Managing access keys".
+        ["AKIA", "IOSFODNN7EXAMPLE"].concat(),
+        // GitHub's documentation token: docs.github.com, "Authenticating with a token".
+        ["ghp_", "16C7e42F292c6912E7710c838347Ae178B4a"].concat(),
+        // jwt.io's example payload (`{"sub":"1234567890","name":"John Doe",…}`).
+        ["eyJzdWIiOiIxMjM0NTY3ODkw", "IiwibmFtZSI6IkpvaG4gRG9lIi"].concat(),
+    ]
+});
+
+/// Whether `matched`, a match of `kind`, is a published example, a
+/// placeholder or a test-mode key.
+fn is_example(kind: &str, matched: &str) -> bool {
+    let lower = matched.to_ascii_lowercase();
+    if lower.contains("example") || lower.contains("xxxxxxxx") || lower.contains("00000000") {
+        return true;
+    }
+    // Stripe's test-mode keys move no money: stripe.com/docs/keys.
+    if kind == "provider" && matched.starts_with("sk_test_") {
+        return true;
+    }
+    EXAMPLES.iter().any(|e| matched.contains(e.as_str()))
+}
+
 /// Redacts `raw`: every expression, in order, with `replace_all`.
 pub fn redact(raw: &str) -> Redacted {
+    redact_counted(raw).0
+}
+
+/// [`redact`], and each match it replaced, in the order the expressions
+/// apply: what ingest records as redaction rows.
+pub fn redact_counted(raw: &str) -> (Redacted, Vec<Hit>) {
     let mut text = raw.to_owned();
+    let mut hits: Vec<Hit> = Vec::new();
     for pattern in COMPILED.iter() {
+        let kind = pattern.kind;
+        let mut found: Vec<Hit> = Vec::new();
         let replaced = if pattern.kind == "kv" {
             pattern.regex.replace_all(&text, |captures: &Captures| {
                 if secret_shaped(&captures[2]) {
+                    found.push(Hit {
+                        kind,
+                        example: is_example(kind, &captures[2]),
+                    });
                     pattern.marker.clone()
                 } else {
                     captures[0].to_owned()
@@ -119,17 +182,28 @@ pub fn redact(raw: &str) -> Redacted {
                 if inside(m.start(), m.end()) {
                     m.as_str().to_owned()
                 } else {
+                    found.push(Hit {
+                        kind,
+                        example: false,
+                    });
                     pattern.marker.clone()
                 }
             })
         } else {
-            pattern.regex.replace_all(&text, NoExpand(&pattern.marker))
+            pattern.regex.replace_all(&text, |captures: &Captures| {
+                found.push(Hit {
+                    kind,
+                    example: is_example(kind, &captures[0]),
+                });
+                pattern.marker.clone()
+            })
         };
         if let Cow::Owned(changed) = replaced {
             text = changed;
         }
+        hits.extend(found);
     }
-    Redacted(text)
+    (Redacted(text), hits)
 }
 
 /// A `kv` value that holds both a letter and a digit.
@@ -233,5 +307,32 @@ mod tests {
         assert_eq!(redact(nested).as_str(), r#"{"body":"{[redacted:kv]}"}"#);
         let unquoted_type = "type Session = { token: string; tokens: 15 };";
         assert_eq!(redact(unquoted_type).as_str(), unquoted_type);
+    }
+
+    #[test]
+    fn each_replaced_match_is_counted_and_examples_are_marked() {
+        // Built at run time, so no secret-shaped literal sits in the source.
+        let live = ["AKIA", "Q7VZ3KLM2PXR8TNA"].concat();
+        let doc = ["AKIA", "IOSFODNN7EXAMPLE"].concat();
+        let test_key = ["sk_", "test_", "4eC39HqLyjWDarjtT1zdp7dc"].concat();
+        let gh = ["ghp_", "abcdefghijABCDEFGHIJ0123456789abcdef"].concat();
+        let text = format!("{live} and {doc}; stripe {test_key}; token {gh}; mail sam@example.com");
+        let (redacted, hits) = redact_counted(&text);
+        assert_eq!(redacted, redact(&text));
+        let got: Vec<(&str, bool)> = hits.iter().map(|h| (h.kind, h.example)).collect();
+        assert_eq!(
+            got,
+            [
+                ("aws", false),
+                ("aws", true),
+                ("github", false),
+                ("provider", true),
+                ("email", true),
+            ]
+        );
+        assert_eq!(confidence("aws"), Some("high"));
+        assert_eq!(confidence("jwt"), Some("medium"));
+        assert_eq!(confidence("email"), None);
+        assert_eq!(confidence("kv"), None);
     }
 }

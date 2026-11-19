@@ -533,14 +533,17 @@ impl Run<'_> {
                 return Ok(());
             }
         }
-        let turns: Vec<Turn> = turns.into_iter().map(Turn::from_raw).collect();
+        let (turns, hits): (Vec<Turn>, Vec<Vec<crate::redact::Hit>>) =
+            turns.into_iter().map(Turn::from_raw_counted).unzip();
+        let redactions = redaction_rows(&turns, &hits);
         let source = SessionSource {
             id: &id,
             tool,
             transcript_path: path,
             file_hash: &hash,
         };
-        self.index.replace_session(&source, &turns)?;
+        self.index
+            .replace_session_with(&source, &turns, &redactions)?;
         self.counts.indexed += 1;
         let (Some(ws), Some(scope)) = (self.ws, self.scope) else {
             return Ok(());
@@ -563,6 +566,56 @@ impl Run<'_> {
         }
         Ok(())
     }
+}
+
+/// A row per match redaction replaced, with the turn's role and, for a
+/// tool result, the call that produced it: the latest earlier call of the
+/// same tool that had no result yet, before the next words of the person
+/// or the assistant (the rollup's pairing).
+fn redaction_rows(
+    turns: &[Turn],
+    hits: &[Vec<crate::redact::Hit>],
+) -> Vec<crate::index::Redaction> {
+    use crate::adapters::Role;
+    let mut out = Vec::new();
+    let mut waiting: Vec<(u32, Option<String>)> = Vec::new();
+    for (turn, hits) in turns.iter().zip(hits) {
+        let is_call = turn.role == Role::Tool
+            && turn.tool_name.as_deref().is_some_and(|name| {
+                let text = turn.text.as_str();
+                text.len() > name.len()
+                    && text.starts_with(name)
+                    && text.as_bytes()[name.len()] == b' '
+            });
+        let (role, call) = match turn.role {
+            Role::Tool if is_call => {
+                waiting.push((turn.ordinal, turn.tool_name.clone()));
+                ("tool call", None)
+            }
+            Role::Tool => {
+                let at = waiting.iter().rposition(|(_, n)| *n == turn.tool_name);
+                ("tool result", at.map(|i| waiting.remove(i).0))
+            }
+            Role::User => {
+                waiting.clear();
+                ("person", None)
+            }
+            _ => {
+                waiting.clear();
+                ("assistant", None)
+            }
+        };
+        for hit in hits {
+            out.push(crate::index::Redaction {
+                ordinal: turn.ordinal,
+                role: role.to_owned(),
+                kind: hit.kind.to_owned(),
+                example: hit.example,
+                call,
+            });
+        }
+    }
+    out
 }
 
 #[cfg(test)]

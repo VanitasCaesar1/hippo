@@ -123,6 +123,24 @@ fn ingest_indexes_the_fixtures_and_recall_finds_them_without_leaks() {
     // Three sessions, two Claude Code (one a nested sub-agent) and one
     // Codex, and 22 turns: 13 + 5 + 4.
     let index = Index::open(&config.home, false).unwrap();
+
+    // Redaction rows: one per replaced match, with its role, and no part of
+    // any value.
+    let mut rows = Vec::new();
+    for id in index.turn_counts().unwrap().into_keys() {
+        rows.extend(index.redactions(&id).unwrap());
+    }
+    assert!(!rows.is_empty(), "no redaction rows");
+    assert!(rows
+        .iter()
+        .all(|r| ["person", "assistant", "tool call", "tool result"].contains(&r.role.as_str())));
+    for leak in leaks() {
+        assert!(
+            rows.iter().all(|r| !format!("{r:?}").contains(&leak)),
+            "a row holds {leak:?}"
+        );
+    }
+    assert_eq!(index.redactions_since().unwrap(), None);
     for (id, turns) in [(CLAUDE, 13), (SUBAGENT, 5), (CODEX, 4)] {
         assert_eq!(index.turns_for_session(id).unwrap().len(), turns, "{id}");
     }

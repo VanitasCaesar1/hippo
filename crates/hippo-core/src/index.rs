@@ -33,7 +33,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use rusqlite::{params, Connection, OpenFlags, TransactionBehavior};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension, TransactionBehavior};
 use time::{OffsetDateTime, UtcOffset};
 
 use crate::adapters::{RawTurn, Role};
@@ -101,17 +101,47 @@ pub struct Turn {
     pub text: Redacted,
 }
 
+/// One match redaction replaced in an indexed turn: a row of the
+/// `redactions` table. It holds where and what kind, never the value, a
+/// hash of it or its length (`docs/designs/secrets.md`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Redaction {
+    pub ordinal: u32,
+    /// `person`, `assistant`, `tool call` or `tool result`.
+    pub role: String,
+    pub kind: String,
+    /// A published example or a test-mode key.
+    pub example: bool,
+    /// For a tool result, the ordinal of the call that produced it.
+    pub call: Option<u32>,
+}
+
+/// The redaction rows' tables, created by every writer: rows exist only
+/// for text ingested once they did. `index_meta` holds `redactions_since`,
+/// `full` when every session in the index was ingested with rows, else
+/// the time the table was added.
+const REDACTIONS_DDL: &str = "\
+CREATE TABLE IF NOT EXISTS redactions(session_id TEXT NOT NULL, ordinal INTEGER NOT NULL, n INTEGER NOT NULL, role TEXT NOT NULL, kind TEXT NOT NULL, example INTEGER NOT NULL, call INTEGER, PRIMARY KEY(session_id, ordinal, n)) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS index_meta(key TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID;";
+
 impl Turn {
     /// The indexable form of a parsed turn: its text, and its tool name
     /// too, go through [`redact`].
     pub fn from_raw(raw: RawTurn) -> Turn {
-        Turn {
+        Turn::from_raw_counted(raw).0
+    }
+
+    /// [`Turn::from_raw`], and the matches redaction replaced in its text.
+    pub fn from_raw_counted(raw: RawTurn) -> (Turn, Vec<crate::redact::Hit>) {
+        let (text, hits) = crate::redact::redact_counted(&raw.text);
+        let turn = Turn {
             ordinal: raw.ordinal,
             role: raw.role,
             ts: raw.ts,
             tool_name: raw.tool_name.map(|name| redact(&name).as_str().to_owned()),
-            text: redact(&raw.text),
-        }
+            text,
+        };
+        (turn, hits)
     }
 }
 
@@ -277,6 +307,7 @@ impl Index {
         if version == FORMAT_VERSION {
             if create {
                 tune_for_writing(&conn)?;
+                ensure_redactions(&conn, false)?;
             }
         } else if version == FORMAT_1 {
             if create {
@@ -284,6 +315,7 @@ impl Index {
                 let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
                 tx.execute_batch(UPGRADE_1_TO_2)?;
                 tx.commit()?;
+                ensure_redactions(&conn, false)?;
                 format = FORMAT_VERSION;
             }
         } else if version == 0 && empty {
@@ -294,6 +326,7 @@ impl Index {
             let tx = conn.transaction()?;
             tx.execute_batch(DDL)?;
             tx.commit()?;
+            ensure_redactions(&conn, true)?;
             format = FORMAT_VERSION;
         } else {
             let message = format!(
@@ -389,6 +422,16 @@ impl Index {
     /// A turn's `ts` is stored in UTC. The deletes go through `turn_keys`,
     /// so none of them scans the turns.
     pub fn replace_session(&mut self, session: &SessionSource<'_>, turns: &[Turn]) -> Result<()> {
+        self.replace_session_with(session, turns, &[])
+    }
+
+    /// [`Index::replace_session`], with the session's redaction rows.
+    pub fn replace_session_with(
+        &mut self,
+        session: &SessionSource<'_>,
+        turns: &[Turn],
+        redactions: &[Redaction],
+    ) -> Result<()> {
         let first_turn = turns.first().map(|turn| format_ts(turn.ts)).transpose()?;
         let last_turn = turns.last().map(|turn| format_ts(turn.ts)).transpose()?;
         let path = session.transcript_path.to_string_lossy();
@@ -433,6 +476,17 @@ impl Index {
                     turn.text.as_str(),
                 ])?;
                 key.execute(params![session.id, turn.ordinal, tx.last_insert_rowid()])?;
+            }
+        }
+        if !redactions.is_empty() && has_redactions(&tx)? {
+            let mut insert = tx.prepare_cached(
+                "INSERT OR REPLACE INTO redactions(session_id, ordinal, n, role, kind, example, call) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            )?;
+            for (n, r) in redactions.iter().enumerate() {
+                insert.execute(params![
+                    session.id, r.ordinal, n as i64, r.role, r.kind, r.example, r.call,
+                ])?;
             }
         }
         tx.execute(
@@ -607,6 +661,50 @@ impl Index {
 
     /// Every turn of `session`, by ordinal; none for a session the index
     /// does not hold.
+    /// Session `id`'s redaction rows, in turn order; none when the index
+    /// has no redaction table yet.
+    pub fn redactions(&self, id: &str) -> Result<Vec<Redaction>> {
+        if !has_redactions(&self.conn)? {
+            return Ok(Vec::new());
+        }
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT ordinal, role, kind, example, call FROM redactions WHERE session_id = ?1 ORDER BY ordinal, n",
+        )?;
+        let rows = stmt.query_map([id], |row| {
+            Ok(Redaction {
+                ordinal: row.get(0)?,
+                role: row.get(1)?,
+                kind: row.get(2)?,
+                example: row.get(3)?,
+                call: row.get(4)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Since when redaction rows are written: `None` when every session
+    /// in the index has them (a new or fully rebuilt index), else the
+    /// time the table was added; `Some("")` when the index has no table
+    /// yet.
+    pub fn redactions_since(&self) -> Result<Option<String>> {
+        if !has_redactions(&self.conn)? {
+            return Ok(Some(String::new()));
+        }
+        let value: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT value FROM index_meta WHERE key = 'redactions_since'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(match value.as_deref() {
+            Some("full") => None,
+            Some(v) => Some(v.to_owned()),
+            None => Some(String::new()),
+        })
+    }
+
     pub fn turns_for_session(&self, id: &str) -> Result<Vec<StoredTurn>> {
         if !session_row_exists(&self.conn, id)? {
             return Ok(Vec::new());
@@ -1158,6 +1256,34 @@ fn tune_for_writing(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// Creates the redaction tables when missing, and records since when
+/// rows exist: `full` for a new index, else now.
+fn ensure_redactions(conn: &Connection, new: bool) -> Result<()> {
+    conn.execute_batch(REDACTIONS_DDL)?;
+    let since = if new {
+        "full".to_owned()
+    } else {
+        OffsetDateTime::now_utc()
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap_or_default()
+    };
+    conn.execute(
+        "INSERT OR IGNORE INTO index_meta(key, value) VALUES ('redactions_since', ?1)",
+        [since],
+    )?;
+    Ok(())
+}
+
+/// Whether the index has the redaction tables (an index no writer of 0.5.0
+/// opened has not).
+fn has_redactions(conn: &Connection) -> Result<bool> {
+    Ok(conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name = 'redactions')",
+        [],
+        |row| row.get(0),
+    )?)
+}
+
 /// Deletes `session`'s turns, found through `turn_keys`, and its keys.
 fn delete_turns(conn: &Connection, session: &str) -> Result<()> {
     conn.execute(
@@ -1165,6 +1291,9 @@ fn delete_turns(conn: &Connection, session: &str) -> Result<()> {
         [session],
     )?;
     conn.execute("DELETE FROM turn_keys WHERE session_id = ?1", [session])?;
+    if has_redactions(conn)? {
+        conn.execute("DELETE FROM redactions WHERE session_id = ?1", [session])?;
+    }
     Ok(())
 }
 

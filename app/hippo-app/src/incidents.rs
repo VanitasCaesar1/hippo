@@ -312,6 +312,7 @@ pub fn kind_word(k: Kind) -> &'static str {
         Kind::FreshCloneExec => "fresh clone run",
         Kind::CredentialRead => "credential read",
         Kind::GuardBypass => "hooks changed",
+        Kind::SecretToModel => "secret to model",
     }
 }
 

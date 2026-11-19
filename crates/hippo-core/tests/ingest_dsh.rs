@@ -111,6 +111,24 @@ fn ingest_reads_dsh_logs_into_sessions_and_sub_agents_without_leaks() {
     );
 
     let index = Index::open(&config.home, false).unwrap();
+
+    // Redaction rows: one per replaced match, with its role, and no part of
+    // any value.
+    let mut rows = Vec::new();
+    for id in index.turn_counts().unwrap().into_keys() {
+        rows.extend(index.redactions(&id).unwrap());
+    }
+    assert!(!rows.is_empty(), "no redaction rows");
+    assert!(rows
+        .iter()
+        .all(|r| ["person", "assistant", "tool call", "tool result"].contains(&r.role.as_str())));
+    for leak in leaks() {
+        assert!(
+            rows.iter().all(|r| !format!("{r:?}").contains(&leak)),
+            "a row holds {leak:?}"
+        );
+    }
+    assert_eq!(index.redactions_since().unwrap(), None);
     let db = rusqlite::Connection::open(config.home.join("index.sqlite")).unwrap();
     let rows: Vec<(String, String)> = db
         .prepare("SELECT id, tool FROM sessions WHERE error IS NULL ORDER BY id")

@@ -86,7 +86,8 @@ pub const FILE_NAME: &str = "rollup.sqlite";
 /// 13: claims checked by cause, and rules that name no one project's words.
 /// 14: the guard's signals: remote scripts, fresh clones run, credential
 /// reads, hooks or hippo's state written.
-const FORMAT: i64 = 14;
+/// 15: secrets that reached a model, from the index's redaction rows.
+const FORMAT: i64 = 15;
 
 /// The width of an activity bucket, in seconds. Every UTC offset in use is
 /// a whole number of quarter hours, so a local day is whole buckets.
@@ -121,7 +122,7 @@ CREATE TABLE changes(session_id TEXT NOT NULL, ord INTEGER NOT NULL, path TEXT N
 CREATE TABLE tasks(session_id TEXT NOT NULL, ord INTEGER NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL, started TEXT NOT NULL, ended TEXT, status TEXT, ref TEXT, thread TEXT, child TEXT, input TEXT, report TEXT, tokens INTEGER, tools INTEGER, exit INTEGER, PRIMARY KEY(session_id, ord)) WITHOUT ROWID;
 CREATE INDEX tasks_child ON tasks(child);
 CREATE INDEX sessions_parent ON sessions(parent);
-PRAGMA user_version=14;";
+PRAGMA user_version=15;";
 
 pub(crate) const SESSION_COLUMNS: &str = "id, tool, transcript_path, first_turn, last_turn, turns, tool_calls, edits, files, agents, title, project, parent, automated, asked, outcome, ending, ending_detail, ending_at, project_weight, branch";
 
@@ -1037,7 +1038,8 @@ fn write_session(
     }
     // The x-ray's claims and context use, for a person's top-level session.
     let top_level = origin.parent.is_none() && !id.contains("-agent-") && !origin.automated;
-    crate::incidents::write_session(tx, id, turns, top_level, repos)?;
+    let redactions = index.redactions(id)?;
+    crate::incidents::write_session(tx, id, turns, &redactions, top_level, repos)?;
     if top_level {
         let subs: Vec<(String, Vec<StoredTurn>)> = index
             .sub_agents(id)?

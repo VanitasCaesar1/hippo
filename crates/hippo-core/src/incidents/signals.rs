@@ -38,6 +38,9 @@ pub enum SignalKind {
     CredentialRead,
     /// A file that turns hooks off or holds hippo's state was written.
     GuardBypass,
+    /// Redaction replaced a secret in a turn the model saw
+    /// (`docs/designs/secrets.md`).
+    SecretToModel,
 }
 
 impl SignalKind {
@@ -50,6 +53,7 @@ impl SignalKind {
             SignalKind::FreshCloneExec => "fresh-clone-exec",
             SignalKind::CredentialRead => "credential-read",
             SignalKind::GuardBypass => "guard-bypass",
+            SignalKind::SecretToModel => "secret-to-model",
         }
     }
 
@@ -62,6 +66,7 @@ impl SignalKind {
             "fresh-clone-exec" => Some(SignalKind::FreshCloneExec),
             "credential-read" => Some(SignalKind::CredentialRead),
             "guard-bypass" => Some(SignalKind::GuardBypass),
+            "secret-to-model" => Some(SignalKind::SecretToModel),
             _ => None,
         }
     }
@@ -188,6 +193,76 @@ pub fn signals(id: &str, turns: &[StoredTurn], person: bool) -> Vec<Signal> {
         });
     }
     out.extend(super::guard::signals(turns));
+    out
+}
+
+// ---------------------------------------------------------------------------
+// Secrets that reached a model
+
+/// A secret kind as a reader says it.
+pub fn secret_label(kind: &str) -> &'static str {
+    match kind {
+        "pem" => "private key",
+        "aws" => "AWS access key",
+        "github" => "GitHub token",
+        "provider" => "provider key",
+        "auth" => "authorization header",
+        "jwt" => "JWT",
+        _ => "secret",
+    }
+}
+
+/// The `secret-to-model` signals of a session, from its redaction rows:
+/// one per turn and secret kind, never for a published example or a test
+/// key, never for `kv`, `email`, `aadhaar` or `phone`. `extra` is
+/// `<kind>:<confidence>`.
+pub fn secret_signals(turns: &[StoredTurn], rows: &[crate::index::Redaction]) -> Vec<Signal> {
+    let by_ordinal: HashMap<u32, &StoredTurn> = turns.iter().map(|t| (t.ordinal, t)).collect();
+    let mut out: Vec<Signal> = Vec::new();
+    for row in rows {
+        if row.example {
+            continue;
+        }
+        let Some(confidence) = crate::redact::confidence(&row.kind) else {
+            continue;
+        };
+        let extra = format!("{}:{confidence}", row.kind);
+        if out
+            .iter()
+            .any(|s| s.ordinal == row.ordinal && s.extra == extra)
+        {
+            continue;
+        }
+        let Some(turn) = by_ordinal.get(&row.ordinal) else {
+            continue;
+        };
+        let call = row.call.and_then(|c| by_ordinal.get(&c));
+        let step = match (row.role.as_str(), call) {
+            ("tool result", Some(c)) => one_line(&c.text, SIGNAL_CHARS),
+            ("person", _) => "you pasted it".to_owned(),
+            ("tool call", _) => one_line(&turn.text, SIGNAL_CHARS),
+            _ => "the agent wrote it".to_owned(),
+        };
+        out.push(Signal {
+            kind: SignalKind::SecretToModel,
+            ordinal: row.ordinal,
+            ts: turn.ts.clone(),
+            step_ordinal: Some(call.map_or(row.ordinal, |c| c.ordinal)),
+            step_ts: Some(call.map_or_else(|| turn.ts.clone(), |c| c.ts.clone())),
+            step,
+            text: format!(
+                "{}, {confidence}, in {}",
+                secret_label(&row.kind),
+                match row.role.as_str() {
+                    "person" => "your message",
+                    "tool result" => "a tool result",
+                    "tool call" => "a tool call",
+                    _ => "the agent's reply",
+                }
+            ),
+            extra,
+        });
+    }
     out
 }
 

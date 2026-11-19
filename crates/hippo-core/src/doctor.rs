@@ -182,6 +182,7 @@ fn run_history(cfg: &Config, env: &Env) -> Report {
     let (index_row, index) = index_check(cfg, env);
     checks.push(index_row);
     checks.push(parse_failures_check(index.as_ref()));
+    checks.push(secrets_check(index.as_ref()));
     checks.extend(dsh_logs_check(index.as_ref()));
     checks.extend(opencode_check(cfg));
     checks.push(unindexed_check(cfg, index.as_ref()));
@@ -310,6 +311,7 @@ fn run_with(cfg: &Config, ws: &Workspace, env: &Env) -> Report {
     let (index_row, index) = index_check(cfg, env);
     checks.push(index_row);
     checks.push(parse_failures_check(index.as_ref()));
+    checks.push(secrets_check(index.as_ref()));
     checks.extend(dsh_logs_check(index.as_ref()));
     checks.extend(opencode_check(cfg));
     checks.push(unindexed_check(cfg, index.as_ref()));
@@ -579,6 +581,29 @@ fn index_check(cfg: &Config, env: &Env) -> (Check, Option<Index>) {
         ),
     };
     (check, Some(index))
+}
+
+/// `secrets`: whether every indexed session has redaction rows, which
+/// `secret-to-model` counts from. Never a warning: older sessions only
+/// lack the count, and `hippo ingest --full` adds it.
+fn secrets_check(index: Option<&Index>) -> Check {
+    let since = index.and_then(|i| i.redactions_since().ok());
+    match since {
+        Some(None) => row("secrets", Status::Ok, "redaction rows for every indexed session"),
+        Some(Some(s)) if !s.is_empty() => row(
+            "secrets",
+            Status::Ok,
+            format!(
+                "secret-to-model counts sessions ingested since {}; hippo ingest --full counts the older ones once",
+                s.get(..10).unwrap_or(&s)
+            ),
+        ),
+        _ => row(
+            "secrets",
+            Status::Ok,
+            "no redaction rows yet; the next hippo ingest starts them",
+        ),
+    }
 }
 
 fn parse_failures_check(index: Option<&Index>) -> Check {

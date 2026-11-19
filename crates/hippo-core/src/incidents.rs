@@ -72,13 +72,15 @@ pub enum Kind {
     CredentialRead,
     /// A file that turns hooks off or holds hippo's state was written.
     GuardBypass,
+    /// Redaction replaced a secret in a turn the model saw.
+    SecretToModel,
 }
 
 /// The heading hints are listed under, apart from incidents.
 pub const HINTS_HEADING: &str = "Hints to check: a check claimed with no run after the last edit";
 
 impl Kind {
-    pub const ALL: [Kind; 11] = [
+    pub const ALL: [Kind; 12] = [
         Kind::Corrected,
         Kind::Unverified,
         Kind::Blocked,
@@ -90,6 +92,7 @@ impl Kind {
         Kind::FreshCloneExec,
         Kind::CredentialRead,
         Kind::GuardBypass,
+        Kind::SecretToModel,
     ];
 
     /// The guard's kinds (`docs/designs/guard.md`, Part A).
@@ -113,6 +116,7 @@ impl Kind {
             Kind::FreshCloneExec => "fresh-clone-exec",
             Kind::CredentialRead => "credential-read",
             Kind::GuardBypass => "guard-bypass",
+            Kind::SecretToModel => "secret-to-model",
         }
     }
 
@@ -142,6 +146,7 @@ impl Kind {
             Kind::FreshCloneExec => "fresh clone's code run",
             Kind::CredentialRead => "credential read",
             Kind::GuardBypass => "hooks or hippo's state changed",
+            Kind::SecretToModel => "secret sent to the model",
         }
     }
 }
@@ -341,13 +346,16 @@ pub(crate) fn write_session(
     tx: &rusqlite::Transaction<'_>,
     id: &str,
     turns: &[crate::index::StoredTurn],
+    redactions: &[crate::index::Redaction],
     person: bool,
     repos: &mut crate::rollup::work::Repos,
 ) -> Result<()> {
     let mut stmt = tx.prepare_cached(
         "INSERT INTO signals(session_id, ord, kind, ordinal, ts, step_ordinal, step_ts, step, text, extra) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
     )?;
-    for (i, s) in signals::signals(id, turns, person).iter().enumerate() {
+    let mut all = signals::signals(id, turns, person);
+    all.extend(signals::secret_signals(turns, redactions));
+    for (i, s) in all.iter().enumerate() {
         stmt.execute(params![
             id,
             i as i64,
@@ -967,6 +975,41 @@ pub(crate) fn detect(
                         fixed: None,
                         other: None,
                         detail: Some(extra.clone()),
+                        subject: None,
+                    },
+                });
+            }
+            SignalKind::SecretToModel => {
+                let (kind_word, confidence) = extra.split_once(':').unwrap_or((extra, "high"));
+                let fix = if confidence == "high" {
+                    "rotate it, and assume the agent's model provider has it"
+                } else {
+                    "check whether it was live, and rotate it if so"
+                };
+                out.push(Incident {
+                    id: stable_id(&["secret-to-model", session, &ordinal.to_string(), extra]),
+                    kind: Kind::SecretToModel,
+                    // Medium confidence is one click away, as a destructive
+                    // command with no harm after it is.
+                    quiet: confidence != "high",
+                    at,
+                    cause: Cause::NotEstablished,
+                    minutes: None,
+                    lines: None,
+                    tokens: None,
+                    body: Body {
+                        told: w.told(session, did.ordinal),
+                        rule: None,
+                        read: w.read(session, did.at),
+                        chain,
+                        did,
+                        showed,
+                        fixed: None,
+                        other: None,
+                        detail: Some(format!(
+                            "{}, {confidence}: {fix}",
+                            signals::secret_label(kind_word)
+                        )),
                         subject: None,
                     },
                 });

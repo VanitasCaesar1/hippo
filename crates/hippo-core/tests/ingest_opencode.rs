@@ -132,6 +132,24 @@ fn ingest_reads_opencode_sessions_incrementally_without_leaks() {
     );
 
     let index = Index::open(&config.home, false).unwrap();
+
+    // Redaction rows: one per replaced match, with its role, and no part of
+    // any value.
+    let mut rows = Vec::new();
+    for id in index.turn_counts().unwrap().into_keys() {
+        rows.extend(index.redactions(&id).unwrap());
+    }
+    assert!(!rows.is_empty(), "no redaction rows");
+    assert!(rows
+        .iter()
+        .all(|r| ["person", "assistant", "tool call", "tool result"].contains(&r.role.as_str())));
+    for leak in leaks() {
+        assert!(
+            rows.iter().all(|r| !format!("{r:?}").contains(&leak)),
+            "a row holds {leak:?}"
+        );
+    }
+    assert_eq!(index.redactions_since().unwrap(), None);
     let conn = Connection::open(config.home.join("index.sqlite")).unwrap();
     let rows: Vec<(String, String, String)> = conn
         .prepare("SELECT id, tool, transcript_path FROM sessions WHERE error IS NULL ORDER BY id")

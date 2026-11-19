@@ -129,8 +129,8 @@ A check an agent said passed with no run of it after its last edit is listed apa
 | Flag | Meaning |
 |---|---|
 | `--days <n>` | Days to cover, 1 to 14. Default 7. |
-| `--all` | Also list destructive commands that nothing harmful followed. |
-| `--kind <kind>` | Only one kind: `corrected`, `unverified`, `blocked`, `failed`, `redone`, `collision`, `destructive`, `remote-script`, `fresh-clone-exec`, `credential-read` or `guard-bypass`. |
+| `--all` | Also list destructive commands that nothing harmful followed, and medium-confidence secrets sent to a model. |
+| `--kind <kind>` | Only one kind: `corrected`, `unverified`, `blocked`, `failed`, `redone`, `collision`, `destructive`, `remote-script`, `fresh-clone-exec`, `credential-read`, `guard-bypass` or `secret-to-model`. |
 | `--json` | Print one JSON array. |
 
 ## hippo xray

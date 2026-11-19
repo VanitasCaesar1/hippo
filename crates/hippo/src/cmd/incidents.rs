@@ -112,7 +112,25 @@ fn write_text_of(
         writeln!(out, "\n{HINTS_HEADING}")?;
         print_days(&hints, offset, out)?;
     }
+    if let Some(note) = counted_since(config) {
+        writeln!(out, "\n{note}")?;
+    }
     Ok(())
+}
+
+/// When secret-to-model does not cover every indexed session: since when
+/// it counts, and the command that counts the rest.
+fn counted_since(config: &Config) -> Option<String> {
+    let index = hippo_core::index::Index::open(&config.home, false).ok()?;
+    match index.redactions_since().ok()?? {
+        since if since.is_empty() => Some(
+            "secret-to-model counts sessions ingested by hippo 0.5.0 or later; run hippo ingest, and hippo ingest --full to count older ones.".to_owned(),
+        ),
+        since => Some(format!(
+            "secret-to-model counts sessions ingested since {}; hippo ingest --full counts the older ones.",
+            since.get(..10).unwrap_or(&since)
+        )),
+    }
 }
 
 /// Rows under a heading per local day.
