@@ -1302,13 +1302,26 @@ fn find_program(program: &str) -> Option<PathBuf> {
         .find(|candidate| candidate.is_file())
 }
 
-/// Runs `model_command` in an emptied `$HIPPO_HOME/model-runs/`, with
+/// Runs `model_command` in its own new `$HIPPO_HOME/model-runs/<ulid>/`
+/// (0700, removed afterwards, as every model call is), with
 /// `{system_prompt}` asking for one word and `ping` on stdin, and returns
 /// the `result` of the JSON it prints.
 fn ask_one_word(cfg: &Config, timeout: std::time::Duration) -> std::result::Result<String, String> {
     let runs = cfg.home.join("model-runs");
-    let _ = fs::remove_dir_all(&runs);
-    fs::create_dir_all(&runs).map_err(|e| format!("{}: {e}", runs.display()))?;
+    crate::perms::create_private_dir(&runs).map_err(|e| e.to_string())?;
+    let dir = runs.join(Ulid::generate().to_string());
+    fs::create_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    let _ = crate::perms::create_private_dir(&dir);
+    let reply = ask_one_word_in(&dir, cfg, timeout);
+    let _ = fs::remove_dir_all(&dir);
+    reply
+}
+
+fn ask_one_word_in(
+    runs: &Path,
+    cfg: &Config,
+    timeout: std::time::Duration,
+) -> std::result::Result<String, String> {
     let argv: Vec<String> = cfg
         .model_command
         .iter()
@@ -1319,7 +1332,7 @@ fn ask_one_word(cfg: &Config, timeout: std::time::Duration) -> std::result::Resu
         .collect();
     let mut child = Command::new(&argv[0])
         .args(&argv[1..])
-        .current_dir(&runs)
+        .current_dir(runs)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
