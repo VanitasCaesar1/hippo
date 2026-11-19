@@ -94,7 +94,7 @@ Pass and persona files are text, and hippo never executes anything a pack contai
 | Where | What |
 |---|---|
 | `$HIPPO_HOME/index.sqlite` | Redacted transcript turns. Rebuildable. Never committed. |
-| `$HIPPO_HOME/` other files | `config.toml`, `ingest.lock`, `ingest-state.json`, `logs/`, `model-runs/` |
+| `$HIPPO_HOME/` other files | `config.toml`, `ingest.lock`, `ingest-state.json`, `logs/`, `model-runs/<ulid>/` (one per model call, removed when it ends), `runners/<name>.canary` (a runner's last canary result) |
 | `$HIPPO_HOME/index.sqlite`, table `redactions` | One row per match redaction replaced in an indexed turn: the session, the turn, its role (your message, the agent's reply, a tool call or result), the kind, whether it is a published example key, and for a tool result the call that produced it. Never the value, a hash of it or its length. `secret-to-model` is built from it. Written for text ingested by hippo 0.5.0 or later. |
 | `$HIPPO_HOME/bin-path` | The absolute path of the `hippo` binary, written by `hippo init`, `hippo hooks install` and `install.sh`. The Claude Code, dsh and OpenCode plugins run that path, and look on `PATH` only when the file is missing |
 | `$HIPPO_HOME/install.json` | Written by `install.sh` after it checked the release against its published checksum: the version, the binary's path and its sha256. `hippo doctor` compares the binary, and the ones the hooks run, against it |

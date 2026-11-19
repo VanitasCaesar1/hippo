@@ -14,7 +14,11 @@ The text lives in `ROADMAP.md` at the root of the repository, and the docs site 
 - An adapter for Cursor: its agent transcripts, from the editor and `cursor-agent`, with sub-agents ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/cursor-adapter.md)).
 - An adapter for Gemini CLI: its saved sessions in both the older JSON and the newer JSON Lines form, with sub-agents ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/gemini-adapter.md)).
 - An MCP server, `hippo mcp`, so any agent that speaks MCP can ask hippo for the start block, past sessions, the day and incidents, and `hippo mcp install` for seven clients ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/mcp-server.md), [docs](https://github.com/VanitasCaesar1/hippo/blob/main/docs/mcp.md)).
-- Notes, context, and hooks for Claude Code, Codex and Gemini CLI, and a start hook for Cursor.
+- Notes, context, and hooks for Claude Code, Codex and Gemini CLI, and a start hook for Cursor, each running hippo by its absolute path from per-person files.
+- Runners: which CLI, model, effort and account hippo's own model calls use, per role, with fallback inside a data domain, each call in an OS sandbox with a limited environment ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/runners.md)).
+- The guard's incidents after the fact: remote scripts, a fresh clone's code run, credential reads and changes to hippo's hooks, read from every agent's transcripts ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/guard.md)).
+- Secrets that reached a model, from redaction rows that name the kind and the turn, never the value ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/secrets.md)).
+- A private `$HIPPO_HOME` (0700 folders, 0600 files), a version floor for shared workspaces, and an install script that records the checksum it checked ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/common.md)).
 - Dreaming with a fresh-context reviewer, receipts, snapshots and revert, and its schedule: launchd on macOS, printed cron and systemd lines elsewhere.
 - `hippo eval` with a synthetic question set.
 - Packs: `hippo add` and `hippo packs`, the registry tool and its static site, and 26 first-party packs (23 pass packs and 3 theme packs), all reviewed and listed in the registry.
@@ -25,6 +29,10 @@ The text lives in `ROADMAP.md` at the root of the repository, and the docs site 
 - The community feed server (`crates/hippo-feed`): built and tested locally, not deployed. See [`docs/feed-local.md`](https://github.com/VanitasCaesar1/hippo/blob/main/docs/feed-local.md).
 
 ## Planned
+
+- **A guard before the fact (0.6.0).** `hippo guard check` in each agent's pre-tool hook, machine-wide, warn-only first, with team rules in a note, machine rules, and a local accept before any rule is loosened ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/guard.md#part-b-before-the-fact-a-guard-in-the-agent), [shared rules](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/common.md)).
+- **A shared Inbox for teams (0.6.0).** Lesson identities and decisions shared through git, per-person opt-in, no quotes at first ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/team-brain.md)).
+- **More runner presets.** Codex, Muse and OpenCode as checked `command` recipes, then presets; a reviewer on another vendor ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/runners.md#rollout)).
 
 - **Checking the Cursor and Gemini CLI adapters on real sessions.** Cursor's transcripts were confirmed by their structure only, and Gemini CLI's format comes from its source; both need a run against real history, as Codex's hooks had.
 - **History from more agents.** Windsurf, Zed and other MCP clients use hippo's tools but their own sessions are not read. An adapter needs a redaction test before it lands.

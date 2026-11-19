@@ -19,6 +19,9 @@ Nothing in `$HIPPO_HOME` is shared: the configuration, the index and the rollup 
 | `.hippo/reports/` | Per person, ignored | One file per day per machine; two machines write the same name. |
 | `.hippo/snapshots/` | Per person, ignored | The before-text `hippo revert` restores on the machine that dreamed the change. Git's history holds the same text for everyone else. |
 | The session log (`log_path`, by default `<notes_dir>/Session log.md`) | Per person, ignored | Generated from your own records, so it always differs. |
+| `.claude/settings.local.json` | Per person | hippo's Claude Code hooks, with the absolute path of your `hippo`. hippo writes nothing to the shared `.claude/settings.json`; `hippo doctor` warns if git tracks the local file. |
+
+**Versions.** `hippo.toml` can set `min_hippo_version`: a teammate's older hippo then refuses to dream, scan lessons, review, revert or add packs in the workspace (hooks and `context` keep working), and so does a hippo that finds a setting it does not know. Everyone should be on 0.5.0 or later before anyone turns on a team, guard or secrets setting: a hippo older than 0.5.0 has neither check and ignores what it does not know. Proposals, receipts and review marks name the hippo that wrote them (`hippo_version`).
 
 ## What `init` writes
 
@@ -48,7 +51,7 @@ hippo init        # no flags: reads the workspace's .hippo/, writes your own con
 hippo ingest
 ```
 
-`model_command` is per machine: set it with `hippo config set model_command …` if the `claude` CLI is not on your `PATH`, or your first dream fails.
+Runners are per machine: if the `claude` CLI is not on your `PATH`, or you want another account, model or CLI for hippo's own calls, add one with `hippo runners add` ([Configuration](configuration.md#runners-which-cli-model-and-account-hippos-own-calls-use)); receipts name the runner, never its account folder.
 
 Then, as usual: work with the hooks (`hippo hooks install`), let dreaming run, and commit:
 

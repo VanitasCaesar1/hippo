@@ -35,6 +35,21 @@ hippo is early software at version 0.4.2. This page lists what you should expect
 
 Redaction is best-effort pattern matching, in both directions: it can miss a secret, and it can redact harmless text. See [Security and privacy](security.md).
 
+- **`secret-to-model` is only as good as the patterns.** A secret no pattern matches (a short password, a custom token format) is not found. It counts only text ingested by 0.5.0 or later until `hippo ingest --full`, and it cannot tell whether a key was live or whether the agent's client filtered it before sending.
+
+## Runners and the sandbox
+
+- **The sandbox on macOS and Linux with `bwrap` only.** Landlock without `bwrap` is not used, and Windows has none. Where there is none, `claude` runs as before (no tools) and a `command` runner may not write notes, receipts or lessons unless it sets `allow_unsandboxed`.
+- **The profile is checked on startup, not on a signed-in call.** `claude --version` runs inside the generated macOS profile; no signed-in model call was made to build hippo. A Claude Code update can need a path the profile lacks; the symptom is a failed call, and `hippo doctor --model` shows it.
+- **The account folder stays readable.** The sandbox narrows what a CLI can read to its run folder, its install and its account folder, which holds its own credentials. It is not a security boundary.
+- **The older keys run as before.** `model_command` and `reviewer_command_override` keep the whole environment and no sandbox until `hippo runners migrate`.
+- **Recipes for other CLIs are unchecked.** Codex, Muse and OpenCode have candidate `command` recipes read from their `--help`; dsh and Command Code have none.
+
+## The guard's incidents
+
+- **Text, not behaviour.** The guard's kinds read a command's text as the transcript records it. A script written to a file and then run, a base64-encoded command, a read through a language runtime, or a shell that is not one of the agents' shell tools are not found. Nothing is blocked before the fact until the guard of 0.6.0.
+- **Measured on synthetic data only.** Precision was measured on a labeled synthetic set written by the rules' author and on the synthetic demo history, where nothing fired. Real history may be noisier; `hippo incidents --kind <kind>` shows what fires.
+
 ## Dreaming
 
 - **A model reviews a model.** The reviewer is isolated from the proposer, but both are language models. Dreaming can propose and confirm a wrong change. Every change has a snapshot, a receipt and a revert, and the first runs should use `--dry-run`.
