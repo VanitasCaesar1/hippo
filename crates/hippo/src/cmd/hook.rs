@@ -12,6 +12,13 @@
 //! `cwd` is in the workspace, records it as `codex-<session_id>`, the id
 //! the Codex adapter gives the same session, and prints Codex's JSON hook
 //! output.
+//!
+//! With `--agent cursor`, `session-start` is a Cursor `sessionStart` hook
+//! (`~/.cursor/hooks.json`): read-only, it prints the required parts as
+//! `{"additional_context": …}` when one of the input's `workspace_roots` is
+//! in the workspace, and nothing otherwise. Cursor has no prompt hook that
+//! adds context, and hippo writes no session record for it: ingest reads
+//! the session from its transcript.
 
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -38,7 +45,7 @@ pub enum Command {
         /// prints it
         #[arg(long, conflicts_with = "agent")]
         plugin: bool,
-        /// The agent running the hook: claude-code or codex
+        /// The agent running the hook: claude-code, codex or cursor
         #[arg(long, value_enum, default_value_t)]
         agent: AgentArg,
     },
@@ -77,6 +84,7 @@ pub fn run(command: Command) -> ExitCode {
     let result = match command.agent() {
         AgentArg::ClaudeCode => hook(command),
         AgentArg::Codex => codex_hook(command),
+        AgentArg::Cursor => cursor_hook(command),
     };
     if let Err(err) = result {
         eprintln!("hippo hook: {}", one_line(&format!("{err:#}")));
@@ -247,6 +255,52 @@ fn codex_hook(command: Command) -> Result<()> {
                 .and_then(|path| last_assistant_text(Path::new(path)));
             sessions::end_with_derived_handoff(&workspace, &id, handoff.as_deref())?;
         }
+    }
+    Ok(())
+}
+
+/// A Cursor hook: `session-start` prints the required parts as Cursor's
+/// `sessionStart` output when a workspace root of the session is in
+/// hippo's workspace; everything else does nothing.
+fn cursor_hook(command: Command) -> Result<()> {
+    if !matches!(command, Command::SessionStart { .. }) {
+        return Ok(());
+    }
+    let mut stdin = String::new();
+    io::stdin().read_to_string(&mut stdin)?;
+    let input: Value = serde_json::from_str(&stdin)?;
+    let config = match Config::load() {
+        Ok(config) => config,
+        Err(hippo_core::error::Error::NotSetUp(_)) => return Ok(()),
+        Err(err) => return Err(err.into()),
+    };
+    if config.workspace.is_none() {
+        return Ok(());
+    }
+    let workspace = Workspace::load(&config)?;
+    let root = canonical(&workspace.root);
+    let inside = input
+        .get("workspace_roots")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .any(|dir| canonical(Path::new(dir)).starts_with(&root));
+    if !inside {
+        return Ok(());
+    }
+    let compiled = context::compile(
+        &workspace,
+        None,
+        None,
+        None,
+        None,
+        workspace.budget_bytes,
+        PartSelection::Required,
+    )?;
+    let text = compiled.text();
+    if !text.trim().is_empty() {
+        println!("{}", serde_json::json!({ "additional_context": text }));
     }
     Ok(())
 }

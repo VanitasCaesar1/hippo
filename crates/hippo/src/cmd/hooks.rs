@@ -3,7 +3,8 @@
 //! (`hippo_core::hooks`). For Claude Code (the default) that is the
 //! workspace's `.claude/settings.json`, the workspace being the configured
 //! one unless `--workspace` names another; for Codex, the user's
-//! `$CODEX_HOME/hooks.json`.
+//! `$CODEX_HOME/hooks.json`; for Cursor, `~/.cursor/hooks.json`, with the
+//! session-start hook only.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -20,12 +21,15 @@ pub enum AgentArg {
     ClaudeCode,
     /// Codex: $CODEX_HOME/hooks.json (~/.codex/hooks.json)
     Codex,
+    /// Cursor: ~/.cursor/hooks.json, the session-start hook only
+    Cursor,
 }
 
 #[derive(clap::Args)]
 pub struct Target {
-    /// The agent: claude-code (the workspace's .claude/settings.json) or
-    /// codex ($CODEX_HOME/hooks.json, for every Codex session)
+    /// The agent: claude-code (the workspace's .claude/settings.json),
+    /// codex ($CODEX_HOME/hooks.json, for every Codex session) or cursor
+    /// (~/.cursor/hooks.json, for every Cursor session)
     #[arg(long, value_enum, default_value_t)]
     agent: AgentArg,
     /// The workspace, for Claude Code; the configured one when not given
@@ -61,6 +65,14 @@ fn file(target: Target) -> Result<(PathBuf, Agent)> {
                 .ok_or_else(|| anyhow!("cannot find Codex's home; set CODEX_HOME or HOME"))?;
             Ok((hooks::codex_hooks_path(&home), Agent::Codex))
         }
+        AgentArg::Cursor => {
+            if target.workspace.is_some() {
+                bail!("--workspace is for Claude Code; Cursor's hooks are in ~/.cursor/hooks.json, for every session, and hippo checks each session's folders");
+            }
+            let path = hooks::cursor_hooks_path()
+                .ok_or_else(|| anyhow!("cannot find the home directory; set HOME"))?;
+            Ok((path, Agent::Cursor))
+        }
     }
 }
 
@@ -70,9 +82,12 @@ pub fn run(command: Command) -> Result<ExitCode> {
             let (path, agent) = file(target)?;
             let added = hooks::install_file(&path, agent)?;
             if added.is_empty() {
-                println!("{}: the three hooks are already there", path.display());
+                println!("{}: hippo's hooks are already there", path.display());
             } else {
                 println!("{}: added {}", path.display(), added.join(", "));
+            }
+            if agent == Agent::Cursor && !added.is_empty() {
+                println!("Cursor gives a new chat the start block from now on. For the notes relevant to a task, add hippo's MCP server too: hippo mcp install --client cursor");
             }
             if agent == Agent::Codex {
                 if let Some(home) = path.parent() {

@@ -190,6 +190,7 @@ pub fn found(d: &Detected, now: OffsetDateTime, offset: UtcOffset) -> Found {
     let mut opencode_files = 0;
     let mut muse_files = 0;
     let mut command_code_files = 0;
+    let mut cursor_files = 0;
     for root in &d.roots {
         let dirs: Vec<&Dir> = root.dirs.iter().collect();
         if dirs.is_empty() {
@@ -202,6 +203,7 @@ pub fn found(d: &Detected, now: OffsetDateTime, offset: UtcOffset) -> Found {
             "opencode" => "OpenCode",
             "muse" => "Muse Code",
             "command-code" => "Command Code",
+            "cursor" => "Cursor",
             _ => "Claude Code",
         };
         if tool == "codex" {
@@ -214,6 +216,8 @@ pub fn found(d: &Detected, now: OffsetDateTime, offset: UtcOffset) -> Found {
             muse_files += dirs.iter().map(|d| d.files).sum::<u64>();
         } else if tool == "command-code" {
             command_code_files += dirs.iter().map(|d| d.files).sum::<u64>();
+        } else if tool == "cursor" {
+            cursor_files += dirs.iter().map(|d| d.files).sum::<u64>();
         } else {
             claude_profiles += dirs.iter().filter(|d| d.files > 0).count();
         }
@@ -274,6 +278,7 @@ pub fn found(d: &Detected, now: OffsetDateTime, offset: UtcOffset) -> Found {
         ("OpenCode", opencode_files),
         ("Muse Code", muse_files),
         ("Command Code", command_code_files),
+        ("Cursor", cursor_files),
     ]
     .into_iter()
     .filter(|(_, files)| *files > 0)
@@ -344,6 +349,8 @@ pub fn empty(d: &Detected) -> Vec<Looked> {
                 "OpenCode"
             } else if root.pattern.contains(".commandcode") {
                 "Command Code"
+            } else if root.pattern.contains(".cursor") {
+                "Cursor"
             } else if root.pattern.contains("muse") {
                 "Muse Code"
             } else {

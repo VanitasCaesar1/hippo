@@ -14,6 +14,7 @@ Everything here is synthetic: invented for these tests, and copied from no real 
 | `dsh/` | DeepSeek Harness session logs, one compressed | adapter, ingest, doctor and first-run tests |
 | `muse/` | One Muse Code session log, in a dated session folder, and a sub-agent log that is never read | adapter and ingest tests |
 | `command-code/` | Command Code sessions under `.commandcode/projects/`: one in version 3, one in version 2, and a sidecar that is never read | adapter and ingest tests |
+| `cursor/` | Cursor agent transcripts under `projects/work-example/agent-transcripts/`: a session, its sub-agent and an older flat transcript, and an `agent-tools` sidecar that is never read | adapter and ingest tests |
 | `opencode/` | SQL that builds OpenCode databases: the schema, seven sessions, and one database of a future schema | adapter, ingest, detect, doctor, Fleet and first-run tests |
 | `eval/` | A synthetic eval set: notes, transcripts and the questions and answers of `set.toml` | `hippo eval`, `crates/hippo/tests/eval.rs` |
 | `feed/` | The feed's registry fixtures: two index files and the raw `theme.css` files (see below) | `hippo-feed`'s `registry.rs` tests and, later, `tests/registry.rs` |
@@ -33,6 +34,8 @@ Every `*.jsonl` fixture begins with the line `{"synthetic": true}`, which every 
 
 - `muse/` stands for Muse Code's sessions folder, `~/.local/share/muse/sessions/`: `2026/11/01/<session id>/session.jsonl`, written by hand in the shape of logs Muse 1.4.18 wrote, with all text invented. Its first line is the synthetic marker; then a retained frame, the metadata naming `/work/example` as the working directory, a prompt, two tool calls and their results, a record in a future payload version and the closing answer, with records hippo skips between them.
 - `command-code/.commandcode/projects/work-example/` stands for Command Code's `~/.commandcode/projects/<slug>/`, written by hand in the shape Command Code 1.88.5 writes, all text invented. Session `ee00…01` is version 3: the synthetic marker, the header naming `/work/example`, a model change, a prompt, a reply with thinking, text and a tool call, its result, a compaction and the closing answer. `ee00…02` is version 2, which hippo reports and does not read; `<id>.checkpoints.jsonl` is a sidecar no adapter reads.
+
+- `cursor/projects/work-example/` stands for Cursor's `~/.cursor/projects/<slug>/`, written by hand in the shape of Cursor's agent transcripts (November 2026), all text invented. Session `aa00…01` is `agent-transcripts/<id>/<id>.jsonl`: the synthetic marker, a prompt at 9:00 AM UTC−7 wrapped in `<timestamp>` and `<user_query>` with every leak, replies with text and tool calls, `turn_ended` markers, and a second prompt with attached context. `bb00…02` is its sub-agent, in `subagents/`, with no time; `cc00…03` is a transcript in the older flat layout. `agent-tools/` holds a sidecar no adapter reads.
 
 Between them they carry every line of `redaction/leaks.txt` in text blocks, tool inputs and tool outputs, so the ingest tests can check that no leak reaches the index.
 

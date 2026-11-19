@@ -90,6 +90,8 @@ fn expected(pattern: &str) -> &'static str {
         "OpenCode keeps its sessions in ~/.local/share/opencode/opencode.db, or $XDG_DATA_HOME/opencode"
     } else if pattern.contains(".commandcode") {
         "Command Code keeps its sessions in ~/.commandcode/projects"
+    } else if pattern.contains(".cursor") {
+        "Cursor keeps its agent transcripts in ~/.cursor/projects/<project>/agent-transcripts"
     } else if pattern.contains("muse") {
         "Muse Code keeps its sessions in ~/.local/share/muse/sessions, or $XDG_DATA_HOME/muse/sessions"
     } else {

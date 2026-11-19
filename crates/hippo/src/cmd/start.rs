@@ -84,7 +84,7 @@ fn first_run(args: &Args, asked_for_start: bool) -> Result<ExitCode> {
     if found.files() == 0 {
         println!("No agent history found, so there is nothing to index yet.");
         println!(
-            "hippo reads Claude Code (~/.claude/projects and ~/.claude-<profile>/projects), Codex (~/.codex/sessions), DeepSeek Harness (~/.dsh/sessions), OpenCode (~/.local/share/opencode), Muse Code (~/.local/share/muse/sessions) and Command Code (~/.commandcode/projects)."
+            "hippo reads Claude Code (~/.claude/projects and ~/.claude-<profile>/projects), Codex (~/.codex/sessions), DeepSeek Harness (~/.dsh/sessions), OpenCode (~/.local/share/opencode), Muse Code (~/.local/share/muse/sessions) Command Code (~/.commandcode/projects) and Cursor (~/.cursor/projects)."
         );
         println!("If yours is somewhere else:  hippo start --add-root <folder>");
         return Ok(ExitCode::SUCCESS);

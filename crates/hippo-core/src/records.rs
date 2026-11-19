@@ -39,10 +39,12 @@ pub enum Tool {
     Muse,
     /// `command-code`: Command Code.
     CommandCode,
+    /// `cursor`: Cursor's agent, in the editor or the `cursor-agent` CLI.
+    Cursor,
 }
 
 impl Tool {
-    /// `claude-code`, `codex`, `dsh`, `opencode`, `muse` or `command-code`,
+    /// `claude-code`, `codex`, `dsh`, `opencode`, `muse`, `command-code` or `cursor`,
     /// as records and the index write it.
     pub fn as_str(self) -> &'static str {
         match self {
@@ -52,6 +54,7 @@ impl Tool {
             Tool::OpenCode => "opencode",
             Tool::Muse => "muse",
             Tool::CommandCode => "command-code",
+            Tool::Cursor => "cursor",
         }
     }
 }
@@ -644,6 +647,7 @@ mod tests {
             Tool::OpenCode,
             Tool::Muse,
             Tool::CommandCode,
+            Tool::Cursor,
         ] {
             let json = serde_json::to_string(&tool).unwrap();
             assert_eq!(json, format!("\"{}\"", tool.as_str()));

@@ -84,6 +84,7 @@ pub fn default_transcript_roots() -> Vec<String> {
         crate::adapters::opencode::default_root(),
         crate::adapters::muse::default_root(),
         crate::adapters::command_code::DEFAULT_ROOT.into(),
+        crate::adapters::cursor::DEFAULT_ROOT.into(),
     ]
 }
 
@@ -845,6 +846,7 @@ mod tests {
                 crate::adapters::opencode::default_root(),
                 crate::adapters::muse::default_root(),
                 crate::adapters::command_code::DEFAULT_ROOT.into(),
+                crate::adapters::cursor::DEFAULT_ROOT.into(),
             ],
             exclude_roots: Vec::new(),
             model_command: [
@@ -1305,8 +1307,8 @@ mod tests {
         assert_eq!(config.workspace, None);
         assert!(matches!(Workspace::load(&config), Err(Error::NoWorkspace)));
         assert_eq!(Workspace::load_optional(&config).unwrap(), None);
-        assert_eq!(config.transcript_roots.len(), 7);
-        assert_eq!(config.transcript_roots[6], "/Volumes/Old/claude");
+        assert_eq!(config.transcript_roots.len(), 8);
+        assert_eq!(config.transcript_roots[7], "/Volumes/Old/claude");
 
         // Another root is added in place, once, keeping the file's comments.
         for _ in 0..2 {
@@ -1317,7 +1319,7 @@ mod tests {
             init_in(home.path(), more).unwrap();
         }
         let config = Config::load_in(home.path()).unwrap();
-        assert_eq!(config.transcript_roots.len(), 8);
+        assert_eq!(config.transcript_roots.len(), 9);
         assert!(read(&config_path).unwrap().contains("# `dream_at`"));
 
         // Choosing a notes folder later fills in the workspace, without force.
@@ -1326,7 +1328,7 @@ mod tests {
         assert_eq!(report.workspace.as_deref(), Some(root.as_path()));
         let config = Config::load_in(home.path()).unwrap();
         assert_eq!(config.workspace.as_deref(), Some(root.as_path()));
-        assert_eq!(config.transcript_roots.len(), 8);
+        assert_eq!(config.transcript_roots.len(), 9);
         assert_eq!(Workspace::load(&config).unwrap().root, root);
         let text = read(&config_path).unwrap();
         assert!(!text.contains(NO_WORKSPACE_LINE), "{text}");

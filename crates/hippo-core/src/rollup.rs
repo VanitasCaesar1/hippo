@@ -408,8 +408,8 @@ impl SessionFacts {
 
     /// The Claude profile the transcript is under: `default` for
     /// `~/.claude`, `<name>` for `~/.claude-<name>`; `codex` for Codex,
-    /// `dsh` for dsh, `opencode` for OpenCode, `muse` for Muse Code and `command-code` for
-    /// Command Code.
+    /// `dsh` for dsh, `opencode` for OpenCode, `muse` for Muse Code, `command-code` for
+    /// Command Code and `cursor` for Cursor.
     pub fn profile(&self) -> Option<String> {
         profile_of(&self.tool, &self.transcript_path)
     }
@@ -417,7 +417,10 @@ impl SessionFacts {
 
 /// The profile of a transcript at `path`, as [`SessionFacts::profile`].
 pub fn profile_of(tool: &str, path: &Path) -> Option<String> {
-    if matches!(tool, "codex" | "dsh" | "opencode" | "muse" | "command-code") {
+    if matches!(
+        tool,
+        "codex" | "dsh" | "opencode" | "muse" | "command-code" | "cursor"
+    ) {
         return Some(tool.to_owned());
     }
     path.components().find_map(|c| {

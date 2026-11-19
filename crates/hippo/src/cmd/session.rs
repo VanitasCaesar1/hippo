@@ -50,6 +50,7 @@ pub enum ToolName {
     OpenCode,
     Muse,
     CommandCode,
+    Cursor,
 }
 
 pub fn run(command: Command) -> Result<ExitCode> {
@@ -67,6 +68,7 @@ pub fn run(command: Command) -> Result<ExitCode> {
                 ToolName::OpenCode => Tool::OpenCode,
                 ToolName::Muse => Tool::Muse,
                 ToolName::CommandCode => Tool::CommandCode,
+                ToolName::Cursor => Tool::Cursor,
             };
             sessions::start(&workspace, tool, &session, task.as_deref())?;
         }

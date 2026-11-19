@@ -4,13 +4,15 @@
 //! root may hold any tool's files: Codex takes `rollout-*.jsonl`, dsh takes
 //! its session logs (`session.v<N>.jsonl`, optionally `.zstd`, in a
 //! session folder of a project folder), and Claude Code takes every other
-//! `*.jsonl`, and OpenCode takes its database (`opencode.db`), which holds
+//! `*.jsonl` but Cursor's (under `agent-transcripts/`) and Command Code's,
+//! and OpenCode takes its database (`opencode.db`), which holds
 //! many sessions ([`Adapter::sessions_in`]). Every transcript belongs to the
 //! one configured workspace.
 
 pub mod claude_code;
 pub mod codex;
 pub mod command_code;
+pub mod cursor;
 pub mod dsh;
 pub mod muse;
 pub mod opencode;
@@ -125,6 +127,7 @@ pub fn all() -> Vec<Box<dyn Adapter>> {
         Box::new(opencode::OpenCode),
         Box::new(muse::Muse),
         Box::new(command_code::CommandCode),
+        Box::new(cursor::Cursor),
     ]
 }
 
@@ -286,8 +289,8 @@ mod tests {
     /// The turns of each adapter's synthetic transcripts, parsed with
     /// `fixtures/` as the root: Claude Code's two files, then Codex's, then
     /// dsh's normal session, then OpenCode's, from a database built from
-    /// the fixture's SQL, then Muse's, then Command Code's.
-    fn fixture_turns() -> [(&'static str, Vec<RawTurn>); 6] {
+    /// the fixture's SQL, then Muse's, then Command Code's, then Cursor's.
+    fn fixture_turns() -> [(&'static str, Vec<RawTurn>); 7] {
         let root = Path::new(FIXTURES);
         let claude_code = [
             "claude-code/synthetic.jsonl",
@@ -324,6 +327,12 @@ mod tests {
             .parse(&root.join("command-code"), &path)
             .unwrap()
             .turns;
+        let cursor_root = root.join("cursor/projects/work-example/agent-transcripts");
+        let path = cursor_root.join(
+            "aa000000-0000-4000-8000-000000000001/aa000000-0000-4000-8000-000000000001.jsonl",
+        );
+        assert!(cursor::Cursor.file_matches(&path));
+        let cursor = cursor::Cursor.parse(&cursor_root, &path).unwrap().turns;
         [
             ("claude-code", claude_code),
             ("codex", codex),
@@ -331,6 +340,7 @@ mod tests {
             ("opencode", opencode),
             ("muse", muse),
             ("command-code", command_code),
+            ("cursor", cursor),
         ]
     }
 

@@ -13,6 +13,11 @@
 //! atomically. A file that is not a JSON object is refused and left alone.
 //! [`status_file`] reports which events have their hook. Codex's trust in
 //! a hook is Codex's own: nothing here reads or writes its `config.toml`.
+//!
+//! Cursor's `~/.cursor/hooks.json` has another shape, `{"version": 1,
+//! "hooks": {"<event>": [{"command": …}]}}`, with no group around each
+//! hook, and hippo adds only `sessionStart` there ([`CURSOR_HOOKS`]): Cursor
+//! has no prompt hook that can add context.
 
 use std::fmt::Write as _;
 use std::fs;
@@ -32,20 +37,33 @@ pub const HOOKS: [(&str, &str); 3] = [
     ("SessionEnd", "session-end"),
 ];
 
+/// Cursor's one hook event and its subcommand.
+pub const CURSOR_HOOKS: [(&str, &str); 1] = [("sessionStart", "session-start")];
+
 /// The agent whose hooks file is meant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Agent {
     ClaudeCode,
     Codex,
+    Cursor,
 }
 
 impl Agent {
+    /// The events hippo hooks for this agent, with their subcommands.
+    pub fn events(self) -> &'static [(&'static str, &'static str)] {
+        match self {
+            Agent::Cursor => &CURSOR_HOOKS,
+            _ => &HOOKS,
+        }
+    }
+
     /// How hippo's command for `sub` ends: `hook <sub>`, and for Codex
     /// `hook <sub> --agent codex`.
     fn suffix(self, sub: &str) -> String {
         match self {
             Agent::ClaudeCode => format!("hook {sub}"),
             Agent::Codex => format!("hook {sub} --agent codex"),
+            Agent::Cursor => format!("hook {sub} --agent cursor"),
         }
     }
 
@@ -54,12 +72,13 @@ impl Agent {
     /// (`additionalContextLimit: 0`; hippo holds them under the budget),
     /// and gives `SessionEnd` the longest timeout it allows, 3 seconds.
     fn entry(self, sub: &str) -> J {
+        let command = J::Scalar(Value::from(format!("hippo {}", self.suffix(sub))));
+        if self == Agent::Cursor {
+            return J::Object(vec![("command".into(), command)]);
+        }
         let mut hook = vec![
             ("type".into(), J::Scalar(Value::from("command"))),
-            (
-                "command".into(),
-                J::Scalar(Value::from(format!("hippo {}", self.suffix(sub)))),
-            ),
+            ("command".into(), command),
         ];
         if self == Agent::Codex {
             hook.push(match sub {
@@ -82,6 +101,11 @@ pub fn codex_home() -> Option<PathBuf> {
         Some(dir) if !dir.is_empty() => Some(PathBuf::from(dir)),
         _ => crate::config::user_home().map(|home| home.join(".codex")),
     }
+}
+
+/// `~/.cursor/hooks.json`, Cursor's user hooks file.
+pub fn cursor_hooks_path() -> Option<PathBuf> {
+    crate::config::user_home().map(|home| home.join(".cursor").join("hooks.json"))
 }
 
 /// `<codex home>/hooks.json`, the user layer's hooks file.
@@ -215,16 +239,11 @@ impl J {
         let J::Array(entries) = self else {
             return false;
         };
+        // Claude Code and Codex group hooks under `hooks`; Cursor lists
+        // them directly.
         entries.iter().any(|entry| {
-            let Some(J::Array(hooks)) = entry.get("hooks") else {
-                return false;
-            };
-            hooks.iter().any(|h| match h.get("command") {
-                Some(J::Scalar(Value::String(c))) => {
-                    c.contains("hippo") && c.trim_end().ends_with(wanted)
-                }
-                _ => false,
-            })
+            is_hippo(entry, wanted)
+                || matches!(entry.get("hooks"), Some(J::Array(hooks)) if hooks.iter().any(|h| is_hippo(h, wanted)))
         })
     }
 }
@@ -260,7 +279,8 @@ pub fn status(workspace: &Path) -> Result<Vec<(&'static str, bool)>> {
 /// at `path`.
 pub fn status_file(path: &Path, agent: Agent) -> Result<Vec<(&'static str, bool)>> {
     let tree = read(path)?;
-    Ok(HOOKS
+    Ok(agent
+        .events()
         .iter()
         .map(|&(event, sub)| {
             let has = tree
@@ -296,6 +316,11 @@ pub fn install(workspace: &Path) -> Result<Vec<&'static str>> {
 pub fn install_file(path: &Path, agent: Agent) -> Result<Vec<&'static str>> {
     let mut tree = read(path)?.unwrap_or(J::Object(Vec::new()));
     let mut added = Vec::new();
+    if agent == Agent::Cursor && tree.get("version").is_none() {
+        if let J::Object(entries) = &mut tree {
+            entries.insert(0, ("version".into(), J::Scalar(Value::from(1))));
+        }
+    }
     if tree.get("hooks").is_none() {
         if let J::Object(entries) = &mut tree {
             entries.push(("hooks".into(), J::Object(Vec::new())));
@@ -307,7 +332,7 @@ pub fn install_file(path: &Path, agent: Agent) -> Result<Vec<&'static str>> {
             "has a \"hooks\" that is not an object; left as it is",
         ));
     };
-    for (event, sub) in HOOKS {
+    for &(event, sub) in agent.events() {
         let wanted = agent.suffix(sub);
         let has = events
             .iter()
@@ -368,12 +393,14 @@ pub fn uninstall_file(path: &Path, agent: Agent) -> Result<Vec<&'static str>> {
     let Some(J::Object(events)) = tree.get_mut("hooks") else {
         return Ok(removed);
     };
-    for (event, sub) in HOOKS {
+    for &(event, sub) in agent.events() {
         let wanted = agent.suffix(sub);
         let Some((_, J::Array(entries))) = events.iter_mut().find(|(k, _)| k == event) else {
             continue;
         };
-        let mut any = false;
+        let before = entries.len();
+        entries.retain(|e| !is_hippo(e, &wanted));
+        let mut any = entries.len() != before;
         for entry in entries.iter_mut() {
             if let Some(J::Array(hooks)) = entry.get_mut("hooks") {
                 let n = hooks.len();
@@ -563,5 +590,53 @@ mod tests {
         assert!(!codex_config_declares_hooks(dir.path()));
         fs::write(&config, "[[hooks.SessionStart]]\n[[hooks.SessionStart.hooks]]\ntype = \"command\"\ncommand = \"echo\"\n").unwrap();
         assert!(codex_config_declares_hooks(dir.path()));
+    }
+
+    #[test]
+    fn cursor_gets_one_flat_hook_with_a_version() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("hooks.json");
+        fs::write(
+            &path,
+            r#"{"hooks": {"stop": [{"command": "./audit.sh"}], "sessionStart": [{"command": "other"}]}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            status_file(&path, Agent::Cursor).unwrap(),
+            [("sessionStart", false)]
+        );
+        assert_eq!(
+            install_file(&path, Agent::Cursor).unwrap(),
+            ["sessionStart"]
+        );
+        assert!(install_file(&path, Agent::Cursor).unwrap().is_empty());
+        let text = fs::read_to_string(&path).unwrap();
+        let value: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(value["version"], 1);
+        assert!(text.starts_with("{\n  \"version\": 1,"), "{text}");
+        assert_eq!(
+            value["hooks"]["sessionStart"],
+            serde_json::json!([{"command": "other"}, {"command": "hippo hook session-start --agent cursor"}])
+        );
+        assert_eq!(value["hooks"]["stop"][0]["command"], "./audit.sh");
+        assert_eq!(
+            status_file(&path, Agent::Cursor).unwrap(),
+            [("sessionStart", true)]
+        );
+        // Neither Claude Code's nor Codex's hooks count it.
+        assert!(status_file(&path, Agent::Codex)
+            .unwrap()
+            .iter()
+            .all(|(_, has)| !has));
+        assert_eq!(
+            uninstall_file(&path, Agent::Cursor).unwrap(),
+            ["sessionStart"]
+        );
+        let value: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(
+            value["hooks"]["sessionStart"],
+            serde_json::json!([{"command": "other"}])
+        );
+        assert_eq!(value["hooks"]["stop"][0]["command"], "./audit.sh");
     }
 }

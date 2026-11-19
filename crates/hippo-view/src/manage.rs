@@ -38,6 +38,7 @@ impl Agent {
             (None, "opencode") => "opencode".into(),
             (None, "muse") => "muse".into(),
             (None, "command-code") => "command-code".into(),
+            (None, "cursor") => "cursor".into(),
             _ => self.display.clone(),
         }
     }

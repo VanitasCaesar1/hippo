@@ -296,6 +296,7 @@ pub fn run(ws: &Workspace, index: &Index, rollup: &Rollup, opts: &Options) -> Re
             "command-code" => {
                 crate::adapters::command_code::header(&f.transcript_path).and_then(|h| h.cwd)
             }
+            "cursor" => crate::adapters::cursor::cwd_of(&f.transcript_path),
             _ => transcript_cwd(&f.transcript_path),
         };
         let repo = cwd.and_then(|dir| rank::repo_name(&dir, &ws.root));

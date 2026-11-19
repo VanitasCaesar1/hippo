@@ -65,6 +65,7 @@ impl Adapter for ClaudeCode {
             && !super::dsh::is_log(path)
             && !super::muse::is_muse_file(path)
             && !super::command_code::is_under_commandcode(path)
+            && !super::cursor::is_under_transcripts(path)
     }
 
     fn revision(&self, bytes: &[u8]) -> Option<&'static str> {

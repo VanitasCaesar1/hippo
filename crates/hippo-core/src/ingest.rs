@@ -643,6 +643,7 @@ mod tests {
                 Some("opencode") => Tool::OpenCode,
                 Some("muse") => Tool::Muse,
                 Some("command-code") => Tool::CommandCode,
+                Some("cursor") => Tool::Cursor,
                 _ => return Err(bad(&format!("no tool in the header {header:?}"))),
             };
             let started = head.next().ok_or_else(|| bad("no start"))?;
