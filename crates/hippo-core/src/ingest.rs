@@ -644,6 +644,7 @@ mod tests {
                 Some("muse") => Tool::Muse,
                 Some("command-code") => Tool::CommandCode,
                 Some("cursor") => Tool::Cursor,
+                Some("gemini") => Tool::Gemini,
                 _ => return Err(bad(&format!("no tool in the header {header:?}"))),
             };
             let started = head.next().ok_or_else(|| bad("no start"))?;

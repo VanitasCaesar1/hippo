@@ -39,6 +39,7 @@ impl Agent {
             (None, "muse") => "muse".into(),
             (None, "command-code") => "command-code".into(),
             (None, "cursor") => "cursor".into(),
+            (None, "gemini") => "gemini".into(),
             _ => self.display.clone(),
         }
     }

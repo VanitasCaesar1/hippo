@@ -191,6 +191,7 @@ pub fn found(d: &Detected, now: OffsetDateTime, offset: UtcOffset) -> Found {
     let mut muse_files = 0;
     let mut command_code_files = 0;
     let mut cursor_files = 0;
+    let mut gemini_files = 0;
     for root in &d.roots {
         let dirs: Vec<&Dir> = root.dirs.iter().collect();
         if dirs.is_empty() {
@@ -204,6 +205,7 @@ pub fn found(d: &Detected, now: OffsetDateTime, offset: UtcOffset) -> Found {
             "muse" => "Muse Code",
             "command-code" => "Command Code",
             "cursor" => "Cursor",
+            "gemini" => "Gemini CLI",
             _ => "Claude Code",
         };
         if tool == "codex" {
@@ -218,6 +220,8 @@ pub fn found(d: &Detected, now: OffsetDateTime, offset: UtcOffset) -> Found {
             command_code_files += dirs.iter().map(|d| d.files).sum::<u64>();
         } else if tool == "cursor" {
             cursor_files += dirs.iter().map(|d| d.files).sum::<u64>();
+        } else if tool == "gemini" {
+            gemini_files += dirs.iter().map(|d| d.files).sum::<u64>();
         } else {
             claude_profiles += dirs.iter().filter(|d| d.files > 0).count();
         }
@@ -279,6 +283,7 @@ pub fn found(d: &Detected, now: OffsetDateTime, offset: UtcOffset) -> Found {
         ("Muse Code", muse_files),
         ("Command Code", command_code_files),
         ("Cursor", cursor_files),
+        ("Gemini CLI", gemini_files),
     ]
     .into_iter()
     .filter(|(_, files)| *files > 0)
@@ -351,6 +356,8 @@ pub fn empty(d: &Detected) -> Vec<Looked> {
                 "Command Code"
             } else if root.pattern.contains(".cursor") {
                 "Cursor"
+            } else if root.pattern.contains(".gemini") {
+                "Gemini CLI"
             } else if root.pattern.contains("muse") {
                 "Muse Code"
             } else {

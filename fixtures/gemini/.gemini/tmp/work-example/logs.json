@@ -1,0 +1,12 @@
+[
+  {
+    "synthetic": true
+  },
+  {
+    "sessionId": "5e550000-0000-4000-8000-000000000001",
+    "messageId": 0,
+    "type": "user",
+    "message": "Fix the retry backoff.",
+    "timestamp": "2026-11-01T09:00:01.000Z"
+  }
+]

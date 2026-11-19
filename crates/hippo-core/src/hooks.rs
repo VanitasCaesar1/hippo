@@ -37,6 +37,14 @@ pub const HOOKS: [(&str, &str); 3] = [
     ("SessionEnd", "session-end"),
 ];
 
+/// Gemini CLI's hook events and their subcommands: its prompt event is
+/// `BeforeAgent`.
+pub const GEMINI_HOOKS: [(&str, &str); 3] = [
+    ("SessionStart", "session-start"),
+    ("BeforeAgent", "prompt"),
+    ("SessionEnd", "session-end"),
+];
+
 /// Cursor's one hook event and its subcommand.
 pub const CURSOR_HOOKS: [(&str, &str); 1] = [("sessionStart", "session-start")];
 
@@ -46,6 +54,7 @@ pub enum Agent {
     ClaudeCode,
     Codex,
     Cursor,
+    Gemini,
 }
 
 impl Agent {
@@ -53,6 +62,7 @@ impl Agent {
     pub fn events(self) -> &'static [(&'static str, &'static str)] {
         match self {
             Agent::Cursor => &CURSOR_HOOKS,
+            Agent::Gemini => &GEMINI_HOOKS,
             _ => &HOOKS,
         }
     }
@@ -64,6 +74,7 @@ impl Agent {
             Agent::ClaudeCode => format!("hook {sub}"),
             Agent::Codex => format!("hook {sub} --agent codex"),
             Agent::Cursor => format!("hook {sub} --agent cursor"),
+            Agent::Gemini => format!("hook {sub} --agent gemini"),
         }
     }
 
@@ -75,6 +86,18 @@ impl Agent {
         let command = J::Scalar(Value::from(format!("hippo {}", self.suffix(sub))));
         if self == Agent::Cursor {
             return J::Object(vec![("command".into(), command)]);
+        }
+        if self == Agent::Gemini {
+            // Gemini CLI lists hooks by name in `/hooks`.
+            let hook = vec![
+                (
+                    "name".into(),
+                    J::Scalar(Value::from(format!("hippo-{sub}"))),
+                ),
+                ("type".into(), J::Scalar(Value::from("command"))),
+                ("command".into(), command),
+            ];
+            return J::Object(vec![("hooks".into(), J::Array(vec![J::Object(hook)]))]);
         }
         let mut hook = vec![
             ("type".into(), J::Scalar(Value::from("command"))),
@@ -106,6 +129,12 @@ pub fn codex_home() -> Option<PathBuf> {
 /// `~/.cursor/hooks.json`, Cursor's user hooks file.
 pub fn cursor_hooks_path() -> Option<PathBuf> {
     crate::config::user_home().map(|home| home.join(".cursor").join("hooks.json"))
+}
+
+/// `~/.gemini/settings.json`, Gemini CLI's user settings, which hold its
+/// hooks.
+pub fn gemini_settings_path() -> Option<PathBuf> {
+    crate::config::user_home().map(|home| home.join(".gemini").join("settings.json"))
 }
 
 /// `<codex home>/hooks.json`, the user layer's hooks file.
@@ -638,5 +667,40 @@ mod tests {
             serde_json::json!([{"command": "other"}])
         );
         assert_eq!(value["hooks"]["stop"][0]["command"], "./audit.sh");
+    }
+
+    #[test]
+    fn gemini_gets_three_named_hooks_beside_its_other_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        fs::write(
+            &path,
+            r#"{"theme": "Default", "mcpServers": {"x": {"command": "x"}}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            install_file(&path, Agent::Gemini).unwrap(),
+            ["SessionStart", "BeforeAgent", "SessionEnd"]
+        );
+        assert!(install_file(&path, Agent::Gemini).unwrap().is_empty());
+        let value: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(value["theme"], "Default");
+        assert_eq!(value["mcpServers"]["x"]["command"], "x");
+        assert_eq!(
+            value["hooks"]["BeforeAgent"][0]["hooks"][0],
+            serde_json::json!({"name": "hippo-prompt", "type": "command", "command": "hippo hook prompt --agent gemini"})
+        );
+        assert!(status_file(&path, Agent::Gemini)
+            .unwrap()
+            .iter()
+            .all(|(_, has)| *has));
+        // Claude Code's status reads other event names.
+        assert!(!status_file(&path, Agent::ClaudeCode).unwrap()[1].1);
+        assert_eq!(uninstall_file(&path, Agent::Gemini).unwrap().len(), 3);
+        let value: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert!(value
+            .get("hooks")
+            .is_some_and(|h| h.as_object().unwrap().is_empty()));
+        assert_eq!(value["mcpServers"]["x"]["command"], "x");
     }
 }

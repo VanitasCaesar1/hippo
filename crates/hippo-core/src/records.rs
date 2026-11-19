@@ -41,10 +41,12 @@ pub enum Tool {
     CommandCode,
     /// `cursor`: Cursor's agent, in the editor or the `cursor-agent` CLI.
     Cursor,
+    /// `gemini`: Gemini CLI.
+    Gemini,
 }
 
 impl Tool {
-    /// `claude-code`, `codex`, `dsh`, `opencode`, `muse`, `command-code` or `cursor`,
+    /// `claude-code`, `codex`, `dsh`, `opencode`, `muse`, `command-code`, `cursor` or `gemini`,
     /// as records and the index write it.
     pub fn as_str(self) -> &'static str {
         match self {
@@ -55,6 +57,7 @@ impl Tool {
             Tool::Muse => "muse",
             Tool::CommandCode => "command-code",
             Tool::Cursor => "cursor",
+            Tool::Gemini => "gemini",
         }
     }
 }
@@ -648,6 +651,7 @@ mod tests {
             Tool::Muse,
             Tool::CommandCode,
             Tool::Cursor,
+            Tool::Gemini,
         ] {
             let json = serde_json::to_string(&tool).unwrap();
             assert_eq!(json, format!("\"{}\"", tool.as_str()));

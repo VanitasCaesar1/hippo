@@ -113,6 +113,14 @@ pub fn origin(id: &str, tool: &str, path: &Path) -> Origin {
     if tool == "opencode" {
         return opencode_origin(path);
     }
+    if tool == "gemini" {
+        let cwd = crate::adapters::gemini::project_root(path);
+        return Origin {
+            automated: cwd.as_deref().is_some_and(is_temporary),
+            cwd,
+            ..Origin::default()
+        };
+    }
     if tool == "cursor" {
         let cwd = crate::adapters::cursor::cwd_of(path);
         return Origin {

@@ -87,8 +87,9 @@ impl Detected {
     }
 }
 
-/// Agent tools with no adapter yet, and where they keep their folders.
-const UNSUPPORTED: [(&str, &str); 1] = [("Gemini", "~/.gemini")];
+/// Agent tools with no adapter yet, and where they keep their folders:
+/// none since Gemini CLI's adapter.
+const UNSUPPORTED: [(&str, &str); 0] = [];
 
 /// Matches `patterns` (as `config.toml` holds them, `~` not yet expanded or
 /// already expanded) and counts what each directory holds, leaving out
@@ -131,7 +132,7 @@ pub fn detect(patterns: &[String], hippo_home: &Path, user_home: Option<&Path>) 
                 path,
             };
             let (mut claude, mut codex, mut dsh, mut opencode) = (0u64, 0u64, 0u64, 0u64);
-            let (mut muse, mut command_code, mut cursor) = (0u64, 0u64, 0u64);
+            let (mut muse, mut command_code, mut cursor, mut gemini) = (0u64, 0u64, 0u64, 0u64);
             let entries = WalkDir::new(&dir.path)
                 .into_iter()
                 .filter_entry(|e| !e.path().starts_with(&model_runs) && adapters::descend(e));
@@ -161,6 +162,7 @@ pub fn detect(patterns: &[String], hippo_home: &Path, user_home: Option<&Path>) 
                     "muse" => muse += n,
                     "command-code" => command_code += n,
                     "cursor" => cursor += n,
+                    "gemini" => gemini += n,
                     _ => claude += n,
                 }
                 dir.files += n;
@@ -170,23 +172,32 @@ pub fn detect(patterns: &[String], hippo_home: &Path, user_home: Option<&Path>) 
                     dir.oldest = Some(dir.oldest.map_or(at, |o| o.min(at)));
                 }
             }
-            if claude + codex + dsh + opencode + muse + command_code + cursor > 0 {
-                dir.tool =
-                    if opencode > 0 && claude + codex + dsh + muse + command_code + cursor == 0 {
-                        "opencode"
-                    } else if cursor > claude.max(codex).max(dsh).max(muse).max(command_code) {
-                        "cursor"
-                    } else if command_code > claude.max(codex).max(dsh).max(muse) {
-                        "command-code"
-                    } else if muse > claude.max(codex).max(dsh) {
-                        "muse"
-                    } else if dsh > claude.max(codex) {
-                        "dsh"
-                    } else if codex > claude {
-                        "codex"
-                    } else {
-                        "claude-code"
-                    };
+            let others = claude + codex + dsh + muse + command_code + cursor + gemini;
+            if opencode + others > 0 {
+                dir.tool = if opencode > 0 && others == 0 {
+                    "opencode"
+                } else if gemini
+                    > claude
+                        .max(codex)
+                        .max(dsh)
+                        .max(muse)
+                        .max(command_code)
+                        .max(cursor)
+                {
+                    "gemini"
+                } else if cursor > claude.max(codex).max(dsh).max(muse).max(command_code) {
+                    "cursor"
+                } else if command_code > claude.max(codex).max(dsh).max(muse) {
+                    "command-code"
+                } else if muse > claude.max(codex).max(dsh) {
+                    "muse"
+                } else if dsh > claude.max(codex) {
+                    "dsh"
+                } else if codex > claude {
+                    "codex"
+                } else {
+                    "claude-code"
+                };
             }
             if dir.tool == "claude-code" {
                 dir.profile = crate::rollup::profile_of("claude-code", &dir.path);
@@ -217,6 +228,8 @@ fn tool_of(path: &Path) -> &'static str {
         "dsh"
     } else if path.components().any(|c| c.as_os_str() == ".commandcode") {
         "command-code"
+    } else if path.components().any(|c| c.as_os_str() == ".gemini") {
+        "gemini"
     } else if path.components().any(|c| c.as_os_str() == ".cursor") {
         "cursor"
     } else if path.file_name().is_some_and(|n| n == "opencode") {
@@ -274,7 +287,7 @@ mod tests {
     use std::fs;
 
     #[test]
-    fn counts_transcripts_per_profile_and_names_unsupported_tools() {
+    fn counts_transcripts_per_profile() {
         let dir = tempfile::tempdir().unwrap();
         let home = dir.path();
         let claude = home.join(".claude/projects/-w");
@@ -329,8 +342,8 @@ mod tests {
         assert_eq!(found.files(), 5);
         assert_eq!(found.bytes(), 15);
         assert!(found.span().is_some());
-        let gemini = found.unsupported.iter().find(|u| u.name == "Gemini");
-        assert!(gemini.is_some());
+        // Every agent folder hippo knows of has an adapter now.
+        assert!(found.unsupported.is_empty());
         let json = serde_json::to_value(&found).unwrap();
         assert_eq!(json["roots"][0]["dirs"][0]["files"], 1);
     }

@@ -402,6 +402,95 @@ fn codex_hooks_act_only_in_the_workspace_and_answer_in_json() {
 }
 
 #[test]
+fn gemini_hooks_act_only_in_the_workspace_and_answer_in_json() {
+    let hippo = Hippo::init();
+    fs::write(
+        hippo.workspace.join("notes/Retry policy.md"),
+        "# Retry policy\n\nRetries back off.\n",
+    )
+    .unwrap();
+    let app = hippo.workspace.join("app");
+    fs::create_dir(&app).unwrap();
+    let cwd = Value::from(app.display().to_string());
+    let run = |hook: &str, input: &str| {
+        let out = hippo.run(&["hook", hook, "--agent", "gemini"], Some(input));
+        assert!(out.status.success(), "{hook} {input}");
+        out
+    };
+
+    // Install beside the other settings, in the scratch ~/.gemini.
+    let file = hippo.user_home.path().join(".gemini/settings.json");
+    fs::create_dir_all(file.parent().unwrap()).unwrap();
+    fs::write(&file, r#"{"mcpServers": {"x": {"command": "x"}}}"#).unwrap();
+    let out = hippo.run(&["hooks", "install", "--agent", "gemini"], None);
+    assert!(
+        stdout(&out).contains("added SessionStart, BeforeAgent, SessionEnd"),
+        "{}",
+        stdout(&out)
+    );
+    let settings: Value = serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
+    assert_eq!(settings["mcpServers"]["x"]["command"], "x");
+    assert_eq!(
+        settings["hooks"]["BeforeAgent"][0]["hooks"][0]["command"],
+        "hippo hook prompt --agent gemini"
+    );
+
+    let start = format!(
+        r#"{{"session_id":"g1","cwd":{cwd},"hook_event_name":"SessionStart","source":"startup","transcript_path":null,"timestamp":"2026-11-02T10:00:00Z"}}"#
+    );
+    let printed: Value = serde_json::from_str(&stdout(&run("session-start", &start))).unwrap();
+    assert_eq!(
+        printed["hookSpecificOutput"]["hookEventName"],
+        "SessionStart"
+    );
+    assert!(printed["hookSpecificOutput"]["additionalContext"]
+        .as_str()
+        .unwrap()
+        .starts_with("# Start here"));
+    assert_eq!(hippo.session("gemini-g1")["tool"], "gemini");
+
+    let prompt = format!(
+        r#"{{"session_id":"g1","cwd":{cwd},"hook_event_name":"BeforeAgent","prompt":"the retry policy, please"}}"#
+    );
+    let printed: Value = serde_json::from_str(&stdout(&run("prompt", &prompt))).unwrap();
+    assert_eq!(
+        printed["hookSpecificOutput"]["hookEventName"],
+        "BeforeAgent"
+    );
+    assert!(printed["hookSpecificOutput"]["additionalContext"]
+        .as_str()
+        .unwrap()
+        .contains("- Retry policy: Retries back off."));
+    assert_eq!(stdout(&run("prompt", &prompt)), "");
+
+    // Session end: the last answer of the session file is the handoff.
+    let transcript = hippo
+        .user_home
+        .path()
+        .join(".gemini/tmp/p/chats/session-x.jsonl");
+    fs::create_dir_all(transcript.parent().unwrap()).unwrap();
+    fs::write(
+        &transcript,
+        concat!(
+            r#"{"sessionId":"g1","startTime":"2026-11-02T10:00:00Z"}"#, "\n",
+            r#"{"id":"a","timestamp":"2026-11-02T10:00:01Z","type":"gemini","content":"done, see retry.ts"}"#, "\n",
+        ),
+    )
+    .unwrap();
+    let end = format!(
+        r#"{{"session_id":"g1","cwd":{cwd},"hook_event_name":"SessionEnd","transcript_path":{}}}"#,
+        Value::from(transcript.display().to_string())
+    );
+    run("session-end", &end);
+    let record = hippo.session("gemini-g1");
+    assert_eq!(record["handoff"], "done, see retry.ts");
+
+    // Outside the workspace: nothing.
+    let elsewhere = r#"{"session_id":"g2","cwd":"/","hook_event_name":"SessionStart"}"#;
+    assert_eq!(stdout(&run("session-start", elsewhere)), "");
+}
+
+#[test]
 fn codex_hooks_without_a_set_up_hippo_say_nothing() {
     let home = tempfile::tempdir().unwrap();
     let mut child = Command::new(env!("CARGO_BIN_EXE_hippo"))

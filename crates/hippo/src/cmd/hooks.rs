@@ -4,7 +4,7 @@
 //! workspace's `.claude/settings.json`, the workspace being the configured
 //! one unless `--workspace` names another; for Codex, the user's
 //! `$CODEX_HOME/hooks.json`; for Cursor, `~/.cursor/hooks.json`, with the
-//! session-start hook only.
+//! session-start hook only; for Gemini CLI, `~/.gemini/settings.json`.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -23,13 +23,15 @@ pub enum AgentArg {
     Codex,
     /// Cursor: ~/.cursor/hooks.json, the session-start hook only
     Cursor,
+    /// Gemini CLI: ~/.gemini/settings.json
+    Gemini,
 }
 
 #[derive(clap::Args)]
 pub struct Target {
     /// The agent: claude-code (the workspace's .claude/settings.json),
-    /// codex ($CODEX_HOME/hooks.json, for every Codex session) or cursor
-    /// (~/.cursor/hooks.json, for every Cursor session)
+    /// codex ($CODEX_HOME/hooks.json, for every Codex session), cursor
+    /// (~/.cursor/hooks.json) or gemini (~/.gemini/settings.json)
     #[arg(long, value_enum, default_value_t)]
     agent: AgentArg,
     /// The workspace, for Claude Code; the configured one when not given
@@ -72,6 +74,14 @@ fn file(target: Target) -> Result<(PathBuf, Agent)> {
             let path = hooks::cursor_hooks_path()
                 .ok_or_else(|| anyhow!("cannot find the home directory; set HOME"))?;
             Ok((path, Agent::Cursor))
+        }
+        AgentArg::Gemini => {
+            if target.workspace.is_some() {
+                bail!("--workspace is for Claude Code; Gemini CLI's hooks are in ~/.gemini/settings.json, for every session, and hippo checks each session's directory");
+            }
+            let path = hooks::gemini_settings_path()
+                .ok_or_else(|| anyhow!("cannot find the home directory; set HOME"))?;
+            Ok((path, Agent::Gemini))
         }
     }
 }

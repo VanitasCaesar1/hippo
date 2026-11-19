@@ -89,7 +89,7 @@ With no terminal and no `--yes` it prints `run hippo start --yes to index it` an
 hippo detect [--json]
 ```
 
-Lists the agent history on this machine without indexing anything and without a configuration: each folder with its files (for OpenCode, the sessions in its database), size and newest day. `--json` prints one JSON object. hippo reads Claude Code and Codex transcripts, DeepSeek Harness (dsh) session logs, OpenCode's database, Muse Code and Command Code sessions and Cursor agent transcripts. It also reports Gemini folders when it sees them, as an agent with no adapter: hippo does not read them.
+Lists the agent history on this machine without indexing anything and without a configuration: each folder with its files (for OpenCode, the sessions in its database), size and newest day. `--json` prints one JSON object. hippo reads Claude Code and Codex transcripts, DeepSeek Harness (dsh) session logs, OpenCode's database, Muse Code and Command Code sessions, Cursor agent transcripts and Gemini CLI sessions.
 
 ## hippo ask
 
@@ -374,9 +374,9 @@ The second command restores the default.
 ## hippo hooks
 
 ```text
-hippo hooks install [--agent <claude-code|codex|cursor>] [--workspace <dir>]
-hippo hooks uninstall [--agent <claude-code|codex|cursor>] [--workspace <dir>]
-hippo hooks status [--agent <claude-code|codex|cursor>] [--workspace <dir>]
+hippo hooks install [--agent <claude-code|codex|cursor|gemini>] [--workspace <dir>]
+hippo hooks uninstall [--agent <claude-code|codex|cursor|gemini>] [--workspace <dir>]
+hippo hooks status [--agent <claude-code|codex|cursor|gemini>] [--workspace <dir>]
 ```
 
 Adds, removes or checks hippo's three hooks (`SessionStart`, `UserPromptSubmit`, `SessionEnd`). For Claude Code, the default, they go in the workspace's `.claude/settings.json` (`--workspace` names another workspace). With `--agent codex` they go in `$CODEX_HOME/hooks.json` (`~/.codex/hooks.json`), which Codex runs for every session; the hooks themselves act only for sessions in the workspace. `install` adds each once and keeps everything else in the file. `uninstall` removes only hippo's three. `status` says which of the three are there.
@@ -384,6 +384,8 @@ Adds, removes or checks hippo's three hooks (`SessionStart`, `UserPromptSubmit`,
 Codex runs a new hook only after you trust it: it lists hippo's hooks for review the next time it starts, or use `/hooks`. hippo never writes that trust for you.
 
 With `--agent cursor` there is one hook, `sessionStart`, in `~/.cursor/hooks.json` (created with `"version": 1` when missing). It gives a new Cursor chat whose folder is in the workspace the start block. Cursor has no hook that adds context to a prompt; for the notes relevant to a task, add the [MCP server](mcp.md) (`hippo mcp install --client cursor`).
+
+With `--agent gemini` the three hooks go in `~/.gemini/settings.json`, beside its other settings, as `SessionStart`, `BeforeAgent` (Gemini CLI's prompt event) and `SessionEnd`, each with a `name` that `/hooks` shows. They act for Gemini sessions in the workspace as Codex's do. A `settings.json` with comments is refused and left as it is.
 
 ## hippo mcp
 
@@ -397,9 +399,9 @@ hippo mcp install --client <cursor|claude-desktop|gemini|windsurf|zed|vscode|cla
 ## hippo hook
 
 ```text
-hippo hook session-start [--plugin] [--agent <claude-code|codex|cursor>]
-hippo hook prompt [--agent <claude-code|codex>]
-hippo hook session-end [--agent <claude-code|codex>]
+hippo hook session-start [--plugin] [--agent <claude-code|codex|cursor|gemini>]
+hippo hook prompt [--agent <claude-code|codex|gemini>]
+hippo hook session-end [--agent <claude-code|codex|gemini>]
 ```
 
 For Claude Code hooks, and with `--agent codex` for Codex hooks (below). Each reads the hook's JSON on stdin (it needs `session_id`; `prompt` also needs `prompt`). See [Quick start](quick-start.md#6-add-the-claude-code-hooks) for the settings to add. A hook always exits 0. On any error it prints `hippo hook: <error>` on one line to stderr.
@@ -414,6 +416,8 @@ For Claude Code hooks, and with `--agent codex` for Codex hooks (below). Each re
 With `--agent codex` each reads Codex's hook input and does nothing at all unless hippo has a workspace and the input's `cwd` is in it. The session id is `codex-<session_id>`, the id the Codex adapter gives the same session. `session-start` and `prompt` print the same parts as JSON Codex reads (`{"hookSpecificOutput": {"hookEventName": …, "additionalContext": …}}`); `prompt` passes over a sub-agent's prompt (one with an `agent_id`). `session-end` records the last assistant message of the session's transcript as a derived handoff, or ends it `unspecified` when the transcript cannot be read.
 
 With `--agent cursor`, `session-start` reads Cursor's `sessionStart` input and, when one of its `workspace_roots` is in the workspace, prints the required parts as `{"additional_context": …}`. It is read-only: ingest reads the session from its transcript. `prompt` and `session-end` do nothing for Cursor.
+
+With `--agent gemini` each works as with `--agent codex`, for Gemini CLI's input (`session_id`, `cwd`, `prompt`, `transcript_path`): the session is `gemini-<session_id>`, the prompt's output names `BeforeAgent`, and `session-end` reads the last answer from the session file.
 
 ## hippo log
 

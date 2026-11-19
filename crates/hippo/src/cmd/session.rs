@@ -51,6 +51,7 @@ pub enum ToolName {
     Muse,
     CommandCode,
     Cursor,
+    Gemini,
 }
 
 pub fn run(command: Command) -> Result<ExitCode> {
@@ -69,6 +70,7 @@ pub fn run(command: Command) -> Result<ExitCode> {
                 ToolName::Muse => Tool::Muse,
                 ToolName::CommandCode => Tool::CommandCode,
                 ToolName::Cursor => Tool::Cursor,
+                ToolName::Gemini => Tool::Gemini,
             };
             sessions::start(&workspace, tool, &session, task.as_deref())?;
         }

@@ -409,7 +409,7 @@ impl SessionFacts {
     /// The Claude profile the transcript is under: `default` for
     /// `~/.claude`, `<name>` for `~/.claude-<name>`; `codex` for Codex,
     /// `dsh` for dsh, `opencode` for OpenCode, `muse` for Muse Code, `command-code` for
-    /// Command Code and `cursor` for Cursor.
+    /// Command Code, `cursor` for Cursor and `gemini` for Gemini CLI.
     pub fn profile(&self) -> Option<String> {
         profile_of(&self.tool, &self.transcript_path)
     }
@@ -419,7 +419,7 @@ impl SessionFacts {
 pub fn profile_of(tool: &str, path: &Path) -> Option<String> {
     if matches!(
         tool,
-        "codex" | "dsh" | "opencode" | "muse" | "command-code" | "cursor"
+        "codex" | "dsh" | "opencode" | "muse" | "command-code" | "cursor" | "gemini"
     ) {
         return Some(tool.to_owned());
     }

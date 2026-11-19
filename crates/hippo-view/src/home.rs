@@ -950,7 +950,7 @@ pub fn build(inp: &Inputs<'_>) -> Home {
         .filter(|p| {
             !matches!(
                 p.as_str(),
-                "codex" | "dsh" | "opencode" | "muse" | "command-code" | "cursor"
+                "codex" | "dsh" | "opencode" | "muse" | "command-code" | "cursor" | "gemini"
             )
         })
         .count();
@@ -961,6 +961,7 @@ pub fn build(inp: &Inputs<'_>) -> Home {
         ("muse", "Muse Code"),
         ("command-code", "Command Code"),
         ("cursor", "Cursor"),
+        ("gemini", "Gemini CLI"),
     ]
     .into_iter()
     .filter(|(p, _)| inp.profiles.iter().any(|q| q == p))

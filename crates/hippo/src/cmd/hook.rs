@@ -13,6 +13,10 @@
 //! the Codex adapter gives the same session, and prints Codex's JSON hook
 //! output.
 //!
+//! With `--agent gemini` each is a Gemini CLI hook (`~/.gemini/settings.json`):
+//! as for Codex, with `gemini-<session_id>` and `BeforeAgent` for the
+//! prompt.
+//!
 //! With `--agent cursor`, `session-start` is a Cursor `sessionStart` hook
 //! (`~/.cursor/hooks.json`): read-only, it prints the required parts as
 //! `{"additional_context": …}` when one of the input's `workspace_roots` is
@@ -45,21 +49,21 @@ pub enum Command {
         /// prints it
         #[arg(long, conflicts_with = "agent")]
         plugin: bool,
-        /// The agent running the hook: claude-code, codex or cursor
+        /// The agent running the hook: claude-code, codex, cursor or gemini
         #[arg(long, value_enum, default_value_t)]
         agent: AgentArg,
     },
     /// UserPromptSubmit: on the first prompt, record it as the task and print
     /// the relevant notes and the linter counts
     Prompt {
-        /// The agent running the hook: claude-code or codex
+        /// The agent running the hook: claude-code, codex or gemini
         #[arg(long, value_enum, default_value_t)]
         agent: AgentArg,
     },
     /// SessionEnd: end the session (for Codex, with the last assistant
     /// message as a derived handoff)
     SessionEnd {
-        /// The agent running the hook: claude-code or codex
+        /// The agent running the hook: claude-code, codex or gemini
         #[arg(long, value_enum, default_value_t)]
         agent: AgentArg,
     },
@@ -83,7 +87,8 @@ pub fn run(command: Command) -> ExitCode {
     }
     let result = match command.agent() {
         AgentArg::ClaudeCode => hook(command),
-        AgentArg::Codex => codex_hook(command),
+        AgentArg::Codex => codex_hook(command, Hooked::Codex),
+        AgentArg::Gemini => codex_hook(command, Hooked::Gemini),
         AgentArg::Cursor => cursor_hook(command),
     };
     if let Err(err) = result {
@@ -164,10 +169,41 @@ fn hook(command: Command) -> Result<()> {
     Ok(())
 }
 
-/// A Codex hook. Nothing is printed or written unless hippo has a
-/// workspace and the session's `cwd` is in it; a sub-agent's prompt, a
-/// later prompt, and a session hippo did not start are passed over.
-fn codex_hook(command: Command) -> Result<()> {
+/// An agent whose hooks work as Codex's do: JSON on stdin with
+/// `session_id`, `cwd`, `prompt` and `transcript_path`, and
+/// `hookSpecificOutput.additionalContext` on stdout.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Hooked {
+    Codex,
+    /// Gemini CLI: the same fields; its prompt event is `BeforeAgent`.
+    Gemini,
+}
+
+impl Hooked {
+    fn tool(self) -> Tool {
+        match self {
+            Hooked::Codex => Tool::Codex,
+            Hooked::Gemini => Tool::Gemini,
+        }
+    }
+
+    /// The session id hippo and the agent's adapter give the session.
+    fn id(self, raw: &str) -> String {
+        format!("{}-{raw}", self.tool().as_str())
+    }
+
+    fn prompt_event(self) -> &'static str {
+        match self {
+            Hooked::Codex => "UserPromptSubmit",
+            Hooked::Gemini => "BeforeAgent",
+        }
+    }
+}
+
+/// A Codex or Gemini CLI hook. Nothing is printed or written unless hippo
+/// has a workspace and the session's `cwd` is in it; a sub-agent's prompt,
+/// a later prompt, and a session hippo did not start are passed over.
+fn codex_hook(command: Command, agent: Hooked) -> Result<()> {
     let mut stdin = String::new();
     io::stdin().read_to_string(&mut stdin)?;
     let input: Value = serde_json::from_str(&stdin)?;
@@ -191,10 +227,10 @@ fn codex_hook(command: Command) -> Result<()> {
     if !canonical(&cwd).starts_with(canonical(&workspace.root)) {
         return Ok(());
     }
-    let id = format!("codex-{raw}");
+    let id = agent.id(raw);
     match command {
         Command::SessionStart { .. } => {
-            let session = sessions::start(&workspace, Tool::Codex, &id, None)?;
+            let session = sessions::start(&workspace, agent.tool(), &id, None)?;
             let compiled = context::compile(
                 &workspace,
                 None,
@@ -236,7 +272,7 @@ fn codex_hook(command: Command) -> Result<()> {
                 PartSelection::Optional,
             )?;
             let text = compiled.text();
-            print_codex_context("UserPromptSubmit", &text);
+            print_codex_context(agent.prompt_event(), &text);
             for line in compiled.omitted_lines() {
                 eprintln!("{line}");
             }
@@ -252,7 +288,7 @@ fn codex_hook(command: Command) -> Result<()> {
             let handoff = input
                 .get("transcript_path")
                 .and_then(Value::as_str)
-                .and_then(|path| last_assistant_text(Path::new(path)));
+                .and_then(|path| last_assistant_text(agent, Path::new(path)));
             sessions::end_with_derived_handoff(&workspace, &id, handoff.as_deref())?;
         }
     }
@@ -318,12 +354,16 @@ fn print_codex_context(event: &str, text: &str) {
     println!("{output}");
 }
 
-/// The last assistant message of the Codex transcript at `path`, redacted,
-/// as ingest would derive the handoff; `None` when the file cannot be read
-/// or has none.
-fn last_assistant_text(path: &Path) -> Option<String> {
-    use hippo_core::adapters::{codex::Codex, Adapter, Role};
-    let parsed = Codex.parse(path.parent().unwrap_or(path), path).ok()?;
+/// The last assistant message of the Codex or Gemini CLI transcript at
+/// `path`, redacted, as ingest would derive the handoff; `None` when the
+/// file cannot be read or has none.
+fn last_assistant_text(agent: Hooked, path: &Path) -> Option<String> {
+    use hippo_core::adapters::{codex::Codex, gemini::Gemini, Adapter, Role};
+    let root = path.parent().unwrap_or(path);
+    let parsed = match agent {
+        Hooked::Codex => Codex.parse(root, path).ok()?,
+        Hooked::Gemini => Gemini.parse(root, path).ok()?,
+    };
     let turn = parsed
         .turns
         .iter()

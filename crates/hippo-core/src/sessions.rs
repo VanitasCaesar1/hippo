@@ -164,7 +164,8 @@ fn derived_record(id: &str, tool: Tool, started: OffsetDateTime, turns: &[Turn])
         | Tool::OpenCode
         | Tool::Muse
         | Tool::CommandCode
-        | Tool::Cursor => turns
+        | Tool::Cursor
+        | Tool::Gemini => turns
             .iter()
             .rev()
             .find(|turn| turn.role == Role::Assistant)

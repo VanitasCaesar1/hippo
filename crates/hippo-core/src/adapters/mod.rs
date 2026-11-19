@@ -4,7 +4,8 @@
 //! root may hold any tool's files: Codex takes `rollout-*.jsonl`, dsh takes
 //! its session logs (`session.v<N>.jsonl`, optionally `.zstd`, in a
 //! session folder of a project folder), and Claude Code takes every other
-//! `*.jsonl` but Cursor's (under `agent-transcripts/`) and Command Code's,
+//! `*.jsonl` but Cursor's (under `agent-transcripts/`), Gemini CLI's (under
+//! `.gemini/`) and Command Code's,
 //! and OpenCode takes its database (`opencode.db`), which holds
 //! many sessions ([`Adapter::sessions_in`]). Every transcript belongs to the
 //! one configured workspace.
@@ -14,6 +15,7 @@ pub mod codex;
 pub mod command_code;
 pub mod cursor;
 pub mod dsh;
+pub mod gemini;
 pub mod muse;
 pub mod opencode;
 
@@ -128,6 +130,7 @@ pub fn all() -> Vec<Box<dyn Adapter>> {
         Box::new(muse::Muse),
         Box::new(command_code::CommandCode),
         Box::new(cursor::Cursor),
+        Box::new(gemini::Gemini),
     ]
 }
 
@@ -289,8 +292,8 @@ mod tests {
     /// The turns of each adapter's synthetic transcripts, parsed with
     /// `fixtures/` as the root: Claude Code's two files, then Codex's, then
     /// dsh's normal session, then OpenCode's, from a database built from
-    /// the fixture's SQL, then Muse's, then Command Code's, then Cursor's.
-    fn fixture_turns() -> [(&'static str, Vec<RawTurn>); 7] {
+    /// the fixture's SQL, then Muse's, then Command Code's, then Cursor's, then Gemini CLI's.
+    fn fixture_turns() -> [(&'static str, Vec<RawTurn>); 8] {
         let root = Path::new(FIXTURES);
         let claude_code = [
             "claude-code/synthetic.jsonl",
@@ -333,6 +336,10 @@ mod tests {
         );
         assert!(cursor::Cursor.file_matches(&path));
         let cursor = cursor::Cursor.parse(&cursor_root, &path).unwrap().turns;
+        let gemini_root = root.join("gemini/.gemini/tmp");
+        let path = gemini_root.join("work-example/chats/session-2026-11-01T09-00-5e550000.jsonl");
+        assert!(gemini::Gemini.file_matches(&path));
+        let gemini = gemini::Gemini.parse(&gemini_root, &path).unwrap().turns;
         [
             ("claude-code", claude_code),
             ("codex", codex),
@@ -341,6 +348,7 @@ mod tests {
             ("muse", muse),
             ("command-code", command_code),
             ("cursor", cursor),
+            ("gemini", gemini),
         ]
     }
 
