@@ -3,7 +3,6 @@
 //! sheet, the morning digest and the settings.
 
 use std::cell::Cell;
-use std::path::PathBuf;
 use std::rc::Rc;
 
 use futures::StreamExt as _;
@@ -28,30 +27,6 @@ pub struct ResumeConfirm {
     pub title: String,
     pub profile: String,
     pub command: String,
-}
-
-/// The morning digest's parts: what is new since the
-/// person last looked.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Digest {
-    pub notes: usize,
-    pub rules: usize,
-    pub claims: usize,
-    /// `03:31`, the run's report, and whether it changed any note.
-    pub dreamed: Option<(String, PathBuf, bool)>,
-    /// Rules waiting in all, new or not.
-    pub waiting: usize,
-}
-
-impl Digest {
-    pub fn is_empty(&self) -> bool {
-        self.notes == 0 && self.rules == 0 && self.claims == 0 && self.dreamed.is_none()
-    }
-
-    /// Nothing new since the person last looked.
-    pub fn nothing_new(&self) -> bool {
-        self.notes == 0 && self.rules == 0 && self.claims == 0
-    }
 }
 
 /// A viewing that starts after this long away counts the digest from the
@@ -80,7 +55,6 @@ pub struct ReachUi {
     /// Open at login's state, read when Manage shows; its last error.
     pub login: Option<crate::menubar::login::Status>,
     pub login_error: Option<String>,
-    pub digest_dismissed: Option<String>,
     /// Home or the Inbox last on screen, and when that was last
     /// written to the preferences.
     pub seen_at: Option<OffsetDateTime>,
@@ -115,7 +89,6 @@ impl ReachUi {
             confirm_focus: focus,
             login: None,
             login_error: None,
-            digest_dismissed: prefs.digest_dismissed.clone(),
             seen_at: prefs
                 .inbox_seen_at
                 .and_then(|t| OffsetDateTime::from_unix_timestamp(t).ok()),
@@ -156,12 +129,6 @@ pub fn response_act(tag: &str, button: bool) -> Option<Act> {
         (true, _) => Act::Resume(id),
         (false, _) => Act::Xray(id),
     })
-}
-
-/// The local date as `2026-11-10`.
-pub fn local_date(now: OffsetDateTime) -> String {
-    let d = now.to_offset(super::status::local_offset()).date();
-    format!("{:04}-{:02}-{:02}", d.year(), u8::from(d.month()), d.day())
 }
 
 /// Overnight begins at 18:00 local the day before `now`.
@@ -542,224 +509,6 @@ impl Shell {
                                     })),
                                 ),
                         ),
-                )
-                .into_any_element(),
-        )
-    }
-
-    /// The morning digest's parts, from what the app has read.
-    pub(crate) fn digest(&self, now: OffsetDateTime) -> Digest {
-        let overnight = overnight_since(now);
-        let since = self
-            .reach
-            .digest_from
-            .unwrap_or_else(|| digest_since(self.reach.seen_at, now));
-        let after = |t: std::time::SystemTime| OffsetDateTime::from(t) > since;
-        let notes = self
-            .review_items()
-            .iter()
-            .filter(|r| after(r.receipt.datetime()))
-            .count();
-        let rules = self
-            .lessons()
-            .iter()
-            .filter(|l| after(l.id.datetime()))
-            .count();
-        let claims = self
-            .loaded
-            .as_ref()
-            .and_then(|l| l.fleet.as_ref())
-            .map(|f| {
-                f.rows
-                    .iter()
-                    .filter(|r| r.needs_check())
-                    .filter(|r| match r.state {
-                        hippo_view::fleet::State::Finished { at }
-                        | hippo_view::fleet::State::Interrupted { at, .. } => at > since,
-                        _ => true,
-                    })
-                    .count()
-            })
-            .unwrap_or(0);
-        let dreamed = self
-            .loaded
-            .as_ref()
-            .and_then(|l| l.panels.as_ref())
-            .and_then(|p| p.dreaming.as_ref().ok())
-            .and_then(|d| {
-                d.runs.iter().find(|r| {
-                    let f = crate::rows::run_facts(r);
-                    !f.dry_run && !f.failed
-                })
-            })
-            .and_then(|r| {
-                let at = OffsetDateTime::from(r.written?);
-                let changed = crate::rows::run_facts(r).applied > 0;
-                (at >= overnight).then(|| (super::kit::hm(at), r.report.path.clone(), changed))
-            });
-        Digest {
-            notes,
-            rules,
-            claims,
-            dreamed,
-            waiting: self.lessons().len(),
-        }
-    }
-
-    /// Home's digest line, on the day's first open until dismissed.
-    pub(crate) fn render_digest(
-        &self,
-        look: &Look,
-        cx: &mut Context<Self>,
-    ) -> Option<gpui::AnyElement> {
-        let now = OffsetDateTime::now_utc();
-        let today = local_date(now);
-        if self.reach.digest_dismissed.as_deref() == Some(today.as_str()) {
-            return None;
-        }
-        let d = self.digest(now);
-        if d.is_empty() {
-            return None;
-        }
-        let plural = |n: usize, one: &str, many: &str| {
-            if n == 1 {
-                format!("1 {one}")
-            } else {
-                format!("{n} {many}")
-            }
-        };
-        let link = |id: &'static str, text: String| {
-            kit::link(look, id, text).text_color(look.c.text_muted)
-        };
-        let mut parts: Vec<gpui::AnyElement> = Vec::new();
-        if d.notes > 0 {
-            parts.push(
-                link(
-                    "digest-notes",
-                    plural(d.notes, "note corrected", "notes corrected"),
-                )
-                .on_click(cx.listener(|this, _, window, cx| {
-                    this.show_section(Section::Inbox, window, cx);
-                    this.inbox.filter = super::lessons::Filter::Overnight;
-                    cx.notify();
-                }))
-                .into_any_element(),
-            );
-        }
-        if d.rules > 0 {
-            parts.push(
-                link(
-                    "digest-rules",
-                    plural(d.rules, "rule proposed", "rules proposed"),
-                )
-                .on_click(cx.listener(|this, _, window, cx| {
-                    this.show_section(Section::Inbox, window, cx);
-                    this.inbox.filter = super::lessons::Filter::All;
-                    cx.notify();
-                }))
-                .into_any_element(),
-            );
-        }
-        if d.claims > 0 {
-            parts.push(
-                link(
-                    "digest-claims",
-                    plural(d.claims, "claim unverified", "claims unverified"),
-                )
-                .on_click(cx.listener(|this, _, window, cx| {
-                    // Unverified claims are hints on their Fleet rows.
-                    this.fleet_ui.group = super::fleet::Group::State;
-                    this.show_section(Section::Fleet, window, cx);
-                }))
-                .into_any_element(),
-            );
-        }
-        if let Some((at, path, changed)) = d.dreamed.clone() {
-            // With nothing new, the run says so in its own words.
-            let words = match (d.nothing_new(), changed) {
-                (true, false) => format!("dreamed {at}, nothing changed"),
-                (true, true) => format!("dreamed {at}, nothing new since you looked"),
-                _ => format!("dreamed {at}"),
-            };
-            parts.push(
-                link("digest-dreamed", words)
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        this.state
-                            .tabs
-                            .open(crate::state::Tab::Report(path.clone()));
-                        this.after_state_change(window, cx);
-                    }))
-                    .into_any_element(),
-            );
-        }
-        // A 40-point banner: moon, `Overnight`, the parts muted.
-        let mut row = div()
-            .flex()
-            .items_center()
-            .gap(look.px(8.))
-            .h(look.px(40.))
-            .pl(look.px(14.))
-            .pr(look.px(8.))
-            .rounded(look.px(12.))
-            .bg(look.c.surface)
-            .border(look.fixed(1.))
-            .border_color(look.c.border)
-            .text_size(look.text(13.))
-            .overflow_hidden()
-            .child(kit::icon(look, "moon", 16., look.c.text_muted))
-            .child(
-                div()
-                    .flex_shrink_0()
-                    .font_weight(gpui::FontWeight::MEDIUM)
-                    .child("Overnight"),
-            );
-        for (i, p) in parts.into_iter().enumerate() {
-            if i > 0 {
-                row = row.child(div().text_color(kit::dim(look)).child("·"));
-            }
-            row = row.child(p);
-        }
-        if d.nothing_new() && d.waiting > 0 {
-            row = row
-                .child(div().text_color(kit::dim(look)).child("·"))
-                .child(
-                    kit::link(
-                        look,
-                        "digest-waiting",
-                        format!(
-                            "{} rule{} still waiting",
-                            d.waiting,
-                            if d.waiting == 1 { "" } else { "s" }
-                        ),
-                    )
-                    .text_color(look.c.text_muted)
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.show_section(Section::Inbox, window, cx);
-                    })),
-                );
-        }
-        Some(
-            row.child(div().flex_1())
-                .child(
-                    div()
-                        .id("digest-dismiss")
-                        .role(gpui::Role::Button)
-                        .aria_label("Dismiss until tomorrow")
-                        .cursor_pointer()
-                        .size(look.px(24.))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .rounded(look.px(6.))
-                        .hover(|s| s.bg(look.c.raised))
-                        .child(kit::icon(look, "x", 14., look.c.faint))
-                        .tooltip(super::tooltip::Tooltip::text("Dismiss until tomorrow"))
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            let today = local_date(OffsetDateTime::now_utc());
-                            this.reach.digest_dismissed = Some(today.clone());
-                            this.save_pref(|p| p.digest_dismissed = Some(today.clone()));
-                            cx.notify();
-                        })),
                 )
                 .into_any_element(),
         )

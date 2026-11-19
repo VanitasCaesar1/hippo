@@ -87,7 +87,7 @@ impl Shell {
         // Each sub-agent writing now, with its current step.
         if let Some(subs) = row
             .as_ref()
-            .and_then(|r| super::fleet::live_subs(look, &r.live_subs, now))
+            .and_then(|r| super::fleet::live_subs(look, &r.live_subs, now, true))
         {
             let n = row.as_ref().map_or(0, |r| r.live_subs.len());
             centre = centre.child(

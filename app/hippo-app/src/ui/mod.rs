@@ -29,6 +29,7 @@ pub mod palette;
 pub mod pane;
 pub mod picker;
 pub mod proposal_tab;
+pub mod pulse_ui;
 pub mod rail;
 pub mod reach_ui;
 pub mod replay_ui;
@@ -112,9 +113,8 @@ pub struct Shell {
     pub(crate) health_open: bool,
     /// The Home's scroll, which its scrollbar reads.
     pub(crate) home_scroll: gpui::ScrollHandle,
-    /// The sidebar's shelves folded by hand, and its scroll.
+    /// The sidebar: its width and the hovered row.
     pub(crate) sidebar: sidebar::SidebarUi,
-    pub(crate) sidebar_scroll: gpui::ScrollHandle,
     /// Pane toggles that are off (`pane-headroom`, `pane-memory`).
     pub(crate) panes_off: std::collections::HashSet<&'static str>,
     /// The scroll of the other section views (Ask, Fleet, Inbox, Manage).
@@ -129,6 +129,8 @@ pub struct Shell {
     pub(crate) fleet_ui: fleet::FleetUi,
     /// Fleet's Lanes view: the day shown, its zoom, the scrubber.
     pub(crate) replay: replay_ui::ReplayUi,
+    /// Fleet's Pulse view.
+    pub(crate) pulse: pulse_ui::PulseUi,
     /// Fleet's rows take ↑ ↓ ↩ when it shows and nothing else has focus.
     pub(crate) fleet_focus: FocusHandle,
     /// Incidents: the list's selection and filters, the marks
@@ -226,7 +228,8 @@ impl Shell {
         // An arrow (or Tab) engages the view shown, for the key guard. An
         // interceptor sees bound keys before their actions run; element key
         // listeners never see them.
-        // Esc closes the sidebar's overlay before anything else sees it.
+        // Esc closes the sidebar's overlay, then Pulse's sheet or its
+        // stacked focus, before anything else sees it.
         let shell = cx.entity().downgrade();
         subscriptions.push(cx.intercept_keystrokes(move |e, _, cx| {
             if e.keystroke.key == "escape" && !e.keystroke.modifiers.modified() {
@@ -236,8 +239,14 @@ impl Shell {
                         if open {
                             s.sidebar.overlay = false;
                             cx.notify();
+                            return true;
                         }
-                        open
+                        // Then Pulse's sheet, or its focus when stacked.
+                        let closed = s.pulse_escape();
+                        if closed {
+                            cx.notify();
+                        }
+                        closed
                     })
                     .unwrap_or(false);
                 if closed {
@@ -313,7 +322,6 @@ impl Shell {
                 width: saved.sidebar_width.map(|w| w as f32),
                 ..Default::default()
             },
-            sidebar_scroll: gpui::ScrollHandle::new(),
             panes_off: std::collections::HashSet::new(),
             page_scroll: gpui::ScrollHandle::new(),
             ask_field,
@@ -322,6 +330,7 @@ impl Shell {
             recent_questions,
             fleet_ui: Default::default(),
             replay: Default::default(),
+            pulse: Default::default(),
             fleet_focus: cx.focus_handle(),
             incidents_ui: incidents_ui::IncidentsUi::new(&saved, cx),
             inbox: lessons::InboxUi::new(cx),

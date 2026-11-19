@@ -4,6 +4,16 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Added
+
+- **The instrument look.** Hippo.app's built-in themes are neutral black and white, with colour only for a state; numbers, times and labels are SF Mono; areas are divided by hairlines, not cards; and each state has one square mark instead of an icon. The sidebar is navigation only (only Inbox shows a count); today's sessions are in Fleet, whose Rows now offer Settle and Snooze under the pointer. Home is one column of readouts, the scope band of the fleet's tool calls, what waits on you and last night's pass, with the prompt at the foot; its headroom and memory cards and the overnight line are gone. *Working* counts the sessions working now everywhere, the menu-bar item included. See the [design](docs/designs/app-instrument.md).
+- **Fleet Pulse.** Hippo.app's Fleet opens on a new view: a header of how many sessions work and wait on you and each account's 5-hour meter (red, with a countdown, when it will run dry before its reset) over the scope band of the fleet's tool calls; a queue of the sessions that need you, then a ranked Next up (an account that runs dry, an unverified claim, a destructive command, a correction that is a rule candidate); and the selected item alone in a focus pane: a waiting session's question or plan steps with Open thread, T3 Code and Terminal, a table of what it is on and its last calls, an account's drain with the sessions that will stop and *Resume them on* another, or the one fact and action of the others. The working sessions, each with its current call and last 30 minutes, sit in a sheet (`F`); with nothing in the queue, Pulse shows the day's readouts and scope band. Rows and Lanes stay a click away. The engine gained what it reads, all computed at read time: 2-minute activity beats, usage drain and burn rate, the kept rules a session started with (`hippo fleet --json` shows them), correction and destructive marks, the nightly forecast, the ranking and a waiting plan's steps. See the [design](docs/designs/fleet-pulse.md).
+
+### Fixed
+
+- The day's incidents went missing from Lanes east of UTC: incident times were compared as text against a local midnight.
+- A plan waiting for approval now says its last line in Fleet and the sidebar.
+
 ## [0.4.1] - 2026-11-12
 
 ### Added

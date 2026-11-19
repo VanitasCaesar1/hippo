@@ -1,12 +1,10 @@
-//! The sidebar: the fleet as four shelves under the nav.
+//! The sidebar: hippo's sections, the instrument look
+//! (docs/designs/app-instrument.md); the day's sessions are in Fleet.
 //!
 //! 256 points wide on the sidebar colour. Under [`NARROW`] (or folded
 //! away) it does not dock: the title bar holds its toggle and it opens as
 //! an overlay.
 
-use std::collections::HashSet;
-
-use gpui::AnimationExt as _;
 use gpui::{
     Context, FontWeight, MouseButton, Role, Window, WindowControlArea, div, prelude::*, px,
 };
@@ -16,7 +14,7 @@ use time::OffsetDateTime;
 use super::Shell;
 use super::kit::{self, Status};
 use super::theme::Look;
-use crate::shelving::{self, Marks, Place, Shelves, Tally};
+use crate::shelving::{self, Marks, Shelves, Tally};
 use crate::state::Section;
 
 /// Below this window width the sidebar does not dock.
@@ -47,7 +45,7 @@ pub const TOGGLE: f32 = 28.;
 /// The non-empty shelves in order, each with its rows.
 pub type ShelfRows = Vec<(Shelf, Vec<Row>)>;
 
-/// The sidebar's state: shelves folded by hand.
+/// The sidebar's state.
 #[derive(Default)]
 pub struct SidebarUi {
     /// A dragged width (prefs `sidebar_width`); `None` is [`WIDE`].
@@ -60,11 +58,6 @@ pub struct SidebarUi {
     /// Open as an overlay where it does not dock (below [`NARROW`], or
     /// folded away).
     pub overlay: bool,
-    pub folded: HashSet<Shelf>,
-    /// Shelves the person opened that start folded (Settled when long).
-    pub unfolded: HashSet<Shelf>,
-    /// The Snoozed shelf is open (it starts folded, as T3 Code's).
-    pub snoozed_open: bool,
     /// The row under the pointer: its Settle and Snooze show.
     pub hover: Option<String>,
     /// The row whose snooze menu is open.
@@ -104,46 +97,10 @@ pub fn row_status(row: &Row, now: OffsetDateTime) -> Option<(Status, Option<Stri
     }
 }
 
-/// `26m`, `2h`, `3d`: a row's age, from its newest turn.
-pub fn age(row: &Row, now: OffsetDateTime) -> String {
-    row.last.map_or_else(String::new, |t| {
-        let s = (now - t).whole_seconds().max(0);
-        if s < 60 {
-            "now".to_owned()
-        } else if s < 3600 {
-            format!("{}m", s / 60)
-        } else if s < 86_400 {
-            format!("{}h", s / 3600)
-        } else {
-            format!("{}d", s / 86_400)
-        }
-    })
-}
-
-/// A row as it appears (motion): it fades in over 300 ms when
-/// its shelf unfolds, or when it first shows on a shelf.
-fn unfold_in(shelf: usize, id: &str, row: gpui::AnyElement) -> impl IntoElement {
-    div().child(row).with_animation(
-        gpui::ElementId::Name(format!("unfold-{shelf}-{id}").into()),
-        gpui::Animation::new(std::time::Duration::from_millis(300))
-            .with_easing(gpui::ease_out_quint()),
-        |d, t| d.opacity(t),
-    )
-}
-
 /// A pull request's number from its address (`…/pull/148` → `148`).
 pub fn pr_number(url: &str) -> Option<&str> {
     let n = url.trim_end_matches('/').rsplit('/').next()?;
     (!n.is_empty() && n.chars().all(|c| c.is_ascii_digit())).then_some(n)
-}
-
-pub fn shelf_name(s: Shelf) -> &'static str {
-    match s {
-        Shelf::NeedsYou => "Needs you",
-        Shelf::Working => "Working",
-        Shelf::ToReview => "To review",
-        Shelf::Settled => "Settled",
-    }
 }
 
 impl Shell {
@@ -158,22 +115,14 @@ impl Shell {
         }
     }
 
-    /// The counts every view shows: Home's headline, the toggle's badge,
-    /// the shelves, Fleet's groups and the menu-bar item.
+    /// The counts the toggle's badge shows: the shelves', with Working as
+    /// the sessions working now.
     pub(crate) fn tally(&self) -> Option<Tally> {
         let f = self.loaded.as_ref().and_then(|l| l.fleet.as_ref())?;
-        Some(Shelves::of(f, &self.marks()).tally())
-    }
-
-    /// The shelves of today's fleet, non-empty ones in order, and the
-    /// snoozed rows with their wake times.
-    pub(crate) fn shelves(&self) -> (ShelfRows, Vec<(Row, i64)>) {
-        let (live, snoozed) = self.shelves_live();
-        let rows = match &self.sidebar.frozen {
-            Some(snap) => shelving::freeze(live, snap, |r: &Row| r.id.as_str()),
-            None => live,
-        };
-        (rows, snoozed)
+        let mut t = Shelves::of(f, &self.marks()).tally();
+        // Working is sessions working now, as Home and Pulse count them.
+        t.working = f.rows.iter().filter(|r| r.working()).count();
+        Some(t)
     }
 
     /// The shelves as the fleet has them now.
@@ -237,6 +186,8 @@ impl Shell {
         self.save_pref(|p| p.snoozed_sessions = next);
     }
 
+    /// A section: 34 high, divided by hairlines, the shown one raised
+    /// with a 2-point bar at its left edge. Only Inbox shows a count.
     fn nav_row(
         &self,
         look: &Look,
@@ -245,27 +196,13 @@ impl Shell {
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let on = self.state.tabs.section() == section;
-        let (icon, count, badge) = match section {
-            Section::Home => ("house", 0, false),
-            Section::Inbox => ("inbox", self.inbox_count(), true),
-            Section::Fleet => (
-                "bot",
-                self.loaded
-                    .as_ref()
-                    .and_then(|l| l.fleet.as_ref())
-                    .map_or(0, |f| f.rows.len()),
-                false,
-            ),
-            Section::Incidents => ("siren", self.incidents_new(), false),
-            Section::Memory => (
-                "brain",
-                self.loaded
-                    .as_ref()
-                    .and_then(|l| l.panels.as_ref())
-                    .map_or(0, |p| p.brain.rows.len()),
-                false,
-            ),
-            Section::Manage => ("sliders-horizontal", 0, false),
+        let (icon, count) = match section {
+            Section::Home => ("house", 0),
+            Section::Inbox => ("inbox", self.inbox_count()),
+            Section::Fleet => ("bot", 0),
+            Section::Incidents => ("siren", 0),
+            Section::Memory => ("brain", 0),
+            Section::Manage => ("sliders-horizontal", 0),
         };
         let color = if on { look.c.text } else { look.c.text_muted };
         let tip = match section {
@@ -281,17 +218,28 @@ impl Shell {
             .role(Role::Tab)
             .aria_label(section.name())
             .aria_selected(on)
+            .relative()
             .flex()
             .items_center()
-            .gap(look.px(10.))
-            .h(look.px(30.))
+            .h(look.px(34.))
             .when(narrow, |d| d.w(look.px(36.)).justify_center())
-            .when(!narrow, |d| d.px(look.px(8.)))
-            .rounded(look.px(6.))
-            .when(on, |d| d.bg(look.c.raised))
+            .when(!narrow, |d| d.px(look.px(16.)))
+            .border_b(look.fixed(1.))
+            .border_color(look.c.border.opacity(0.6))
+            .when(on, |d| {
+                d.bg(look.c.raised).child(
+                    div()
+                        .absolute()
+                        .left_0()
+                        .top_0()
+                        .bottom_0()
+                        .w(look.fixed(2.))
+                        .bg(look.c.text),
+                )
+            })
             .when(!on, |d| d.hover(|h| h.bg(look.c.hover)))
             .cursor_pointer()
-            .child(kit::icon(look, icon, 16., color))
+            .when(narrow, |d| d.child(kit::icon(look, icon, 16., color)))
             .when(!narrow, |d| {
                 d.child(
                     div()
@@ -301,241 +249,12 @@ impl Shell {
                         .child(section.name()),
                 )
                 .when(count > 0, |d| {
-                    if badge {
-                        d.child(kit::count_badge(look, count, false))
-                    } else {
-                        d.child(
-                            div()
-                                .text_size(look.text(12.))
-                                .text_color(look.c.faint)
-                                .child(count.to_string()),
-                        )
-                    }
+                    d.child(kit::figure(look, count.to_string(), 11., look.c.text))
                 })
             })
-            .when(narrow, |d| d.tooltip(super::tooltip::Tooltip::text(tip)))
+            .tooltip(super::tooltip::Tooltip::text(tip))
             .on_click(cx.listener(move |this, _, window, cx| {
                 this.show_section(section, window, cx);
-            }))
-    }
-
-    /// A shelf's header (T3 Code's `SidebarSectionHeader`): 32
-    /// high, the label in 12-point medium, then at the right its count
-    /// (Needs you's in the warn badge) and the fold chevron.
-    fn shelf_header(
-        &self,
-        look: &Look,
-        shelf: Shelf,
-        n: usize,
-        folded: bool,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement + use<> {
-        div()
-            .id(("shelf", shelf as usize))
-            .role(Role::Button)
-            .aria_label(format!("{} {n}", shelf_name(shelf)))
-            .hover(|h| h.bg(look.c.hover))
-            .aria_expanded(!folded)
-            .flex()
-            .items_center()
-            .gap(look.px(8.))
-            .h(look.px(32.))
-            .mx(look.px(2.))
-            .px(look.px(8.))
-            .rounded(look.px(6.))
-            .cursor_pointer()
-            .text_size(look.text(12.))
-            .font_weight(FontWeight::MEDIUM)
-            .text_color(look.c.text_muted)
-            .child(div().min_w_0().truncate().child(shelf_name(shelf)))
-            .child(div().flex_1())
-            .child(if shelf == Shelf::NeedsYou {
-                kit::count_badge(look, n, true).into_any_element()
-            } else {
-                div()
-                    .font_weight(FontWeight::NORMAL)
-                    .text_color(look.c.faint)
-                    .child(n.to_string())
-                    .into_any_element()
-            })
-            .child(kit::icon(
-                look,
-                if folded {
-                    "chevron-right"
-                } else {
-                    "chevron-down"
-                },
-                12.,
-                look.c.faint,
-            ))
-            .on_click(cx.listener(move |this, _, _, cx| {
-                let s = &mut this.sidebar;
-                if folded {
-                    s.folded.remove(&shelf);
-                    s.unfolded.insert(shelf);
-                } else {
-                    s.folded.insert(shelf);
-                    s.unfolded.remove(&shelf);
-                }
-                cx.notify();
-            }))
-    }
-
-    /// A thread row (T3 Code's `SidebarThreadRow` card, MIT): 78
-    /// high with a third line, radius 6, 10 in and 8 down. The top line is
-    /// the project's mark and name, then the state (`Working 49m`, `Input
-    /// 6m`, `Done` until opened) or the age; the title in 14-point medium
-    /// (regular and muted once opened and finished); the third line is
-    /// what it is doing, what it asked, or its branch, pull requests and
-    /// lines, with the account mark at its right (on the title line when
-    /// there is no third line).
-    fn thread_row(
-        &self,
-        look: &Look,
-        row: &Row,
-        shelf: Shelf,
-        now: OffsetDateTime,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement + use<> {
-        let active = matches!(
-            self.state.tabs.active_tab(),
-            Some(crate::state::Tab::Xray(id)) if *id == row.id
-        );
-        let seen = self.reach.opened.contains_key(&row.id);
-        let recede = seen && matches!(shelf, Shelf::ToReview | Shelf::Settled);
-        let project = row.project.clone().unwrap_or_else(|| "—".to_owned());
-        // A To review row shows its age, not `Done` (the shelf
-        // already says so); unread shows only in the title's brightness,
-        // T3 Code's rule. Needs you and Working keep glyph and word.
-        let status = row_status(row, now);
-        // Under the pointer, Settle and Snooze take the state's
-        // place (T3 Code's row controls); a row that needs you has none.
-        let controls = shelving::controls(Place::Shelf(shelf));
-        let right: gpui::AnyElement =
-            if self.row_hovered(&row.id) && (controls.settle || controls.snooze) {
-                self.row_controls(look, &row.id, controls, cx)
-                    .into_any_element()
-            } else {
-                match status {
-                    Some((s, detail)) => kit::top_status(look, s, detail).into_any_element(),
-                    None => div()
-                        .flex_shrink_0()
-                        .text_size(look.text(12.))
-                        .text_color(look.c.faint)
-                        .child(age(row, now))
-                        .into_any_element(),
-                }
-            };
-        let line3: Option<gpui::AnyElement> = match shelf {
-            Shelf::Working => match &row.call {
-                Some(call) => {
-                    // The same step run again reads once, `×n`.
-                    let runs = row.turn.as_ref().map(|t| kit::runs(&t.calls));
-                    let (shown, n) = match runs.as_ref().and_then(|v| v.first()) {
-                        Some(run) if kit::same_step(&run.call, call) => (run.call.clone(), run.n),
-                        _ => (call.clone(), 1),
-                    };
-                    Some(kit::tool_line(look, &shown, n, None, true).into_any_element())
-                }
-                // Nothing to say: no third line (T3 Code's rule).
-                None => row
-                    .activity
-                    .clone()
-                    .filter(|a| !a.trim().is_empty())
-                    .map(|a| div().truncate().child(a).into_any_element()),
-            },
-            Shelf::NeedsYou => {
-                let text = match &row.state {
-                    State::Waiting { asked, .. } => asked
-                        .as_deref()
-                        .map(|a| format!("\u{201c}{}\u{201d}", a.trim()))
-                        .unwrap_or_else(|| "waiting on you".to_owned()),
-                    State::Stopped { reset, .. } => match reset {
-                        Some(r) => format!("usage limit · {r}"),
-                        None => "stopped at its usage limit".to_owned(),
-                    },
-                    _ => row.claims.short_line().unwrap_or_default(),
-                };
-                Some(div().truncate().child(text).into_any_element())
-            }
-            _ => self.meta_line(look, row),
-        };
-        let mark = kit::mark(look, row.profile.as_deref(), 16.);
-        let id = row.id.clone();
-        let item = div()
-            .id(gpui::ElementId::Name(format!("thread-{}", row.id).into()))
-            .role(Role::Button)
-            .aria_label(row.title.clone())
-            .flex()
-            .flex_col()
-            .when(line3.is_some(), |d| d.h(look.px(78.)))
-            .px(look.px(10.))
-            .py(look.px(8.))
-            .rounded(look.px(6.))
-            .overflow_hidden()
-            .cursor_pointer();
-        let has3 = line3.is_some();
-        let mut mark = Some(mark);
-        let title_mark = if has3 { None } else { mark.take() };
-        kit::sidebar_fill(item, look, active)
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(look.px(6.))
-                    .h(look.px(20.))
-                    .child(kit::project_mark(look, &project, 16.))
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .truncate()
-                            .text_size(look.text(12.))
-                            .text_color(look.c.faint)
-                            .child(project),
-                    )
-                    .child(right),
-            )
-            .child(
-                div()
-                    .mt(look.px(4.))
-                    .flex()
-                    .items_center()
-                    .gap(look.px(6.))
-                    .h(look.px(20.))
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .truncate()
-                            .text_size(look.text(14.))
-                            // GPUI's 500 draws heavier than T3
-                            // Code's medium in Chromium; 400 matches it.
-                            .font_weight(FontWeight::NORMAL)
-                            .text_color(if recede {
-                                look.c.text_muted
-                            } else {
-                                look.c.text
-                            })
-                            .child(kit::title(&row.title)),
-                    )
-                    .children(title_mark),
-            )
-            .children(line3.map(|l| {
-                div()
-                    .mt(look.px(2.))
-                    .flex()
-                    .items_center()
-                    .gap(look.px(6.))
-                    .h(look.px(16.))
-                    .text_size(look.text(12.))
-                    .text_color(look.c.faint)
-                    .child(div().flex_1().min_w_0().overflow_hidden().child(l))
-                    .children(mark)
-            }))
-            .on_hover(self.hover_listener(&row.id, cx))
-            .on_click(cx.listener(move |this, _, window, cx| {
-                this.open_xray(&id, window, cx);
             }))
     }
 
@@ -569,8 +288,7 @@ impl Shell {
     fn row_control(
         look: &Look,
         id: String,
-        icon: &'static str,
-        word: Option<&'static str>,
+        word: &'static str,
         tip: &'static str,
     ) -> gpui::Stateful<gpui::Div> {
         div()
@@ -583,19 +301,14 @@ impl Shell {
             .gap(look.px(4.))
             .h(look.px(20.))
             .px(look.px(6.))
-            .rounded(look.px(5.))
+            .rounded(look.px(3.))
             .cursor_pointer()
-            .text_size(look.text(12.))
+            .font_family(kit::MONO)
+            .text_size(look.text(10.5))
             .text_color(look.c.text_muted)
             .hover(|h| h.bg(look.c.hover).text_color(look.c.text))
             .active(|a| a.bg(look.c.raised))
-            .child(kit::icon(
-                look,
-                icon,
-                if word.is_some() { 14. } else { 13. },
-                look.c.text_muted,
-            ))
-            .children(word)
+            .child(word.to_uppercase())
             .tooltip(super::tooltip::Tooltip::text(tip))
     }
 
@@ -613,8 +326,7 @@ impl Shell {
             Self::row_control(
                 look,
                 format!("snooze-{id}"),
-                "clock",
-                None,
+                "Snooze",
                 "Snooze: hide it until later",
             )
             .when(menu_open, |d| d.bg(look.c.raised))
@@ -636,8 +348,7 @@ impl Shell {
             Self::row_control(
                 look,
                 format!("settle-{id}"),
-                "check",
-                Some("Settle"),
+                "Settle",
                 "Settle: move it to Settled",
             )
             .on_click(cx.listener(move |this, _, _, cx| {
@@ -755,229 +466,9 @@ impl Shell {
         .with_priority(1)
     }
 
-    /// A finished row's third line (T3 Code's meta line): the
-    /// branch, middle-cut, then the pull-request badge and the lines
-    /// changed. `None` when it knows none of them (verified claims stay in
-    /// Fleet's Claims column; the branch needs the room).
-    fn meta_line(&self, look: &Look, row: &Row) -> Option<gpui::AnyElement> {
-        let (open, merged) = super::fleet::pr_counts(row);
-        let pr = (open + merged > 0).then(|| {
-            let text = if open + merged == 1 {
-                row.pulls
-                    .first()
-                    .map(|(u, _)| u.as_str())
-                    .or(row.merged_elsewhere.first().map(String::as_str))
-                    .and_then(pr_number)
-                    .map_or_else(|| "1".to_owned(), |n| format!("#{n}"))
-            } else {
-                format!("+{}", open + merged)
-            };
-            kit::pr_badge(look, open == 0, text)
-        });
-        // Faint in the sidebar; the diff colours stay in Fleet
-        // and the x-ray.
-        // Its sub-agents' lines count too.
-        let diff = row
-            .total_lines()
-            .and_then(|l| kit::diff_counts_quiet(look, l.added, l.removed));
-        if row.branch.is_none() && pr.is_none() && diff.is_none() {
-            return None;
-        }
-        Some(
-            div()
-                .flex()
-                .items_center()
-                .gap(look.px(6.))
-                .min_w_0()
-                .child(match &row.branch {
-                    Some(b) => div()
-                        .flex()
-                        .flex_1()
-                        .min_w_0()
-                        .items_center()
-                        .gap(look.px(4.))
-                        .child(kit::icon(look, "git-branch", 12., look.c.faint))
-                        .child(div().min_w_0().truncate().child(kit::middle(b, 30))),
-                    None => div().flex_1(),
-                })
-                .children(pr)
-                .children(diff)
-                .into_any_element(),
-        )
-    }
-
-    /// The Snoozed shelf: its header (`Snoozed 2`, folded at first) and,
-    /// opened, its rows.
-    fn snoozed_shelf(
-        &self,
-        mut list: gpui::Div,
-        look: &Look,
-        snoozed: &[(Row, i64)],
-        now: OffsetDateTime,
-        cx: &mut Context<Self>,
-    ) -> gpui::Div {
-        let open = self.sidebar.snoozed_open;
-        list = list.child(
-            Self::header_row(look, "Snoozed", snoozed.len(), !open)
-                .id("shelf-snoozed")
-                .role(Role::Button)
-                .aria_label(format!("Snoozed {}", snoozed.len()))
-                .aria_expanded(open)
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.sidebar.snoozed_open = !this.sidebar.snoozed_open;
-                    cx.notify();
-                })),
-        );
-        if open {
-            for (r, until) in snoozed {
-                let row = self
-                    .slim_row(look, r, Some(*until), now, cx)
-                    .into_any_element();
-                list = list.child(unfold_in(9, &r.id, row));
-            }
-        }
-        list
-    }
-
-    /// A shelf header's body (T3 Code's `SidebarSectionHeader`): 32 high,
-    /// the label in 12-point medium, the count and the fold chevron.
-    fn header_row(look: &Look, label: &str, n: usize, folded: bool) -> gpui::Div {
-        div()
-            .flex()
-            .items_center()
-            .gap(look.px(8.))
-            .h(look.px(32.))
-            .mx(look.px(2.))
-            .px(look.px(8.))
-            .rounded(look.px(6.))
-            .cursor_pointer()
-            .hover(|h| h.bg(look.c.hover))
-            .text_size(look.text(12.))
-            .font_weight(FontWeight::MEDIUM)
-            .text_color(look.c.text_muted)
-            .child(div().min_w_0().truncate().child(label.to_owned()))
-            .child(div().flex_1())
-            .child(
-                div()
-                    .font_weight(FontWeight::NORMAL)
-                    .text_color(look.c.faint)
-                    .child(n.to_string()),
-            )
-            .child(kit::icon(
-                look,
-                if folded {
-                    "chevron-right"
-                } else {
-                    "chevron-down"
-                },
-                12.,
-                look.c.faint,
-            ))
-    }
-
-    /// A settled or snoozed row: one line, 30 high (T3 Code's slim row),
-    /// in the muted colour. At the right the age, or for a snoozed row an
-    /// alarm clock and when it wakes (`3h`, in the info colour); under the
-    /// pointer, Un-settle or Wake now.
-    fn slim_row(
-        &self,
-        look: &Look,
-        row: &Row,
-        snoozed: Option<i64>,
-        now: OffsetDateTime,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement + use<> {
-        let id = row.id.clone();
-        let active = matches!(
-            self.state.tabs.active_tab(),
-            Some(crate::state::Tab::Xray(i)) if *i == row.id
-        );
-        let right: gpui::AnyElement = if self.row_hovered(&row.id) {
-            let id2 = row.id.clone();
-            match snoozed {
-                Some(_) => Self::row_control(
-                    look,
-                    format!("wake-{}", row.id),
-                    "alarm-clock-off",
-                    None,
-                    "Wake now: back on its shelf",
-                )
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    cx.stop_propagation();
-                    this.snooze(&id2, None);
-                    this.sidebar.hover = None;
-                    cx.notify();
-                }))
-                .into_any_element(),
-                None => Self::row_control(
-                    look,
-                    format!("unsettle-{}", row.id),
-                    "undo-2",
-                    None,
-                    "Un-settle: back to To review",
-                )
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    cx.stop_propagation();
-                    this.settle(&id2, false);
-                    this.sidebar.hover = None;
-                    cx.notify();
-                }))
-                .into_any_element(),
-            }
-        } else {
-            match snoozed {
-                Some(until) => div()
-                    .flex_shrink_0()
-                    .flex()
-                    .items_center()
-                    .gap(look.px(4.))
-                    .text_size(look.text(12.))
-                    .text_color(look.c.info)
-                    .child(kit::icon(look, "alarm-clock", 12., look.c.info))
-                    .child(shelving::wake_label(until, now.unix_timestamp()))
-                    .into_any_element(),
-                None => div()
-                    .flex_shrink_0()
-                    .text_size(look.text(12.))
-                    .text_color(look.c.faint)
-                    .child(age(row, now))
-                    .into_any_element(),
-            }
-        };
-        let item = div()
-            .id(gpui::ElementId::Name(format!("slim-{}", row.id).into()))
-            .role(Role::Button)
-            .aria_label(row.title.clone())
-            .flex()
-            .items_center()
-            .gap(look.px(8.))
-            .h(look.px(30.))
-            .px(look.px(10.))
-            .rounded(look.px(6.))
-            .cursor_pointer();
-        kit::sidebar_fill(item, look, active)
-            .child(kit::mark(look, row.profile.as_deref(), 16.))
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .truncate()
-                    .text_size(look.text(13.))
-                    .text_color(if active {
-                        look.c.text
-                    } else {
-                        look.c.text_muted
-                    })
-                    .child(kit::title(&row.title)),
-            )
-            .child(right)
-            .on_hover(self.hover_listener(&row.id, cx))
-            .on_click(cx.listener(move |this, _, window, cx| {
-                this.open_xray(&id, window, cx);
-            }))
-    }
-
-    /// The foot: Manage, the health dot and word, `indexed hh:mm`.
+    /// The foot: Manage, then when the index was last written. A problem
+    /// (a gap in setup, a stale ingest, a warning) shows in its place in
+    /// the warn colour and opens hippo's health.
     fn sidebar_foot(
         &self,
         look: &Look,
@@ -985,31 +476,23 @@ impl Shell {
         cx: &mut Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
         let (word, ok) = self.health_word();
-        let indexed = self.status_model().ingest.map(|i| {
-            i.strip_prefix("ingest ")
-                .map_or(i.clone(), |t| format!("indexed {t}"))
-        });
+        let indexed = self
+            .status_model()
+            .ingest
+            .map(|i| i.strip_prefix("ingest ").map_or(i.clone(), str::to_owned));
         let on = self.state.tabs.section() == Section::Manage;
         let manage = div()
             .id("foot-manage")
             .role(Role::Button)
             .aria_label("Manage")
             .flex_shrink_0()
-            .size(look.px(28.))
-            .flex()
-            .items_center()
-            .justify_center()
-            .rounded(look.px(6.))
-            .when(on, |d| d.bg(look.c.raised))
-            .hover(|h| h.bg(look.c.hover))
             .cursor_pointer()
-            .child(kit::icon(
-                look,
-                "sliders-horizontal",
-                16.,
-                if on { look.c.text } else { look.c.text_muted },
-            ))
             .tooltip(super::tooltip::Tooltip::text("Manage ⌘,"))
+            .child(kit::cap(
+                look,
+                "Manage",
+                if on { look.c.text } else { look.c.faint },
+            ))
             .on_click(
                 cx.listener(|this, _, window, cx| this.show_section(Section::Manage, window, cx)),
             );
@@ -1020,46 +503,38 @@ impl Shell {
             .and_then(|g| g.refused)
             .map(|r| (r.words().to_string(), false));
         let notice = refused.or_else(|| model.notice()).filter(|_| !narrow);
+        let health = (!ok).then(|| {
+            div()
+                .id("foot-health")
+                .role(Role::Button)
+                .aria_label(format!("{word}: show hippo's health"))
+                .min_w_0()
+                .cursor_pointer()
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.health_open = !this.health_open;
+                    cx.notify();
+                }))
+                .child(kit::cap(look, &word, look.c.warn).truncate())
+        });
         let foot = div()
             .flex_shrink_0()
             .flex()
             .items_center()
-            .gap(look.px(6.))
-            .h(look.px(44.))
-            .px(look.px(8.))
+            .gap(look.px(12.))
+            .h(look.px(40.))
+            .px(look.px(16.))
             .child(manage)
             .when(!narrow, |d| {
-                d.child(
-                    div()
-                        .id("foot-health")
-                        .role(Role::Button)
-                        .aria_label(format!("{word}: show hippo's health"))
-                        .flex()
-                        .items_center()
-                        .gap(look.px(6.))
-                        .px(look.px(4.))
-                        .h(look.px(24.))
-                        .rounded(look.px(6.))
-                        .min_w_0()
-                        .cursor_pointer()
-                        .hover(|h| h.bg(look.c.hover))
-                        .text_size(look.text(12.5))
-                        .text_color(if ok { look.c.text_muted } else { look.c.warn })
-                        .child(kit::dot(look, if ok { look.c.ok } else { look.c.warn }))
-                        .child(div().truncate().child(word))
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.health_open = !this.health_open;
-                            cx.notify();
-                        })),
-                )
-                .child(div().flex_1())
-                .children(indexed.map(|t| {
-                    div()
-                        .flex_shrink_0()
-                        .text_size(look.text(12.))
-                        .text_color(look.c.faint)
-                        .child(t)
-                }))
+                d.child(div().flex_1())
+                    .children(health)
+                    .children(indexed.filter(|_| ok).map(|t| {
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(look.px(8.))
+                            .child(kit::cap(look, "Indexed", look.c.faint))
+                            .child(kit::cap(look, &t, look.c.text_muted))
+                    }))
             });
         div()
             .id("sidebar-foot")
@@ -1072,7 +547,7 @@ impl Shell {
             .border_color(look.c.border)
             .children(notice.map(|(text, problem)| {
                 div()
-                    .px(look.px(12.))
+                    .px(look.px(16.))
                     .pt(look.px(8.))
                     .text_size(look.text(12.))
                     .line_clamp(2)
@@ -1206,7 +681,8 @@ impl Shell {
             }))
     }
 
-    /// The sidebar, or the rail under [`NARROW`].
+    /// The sidebar: the head, the sections and the foot. The day's
+    /// sessions are listed in Fleet, not here.
     pub(super) fn render_sidebar(
         &self,
         look: &Look,
@@ -1216,78 +692,17 @@ impl Shell {
         // There is no rail; below [`NARROW`] the sidebar is an
         // overlay of its full width.
         let narrow = false;
-        let now = OffsetDateTime::now_utc();
-        let (shelves, snoozed) = self.shelves();
         let nav = div()
             .flex()
             .flex_col()
-            .gap(look.px(1.))
+            .border_t(look.fixed(1.))
+            .border_color(look.c.border)
             .when(narrow, |d| d.items_center())
             .child(self.nav_row(look, Section::Home, narrow, cx))
             .child(self.nav_row(look, Section::Inbox, narrow, cx))
             .child(self.nav_row(look, Section::Fleet, narrow, cx))
             .child(self.nav_row(look, Section::Incidents, narrow, cx))
             .child(self.nav_row(look, Section::Memory, narrow, cx));
-        let body: gpui::AnyElement = {
-            // T3 Code's rows sit 4 apart (`py-0.5` each).
-            let mut list = div().flex().flex_col().gap(look.px(4.)).pb(look.px(8.));
-            let mut snoozed_drawn = false;
-            for (shelf, rows) in &shelves {
-                // Snoozed rows sit just above Settled, folded to a quiet
-                // count that opens them (T3 Code's Snoozed shelf).
-                if *shelf == Shelf::Settled && !snoozed.is_empty() {
-                    snoozed_drawn = true;
-                    list = self.snoozed_shelf(list, look, &snoozed, now, cx);
-                }
-                let default_folded = *shelf == Shelf::Settled && rows.len() > 8;
-                let folded = *shelf != Shelf::NeedsYou
-                    && (self.sidebar.folded.contains(shelf)
-                        || (default_folded && !self.sidebar.unfolded.contains(shelf)));
-                // A delegated session sits indented under its
-                // parent and counts with it.
-                let refs: Vec<&Row> = rows.iter().collect();
-                let n = crate::shelving::count_own(&refs);
-                list = list.child(self.shelf_header(look, *shelf, n, folded, cx));
-                if folded {
-                    continue;
-                }
-                for r in rows {
-                    let row = if *shelf == Shelf::Settled {
-                        self.slim_row(look, r, None, now, cx).into_any_element()
-                    } else {
-                        self.thread_row(look, r, *shelf, now, cx).into_any_element()
-                    };
-                    let row = if crate::shelving::nested_in(r, &refs) {
-                        super::fleet::nested(look, row, 14.)
-                    } else {
-                        row
-                    };
-                    list = list.child(unfold_in(*shelf as usize, &r.id, row));
-                }
-            }
-            if !snoozed.is_empty() && !snoozed_drawn {
-                list = self.snoozed_shelf(list, look, &snoozed, now, cx);
-            }
-            div()
-                .id("shelves")
-                .flex_1()
-                .min_h_0()
-                .on_hover(cx.listener(|this, over: &bool, _, cx| {
-                    if *over {
-                        if this.sidebar.frozen.is_none() {
-                            let live = this.shelves_live().0;
-                            this.sidebar.frozen =
-                                Some(shelving::snapshot(&live, |r: &Row| r.id.as_str()));
-                        }
-                    } else if this.sidebar.frozen.take().is_some() {
-                        cx.notify();
-                    }
-                }))
-                .overflow_y_scroll()
-                .track_scroll(&self.sidebar_scroll)
-                .child(list)
-                .into_any_element()
-        };
         div()
             .id("sidebar")
             .role(Role::Navigation)
@@ -1301,70 +716,8 @@ impl Shell {
             .border_r(look.fixed(1.))
             .border_color(look.c.border)
             .child(self.sidebar_head(look, narrow, window, cx))
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .flex_1()
-                    .min_h_0()
-                    .px(look.px(8.))
-                    .when(!narrow, |d| {
-                        d.child(
-                            div()
-                                .id("sidebar-search")
-                                .role(Role::Button)
-                                .aria_label("Search")
-                                .flex()
-                                .items_center()
-                                .gap(look.px(10.))
-                                .h(look.px(32.))
-                                .px(look.px(8.))
-                                .mb(look.px(4.))
-                                .rounded(look.px(6.))
-                                .cursor_pointer()
-                                .hover(|h| h.bg(look.c.hover))
-                                .text_size(look.text(13.))
-                                .text_color(look.c.text_muted)
-                                .child(kit::icon(look, "search", 16., look.c.text_muted))
-                                .child(div().flex_1().child("Search"))
-                                .child(
-                                    div()
-                                        .text_size(look.text(12.))
-                                        .text_color(look.c.faint)
-                                        .child("⌘P"),
-                                )
-                                .on_click(
-                                    cx.listener(|this, _, window, cx| this.open_finder(window, cx)),
-                                ),
-                        )
-                    })
-                    .when(narrow, |d| d.items_center())
-                    .child(nav)
-                    .child(
-                        div()
-                            .relative()
-                            .flex_1()
-                            .min_h_0()
-                            .flex()
-                            .flex_col()
-                            .child(body)
-                            // The list's bottom edge fades, so a row
-                            // the edge cuts is never read cut mid-text.
-                            .child(
-                                div()
-                                    .absolute()
-                                    .bottom_0()
-                                    .left_0()
-                                    .right_0()
-                                    .h(look.px(32.))
-                                    .bg(gpui::linear_gradient(
-                                        180.,
-                                        gpui::linear_color_stop(look.c.sidebar.opacity(0.), 0.),
-                                        gpui::linear_color_stop(look.c.sidebar, 1.),
-                                    )),
-                            ),
-                    ),
-            )
+            .child(nav)
+            .child(div().flex_1())
             .child(self.sidebar_foot(look, narrow, cx))
             .relative()
             .when(self.sidebar_docked(window), |d| {
@@ -1396,6 +749,68 @@ impl Shell {
                 )
             })
     }
+
+    /// Under the pointer, a Rows row's Snooze and Settle (or Un-settle,
+    /// Wake now) take its state's place; `None` when the row is not
+    /// hovered or has none.
+    pub(super) fn row_hover_controls(
+        &self,
+        look: &Look,
+        r: &Row,
+        cx: &mut Context<Self>,
+    ) -> Option<gpui::AnyElement> {
+        if !self.row_hovered(&r.id) {
+            return None;
+        }
+        let c = shelving::controls(self.marks().place(r));
+        let id = r.id.clone();
+        if c.settle || c.snooze {
+            Some(self.row_controls(look, &r.id, c, cx).into_any_element())
+        } else if c.wake {
+            Some(
+                Self::row_control(
+                    look,
+                    format!("wake-{}", r.id),
+                    "Wake",
+                    "Wake now: back on its shelf",
+                )
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    cx.stop_propagation();
+                    this.snooze(&id, None);
+                    this.sidebar.hover = None;
+                    cx.notify();
+                }))
+                .into_any_element(),
+            )
+        } else if c.unsettle {
+            Some(
+                Self::row_control(
+                    look,
+                    format!("unsettle-{}", r.id),
+                    "Un-settle",
+                    "Un-settle: back to To review",
+                )
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    cx.stop_propagation();
+                    this.settle(&id, false);
+                    this.sidebar.hover = None;
+                    cx.notify();
+                }))
+                .into_any_element(),
+            )
+        } else {
+            None
+        }
+    }
+
+    /// Keeps the hovered row for [`Shell::row_hover_controls`].
+    pub(super) fn row_hover(
+        &self,
+        id: &str,
+        cx: &mut Context<Self>,
+    ) -> impl Fn(&bool, &mut Window, &mut gpui::App) + 'static {
+        self.hover_listener(id, cx)
+    }
 }
 
 #[cfg(test)]
@@ -1416,11 +831,5 @@ mod tests {
         assert_eq!(pr_number("https://github.com/o/r/pull/148"), Some("148"));
         assert_eq!(pr_number("https://github.com/o/r/pull/7/"), Some("7"));
         assert_eq!(pr_number("https://github.com/o/r/pulls"), None);
-    }
-
-    #[test]
-    fn shelf_names_read_as_the_design_says() {
-        assert_eq!(shelf_name(Shelf::NeedsYou), "Needs you");
-        assert_eq!(shelf_name(Shelf::ToReview), "To review");
     }
 }

@@ -173,13 +173,6 @@ fn every_count_the_app_shows_is_its_shelf() {
     // The sidebar's shelves.
     assert_eq!(ids(s.rows(Shelf::NeedsYou)), ["ask", "limit"]);
     assert_eq!(ids(s.rows(Shelf::Working)), ["live", "quiet"]);
-    // The Headroom pane's per-account count adds up to the shelf.
-    assert_eq!(s.working_on("work"), t.working);
-    assert_eq!(s.working_on("other"), 0);
-    // Home's headline.
-    let (head, facts) = crate::ui::home_panes::hero_words(Some(t), 0);
-    assert_eq!(head, "2 agents need you");
-    assert_eq!(facts, "2 working · 2 to review · 1 snoozed");
     // Fleet's State groups.
     let groups = crate::ui::fleet::state_groups(&s);
     let n = |k: &str| groups.iter().find(|g| g.0 == k).map_or(0, |g| g.2.len());
@@ -193,12 +186,18 @@ fn every_count_the_app_shows_is_its_shelf() {
         groups.iter().map(|g| g.2.len()).sum::<usize>(),
         f.rows.len()
     );
-    // The menu-bar item.
+    // The menu-bar item counts the sessions working now, as Home and
+    // Pulse do: the quiet one is on the Working shelf but not working.
     let m = crate::reach::menu(Some(&f), &marks, 0, NOW);
     assert_eq!(m.badge, "2 need you");
     assert_eq!(m.needs_head, "Needs you · 2");
-    assert_eq!(m.live_head.as_deref(), Some("Working · 2"));
-    assert_eq!(m.live.len(), 2);
+    assert_eq!(m.live_head.as_deref(), Some("Working · 1"));
+    assert_eq!(m.live.len(), 1);
+    assert_eq!(
+        f.rows.iter().filter(|r| r.working()).count(),
+        1,
+        "working now"
+    );
 }
 
 #[test]
@@ -319,15 +318,6 @@ fn snooze_choices_are_t3_codes_soonest_first() {
 }
 
 #[test]
-fn wake_labels_round_up() {
-    assert_eq!(wake_label(100, 100), "now");
-    assert_eq!(wake_label(130, 100), "1m");
-    assert_eq!(wake_label(100 + 3600, 100), "1h");
-    assert_eq!(wake_label(100 + 3601, 100), "2h");
-    assert_eq!(wake_label(100 + 2 * 86_400, 100), "2d");
-}
-
-#[test]
 fn a_frozen_list_keeps_its_rows_in_place() {
     let now = vec![("working", vec!["b", "a"]), ("review", vec!["c", "new"])];
     let snap = vec![
@@ -373,5 +363,4 @@ fn a_delegated_session_sits_under_its_parent_and_counts_with_it() {
     assert_eq!(t.to_review, 3, "done2, the orphan and the unverified claim");
     assert!(nested_in(&f.rows[9], s.rows(Shelf::Working)));
     assert!(!nested_in(&f.rows[11], s.rows(Shelf::ToReview)));
-    assert_eq!(s.working_on("work"), 3);
 }

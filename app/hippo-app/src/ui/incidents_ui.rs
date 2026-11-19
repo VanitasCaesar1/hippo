@@ -112,25 +112,6 @@ impl Shell {
         self.incident_list().iter().find(|i| i.id == id).cloned()
     }
 
-    /// The sidebar's count: incidents newer than the page was last opened.
-    pub(crate) fn incidents_new(&self) -> usize {
-        inc::count_new(
-            self.incident_list(),
-            &self.incidents_ui.dismissed,
-            self.incidents_ui.seen_at,
-        )
-    }
-
-    /// Home's `n incidents today`.
-    pub(crate) fn incidents_today(&self) -> usize {
-        inc::count_today(
-            self.incident_list(),
-            &self.incidents_ui.dismissed,
-            OffsetDateTime::now_utc(),
-            super::status::local_offset(),
-        )
-    }
-
     /// Manage's row: `Incidents: 2 marked not an incident of 31 this week`.
     pub(crate) fn incidents_alarm_line(&self) -> Option<String> {
         let (n, m) = inc::false_alarms(self.incident_list(), &self.incidents_ui.dismissed);
@@ -212,11 +193,6 @@ impl Shell {
         self.state.tabs.open(Tab::Incident(id.to_owned()));
         window.focus(&self.focus, cx);
         self.after_state_change(window, cx);
-    }
-
-    /// Opens the list filtered to nothing (Home's link).
-    pub(crate) fn open_incidents(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.show_section(Section::Incidents, window, cx);
     }
 
     /// Shows a line at the bottom right for a few seconds.
@@ -491,17 +467,13 @@ impl Shell {
                     .gap(look.px(8.))
                     .h(look.px(28.))
                     .px(look.px(8.))
-                    .rounded(look.px(6.))
+                    .rounded(look.px(3.))
                     .cursor_pointer()
                     .hover(|h| h.bg(look.c.hover))
+                    .when(on, |d| d.bg(look.c.selected))
                     .text_size(look.text(12.5))
-                    .child(
-                        div()
-                            .w(look.px(14.))
-                            .flex_shrink_0()
-                            .children(on.then(|| kit::icon(look, "check", 13., look.c.text))),
-                    )
-                    .children(mark.map(|p| kit::mark(look, Some(&p), 16.)))
+                    .text_color(if on { look.c.text } else { look.c.text_muted })
+                    .children(mark.map(|p| kit::account_bar(look, Some(&p), 12.)))
                     .child(div().min_w_0().truncate().child(text))
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.apply_choice(choice.clone(), cx);
@@ -514,9 +486,7 @@ impl Shell {
                 .px(look.px(8.))
                 .pt(look.px(6.))
                 .pb(look.px(2.))
-                .text_size(look.text(11.5))
-                .text_color(look.c.faint)
-                .child(text.to_owned())
+                .child(kit::cap(look, text, look.c.faint))
                 .into_any_element()
         };
         if matches!(menu, Menu::Cause | Menu::All) {
@@ -628,7 +598,7 @@ impl Shell {
                             .max_h(look.px(360.))
                             .overflow_y_scroll()
                             .p(look.px(4.))
-                            .rounded(look.px(10.))
+                            .rounded(look.px(3.))
                             .bg(look.c.surface)
                             .border(look.fixed(1.))
                             .border_color(look.c.border)
@@ -663,17 +633,11 @@ impl Shell {
         let _ = open_id;
         Some(
             bar.child(
-                kit::button_icon(
-                    look,
-                    "inc-open-step",
-                    Some("text-search"),
-                    inc::open_label(&i),
-                    "",
-                    Kind::Plain,
-                )
-                .on_click(cx.listener(move |this, _, window, cx| {
-                    this.open_incident_step(&step, window, cx);
-                })),
+                kit::button(look, "inc-open-step", inc::open_label(&i), Kind::Plain).on_click(
+                    cx.listener(move |this, _, window, cx| {
+                        this.open_incident_step(&step, window, cx);
+                    }),
+                ),
             )
             .when(inc::offers_never_again(&i), |d| {
                 d.child(
@@ -742,10 +706,12 @@ impl Shell {
                     .px(look.px(10.))
                     .border_b(look.fixed(1.))
                     .border_color(look.c.border)
-                    .text_size(look.text(12.5))
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(look.c.text_muted)
-                    .child(inc::day_label(d.date, today))
+                    .child(kit::heading(
+                        look,
+                        &inc::day_label(d.date, today),
+                        d.rows.len(),
+                        look.c.text,
+                    ))
                     .into_any_element(),
             );
             for i in &d.rows {
@@ -766,11 +732,11 @@ impl Shell {
                         .h(look.px(34.))
                         .px(look.px(10.))
                         .border_b(look.fixed(1.))
-                        .border_color(look.c.border)
+                        .border_color(look.c.border.opacity(0.6))
                         .text_size(look.text(12.5))
                         .text_color(look.c.faint)
                         .cursor_pointer()
-                        .hover(|h| h.bg(look.c.hover))
+                        .hover(|h| h.bg(look.c.hover).text_color(look.c.text_muted))
                         .child(
                             div()
                                 .flex_1()
@@ -778,14 +744,9 @@ impl Shell {
                                 .truncate()
                                 .child(inc::quiet_label(&d.quiet)),
                         )
-                        .child(kit::icon(
+                        .child(kit::cap(
                             look,
-                            if open {
-                                "chevron-down"
-                            } else {
-                                "chevron-right"
-                            },
-                            14.,
+                            if open { "Hide" } else { "Show" },
                             look.c.faint,
                         ))
                         .on_click(cx.listener(move |this, _, _, cx| {
@@ -831,10 +792,12 @@ impl Shell {
                     .px(look.px(10.))
                     .border_b(look.fixed(1.))
                     .border_color(look.c.border)
-                    .text_size(look.text(12.5))
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(look.c.text_muted)
-                    .child(hippo_core::incidents::HINTS_HEADING)
+                    .child(kit::heading(
+                        look,
+                        hippo_core::incidents::HINTS_HEADING,
+                        hints.len(),
+                        look.c.text,
+                    ))
                     .into_any_element(),
             );
             for i in &hints {
@@ -889,56 +852,54 @@ impl Shell {
             .into_any_element()
     }
 
-    /// `THIS WEEK` and the counts per account and per model, wrapping.
+    /// `THIS WEEK` and the counts per account and per model as labels and
+    /// figures, wrapping.
     fn scoreboard(&self, score: &[inc::Score], look: &Look) -> gpui::AnyElement {
         let entries = score.iter().map(|s| {
-            let row = div().flex().items_center().gap(look.px(5.)).flex_shrink_0();
-            match &s.who {
-                inc::Who::Account(p) => row.child(kit::mark(look, Some(p), 16.)).child(
-                    div().text_color(look.c.text).child(match s.sessions {
-                        Some(n) => format!("{} in {n} sessions", s.count),
-                        None => s.count.to_string(),
-                    }),
+            let (label, value) = match &s.who {
+                inc::Who::Account(p) => (
+                    kit::profile_name(p),
+                    match s.sessions {
+                        Some(n) => format!("{} IN {n} SESSIONS", s.count),
+                        None => format!("{:02}", s.count),
+                    },
                 ),
-                inc::Who::Model(m) => row
-                    .child(
-                        div()
-                            .text_color(look.c.text_muted)
-                            .child(inc::model_name(m)),
-                    )
-                    .child(div().text_color(look.c.text).child(s.count.to_string())),
-            }
-            .into_any_element()
+                inc::Who::Model(m) => (inc::model_name(m), format!("{:02}", s.count)),
+            };
+            div()
+                .flex()
+                .items_center()
+                .gap(look.px(8.))
+                .flex_shrink_0()
+                .child(kit::cap(look, &label, look.c.faint))
+                .child(kit::figure(look, value, 13., look.c.text))
+                .into_any_element()
         });
-        let mut line = div()
+        div()
             .flex()
             .flex_wrap()
             .items_center()
-            .gap_x(look.px(18.))
-            .gap_y(look.px(4.))
-            .pb(look.px(10.))
-            .text_size(look.text(12.5))
-            .child(
-                div()
-                    .text_color(look.c.faint)
-                    .font_weight(FontWeight::MEDIUM)
-                    .child("Incidents this week, by account and model"),
-            );
-        // No separators: a wrapped line must not start with one.
-        for e in entries {
-            line = line.child(e);
-        }
-        line.into_any_element()
+            .gap_x(look.px(26.))
+            .gap_y(look.px(6.))
+            .py(look.px(10.))
+            .mb(look.px(12.))
+            .border_t(look.fixed(1.))
+            .border_b(look.fixed(1.))
+            .border_color(look.c.border)
+            .child(kit::cap(look, "This week", look.c.text))
+            .children(entries)
+            .into_any_element()
     }
 
-    /// A cause as a chip: amber when it is the person's to act on.
+    /// A cause as a label: amber when it is the person's to act on.
     fn cause_chip(&self, cause: Cause, quiet: bool, look: &Look) -> gpui::Div {
-        // A quiet incident's chip is never amber.
-        if cause.needs_person() && !quiet {
-            kit::pill(look, cause.label(), look.c.warn).h(look.px(20.))
+        // A quiet incident's cause is never amber.
+        let color = if cause.needs_person() && !quiet {
+            look.c.warn
         } else {
-            kit::kind_chip(look, cause.label())
-        }
+            look.c.faint
+        };
+        kit::cap(look, cause.label(), color)
     }
 
     fn incident_row(
@@ -974,20 +935,26 @@ impl Shell {
             .child(
                 div()
                     .flex_shrink_0()
-                    .w(look.px(64.))
-                    .text_right()
-                    .text_size(look.text(12.))
-                    .text_color(look.c.faint)
-                    .children(inc::cost_text(i)),
+                    .w(look.px(84.))
+                    .flex()
+                    .justify_end()
+                    .children(
+                        inc::cost_text(i)
+                            .map(|c| kit::figure(look, c.to_uppercase(), 11., look.c.faint)),
+                    ),
             )
             .child(
                 div()
                     .flex_shrink_0()
                     .w(look.px(34.))
-                    .text_right()
-                    .text_size(look.text(12.))
-                    .text_color(look.c.faint)
-                    .child(inc::age(now - i.at)),
+                    .flex()
+                    .justify_end()
+                    .child(kit::figure(
+                        look,
+                        inc::age(now - i.at).to_uppercase(),
+                        11.,
+                        look.c.faint,
+                    )),
             );
         let line2 = div()
             .flex()
@@ -995,7 +962,6 @@ impl Shell {
             .gap(look.px(8.))
             .text_size(look.text(12.5))
             .text_color(look.c.text_muted)
-            .child(kit::mark(look, chain.profile.as_deref(), 16.))
             .child(div().min_w_0().truncate().child(who))
             .children(chain.sub.as_ref().map(|s| {
                 div()
@@ -1033,32 +999,57 @@ impl Shell {
                     } => row
                         .child(div().flex_shrink_0().child(words))
                         .child(dot())
-                        .children(profile.map(|p| kit::mark(look, Some(&p), 14.)))
+                        .children(
+                            profile.map(|p| kit::cap(look, &kit::profile_name(&p), look.c.faint)),
+                        )
                         .child(div().min_w_0().truncate().child(kit::title(&title))),
                 }
             }))
             .child(div().flex_1())
-            .child(
-                div()
-                    .flex_shrink_0()
-                    .text_color(look.c.faint)
-                    .child(inc::kind_word(i.kind)),
-            );
+            .child(kit::cap(look, inc::kind_word(i.kind), look.c.faint));
         let row = div()
             .id(("incident-row", k))
             .role(Role::Row)
             .aria_label(inc::evidence(i))
             .aria_selected(on)
+            .relative()
             .flex()
-            .flex_col()
-            .gap(look.px(4.))
+            .items_start()
+            .gap(look.px(12.))
             .px(look.px(10.))
             .py(look.px(10.))
             .border_b(look.fixed(1.))
-            .border_color(look.c.border)
+            .border_color(look.c.border.opacity(0.6))
             .cursor_pointer()
-            .child(line1)
-            .child(line2)
+            // The account it ran on: a 2-point bar in its colour.
+            .child(
+                div()
+                    .absolute()
+                    .left_0()
+                    .top(look.px(10.))
+                    .bottom(look.px(10.))
+                    .w(look.fixed(2.))
+                    .bg(chain
+                        .profile
+                        .as_deref()
+                        .map_or(look.c.border_strong, kit::profile_hue)),
+            )
+            .child(
+                div()
+                    .flex_shrink_0()
+                    .pt(look.px(6.))
+                    .child(kit::square(look, incident_mark(i))),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(look.px(4.))
+                    .flex_1()
+                    .min_w_0()
+                    .child(line1)
+                    .child(line2),
+            )
             .on_click(cx.listener(move |this, e: &gpui::ClickEvent, window, cx| {
                 // A click selects; a second click, a double-click or ↩
                 // opens the page (Fleet's rule).
@@ -1098,8 +1089,8 @@ impl Shell {
                 .flex()
                 .flex_col()
                 .gap(look.px(6.))
-                .px(look.px(14.))
-                .pb(look.px(14.))
+                .pt(look.px(10.))
+                .pb(look.px(16.))
         };
         let faint = |look: &Look, t: String| {
             div()
@@ -1137,7 +1128,7 @@ impl Shell {
                     )
                     .child(words(look, r.text.clone()));
             }
-            kit::pane_card(look, "What it was told", None).child(card)
+            section(look, "What it was told", None).child(card)
         });
 
         // A step's text: the kit's tool line for `Tool: …` or `Tool {…}`,
@@ -1220,7 +1211,11 @@ impl Shell {
                                 .child(format!("\u{201c}{words_typed}\u{201d}")),
                         )
                         .child(div().flex_shrink_0().text_color(look.c.faint).child("·"))
-                        .child(kit::mark(look, c.profile.as_deref(), 16.))
+                        .children(
+                            c.profile
+                                .as_deref()
+                                .map(|p| kit::cap(look, &kit::profile_name(p), look.c.faint)),
+                        )
                         .child(
                             div()
                                 .min_w_0()
@@ -1269,7 +1264,7 @@ impl Shell {
                             ),
                     );
                 }
-                kit::pane_card(look, "What it is about", None).child(card)
+                section(look, "What it is about", None).child(card)
             }
             Some(inc::SubjectKind::Said) => {
                 let said = about.as_ref().and_then(|s| s.said.clone());
@@ -1279,11 +1274,14 @@ impl Shell {
                 let text = said
                     .map(|s| kit::plain(&inc::said_text(&s.text)))
                     .unwrap_or_default();
-                kit::pane_card(look, "What it said", at).child(
+                section(look, "What it said", at).child(
                     body(look).child(
                         div()
                             .id("inc-said")
                             .cursor_pointer()
+                            .border_l(look.fixed(2.))
+                            .border_color(look.c.border_strong)
+                            .pl(look.px(10.))
                             .text_color(look.c.text)
                             .when(!open, |d| d.line_clamp(4).text_ellipsis())
                             .child(text)
@@ -1296,10 +1294,11 @@ impl Shell {
                     ),
                 )
             }
-            _ if no_step => kit::pane_card(look, "What it is about", None).child(body(look).child(
-                faint(look, "What it is about is not established.".to_owned()),
-            )),
-            _ => kit::pane_card(look, "What it did", Some(inc::clock(b.did.at, offset)))
+            _ if no_step => section(look, "What it is about", None).child(body(look).child(faint(
+                look,
+                "What it is about is not established.".to_owned(),
+            ))),
+            _ => section(look, "What it did", Some(inc::clock(b.did.at, offset)))
                 .child(step_lines(look, &b.did.text, b.did.at, body(look))),
         };
 
@@ -1309,7 +1308,7 @@ impl Shell {
             if i.kind == IncidentKind::Blocked {
                 card = card.child(faint(look, "Prevented: the call did not run.".to_owned()));
             }
-            kit::pane_card(
+            section(
                 look,
                 "What showed it was wrong",
                 Some(inc::clock(b.showed.at, offset)),
@@ -1318,27 +1317,18 @@ impl Shell {
         };
 
         // 4. What fixed it, only when present.
-        let fixed =
-            b.fixed.as_ref().map(|f| {
-                kit::pane_card(look, "What fixed it", Some(inc::clock(f.at, offset)))
-                    .child(step_lines(look, &f.text, f.at, body(look)))
-            });
+        let fixed = b.fixed.as_ref().map(|f| {
+            section(look, "What fixed it", Some(inc::clock(f.at, offset))).child(step_lines(
+                look,
+                &f.text,
+                f.at,
+                body(look),
+            ))
+        });
 
-        // The chain.
+        // The chain: a spec table.
         let fact = |look: &Look, label: &str, value: gpui::AnyElement| {
-            div()
-                .flex()
-                .items_start()
-                .gap(look.px(12.))
-                .child(
-                    div()
-                        .flex_shrink_0()
-                        .w(look.px(88.))
-                        .text_size(look.text(12.))
-                        .text_color(look.c.faint)
-                        .child(label.to_owned()),
-                )
-                .child(div().flex_1().min_w_0().child(value))
+            kit::spec_row(look, label, value, None)
         };
         let lane = |c: &hippo_core::incidents::Chain| {
             let root = c
@@ -1352,7 +1342,7 @@ impl Shell {
             }
         };
         let chain = &b.chain;
-        let mut facts = body(look);
+        let mut facts = div().flex().flex_col().pb(look.px(16.));
         facts = facts.child(fact(
             look,
             "Session",
@@ -1365,8 +1355,8 @@ impl Shell {
                 div()
                     .flex()
                     .items_center()
-                    .gap(look.px(6.))
-                    .child(kit::mark(look, Some(p), 16.))
+                    .gap(look.px(8.))
+                    .child(kit::account_bar(look, Some(p), 12.))
                     .child(kit::profile_name(p))
                     .into_any_element(),
             ));
@@ -1420,12 +1410,12 @@ impl Shell {
                 words(look, lane(o)).into_any_element(),
             ));
         }
-        let chain_card = kit::pane_card(look, "The chain", None).child(facts);
+        let chain_card = section(look, "The chain", None).child(facts);
 
         // The cost: only the known parts.
         let parts = inc::cost_parts(&i);
         let cost_card = (!parts.is_empty()).then(|| {
-            kit::pane_card(look, "The cost", None).child(
+            section(look, "The cost", None).child(
                 parts
                     .into_iter()
                     .fold(body(look), |d, p| d.child(words(look, p))),
@@ -1448,7 +1438,7 @@ impl Shell {
                         })),
                 );
             }
-            kit::pane_card(look, "What it had read", None).child(d)
+            section(look, "What it had read", None).child(d)
         });
 
         let head = div()
@@ -1456,28 +1446,35 @@ impl Shell {
             .flex_wrap()
             .items_center()
             .gap(look.px(10.))
+            .gap_x(look.px(14.))
             .child(
                 div()
-                    .text_size(look.text(15.))
+                    .pt(look.px(1.))
+                    .child(kit::square(look, incident_mark(&i))),
+            )
+            .child(
+                div()
+                    .text_size(look.text(22.))
+                    .line_height(look.text(29.))
                     .font_weight(FontWeight::SEMIBOLD)
                     .child(sentence(b_kind_label(i.kind))),
             )
             .child(self.cause_chip(i.cause, i.quiet, look))
-            .child(
-                div()
-                    .text_size(look.text(12.))
-                    .text_color(look.c.faint)
-                    .child(format!(
-                        "{} · {}",
-                        super::status::format_when(i.at, OffsetDateTime::now_utc(), offset),
-                        inc::age(OffsetDateTime::now_utc() - i.at)
-                    )),
-            );
+            .child(div().flex_1())
+            .child(kit::cap(
+                look,
+                &format!(
+                    "{} · {}",
+                    super::status::format_when(i.at, OffsetDateTime::now_utc(), offset),
+                    inc::age(OffsetDateTime::now_utc() - i.at)
+                ),
+                look.c.faint,
+            ));
         let running = self.manage_ui.running.as_deref() == Some(DRAFT_TITLE);
         let column = div()
             .flex()
             .flex_col()
-            .gap(look.px(12.))
+            .gap(look.px(4.))
             .w_full()
             .max_w(look.px(760.))
             .child(head)
@@ -1509,7 +1506,7 @@ impl Shell {
                             .flex()
                             .justify_center()
                             .px(look.px(20.))
-                            .pt(look.px(8.))
+                            .pt(look.px(24.))
                             .pb(look.px(24.))
                             .text_size(look.text(13.))
                             .child(column),
@@ -1737,40 +1734,32 @@ impl Shell {
                 .into_any_element(),
         )
     }
+}
 
-    /// Home's `n incidents today` link, when n > 0.
-    pub(super) fn incidents_home_link(
-        &self,
-        look: &Look,
-        cx: &mut Context<Self>,
-    ) -> Option<gpui::AnyElement> {
-        let n = self.incidents_today();
-        (n > 0).then(|| {
-            div()
-                .flex()
-                .flex_shrink_0()
-                .items_baseline()
-                .gap(look.px(6.))
-                .text_size(look.text(13.))
-                .child(div().text_color(look.c.faint).child("·"))
-                .child(
-                    div()
-                        .id("hero-incidents")
-                        .role(Role::Link)
-                        .flex_shrink_0()
-                        .text_color(look.c.accent_text)
-                        .cursor_pointer()
-                        .hover(|h| h.underline())
-                        .child(format!(
-                            "{n} incident{} today",
-                            if n == 1 { "" } else { "s" }
-                        ))
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.open_incidents(window, cx);
-                        })),
-                )
-                .into_any_element()
-        })
+/// A block of an incident's page: its name as a label over a hairline,
+/// one fact at the right; the caller adds the body.
+fn section(look: &Look, title: &str, fact: Option<String>) -> gpui::Div {
+    div().flex().flex_col().pt(look.px(16.)).child(
+        div()
+            .flex()
+            .items_center()
+            .gap(look.px(12.))
+            .pb(look.px(6.))
+            .border_b(look.fixed(1.))
+            .border_color(look.c.border)
+            .child(kit::cap(look, title, look.c.faint))
+            .child(div().flex_1())
+            .children(fact.map(|f| kit::cap(look, &f, look.c.faint))),
+    )
+}
+
+/// An incident's mark: harm for a counted incident, a note for a quiet
+/// one or a hint to check.
+pub fn incident_mark(i: &Incident) -> kit::Mark {
+    if i.quiet || i.kind.is_hint() {
+        kit::Mark::Note
+    } else {
+        kit::Mark::Harm
     }
 }
 

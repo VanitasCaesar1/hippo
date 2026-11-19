@@ -200,7 +200,7 @@ impl Shell {
             (None, false) => "Resume".to_owned(),
         };
         let tip = match (&other, t3) {
-            (_, true) => "Opens this thread in T3 Code, where you pick the account to go on with.".to_owned(),
+            (_, true) => "Opens this session in T3 Code, where you pick the account to go on with.".to_owned(),
             (Some(p), false) => format!(
                 "Shows the command first: it copies the transcript into {}'s folder (cp -n: the original stays, nothing is overwritten), then resumes there in Terminal. ⌘C copies it instead.",
                 kit::profile_name(p)
@@ -264,6 +264,22 @@ impl Shell {
                 .child(lanes)
                 .into_any_element();
         }
+        // Pulse, the default.
+        if self.pulse.on {
+            let pulse = self.render_pulse(&fleet, look, window, cx);
+            return div()
+                .id("fleet-keys")
+                .key_context("Fleet")
+                .track_focus(&self.fleet_focus)
+                .on_key_down(cx.listener(|this, e: &gpui::KeyDownEvent, window, cx| {
+                    if this.pulse_key(&e.keystroke, window, cx) {
+                        cx.stop_propagation();
+                    }
+                }))
+                .size_full()
+                .child(pulse)
+                .into_any_element();
+        }
         let width = f32::from(window.viewport_size().width);
         // Below 900 points the accounts are one menu button and the filter
         // field shows only after `/`.
@@ -275,6 +291,7 @@ impl Shell {
 
         let toolbar = self.fleet_toolbar(&fleet, narrow, project_col, look, cx);
         let col = |w: f32| div().flex_shrink_0().w(look.px(w)).min_w_0();
+        let head = |t: &str| kit::cap(look, t, look.c.faint);
         let header = div()
             .flex()
             .items_center()
@@ -283,25 +300,23 @@ impl Shell {
             .px(look.px(10.))
             .border_b(look.fixed(1.))
             .border_color(look.c.border)
-            .text_size(look.text(12.))
-            .text_color(look.c.faint)
-            .child(div().w(look.px(24.)).flex_shrink_0())
-            .child(div().flex_1().min_w_0().child("Session"))
-            .when(project_col, |d| d.child(col(PROJECT_W).child("Project")))
+            .child(div().w(look.px(8.)).flex_shrink_0())
+            .child(div().flex_1().min_w_0().child(head("Session")))
+            .when(project_col, |d| d.child(col(PROJECT_W).child(head("Project"))))
             .when(counts, |d| {
                 d.child(
                     col(CLAIMS_W).child(
                         div()
                             .id("fleet-claims-head")
-                            .child("Claims")
+                            .child(head("Claims"))
                             .tooltip(super::tooltip::Tooltip::text(
-                                "What it said it did, checked against the transcript: ✓ shown by a command or edit, ⚠ not",
+                                "What it said it did, checked against the transcript: checked when a command or edit shows it, unverified when none does",
                             )),
                     ),
                 )
-                    .child(col(PRS_W).child("Pull requests"))
+                .child(col(PRS_W).child(head("Pull requests")))
             })
-            .child(col(STATE_W).flex().justify_end().child("State"));
+            .child(col(STATE_W).flex().justify_end().child(head("State")));
 
         let groups = self.fleet_groups(&fleet);
         let mut body: Vec<gpui::AnyElement> = Vec::new();
@@ -475,15 +490,19 @@ impl Shell {
             (Group::Project, "Project"),
             (Group::Account, "Account"),
         ];
-        let group_seg = groups.iter().fold(kit::segmented(look), |d, (g, name)| {
+        let group_switch = groups.iter().fold(kit::switches(look), |d, (g, name)| {
             let g = *g;
             d.child(
-                kit::segment(look, *name, None, *name, ui.group == g).on_click(cx.listener(
-                    move |this, _, _, cx| {
-                        this.fleet_ui.group = g;
-                        cx.notify();
-                    },
-                )),
+                kit::switch(
+                    look,
+                    gpui::SharedString::from(format!("group-{name}")),
+                    name,
+                    ui.group == g,
+                )
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.fleet_ui.group = g;
+                    cx.notify();
+                })),
             )
         });
         let mut profiles: Vec<String> = fleet
@@ -511,13 +530,15 @@ impl Shell {
                         .gap(look.px(8.))
                         .h(look.px(28.))
                         .px(look.px(8.))
-                        .rounded(look.px(6.))
+                        .rounded(look.px(3.))
                         .cursor_pointer()
                         .hover(|h| h.bg(look.c.hover))
-                        .children(p.map(|p| kit::mark(look, Some(p), 16.)))
-                        .child(
-                            p.map_or_else(|| "All accounts".to_owned(), |p| kit::profile_name(p)),
-                        )
+                        .children(p.map(|p| kit::account_bar(look, Some(p), 12.)))
+                        .child(kit::cap(
+                            look,
+                            &p.map_or_else(|| "All accounts".to_owned(), |p| kit::profile_name(p)),
+                            look.c.text,
+                        ))
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.fleet_ui.profile = p2.clone();
                             this.fleet_profiles_open = false;
@@ -528,14 +549,14 @@ impl Shell {
                 .collect();
             div()
                 .relative()
-                .child(kit::segmented(look).child(
-                    kit::segment(look, "account-menu", None, format!("{label} ▾"), false).on_click(
+                .child(
+                    kit::switch(look, "account-menu", &format!("{label} ▾"), open).on_click(
                         cx.listener(|this, _, _, cx| {
                             this.fleet_profiles_open = !this.fleet_profiles_open;
                             cx.notify();
                         }),
                     ),
-                ))
+                )
                 .when(open, |d| {
                     d.child(gpui::deferred(
                         gpui::anchored().child(
@@ -544,7 +565,7 @@ impl Shell {
                                 .mt(look.px(32.))
                                 .min_w(look.px(180.))
                                 .p(look.px(4.))
-                                .rounded(look.px(10.))
+                                .rounded(look.px(3.))
                                 .bg(look.c.surface)
                                 .border(look.fixed(1.))
                                 .border_color(look.c.border)
@@ -561,28 +582,21 @@ impl Shell {
                 })
                 .into_any_element()
         } else {
-            let all = kit::segment(
-                look,
-                "account-all",
-                None,
-                "All accounts",
-                ui.profile.is_none(),
-            )
-            .on_click(cx.listener(|this, _, _, cx| {
-                this.fleet_ui.profile = None;
-                cx.notify();
-            }));
+            let all = kit::switch(look, "account-all", "All accounts", ui.profile.is_none())
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.fleet_ui.profile = None;
+                    cx.notify();
+                }));
             profiles
                 .iter()
-                .fold(kit::segmented(look).child(all), |d, p| {
+                .fold(kit::switches(look).child(all), |d, p| {
                     let on = ui.profile.as_deref() == Some(p.as_str());
                     let p2 = p.clone();
                     d.child(
-                        kit::segment_lead(
+                        kit::switch(
                             look,
                             gpui::SharedString::from(format!("account-{p}")),
-                            kit::mark(look, Some(p), 16.),
-                            kit::profile_name(p),
+                            &kit::profile_name(p),
                             on,
                         )
                         .on_click(cx.listener(move |this, _, _, cx| {
@@ -611,17 +625,11 @@ impl Shell {
             .flex()
             .flex_wrap()
             .items_center()
-            .gap(look.px(10.))
+            .gap_x(look.px(28.))
+            .gap_y(look.px(6.))
             .pb(look.px(12.))
-            .child(self.replay_switch(look, cx))
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(look.px(8.))
-                    .child(kit::icon(look, "layers", 16., look.c.faint))
-                    .child(group_seg),
-            )
+            .child(self.fleet_view_switch(look, cx))
+            .child(group_switch)
             .child(accounts)
             .child(div().flex_1())
             .when(!narrow || self.fleet_filter_shown, |d| d.child(filter_box))
@@ -638,40 +646,25 @@ impl Shell {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let k = key.to_owned();
-        let warn = key == "needs";
+        let warn = key == "needs" && n > 0;
         div()
             .id(gpui::SharedString::from(format!("fleet-group-{key}")))
             .role(Role::Button)
             .aria_label(format!("{label} {n}"))
+            .aria_expanded(!folded)
             .flex()
             .items_center()
-            .gap(look.px(6.))
             .h(look.px(34.))
             .px(look.px(10.))
             .border_b(look.fixed(1.))
             .border_color(look.c.border)
-            .text_size(look.text(12.5))
-            .font_weight(FontWeight::MEDIUM)
-            .text_color(look.c.text_muted)
             .cursor_pointer()
-            .child(label.to_owned())
-            .child(if warn {
-                kit::count_badge(look, n, true).into_any_element()
-            } else {
-                div()
-                    .text_color(look.c.faint)
-                    .child(n.to_string())
-                    .into_any_element()
-            })
-            .child(kit::icon(
+            .hover(|h| h.bg(look.c.hover))
+            .child(kit::heading(
                 look,
-                if folded {
-                    "chevron-right"
-                } else {
-                    "chevron-down"
-                },
-                14.,
-                look.c.faint,
+                label,
+                n,
+                if warn { look.c.warn } else { look.c.text },
             ))
             .on_click(cx.listener(move |this, _, _, cx| {
                 let ui = &mut this.fleet_ui;
@@ -735,7 +728,7 @@ impl Shell {
                     _ => (call.clone(), 1),
                 };
                 let age = call_age(&shown, now);
-                kit::tool_line(look, &shown, n, Some(age), false).into_any_element()
+                call_line(look, &shown, n, Some(age)).into_any_element()
             }
             _ => div()
                 .truncate()
@@ -749,18 +742,17 @@ impl Shell {
                 .into_any_element(),
         };
         let trail = open.then(|| self.fleet_trail(r, now, !project_col, look));
-        let (status, detail) = row_state(r, now);
+        let (state, tone) = state_words(r, now);
         let state_cell = div()
             .flex()
             .flex_col()
             .items_end()
             .gap(look.px(8.))
-            .child(kit::status(look, status, detail))
+            .child(kit::cap(look, &state, tone_color(look, tone)).pt(look.px(2.)))
             .when(r.state.is_waiting(), |d| {
                 let row = r.clone();
                 d.child(
                     kit::button(look, ("fleet-open-thread", i), "Open thread", Kind::Primary)
-                        .child(kit::icon(look, "arrow-up-right", 13., look.c.primary_text))
                         .on_click(cx.listener(move |this, _, window, cx| {
                             cx.stop_propagation();
                             this.open_session(row.clone(), window, cx);
@@ -770,24 +762,10 @@ impl Shell {
             .when(r.state.needs_resume(), |d| {
                 d.child(self.resume_button(r, fleet, 500 + i, look, cx))
             });
-        let claims_cell = if r.claims.unverified > 0 {
-            div()
-                .flex()
-                .items_center()
-                .gap(look.px(4.))
-                .text_color(look.c.warn)
-                .child(kit::icon(look, "triangle-alert", 13., look.c.warn))
-                .child(r.claims.unverified.to_string())
-        } else if r.claims.verified > 0 {
-            div()
-                .flex()
-                .items_center()
-                .gap(look.px(4.))
-                .text_color(look.c.ok)
-                .child(kit::icon(look, "check", 13., look.c.ok))
-                .child(r.claims.verified.to_string())
-        } else {
-            div().text_color(look.c.faint).child("—")
+        let claims_cell = match claim_words(r) {
+            Some((w, true)) => kit::cap(look, &w, look.c.warn),
+            Some((w, false)) => kit::cap(look, &w, look.c.ok),
+            None => kit::cap(look, "—", look.c.faint),
         };
         // The cell says what it counts on hover.
         let claims_tip = match (r.claims.unverified, r.claims.verified) {
@@ -807,35 +785,14 @@ impl Shell {
             .when_some(claims_tip, |d, t| {
                 d.tooltip(super::tooltip::Tooltip::text(t))
             });
-        let (opened, merged) = pr_counts(r);
-        let prs_cell = match (opened, merged) {
-            (0, 0) => div().text_color(look.c.faint).child("—"),
-            (o, m) => div()
-                .flex()
-                .items_center()
-                .gap(look.px(5.))
-                .text_color(look.c.text_muted)
-                .child(kit::icon(
-                    look,
-                    if o > 0 {
-                        "git-pull-request"
-                    } else {
-                        "git-merge"
-                    },
-                    13.,
-                    look.c.text_muted,
-                ))
-                .when(o > 0, |d| {
-                    d.child(div().text_color(look.c.text).child(format!("{o} open")))
-                })
-                .when(o > 0 && m > 0, |d| {
-                    d.child(div().text_color(look.c.faint).child("·"))
-                })
-                .when(m > 0, |d| d.child(format!("{m} merged"))),
+        let prs_cell = match pr_words(r) {
+            Some(w) => kit::cap(look, &w, look.c.text_muted),
+            None => kit::cap(look, "—", look.c.faint),
         };
         let project = div()
             .flex()
             .flex_col()
+            .gap(look.px(2.))
             .text_size(look.text(12.5))
             .child(
                 div()
@@ -846,22 +803,26 @@ impl Shell {
             .children(r.branch.as_ref().map(|b| {
                 // The branch under the project, cut in the middle so its
                 // distinctive end shows; nothing where none was named.
-                // The client is in the row's tooltip.
                 div()
-                    .flex()
-                    .items_center()
-                    .gap(look.px(4.))
                     .min_w_0()
+                    .truncate()
+                    .font_family(kit::MONO)
+                    .text_size(look.text(11.))
                     .text_color(look.c.faint)
-                    .child(kit::icon(look, "git-branch", 12., look.c.faint))
-                    .child(div().min_w_0().truncate().child(kit::middle(b, 18)))
+                    .child(kit::middle(b, 20))
             }));
         let id = r.id.clone();
         let main = div()
             .flex()
             .items_start()
             .gap(look.px(14.))
-            .child(kit::mark(look, r.profile.as_deref(), 24.).mt(look.px(1.)))
+            .child(
+                div()
+                    .flex_shrink_0()
+                    .w(look.px(8.))
+                    .pt(look.px(6.))
+                    .children(row_mark(r).map(|m| kit::square(look, m))),
+            )
             .child(
                 div()
                     .flex()
@@ -886,27 +847,45 @@ impl Shell {
             )
             .when(project_col, |d| d.child(col(PROJECT_W).child(project)))
             .when(counts, |d| {
-                d.child(col(CLAIMS_W).pt(look.px(1.)).child(claims_cell))
-                    .child(col(PRS_W).pt(look.px(1.)).child(prs_cell))
+                d.child(col(CLAIMS_W).pt(look.px(3.)).child(claims_cell))
+                    .child(col(PRS_W).pt(look.px(3.)).child(prs_cell))
             })
-            .child(col(STATE_W).flex().justify_end().child(state_cell));
+            .child(col(STATE_W).flex().justify_end().child(
+                match self.row_hover_controls(look, r, cx) {
+                    Some(c) => c,
+                    None => state_cell.into_any_element(),
+                },
+            ));
         let row = div()
             .id(("fleet-row", i))
             .role(Role::Row)
             .aria_label(r.title.clone())
             .aria_selected(selected)
+            .relative()
             .flex()
             .flex_col()
             .px(look.px(10.))
             .py(look.px(10.))
             .border_b(look.fixed(1.))
-            .border_color(look.c.border)
+            .border_color(look.c.border.opacity(0.6))
             .cursor_pointer()
-            .when(open, |d| {
-                d.rounded(look.px(10.)).border_1().bg(look.c.raised)
-            })
+            .when(open, |d| d.bg(look.c.raised))
+            // The account it ran on: a 2-point bar in its colour.
+            .child(
+                div()
+                    .absolute()
+                    .left_0()
+                    .top(look.px(10.))
+                    .bottom(look.px(10.))
+                    .w(look.fixed(2.))
+                    .bg(r
+                        .profile
+                        .as_deref()
+                        .map_or(look.c.border_strong, kit::profile_hue)),
+            )
             .child(main)
             .children(trail)
+            .on_hover(self.row_hover(&r.id, cx))
             .on_click(cx.listener(move |this, e: &gpui::ClickEvent, window, cx| {
                 // A click selects (a live row opens its trail); a second
                 // click, a double-click or ↩ opens the x-ray.
@@ -953,22 +932,21 @@ impl Shell {
                     div()
                         .flex_1()
                         .min_w_0()
-                        .child(kit::tool_line(look, c, run.n, None, false)),
+                        .child(call_line(look, c, run.n, None)),
                 )
-                .child(
-                    div()
-                        .flex_shrink_0()
-                        .text_size(look.text(12.))
-                        .text_color(look.c.faint)
-                        .child(short_age(now - c.at)),
-                )
+                .child(kit::figure(
+                    look,
+                    short_age(now - c.at).to_uppercase(),
+                    11.,
+                    look.c.faint,
+                ))
         });
         // Each sub-agent writing now, under its own calls.
-        let subs = live_subs(look, &r.live_subs, now).map(|d| d.mt(look.px(6.)));
+        let subs = live_subs(look, &r.live_subs, now, false).map(|d| d.mt(look.px(6.)));
         div()
             .flex()
             .flex_col()
-            .pl(look.px(38.))
+            .pl(look.px(22.))
             .pt(look.px(6.))
             .children(lines)
             .children(subs)
@@ -977,7 +955,7 @@ impl Shell {
                     .mt(look.px(8.))
                     .pt(look.px(10.))
                     .border_t(look.fixed(1.))
-                    .border_color(look.c.border)
+                    .border_color(look.c.border.opacity(0.6))
                     .child(branch_foot(r, now, narrow, look)),
             )
             .into_any_element()
@@ -1041,11 +1019,13 @@ pub const LIVE_SUBS: usize = 3;
 
 /// Each sub-agent writing now with its current step: `◌ Crop
 /// covers to square · editing crop.rs   12s`, at most [`LIVE_SUBS`], then
-/// `+n more`. `None` when none is writing.
+/// `+n more`; Rows leaves out the glyph (`glyph`). `None` when none is
+/// writing.
 pub fn live_subs(
     look: &Look,
     subs: &[hippo_view::fleet::LiveSub],
     now: time::OffsetDateTime,
+    glyph: bool,
 ) -> Option<gpui::Div> {
     if subs.is_empty() {
         return None;
@@ -1057,7 +1037,9 @@ pub fn live_subs(
             .gap(look.px(8.))
             .h(look.px(24.))
             .text_size(look.text(12.5))
-            .child(kit::icon(look, "circle-dashed", 13., look.c.info))
+            .when(glyph, |d| {
+                d.child(kit::icon(look, "circle-dashed", 13., look.c.info))
+            })
             .child(
                 div()
                     .flex()
@@ -1092,7 +1074,7 @@ pub fn live_subs(
     Some(div().flex().flex_col().children(lines).when(more > 0, |d| {
         d.child(
             div()
-                .pl(look.px(21.))
+                .when(glyph, |d| d.pl(look.px(21.)))
                 .text_size(look.text(12.))
                 .text_color(look.c.faint)
                 .child(format!("+{more} more")),
@@ -1102,8 +1084,8 @@ pub fn live_subs(
 
 /// Column widths.
 const PROJECT_W: f32 = 150.;
-const CLAIMS_W: f32 = 52.;
-const PRS_W: f32 = 132.;
+const CLAIMS_W: f32 = 92.;
+const PRS_W: f32 = 112.;
 const STATE_W: f32 = 140.;
 
 /// A row's pull requests as `(open, merged)`: one it opened that another
@@ -1199,18 +1181,16 @@ pub fn branch_foot(r: &Row, now: time::OffsetDateTime, narrow: bool, look: &Look
         .text_size(look.text(12.))
         .text_color(look.c.text_muted);
     left = match &r.branch {
-        Some(b) => left
-            .child(kit::icon(look, "git-branch", 14., look.c.faint))
-            .child(
-                div()
-                    .min_w_0()
-                    .truncate()
-                    .font_family(kit::MONO)
-                    .text_size(look.text(11.5))
-                    .text_color(look.c.text)
-                    .font_weight(FontWeight::MEDIUM)
-                    .child(b.clone()),
-            ),
+        Some(b) => left.child(
+            div()
+                .min_w_0()
+                .truncate()
+                .font_family(kit::MONO)
+                .text_size(look.text(11.5))
+                .text_color(look.c.text)
+                .font_weight(FontWeight::MEDIUM)
+                .child(b.clone()),
+        ),
         None => left,
     };
     // The facts after the branch are one line that ends in an
@@ -1257,17 +1237,10 @@ pub fn branch_foot(r: &Row, now: time::OffsetDateTime, narrow: bool, look: &Look
         .text_size(look.text(12.))
         .text_color(look.c.text_muted)
         .when(running > 0, |d| {
-            d.child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(look.px(5.))
-                    .child(kit::icon(look, "circle-dot-dashed", 13., look.c.text_muted))
-                    .child(format!(
-                        "{running} sub-task{} running",
-                        if running == 1 { "" } else { "s" }
-                    )),
-            )
+            d.child(div().child(format!(
+                "{running} sub-task{} running",
+                if running == 1 { "" } else { "s" }
+            )))
         })
         .children(
             r.turn
@@ -1286,6 +1259,180 @@ pub fn branch_foot(r: &Row, now: time::OffsetDateTime, narrow: bool, look: &Look
         .gap(look.px(12.))
         .child(left)
         .child(right)
+}
+
+/// How a state reads in the State column: its colour.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Tone {
+    /// Waiting on the person: amber.
+    Wait,
+    /// Working now: the text colour.
+    Work,
+    /// Stopped at a usage limit: red.
+    Dry,
+    /// Anything settled: muted.
+    Rest,
+}
+
+fn tone_color(look: &Look, t: Tone) -> gpui::Hsla {
+    match t {
+        Tone::Wait => look.c.warn,
+        Tone::Work => look.c.text,
+        Tone::Dry => look.c.err,
+        Tone::Rest => look.c.text_muted,
+    }
+}
+
+/// A row's state as the State column says it, in capitals with its time:
+/// `WAITING 13M`, `WORKING 2H 32M`, `QUIET 13:42`, `DONE 13:42`.
+pub fn state_words(r: &Row, now: time::OffsetDateTime) -> (String, Tone) {
+    let since = |t: time::OffsetDateTime| kit::span(now - t).to_uppercase();
+    let with = |word: &str, detail: Option<String>| match detail {
+        Some(d) => format!("{word} {d}"),
+        None => word.to_owned(),
+    };
+    match &r.state {
+        State::Waiting { at, .. } => (with("WAITING", Some(since(*at))), Tone::Wait),
+        State::Live => (with("WORKING", r.started.map(since)), Tone::Work),
+        State::Quiet { .. } if r.call.is_some() => {
+            (with("WORKING", r.started.map(since)), Tone::Work)
+        }
+        State::Quiet { since: t } => (with("QUIET", t.map(kit::hm)), Tone::Rest),
+        State::Finished { at } => (with("DONE", Some(kit::hm(*at))), Tone::Rest),
+        State::Stopped {
+            at,
+            carried_on: true,
+            ..
+        } => (with("CARRIED ON", Some(kit::hm(*at))), Tone::Rest),
+        State::Stopped { at, .. } => (with("LIMIT", Some(kit::hm(*at))), Tone::Dry),
+        State::Interrupted { at, .. } => (with("INTERRUPTED", Some(kit::hm(*at))), Tone::Rest),
+    }
+}
+
+/// A row's mark: waiting on the person, stopped at a limit, or (once it
+/// stopped working) a claim nothing it ran shows; none otherwise.
+pub fn row_mark(r: &Row) -> Option<kit::Mark> {
+    match &r.state {
+        State::Waiting { .. } => Some(kit::Mark::Wait),
+        State::Stopped {
+            carried_on: false, ..
+        } => Some(kit::Mark::Dry),
+        _ if r.claims.unverified > 0 && !r.state.is_live() && r.call.is_none() => {
+            Some(kit::Mark::Note)
+        }
+        _ => None,
+    }
+}
+
+/// A row's claims as the Claims column says them: `1 UNVERIFIED` (true:
+/// the warning colour) before `2 CHECKED`; none when it made none.
+pub fn claim_words(r: &Row) -> Option<(String, bool)> {
+    match (r.claims.unverified, r.claims.verified) {
+        (0, 0) => None,
+        (0, v) => Some((format!("{v} CHECKED"), false)),
+        (u, _) => Some((format!("{u} UNVERIFIED"), true)),
+    }
+}
+
+/// A row's pull requests as the column says them: `#57 OPEN` for one,
+/// else the counts, `2 OPEN 1 MERGED`; none when it has none.
+pub fn pr_words(r: &Row) -> Option<String> {
+    let (open, merged) = pr_counts(r);
+    match (open, merged) {
+        (0, 0) => None,
+        (1, 0) => {
+            let url = r
+                .pulls
+                .iter()
+                .find(|(_, d)| *d == "opened")
+                .map(|(u, _)| u.as_str());
+            Some(match url.and_then(super::sidebar::pr_number) {
+                Some(n) => format!("#{n} OPEN"),
+                None => "1 OPEN".to_owned(),
+            })
+        }
+        (0, 1) => {
+            let url = r
+                .pulls
+                .iter()
+                .find(|(_, d)| *d == "merged")
+                .map(|(u, _)| u.as_str())
+                .or_else(|| r.merged_elsewhere.first().map(String::as_str));
+            Some(match url.and_then(super::sidebar::pr_number) {
+                Some(n) => format!("#{n} MERGED"),
+                None => "1 MERGED".to_owned(),
+            })
+        }
+        (o, m) => Some(
+            [(o, "OPEN"), (m, "MERGED")]
+                .iter()
+                .filter(|(n, _)| *n > 0)
+                .map(|(n, w)| format!("{n} {w}"))
+                .collect::<Vec<_>>()
+                .join(" "),
+        ),
+    }
+}
+
+/// A call as a Rows line: its description, or its verb and target in SF
+/// Mono; the lines it changed, `×n` for a repeated step, and its age.
+fn call_line(
+    look: &Look,
+    call: &hippo_view::fleet::tail::Activity,
+    n: usize,
+    age: Option<String>,
+) -> gpui::Div {
+    let (lead, target) = match &call.step {
+        Some(step) if matches!(call.verb.as_str(), "Bash" | "Agent" | "Asked") => (
+            if call.verb == "Asked" {
+                format!("Asked {step}")
+            } else {
+                step.clone()
+            },
+            None,
+        ),
+        _ => (
+            call.verb.clone(),
+            call.target.as_deref().map(|t| {
+                if call.verb == "Bash" {
+                    kit::command_words(t)
+                } else {
+                    kit::middle(&kit::short_path(t), 34)
+                }
+            }),
+        ),
+    };
+    div()
+        .flex()
+        .items_center()
+        .gap(look.px(8.))
+        .min_w_0()
+        .overflow_hidden()
+        .text_size(look.text(12.5))
+        .child(
+            div()
+                .min_w_0()
+                .flex_shrink(1.)
+                .truncate()
+                .text_color(look.c.text_muted)
+                .child(lead),
+        )
+        .children(target.map(|t| {
+            div()
+                .min_w_0()
+                .flex_shrink(1.)
+                .truncate()
+                .font_family(kit::MONO)
+                .text_size(look.text(11.5))
+                .text_color(look.c.text_muted)
+                .child(t)
+        }))
+        .children(
+            call.lines
+                .and_then(|l| kit::diff_counts(look, l.added, l.removed)),
+        )
+        .children(kit::times(look, call.at, n))
+        .children(age.map(|a| kit::figure(look, a.to_uppercase(), 11., look.c.faint)))
 }
 
 /// A row's second line (one pattern, never the account, which
@@ -1351,4 +1498,121 @@ fn sub_line(r: &Row) -> String {
         ));
     }
     f.join(" · ")
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use hippo_view::fleet::Claims;
+    use time::macros::datetime;
+    use time::{Duration, OffsetDateTime};
+
+    use super::*;
+
+    const NOW: OffsetDateTime = datetime!(2026-11-18 14:00 UTC);
+
+    fn row(state: State) -> Row {
+        Row {
+            id: "s1".into(),
+            title: "Get the release branch ready to merge".into(),
+            tool: "claude-code".into(),
+            profile: Some("work".into()),
+            project: Some("tern-web".into()),
+            client: Some("terminal"),
+            cwd: Some(PathBuf::from("/work/tern")),
+            transcript: PathBuf::from("/home/.claude/projects/-work-tern/s1.jsonl"),
+            started: Some(NOW - Duration::minutes(152)),
+            last: Some(NOW - Duration::minutes(1)),
+            turns: Some(10),
+            agents: Some(0),
+            edits: 0,
+            state,
+            pulls: Vec::new(),
+            claims: Claims::default(),
+            activity: None,
+            activity_last: false,
+            call: None,
+            turn: None,
+            changed: Vec::new(),
+            branch: None,
+            lines: None,
+            tasks: Vec::new(),
+            merged_elsewhere: Vec::new(),
+            sub: Default::default(),
+            live_subs: Vec::new(),
+            delegated_by: None,
+            asked: None,
+            outcome: None,
+            rules: Vec::new(),
+            plan: None,
+        }
+    }
+
+    #[test]
+    fn the_state_column_reads_as_an_instrument() {
+        let waiting = row(State::Waiting {
+            at: NOW - Duration::minutes(13),
+            asked: Some("Merge now?".into()),
+            plan: false,
+        });
+        assert_eq!(
+            state_words(&waiting, NOW),
+            ("WAITING 13M".into(), Tone::Wait)
+        );
+        assert_eq!(
+            state_words(&row(State::Live), NOW),
+            ("WORKING 2H 32M".into(), Tone::Work)
+        );
+        let quiet_at = NOW - Duration::minutes(18);
+        assert_eq!(
+            state_words(
+                &row(State::Quiet {
+                    since: Some(quiet_at)
+                }),
+                NOW
+            ),
+            (format!("QUIET {}", kit::hm(quiet_at)), Tone::Rest)
+        );
+        assert_eq!(
+            state_words(&row(State::Quiet { since: None }), NOW),
+            ("QUIET".into(), Tone::Rest)
+        );
+        let stopped = row(State::Stopped {
+            at: quiet_at,
+            reset: None,
+            carried_on: false,
+        });
+        assert_eq!(
+            state_words(&stopped, NOW),
+            (format!("LIMIT {}", kit::hm(quiet_at)), Tone::Dry)
+        );
+        assert_eq!(row_mark(&stopped), Some(kit::Mark::Dry));
+        assert_eq!(row_mark(&waiting), Some(kit::Mark::Wait));
+        assert_eq!(row_mark(&row(State::Live)), None);
+    }
+
+    #[test]
+    fn claims_and_pull_requests_read_as_labels() {
+        let mut r = row(State::Live);
+        assert_eq!(claim_words(&r), None);
+        assert_eq!(pr_words(&r), None);
+        r.claims.verified = 1;
+        assert_eq!(claim_words(&r), Some(("1 CHECKED".into(), false)));
+        r.claims.unverified = 2;
+        assert_eq!(claim_words(&r), Some(("2 UNVERIFIED".into(), true)));
+        assert_eq!(row_mark(&r), None, "a working row has no note mark");
+        r.state = State::Finished { at: NOW };
+        assert_eq!(row_mark(&r), Some(kit::Mark::Note));
+        r.pulls = vec![("https://github.com/o/r/pull/57".into(), "opened")];
+        assert_eq!(pr_words(&r).as_deref(), Some("#57 OPEN"));
+        r.pulls
+            .push(("https://github.com/o/r/pull/57".into(), "merged"));
+        assert_eq!(pr_words(&r).as_deref(), Some("#57 MERGED"));
+        r.pulls
+            .push(("https://github.com/o/r/pull/60".into(), "opened"));
+        r.pulls
+            .push(("https://github.com/o/r/pull/61".into(), "opened"));
+        assert_eq!(pr_words(&r).as_deref(), Some("2 OPEN 1 MERGED"));
+    }
 }
