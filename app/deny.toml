@@ -38,6 +38,9 @@ ignore = [
   { id = "RUSTSEC-2026-0206", reason = "rustybuzz is unmaintained; pulled in by GPUI's text stack" },
   # ttf-parser is unmaintained; GPUI's text stack pulls it in.
   { id = "RUSTSEC-2026-0192", reason = "ttf-parser is unmaintained; pulled in by GPUI's text stack" },
+  # chrono is unmaintained and has no maintained release; GPUI and its
+  # scheduler depend on it at the pinned Zed commit. The app itself uses time.
+  { id = "RUSTSEC-2026-0543", reason = "chrono is unmaintained; pulled in by GPUI and its scheduler" },
 ]
 
 [bans]
