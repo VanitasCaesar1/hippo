@@ -4,6 +4,7 @@
 
 - [Install](install.md)
 - [Quick start](quick-start.md)
+- [Any MCP client](mcp.md)
 - [Concepts](concepts.md)
 - [Architecture](architecture.md)
 - [Packs](packs.md)

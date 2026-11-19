@@ -2,9 +2,11 @@
 //! last days, which agent did it, at which step, and why when a rule says
 //! so.
 
+use std::io::Write;
 use std::process::ExitCode;
 
 use anyhow::{anyhow, Result};
+use hippo_core::config::Config;
 use hippo_core::incidents::subject::{Subject, SubjectKind};
 use hippo_core::incidents::{Incident, HINTS_HEADING};
 use hippo_core::rollup::Rollup;
@@ -32,16 +34,28 @@ pub struct Args {
 
 pub fn run(args: Args) -> Result<ExitCode> {
     let (config, _) = load_history()?;
+    if args.json {
+        let (list, _) = incidents(&config, args.days, args.all)?;
+        println!("{}", serde_json::to_string_pretty(&list)?);
+        return Ok(ExitCode::SUCCESS);
+    }
+    write_text(&config, args.days, args.all, &mut std::io::stdout().lock())?;
+    Ok(ExitCode::SUCCESS)
+}
+
+/// The last `days` days' incidents, quiet ones only with `all`: newest day
+/// first, costliest first within a day, with the local offset the days
+/// are cut at.
+fn incidents(config: &Config, days: u32, all: bool) -> Result<(Vec<Incident>, time::UtcOffset)> {
     let rollup =
         Rollup::open(&config.home)?.ok_or_else(|| anyhow!("no rollup yet; run hippo ingest"))?;
     let now = OffsetDateTime::now_utc();
     let mut list: Vec<Incident> = rollup
-        .incidents(now - Duration::days(i64::from(args.days)))?
+        .incidents(now - Duration::days(i64::from(days)))?
         .into_iter()
-        .filter(|i| args.all || !i.quiet)
+        .filter(|i| all || !i.quiet)
         .collect();
     let offset = hippo_core::usage::local_offset_at(now);
-    // Newest day first; costliest first within a day.
     list.sort_by(|a, b| {
         let day = |i: &Incident| i.at.to_offset(offset).date();
         day(b)
@@ -49,32 +63,39 @@ pub fn run(args: Args) -> Result<ExitCode> {
             .then(b.cost_key().cmp(&a.cost_key()))
             .then(b.at.cmp(&a.at))
     });
-    if args.json {
-        println!("{}", serde_json::to_string_pretty(&list)?);
-        return Ok(ExitCode::SUCCESS);
-    }
+    Ok((list, offset))
+}
+
+/// The text `hippo incidents` prints, to `out`. `hippo mcp`'s
+/// `hippo_incidents` returns it too.
+pub fn write_text(config: &Config, days: u32, all: bool, out: &mut dyn Write) -> Result<()> {
+    let (list, offset) = incidents(config, days.clamp(1, 14), all)?;
     // Hints to check are listed apart, after the incidents.
     let (hints, list): (Vec<Incident>, Vec<Incident>) =
         list.into_iter().partition(|i| i.kind.is_hint());
     if list.is_empty() {
-        println!("No incidents in the last {} days.", args.days);
+        writeln!(out, "No incidents in the last {} days.", days.clamp(1, 14))?;
     } else {
-        print_days(&list, offset);
+        print_days(&list, offset, out)?;
     }
     if !hints.is_empty() {
-        println!("\n{HINTS_HEADING}");
-        print_days(&hints, offset);
+        writeln!(out, "\n{HINTS_HEADING}")?;
+        print_days(&hints, offset, out)?;
     }
-    Ok(ExitCode::SUCCESS)
+    Ok(())
 }
 
 /// Rows under a heading per local day.
-fn print_days(list: &[Incident], offset: time::UtcOffset) {
+fn print_days(list: &[Incident], offset: time::UtcOffset, out: &mut dyn Write) -> Result<()> {
     let mut day = None;
     for i in list {
         let d = i.at.to_offset(offset).date();
         if day != Some(d) {
-            println!("\n{}", d.format(&DAY).unwrap_or_else(|_| d.to_string()));
+            writeln!(
+                out,
+                "\n{}",
+                d.format(&DAY).unwrap_or_else(|_| d.to_string())
+            )?;
             day = Some(d);
         }
         let mut cost = Vec::new();
@@ -88,11 +109,12 @@ fn print_days(list: &[Incident], offset: time::UtcOffset) {
             cost.push(format!("{}k tokens", t / 1000));
         }
         let quiet = if i.quiet { " (quiet)" } else { "" };
-        println!(
+        writeln!(
+            out,
             "  {}{quiet} · {}",
             head(i.kind.label(), i.cause.label()),
             i.body.showed.text
-        );
+        )?;
         let c = &i.body.chain;
         let who = match &c.sub {
             Some(sub) => format!(
@@ -112,14 +134,16 @@ fn print_days(list: &[Incident], offset: time::UtcOffset) {
             format!(" · {}", cost.join(", "))
         };
         match &i.body.subject {
-            Some(about) => print_subject(about, profile, &who, &hm, offset),
-            None => println!(
+            Some(about) => print_subject(about, profile, &who, &hm, offset, out)?,
+            None => writeln!(
+                out,
                 "    {profile} · {who} · step {} at {}{cost}",
                 i.body.did.ordinal,
                 hm(i.body.did.at)
-            ),
+            )?,
         }
     }
+    Ok(())
 }
 
 /// A correction's subject under its line: the step with
@@ -131,10 +155,13 @@ fn print_subject(
     who: &str,
     hm: &dyn Fn(OffsetDateTime) -> String,
     offset: time::UtcOffset,
-) {
+    out: &mut dyn Write,
+) -> Result<()> {
     match about.kind {
         SubjectKind::Step => {
-            let Some(step) = &about.step else { return };
+            let Some(step) = &about.step else {
+                return Ok(());
+            };
             let sub = about
                 .sub
                 .as_deref()
@@ -144,15 +171,16 @@ fn print_subject(
                 .minutes
                 .map(|m| format!(" · {m}m of work"))
                 .unwrap_or_default();
-            println!(
+            writeln!(
+                out,
                 "    {profile} · {who}{sub} · step {} at {}{work}",
                 step.ordinal,
                 hm(step.at)
-            );
-            println!("      what it did: {}", one_line(&step.text, 120));
+            )?;
+            writeln!(out, "      what it did: {}", one_line(&step.text, 120))?;
         }
         SubjectKind::Earlier => {
-            println!("    {profile} · {who} · may be about:");
+            writeln!(out, "    {profile} · {who} · may be about:")?;
             for c in &about.candidates {
                 let mut parts = vec![
                     c.words.join(", "),
@@ -182,21 +210,28 @@ fn print_subject(
                     d.format(&DAY).unwrap_or_else(|_| d.to_string()),
                     hm(c.at)
                 ));
-                println!("      {}", parts.join(" · "));
+                writeln!(out, "      {}", parts.join(" · "))?;
             }
         }
         SubjectKind::Said => {
-            let Some(said) = &about.said else { return };
-            println!(
+            let Some(said) = &about.said else {
+                return Ok(());
+            };
+            writeln!(
+                out,
                 "    {profile} · {who} · what it said at {}: \"{}\"",
                 hm(said.at),
                 one_line(&said_text(&said.text), 120)
-            );
+            )?;
         }
         SubjectKind::None => {
-            println!("    {profile} · {who} · what it is about is not established");
+            writeln!(
+                out,
+                "    {profile} · {who} · what it is about is not established"
+            )?;
         }
     }
+    Ok(())
 }
 
 /// `text` on one line, at most `max` characters.

@@ -37,9 +37,16 @@ pub fn run(args: Args) -> Result<ExitCode> {
         writeln!(out, "{}", serde_json::to_string(&asked)?)?;
         return Ok(ExitCode::SUCCESS);
     }
+    write_text(&asked, &mut out)?;
+    Ok(ExitCode::SUCCESS)
+}
+
+/// The text `hippo ask` prints for `asked`, to `out`. `hippo mcp`'s
+/// `hippo_ask` returns it too.
+pub fn write_text(asked: &ask::Asked, out: &mut dyn Write) -> Result<()> {
     if asked.terms.is_empty() {
         writeln!(out, "nothing to search for in that question")?;
-        return Ok(ExitCode::SUCCESS);
+        return Ok(());
     }
     if let Some(a) = &asked.answer {
         writeln!(out, "{}\n", a.text)?;
@@ -84,5 +91,5 @@ pub fn run(args: Args) -> Result<ExitCode> {
             writeln!(out, "    {}", p.display())?;
         }
     }
-    Ok(ExitCode::SUCCESS)
+    Ok(())
 }

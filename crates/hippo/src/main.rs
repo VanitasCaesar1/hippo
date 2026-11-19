@@ -46,7 +46,9 @@ const GROUPS: [(&str, &[&str]); 6] = [
     ("Packs", &["add", "packs"]),
     (
         "Setup and checks",
-        &["init", "ingest", "config", "doctor", "schedule", "hooks"],
+        &[
+            "init", "ingest", "config", "doctor", "schedule", "hooks", "mcp",
+        ],
     ),
     (
         "Run by hippo itself (hooks and jobs call these)",
@@ -152,6 +154,8 @@ enum Command {
     /// Schedule ingest and dreaming: launchd jobs on macOS, cron or systemd lines to copy elsewhere
     #[command(subcommand)]
     Schedule(cmd::schedule::Command),
+    /// Serve hippo's tools to any MCP client over stdio; `hippo mcp install` configures a client
+    Mcp(cmd::mcp::Args),
 }
 
 fn main() -> ExitCode {
@@ -199,6 +203,7 @@ fn main() -> ExitCode {
         Command::Eval(args) => cmd::eval::run(args),
         Command::Packs(command) => cmd::packs::run(command),
         Command::Schedule(command) => cmd::schedule::run(command),
+        Command::Mcp(args) => cmd::mcp::run(args),
     };
     finish(result)
 }

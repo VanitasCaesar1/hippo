@@ -58,6 +58,7 @@ Unless a command says otherwise, an error prints to stderr and the exit code is 
 | [`doctor`](#hippo-doctor) | Check the setup |
 | [`schedule`](#hippo-schedule) | Schedule ingest and dreaming |
 | [`hooks`](#hippo-hooks) | Install or check the three Claude Code hooks |
+| [`mcp`](#hippo-mcp) | Serve hippo's tools to any MCP client; configure a client |
 
 **Run by hippo itself.** Hooks and jobs call these. You rarely type them.
 
@@ -381,6 +382,15 @@ hippo hooks status [--agent <claude-code|codex>] [--workspace <dir>]
 Adds, removes or checks hippo's three hooks (`SessionStart`, `UserPromptSubmit`, `SessionEnd`). For Claude Code, the default, they go in the workspace's `.claude/settings.json` (`--workspace` names another workspace). With `--agent codex` they go in `$CODEX_HOME/hooks.json` (`~/.codex/hooks.json`), which Codex runs for every session; the hooks themselves act only for sessions in the workspace. `install` adds each once and keeps everything else in the file. `uninstall` removes only hippo's three. `status` says which of the three are there.
 
 Codex runs a new hook only after you trust it: it lists hippo's hooks for review the next time it starts, or use `/hooks`. hippo never writes that trust for you.
+
+## hippo mcp
+
+```text
+hippo mcp [--allow-write]
+hippo mcp install --client <cursor|claude-desktop|gemini|windsurf|zed|vscode|claude-code> [--write] [--allow-write]
+```
+
+`hippo mcp` is an MCP server over stdio, started by an MCP client such as Cursor, Gemini CLI or Zed. Its tools are `hippo_context`, `hippo_recall`, `hippo_ask`, `hippo_day` and `hippo_incidents`, each returning the text of the matching command, redacted; `--allow-write` adds `hippo_note_correction`, which queues a correction to the Inbox after a fresh-context review. `hippo mcp install` prints the client's configuration entry for hippo, and with `--write` merges it into the client's file after a backup. See [Any MCP client](mcp.md).
 
 ## hippo hook
 

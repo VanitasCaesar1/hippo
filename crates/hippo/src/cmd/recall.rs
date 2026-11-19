@@ -30,21 +30,10 @@ pub struct Args {
 
 pub fn run(args: Args) -> Result<ExitCode> {
     let config = Config::load()?;
-    let index = Index::open(&config.home, false)?;
-    let hits = index.recall(&args.query, args.limit.min(MAX_LIMIT), args.raw)?;
     let mut out = io::stdout().lock();
-    if hits.is_empty() && !args.json {
-        // An empty result names the next step.
-        writeln!(out, "no turn matches \"{}\"", one_line(&args.query))?;
-        writeln!(
-            out,
-            "try fewer or other words, or rank whole sessions:  hippo ask --sources-only \"<question>\""
-        )?;
-        return Ok(ExitCode::SUCCESS);
-    }
-    for hit in hits {
-        let snippet = one_line(&hit.snippet);
-        if args.json {
+    if args.json {
+        let index = Index::open(&config.home, false)?;
+        for hit in index.recall(&args.query, args.limit.min(MAX_LIMIT), args.raw)? {
             let line = json!({
                 "session": hit.session,
                 "tool": hit.tool,
@@ -52,21 +41,48 @@ pub fn run(args: Args) -> Result<ExitCode> {
                 "ts": hit.ts,
                 "role": hit.role,
                 "tool_name": hit.tool_name,
-                "snippet": snippet,
+                "snippet": one_line(&hit.snippet),
                 "score": hit.score,
             });
             writeln!(out, "{line}")?;
-        } else {
-            let tool_name = hit
-                .tool_name
-                .map(|name| format!(" {name}"))
-                .unwrap_or_default();
-            writeln!(
-                out,
-                "{} {} {} {}{tool_name} {snippet}",
-                hit.session, hit.tool, hit.ts, hit.role
-            )?;
         }
+        return Ok(ExitCode::SUCCESS);
     }
+    write_text(&config, &args.query, args.limit, args.raw, &mut out)?;
     Ok(ExitCode::SUCCESS)
+}
+
+/// The text `hippo recall` prints, to `out`: one line per turn, or what to
+/// try when nothing matches. `hippo mcp`'s `hippo_recall` returns it too.
+pub fn write_text(
+    config: &Config,
+    query: &str,
+    limit: usize,
+    raw: bool,
+    out: &mut dyn Write,
+) -> Result<()> {
+    let index = Index::open(&config.home, false)?;
+    let hits = index.recall(query, limit.min(MAX_LIMIT), raw)?;
+    if hits.is_empty() {
+        // An empty result names the next step.
+        writeln!(out, "no turn matches \"{}\"", one_line(query))?;
+        writeln!(
+            out,
+            "try fewer or other words, or rank whole sessions:  hippo ask --sources-only \"<question>\""
+        )?;
+        return Ok(());
+    }
+    for hit in hits {
+        let snippet = one_line(&hit.snippet);
+        let tool_name = hit
+            .tool_name
+            .map(|name| format!(" {name}"))
+            .unwrap_or_default();
+        writeln!(
+            out,
+            "{} {} {} {}{tool_name} {snippet}",
+            hit.session, hit.tool, hit.ts, hit.role
+        )?;
+    }
+    Ok(())
 }

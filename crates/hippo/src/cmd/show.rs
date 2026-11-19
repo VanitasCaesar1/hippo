@@ -71,7 +71,13 @@ pub fn run(command: Command) -> Result<ExitCode> {
         Command::Session { id, json } => session(&config, workspace.as_ref(), &id, json)?,
         Command::Proposal { id, json } => proposal(&config, needs()?, &id, json)?,
         Command::Note { path, json } => note(needs()?, &path, json)?,
-        Command::Day { date, offset, json } => day(&config, date.as_deref(), &offset, json)?,
+        Command::Day { date, offset, json } => day(
+            &config,
+            date.as_deref(),
+            &offset,
+            json,
+            &mut std::io::stdout().lock(),
+        )?,
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -337,8 +343,15 @@ fn note(ws: &Workspace, path: &Path, as_json: bool) -> Result<()> {
 }
 
 /// `hippo show day`: the day's totals, then one line per session with a
-/// turn that day, most turns first.
-fn day(config: &Config, date: Option<&str>, offset: &str, as_json: bool) -> Result<()> {
+/// turn that day, most turns first, to `out`. `hippo mcp`'s `hippo_day`
+/// returns the text.
+pub fn day(
+    config: &Config,
+    date: Option<&str>,
+    offset: &str,
+    as_json: bool,
+    out: &mut dyn std::io::Write,
+) -> Result<()> {
     use hippo_core::rollup::{self, Rollup};
     use time::{Date, OffsetDateTime, UtcOffset};
 
@@ -405,7 +418,8 @@ fn day(config: &Config, date: Option<&str>, offset: &str, as_json: bool) -> Resu
             .iter()
             .map(|e| json!({"session": e.session_id, "ts": e.ts, "kind": e.kind, "detail": e.detail}))
             .collect();
-        println!(
+        writeln!(
+            out,
             "{}",
             json!({
                 "date": date.to_string(),
@@ -417,15 +431,16 @@ fn day(config: &Config, date: Option<&str>, offset: &str, as_json: bool) -> Resu
                 "events": events,
                 "rows": rows,
             })
-        );
+        )?;
         return Ok(());
     }
-    println!(
+    writeln!(
+            out,
         "{date}: {} sessions, {agents} agents, {turns} turns, {edits} edits, {} pull requests opened, {} merged",
         top.len(),
         opened.len(),
         merged.len()
-    );
+    )?;
     for s in &top {
         let f = &s.facts;
         let title = f.title.as_deref().unwrap_or(&f.id);
@@ -434,7 +449,8 @@ fn day(config: &Config, date: Option<&str>, offset: &str, as_json: bool) -> Resu
             .as_deref()
             .map(|d| format!(" ({d})"))
             .unwrap_or_default();
-        println!(
+        writeln!(
+            out,
             "{} · {} · {} turns · {} edits · {}{detail} · {}",
             one_line(title),
             f.project.as_deref().unwrap_or("-"),
@@ -442,10 +458,10 @@ fn day(config: &Config, date: Option<&str>, offset: &str, as_json: bool) -> Resu
             s.edits,
             f.ending(now).label(),
             f.id
-        );
+        )?;
     }
     for e in &events {
-        println!("{} {}: {}", e.ts, e.kind, one_line(&e.detail));
+        writeln!(out, "{} {}: {}", e.ts, e.kind, one_line(&e.detail))?;
     }
     Ok(())
 }

@@ -17,6 +17,7 @@ pub mod ingest;
 pub mod init;
 pub mod lessons;
 pub mod log;
+pub mod mcp;
 pub mod packs;
 pub mod recall;
 pub mod revert;

@@ -687,3 +687,93 @@ pub fn propose_miss(cfg: &Config, ws: &Workspace, session: &str, ordinal: u32) -
     lesson.save(&cfg.home)?;
     Ok(lesson)
 }
+
+// ---------------------------------------------------------------------------
+// From an agent, over MCP
+
+/// A correction an agent reports: what the person said, and the rule the
+/// agent drafts from it. Every field is redacted before it is used.
+#[derive(Debug, Clone, Default)]
+pub struct Reported<'a> {
+    /// The person's words, as they gave the correction.
+    pub said: &'a str,
+    /// The rule for future sessions, one or two sentences.
+    pub rule: &'a str,
+    /// A short title; the rule's start when `None`.
+    pub title: Option<&'a str>,
+    /// A note the rule belongs in, relative to the workspace.
+    pub note: Option<&'a str>,
+    /// A heading of that note.
+    pub section: Option<&'a str>,
+}
+
+/// `hippo mcp --allow-write`'s `hippo_note_correction`: a correction an
+/// agent was given, proposed as a lesson. The agent is the drafter; the
+/// `lesson-reviewer` checks the rule against the person's words in a fresh
+/// context, as for every other lesson. A confirmed rule waits in the Inbox
+/// (pending) and reaches a note only when the person keeps it; a rejected
+/// one is recorded as rejected. Nothing is written to a note here.
+pub fn propose_reported(cfg: &Config, ws: &Workspace, reported: &Reported) -> Result<Lesson> {
+    let said = crate::redact::redact(reported.said);
+    let rule = crate::redact::redact(reported.rule);
+    let said = one_line(said.as_str(), super::detect::QUOTE_CHARS);
+    let rule = one_line(rule.as_str(), RULE_CHARS);
+    if said.is_empty() || rule.is_empty() {
+        return Err(Error::InvalidProposal(
+            "a correction needs the person's words and a rule".to_owned(),
+        ));
+    }
+    let title = match reported.title.map(str::trim).filter(|t| !t.is_empty()) {
+        Some(t) => one_line(crate::redact::redact(t).as_str(), TITLE_CHARS),
+        None => one_line(&rule, TITLE_CHARS),
+    };
+    let terms = super::detect::key_terms(&format!("{said} {rule}"));
+    let notes = Notes::scan(&ws.notes_root())?;
+    let offered = candidate_notes(ws, &notes, &terms, CANDIDATES);
+    let target = target_for(
+        ws,
+        &offered,
+        &terms,
+        &title,
+        reported.note.map(str::trim).filter(|n| !n.is_empty()),
+        reported.section,
+    );
+    let evidence = [json!({
+        "kind": "correction",
+        "person_said": said,
+        "reported_by": "the agent the person corrected, through hippo's MCP server",
+    })];
+    let review = review(cfg, &review_prompt(&title, &rule, &target, &evidence))?;
+    let now = OffsetDateTime::now_utc();
+    let confirmed = review.verdict == Verdict::Confirm;
+    let lesson = Lesson {
+        id: Ulid::generate(),
+        kind: Kind::Correction,
+        key: format!("reported: {}", one_line(&said, 120)),
+        terms,
+        title,
+        rule,
+        target: Some(target),
+        evidence: Vec::new(),
+        seen: Seen {
+            sessions: 1,
+            profiles: Vec::new(),
+            first: now,
+            last: now,
+            most_in_a_day: 0,
+        },
+        status: if confirmed {
+            Status::Pending
+        } else {
+            Status::Rejected
+        },
+        review: Some(review),
+        created: now,
+        updated: now,
+        closed_sessions: None,
+        kept: None,
+        ask: None,
+    };
+    lesson.save(&cfg.home)?;
+    Ok(lesson)
+}
