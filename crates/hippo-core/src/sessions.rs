@@ -1334,6 +1334,7 @@ mod tests {
                 at: at("2026-11-08T03:31:04Z"),
                 applied: None,
                 snapshot: None,
+                runner: None,
             };
             let path = hippo.join("receipts").join(format!("{}.json", receipt.id));
             receipt.save(&path).unwrap();

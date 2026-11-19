@@ -101,7 +101,82 @@ pub struct Manage {
     pub jobs: [bool; 2],
     /// The packs the workspace has (`hippo packs list`, read in process).
     pub packs: Vec<hippo_core::packs::install::ListedPack>,
+    /// The runners hippo's own model calls use, read in process.
+    pub runners: Runners,
     pub error: Option<String>,
+}
+
+/// What Manage's Models card shows: each runner, which one the default
+/// role uses, and why the tables cannot be used, if they cannot.
+#[derive(Debug, Clone, Default)]
+pub struct Runners {
+    /// Each runner: name, a one-line description.
+    pub list: Vec<(String, String)>,
+    /// The runner of the `default` role.
+    pub default: String,
+    /// Each other role that uses another runner: role, runner.
+    pub roles: Vec<(String, String)>,
+    /// Whether the runners come from `[runners]` (or from the older keys
+    /// and the default).
+    pub configured: bool,
+    /// Why the tables cannot be used.
+    pub error: Option<String>,
+}
+
+/// [`Runners`] for a configuration.
+pub fn runners(cfg: &Config) -> Runners {
+    use hippo_core::runners::{self, Preset, Role};
+    let plan = match runners::plan(cfg) {
+        Ok(p) => p,
+        Err(e) => {
+            return Runners {
+                error: Some(e.to_string()),
+                ..Runners::default()
+            }
+        }
+    };
+    let list = plan
+        .runners
+        .values()
+        .map(|r| {
+            let what = match r.preset {
+                Preset::Claude => format!(
+                    "claude · {}{} · {}",
+                    r.model.as_deref().unwrap_or("CLI default"),
+                    r.effort
+                        .as_deref()
+                        .map(|e| format!(" · {e}"))
+                        .unwrap_or_default(),
+                    r.data_domain
+                ),
+                Preset::Command => format!(
+                    "{} · {}",
+                    r.argv.first().map(String::as_str).unwrap_or("command"),
+                    r.data_domain
+                ),
+            };
+            let what = if r.legacy {
+                format!("{what} · older key, no sandbox")
+            } else {
+                what
+            };
+            (r.name.clone(), what)
+        })
+        .collect();
+    let default = plan.runner_name(Role::Propose).to_owned();
+    let default = plan.roles.get("default").cloned().unwrap_or(default);
+    let roles = Role::ALL
+        .iter()
+        .filter(|r| plan.runner_name(**r) != default)
+        .map(|r| (r.key().to_owned(), plan.runner_name(*r).to_owned()))
+        .collect();
+    Runners {
+        list,
+        default,
+        roles,
+        configured: plan.configured,
+        error: None,
+    }
 }
 
 /// What keeps hippo from working, in the states Manage's cards show:
@@ -149,6 +224,7 @@ pub fn load(inp: &Inputs<'_>) -> Manage {
         }
     };
     m.shown = settings::show(inp.home).ok();
+    m.runners = runners(&cfg);
     let mut found = detect::detect(&cfg.transcript_roots, inp.home, inp.user_home);
     found.mark_excluded(&cfg.exclude_roots);
     // Profiles the patterns do not match yet: `~/.claude-*` folders.

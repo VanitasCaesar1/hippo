@@ -45,11 +45,91 @@ This runs Claude Code in print mode with no tools, no settings files, no MCP ser
 - print one JSON object whose `result` field is the model's reply, as `claude -p --output-format json` does;
 - finish within 600 seconds. After that hippo stops it and counts a model error.
 
-hippo runs the command in `$HIPPO_HOME/model-runs/`, which it empties before every run.
+hippo runs each call in its own new folder, `$HIPPO_HOME/model-runs/<ulid>/`, and removes it afterwards.
+
+`model_command` and `reviewer_command_override` still work as before: the command inherits hippo's whole environment and runs without the sandbox. [Runners](#runners-which-cli-model-and-account-hippos-own-calls-use) replace them; `hippo runners migrate` moves them.
 
 Set it with `hippo config set model_command '<JSON array>' --yes`, for example `'["my-model","--json"]'`, or with words separated by spaces. hippo writes the key as a one-line array and replaces a multi-line array whole. `hippo config unset model_command --yes` restores the default.
 
 When the command exits non-zero, hippo shows its reason: the `result` of the JSON it printed (such as `Not logged in · Please run /login`), else the first non-empty line of stderr, else of stdout. When the program is not on `PATH`, the error says so.
+
+### Runners: which CLI, model and account hippo's own calls use
+
+hippo calls a model when it dreams, drafts and reviews lessons, answers `hippo ask`, and reviews a pack in `hippo add`. A **runner** names a CLI, a model, an effort and an account once; **roles** say which runner each kind of call uses. They live in `config.toml`, never in the shared `hippo.toml`. With none set, the default is the `claude` preset with the default command above, argument for argument. The design is [runners.md](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/runners.md).
+
+```toml
+[runners.claude]
+preset = "claude"
+
+[runners.work]
+preset = "claude"
+account = "~/.claude-work"       # passed as CLAUDE_CONFIG_DIR
+model = "claude-opus-5-5"        # passed as --model
+effort = "high"                  # passed as --effort
+data_domain = "acme"
+
+[roles]
+default = "work"
+ask = "claude"
+
+[fallback]
+default = ["claude"]
+```
+
+| Key | Meaning |
+|---|---|
+| `preset` | `claude` or `command`. Required. |
+| `model`, `effort`, `account` | `claude` only. `effort` is `low`, `medium`, `high`, `xhigh` or `max`. Without `model` the CLI's default applies. |
+| `data_domain` | A label for where this runner's prompts may go. Default `anthropic` for `claude`; required for `command`. |
+| `timeout_secs` | Default 600, at most 1800. |
+| `argv` | `command` only. Placeholders: `{system_prompt}`, `{system_prompt_file}`, `{reply_file}`, `{run_dir}`. |
+| `reply` | `command` only: `json-result` (one JSON object with a string `result`; the default), `stdout` (the whole stdout, trimmed) or `file` (the file at `{reply_file}`). |
+| `env_pass` | Extra environment variable names to pass on. |
+| `limit_exit_codes` | `command` only: exit codes that mean the account is at its limit, so the call may fall back. |
+| `allow_tools` | `command` only: let a runner that may have tools serve `propose`, `review` and `lessons`. Default `false`. |
+| `allow_unsandboxed` | Let a `command` runner serve those roles where this machine has no sandbox. Default `false`. |
+
+**Roles.** `default` (required once there is more than one runner), and `propose` (each dreaming pass), `review` (the dreaming reviewer, the lessons reviewer, the pack review), `lessons` (the lessons drafter) and `ask`, which fall back to `default`.
+
+**Fallback.** A role's runner is skipped, before the call, when its account's meter (as Fleet reads it) shows a 5-hour or 7-day window at 95% or more and not yet reset, and the call moves on when the CLI answers with its usage-limit message (or, for a `command` runner, one of its `limit_exit_codes`). Any other failure stops the call. A fallback runner must have the same `data_domain` as the role's runner, so a work account never falls back to a personal one; a role named in `[fallback] cross_domain = ["ask"]` may cross. The receipt records which runner answered and what it fell back from (`runner.fallback_from`), and `hippo runners` shows each role's fallbacks and those refused.
+
+**What every runner gets.** Each call runs in its own run folder, inside an OS sandbox where this machine has one (`sandbox-exec` on macOS, `bwrap` on Linux): it can read the run folder, its own install and its account folder (for Claude Code also `~/.claude.json` and, on macOS, the login keychain it signs in with), and everything outside your home folder, `$HIPPO_HOME` and the workspace; it can write only the run folder, the account folder and the system's temporary folders. Network is allowed. Its environment is a base list (`PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`, `LANG`, `LC_*`, `TERM`, `TZ`, `XDG_*`, the proxy and certificate variables), `TMPDIR` set to the run folder, the preset's sign-in variables (for `claude`: `CLAUDE_CONFIG_DIR`, `ANTHROPIC_*` keys and URL, Bedrock and Vertex variables, `AWS_*`) and the runner's `env_pass`. Nothing else in the shell that started hippo reaches it.
+
+**The `command` contract.** The user prompt is on standard input, never in an argument. The system prompt goes as an argument (`{system_prompt}`), in a file (`{system_prompt_file}`), or, with neither, at the top of standard input between `<<<SYSTEM>>>` and `<<<END SYSTEM>>>` lines, with those markers in the user text broken (`<<\<SYSTEM>>>`) so a transcript cannot close the system part early. A runner with an inline system prompt cannot be the `review` role. A reply hippo cannot read is a model error naming the runner. A `command` runner is assumed to give the model tools until `hippo doctor --model --canary --runner <name>` shows it cannot read either of two planted files; until then it cannot serve `propose`, `review` or `lessons` unless it sets `allow_tools = true`.
+
+**Changing them.** `hippo runners add`, `hippo runners remove`, `hippo config set role.<role> <runner>`, `hippo config set fallback.<role> 'a,b'` and their `unset` print the change and write it with `--yes` ([commands](commands.md#hippo-runners)). A mistake in these tables does not stop `config.toml` from loading: hooks and `context` keep working, and only the commands that call a model fail, naming it. Both the older keys and `[runners]` at once is such a mistake; `hippo runners migrate` fixes it, and `hippo runners add` migrates first.
+
+#### Other CLIs: candidate recipes, not yet checked
+
+These `command` runners were written from each CLI's `--help` on 20 November 2026. None has been run against a model by hippo's maintainers; run `hippo doctor --model --canary --runner <name>` with a throwaway account before you rely on one.
+
+```toml
+# Codex 0.170: the reply is the last message, in a file. It has no real
+# system prompt flag here, so it cannot be the reviewer.
+[runners.codex]
+preset = "command"
+argv = ["codex", "exec", "-", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", "--ignore-user-config", "--ignore-rules", "-C", "{run_dir}", "-o", "{reply_file}"]
+reply = "file"
+data_domain = "openai"
+env_pass = ["CODEX_HOME", "OPENAI_API_KEY"]
+
+# Muse Code 1.4: prompt from a file in the run folder is not possible
+# (hippo writes only the system prompt there), so the prompt stays on stdin.
+[runners.muse]
+preset = "command"
+argv = ["muse", "exec", "--disable-shell", "--disable-write", "--disable-web-tools", "--approval-mode", "never", "--no-session-log"]
+reply = "stdout"
+data_domain = "muse"
+
+# OpenCode 2.3: a private server, plain output.
+[runners.opencode]
+preset = "command"
+argv = ["opencode", "run", "--standalone"]
+reply = "stdout"
+data_domain = "opencode"
+```
+
+DeepSeek Harness (`dsh --profile headless`) and Command Code (`cmd -p`) have no recipe yet: whether they read the task from standard input is unchecked, and hippo never puts the prompt in an argument.
 
 ## `<workspace>/.hippo/hippo.toml`
 

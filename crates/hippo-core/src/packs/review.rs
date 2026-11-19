@@ -12,10 +12,12 @@ use ulid::Ulid;
 use super::escape;
 use super::files::{pack_hash, PackFiles};
 use super::validate::{pass_line, theme_lines, Validation};
+use crate::config::Config;
 use crate::dream::reviewer::{parse_reply, reply_object};
 use crate::error::{Error, Result};
 use crate::model;
 use crate::records::{decode, Verdict};
+use crate::runners::Role;
 use crate::util::{hex, sha256, write_new};
 
 /// The system prompt of every pack review: hippo's own, built in.
@@ -223,23 +225,15 @@ fn to_json<T: Serialize>(value: &T) -> String {
     serde_json::to_string(value).expect("a string-only struct serialises")
 }
 
-/// Runs the review. `command` is `cfg.reviewer_command_override` when set,
-/// else `cfg.model_command`. The model runs in a new
-/// `<hippo_home>/review-runs/<ulid>/`, removed afterwards, on error too.
-pub fn review(
-    hippo_home: &Path,
-    command: &[String],
-    request: &ReviewRequest,
-) -> Result<PackReview> {
+/// Runs the review on the runner of the `review` role
+/// (`docs/designs/runners.md`). The model runs in its own
+/// `<hippo_home>/model-runs/<ulid>/`, removed afterwards, on error too.
+pub fn review(cfg: &Config, request: &ReviewRequest) -> Result<PackReview> {
     let Some(manifest) = &request.validation.manifest else {
         return Err(Error::Pack("the pack has no valid pack.toml".to_owned()));
     };
     let id = Ulid::generate();
-    let dir = hippo_home.join("review-runs").join(id.to_string());
-    fs::create_dir_all(&dir).map_err(|e| Error::io_at(&dir, e))?;
-    let reply = model::run_argv(&dir, command, PACK_REVIEWER, &message(request));
-    let _ = fs::remove_dir_all(&dir);
-    let reply = reply?;
+    let reply = model::run_role(cfg, Role::Review, PACK_REVIEWER, &message(request))?;
 
     let (verdict, notes) = parse_reply(&reply.text);
     let findings = reply_object(&reply.text)
@@ -480,16 +474,23 @@ mod tests {
         let home = tempfile::tempdir().unwrap();
         let _serial = crate::util::serial();
         let result = review(
-            home.path(),
-            &stub(reply),
+            &stub_config(home.path(), &stub(reply)),
             &request(&files, &validation, None),
         );
         (home, result)
     }
 
+    /// A configuration in `home` whose reviewer is `command`.
+    fn stub_config(home: &Path, command: &[String]) -> Config {
+        let mut cfg: Config = toml::from_str("").unwrap();
+        cfg.home = home.to_path_buf();
+        cfg.reviewer_command_override = Some(command.to_vec());
+        cfg
+    }
+
     fn assert_clean(home: &Path) {
-        assert!(!home.join("model-runs").exists());
-        assert_eq!(fs::read_dir(home.join("review-runs")).unwrap().count(), 0);
+        assert_eq!(fs::read_dir(home.join("model-runs")).unwrap().count(), 0);
+        assert!(!home.join("review-runs").exists());
     }
 
     #[cfg(unix)]
@@ -564,7 +565,11 @@ mod tests {
         let command =
             ["/bin/sh", "-c", "cat >/dev/null; echo broken >&2; exit 2"].map(String::from);
         let _serial = crate::util::serial();
-        let err = review(home.path(), &command, &request(&files, &validation, None)).unwrap_err();
+        let err = review(
+            &stub_config(home.path(), &command),
+            &request(&files, &validation, None),
+        )
+        .unwrap_err();
         assert!(matches!(err, Error::Model(_)), "{err:?}");
         assert_clean(home.path());
     }

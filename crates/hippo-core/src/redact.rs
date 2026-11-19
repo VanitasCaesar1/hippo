@@ -81,6 +81,21 @@ static COMPILED: LazyLock<Vec<Pattern>> = LazyLock::new(|| {
         .collect()
 });
 
+/// The most characters a reviewer's notes or a proposal's reason keep.
+pub const NOTE_CAP: usize = 2000;
+
+/// `text` redacted, then cut to [`NOTE_CAP`] characters with `…`: what a
+/// model wrote that goes into a shared record (a reviewer's notes, a
+/// proposal's reason), so a model that read a secret cannot carry it, or
+/// a long text, into git (`docs/designs/runners.md`, Isolation).
+pub fn cap_note(text: &str) -> String {
+    let text = redact(text).as_str().to_owned();
+    match text.char_indices().nth(NOTE_CAP) {
+        Some((at, _)) => format!("{}…", &text[..at]),
+        None => text,
+    }
+}
+
 /// Redacts `raw`: every expression, in order, with `replace_all`.
 pub fn redact(raw: &str) -> Redacted {
     let mut text = raw.to_owned();

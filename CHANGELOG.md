@@ -4,12 +4,22 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Added
+
+- **Runners: which CLI, model, effort and account hippo's own calls use.** `[runners.<name>]` in `config.toml` names a `claude` account (as `CLAUDE_CONFIG_DIR`), model and effort, or any CLI by its argv through the `command` contract (prompt on stdin; the system prompt as an argument, a file or inline; the reply as JSON, stdout or a file). `[roles]` picks a runner for `propose`, `review`, `lessons` and `ask`; `[fallback]` moves a role to another runner in the same data domain when its account is at 95% of a window or answers with its usage-limit message, so the nightly dream no longer fails when one account is out. Every runner runs in an OS sandbox (`sandbox-exec` on macOS, `bwrap` on Linux) with a limited environment. `hippo runners` lists them; `hippo runners add|remove|migrate` and `hippo config set role.<role>|fallback.<role>` change them; `hippo doctor --model` checks each runner, and `--canary` checks it cannot read two planted files. Receipts and lesson reviews record the runner. Manage in Hippo.app has a Models card that switches the default runner. With nothing configured the call is today's, argument for argument, now in the sandbox. Recipes for Codex, Muse and OpenCode are documented, unchecked. See the [design](docs/designs/runners.md).
+
 ### Security
 
 - **Hooks run hippo by its absolute path, from per-person files.** `hippo hooks install` writes Claude Code's hooks to the workspace's `.claude/settings.local.json`, not the `.claude/settings.json` a team commits, and every hook (Claude Code, Codex, Cursor, Gemini CLI) runs the binary by its absolute path, so another program named `hippo` earlier on `PATH` never sees a session. Hooks an older hippo put in `.claude/settings.json` are moved: `hippo hooks install` says what it will move and moves hippo's entries only with `--yes`; it also rewrites a bare `hippo` in the other agents' hooks files. `hippo init`, `hippo hooks install` and `install.sh` write the binary's path to `$HIPPO_HOME/bin-path`, which the Claude Code, dsh and OpenCode plugins run before they look on `PATH`.
 - **`$HIPPO_HOME` is private.** hippo runs with a umask of 077: folders it creates are 0700 and files 0600, the index included, and an atomic write never widens a file's mode. A command that finds `$HIPPO_HOME` open to other accounts closes it and says so once. `hippo doctor` lists anything inside still readable by others, and `hippo doctor --fix-permissions` tightens it.
 - **`install.sh` records what it checked.** After checking the release against its published SHA-256 it records the binary's path and checksum in `$HIPPO_HOME/install.json`; `hippo doctor` reports a problem when that binary changed, and a warning when hooks, MCP entries or `bin-path` run another binary.
 - **A version floor for shared workspaces.** `.hippo/hippo.toml` can set `min_hippo_version`. An older hippo, and a hippo that finds keys it does not know, refuse to write notes or records there or to call a model for it (`dream`, `lessons`, `add`, `packs update` and `remove`, `review`, `revert`, `ask` without `--sources-only`); hooks, `context` and `brief` keep working. Proposals, receipts, review marks, pack reviews and lessons carry `hippo_version`.
+
+### Changed
+
+- A configuration that keeps `model_command` or `reviewer_command_override` works as before (the whole environment, no sandbox); `hippo runners migrate` moves it to runners. Both the older keys and `[runners]` at once no longer load silently wrong: model calls fail and name `hippo runners migrate`, while hooks and `context` keep working.
+- A reviewer's notes and a proposal's reason are redacted and cut to 2,000 characters before they are written.
+- The pack review runs in `model-runs/<ulid>/` like every other call; `review-runs/` is no longer used.
 
 ### Fixed
 

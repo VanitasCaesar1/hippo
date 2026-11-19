@@ -406,6 +406,7 @@ fn walk(
     let scope = ws.map(sessions::Scope::new).transpose()?;
     let mut run = Run {
         ws,
+        own_runs: [cfg.home.join(MODEL_RUNS_DIR), cfg.home.join("review-runs")],
         scope: scope.as_ref(),
         full,
         known,
@@ -458,6 +459,11 @@ struct Found {
 
 struct Run<'a> {
     ws: Option<&'a Workspace>,
+    /// `$HIPPO_HOME/model-runs` and `review-runs`: a session that ran in
+    /// either is one of hippo's own model calls, saved by a CLI that kept
+    /// it somewhere hippo reads, and is never indexed
+    /// (`docs/designs/runners.md`, Leaving no transcript).
+    own_runs: [PathBuf; 2],
     /// Which sessions belong to `ws`.
     scope: Option<&'a sessions::Scope>,
     full: bool,
@@ -521,6 +527,12 @@ impl Run<'_> {
                 return Ok(());
             }
         };
+        if let Some(cwd) = adapter.cwd(&id, path) {
+            if self.own_runs.iter().any(|dir| cwd.starts_with(dir)) {
+                self.counts.skipped += 1;
+                return Ok(());
+            }
+        }
         let turns: Vec<Turn> = turns.into_iter().map(Turn::from_raw).collect();
         let source = SessionSource {
             id: &id,
@@ -711,6 +723,9 @@ mod tests {
                 ingest_interval_minutes: 10,
                 dream_at: "03:30".into(),
                 reviewer_command_override: None,
+                fallback: Default::default(),
+                roles: Default::default(),
+                runners: Default::default(),
             };
             let ws = Workspace {
                 root: ws_root,

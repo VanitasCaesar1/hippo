@@ -136,6 +136,12 @@ static LIMIT: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\bhit your ((?:[\w-]+ ){0,3})limit\b|usage limit reached")
         .expect("valid regex")
 });
+/// Whether `text` is a usage-limit message of Claude Code (`You've hit
+/// your session limit`, `Claude AI usage limit reached`).
+pub fn is_limit_message(text: &str) -> bool {
+    LIMIT.is_match(text)
+}
+
 static RESET: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?i)\bresets?\s+(?:at\s+)?(?:(?P<mon>jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(?P<day>[0-9]{1,2}),?\s+(?:at\s+)?)?(?P<h>[0-9]{1,2})(?::(?P<m>[0-9]{2}))?\s*(?P<ap>[ap])\.?m\b",

@@ -68,6 +68,9 @@ fn setup(home: &Path, workspace: &Path) -> (Config, Workspace) {
         ingest_interval_minutes: 10,
         dream_at: "03:30".into(),
         reviewer_command_override: None,
+        fallback: Default::default(),
+        roles: Default::default(),
+        runners: Default::default(),
     };
     let ws = Workspace {
         root: workspace.to_path_buf(),

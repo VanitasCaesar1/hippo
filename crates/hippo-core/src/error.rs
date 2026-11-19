@@ -53,6 +53,15 @@ pub enum Error {
     #[error("{0}")]
     Refused(String),
 
+    /// `[runners]`, `[roles]` or `[fallback]` in `config.toml` cannot be
+    /// used: only commands that call a model fail on it.
+    #[error("runners: {0}")]
+    Runners(String),
+
+    /// A runner's account is at its usage limit; the call may fall back.
+    #[error("{0}")]
+    ModelLimit(String),
+
     /// The transcript index does not exist.
     #[error("no index; run hippo ingest")]
     MissingIndex,

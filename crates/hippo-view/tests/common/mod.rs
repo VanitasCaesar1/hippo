@@ -176,6 +176,7 @@ pub fn receipt(
         at,
         applied,
         snapshot,
+        runner: None,
     };
     record
         .save(&ws.hippo_dir().join("receipts").join(format!("{id}.json")))

@@ -77,7 +77,11 @@ pub fn run(root: &Path, args: &Args) -> anyhow::Result<ExitCode> {
         update: None,
     };
     let home = tempfile::tempdir().context("creating a temporary hippo home")?;
-    let record = review(home.path(), &command, &request)?;
+    // The review runs `command` as the reviewer, with the whole environment
+    // and no sandbox, as an older reviewer_command_override does.
+    let mut cfg = hippo_core::config::Config::defaults_in(home.path());
+    cfg.reviewer_command_override = Some(command.clone());
+    let record = review(&cfg, &request)?;
     let saved = root
         .join("registry/reviews")
         .join(format!("{}.json", record.id));

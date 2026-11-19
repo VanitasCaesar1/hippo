@@ -699,7 +699,12 @@ pub fn answer(cfg: &Config, asked: &mut Asked) {
         asked.answer_dropped = Some("nothing matched, so there is nothing to answer from".into());
         return;
     }
-    match crate::model::run(cfg, SYSTEM_PROMPT, &prompt(asked)) {
+    match crate::model::run_role(
+        cfg,
+        crate::runners::Role::Ask,
+        SYSTEM_PROMPT,
+        &prompt(asked),
+    ) {
         Ok(reply) => {
             let text = reply.text.trim().to_owned();
             match validate(&text, asked.sources.len()) {

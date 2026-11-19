@@ -55,6 +55,7 @@ Unless a command says otherwise, an error prints to stderr and the exit code is 
 | [`init`](#hippo-init) | Write `config.toml` and the workspace's `.hippo/` |
 | [`ingest`](#hippo-ingest) | Index the transcripts |
 | [`config`](#hippo-config) | Show or change one setting |
+| [`runners`](#hippo-runners) | The CLIs, models and accounts hippo's own model calls use |
 | [`doctor`](#hippo-doctor) | Check the setup |
 | [`schedule`](#hippo-schedule) | Schedule ingest and dreaming |
 | [`hooks`](#hippo-hooks) | Install or check the three Claude Code hooks |
@@ -358,7 +359,7 @@ Shows or changes one setting in `config.toml` or `.hippo/hippo.toml`. It prints 
 | Subcommand | Does |
 |---|---|
 | `show` | Prints the settings the desktop app's Manage reads. |
-| `set` | Sets `ingest_interval_minutes`, `dream_at`, `budget_bytes`, `lessons` (`on` or `off`), `snapshot_keep_days` or `model_command`. |
+| `set` | Sets `ingest_interval_minutes`, `dream_at`, `budget_bytes`, `lessons` (`on` or `off`), `snapshot_keep_days` or `model_command`; `role.<role> <runner>` and `fallback.<role> 'a,b'` set [runners](#hippo-runners)' roles. |
 | `unset` | Removes a key's line, so its default applies. |
 | `add`, `remove` | Add or remove a value of a list: `transcript_roots`, `exclude_roots`, `required_notes`, `passes_off`. |
 
@@ -370,6 +371,29 @@ hippo config unset model_command --yes
 ```
 
 The second command restores the default.
+
+## hippo runners
+
+```text
+hippo runners [--json]
+hippo runners add <name> --preset claude|command [--model <id>] [--effort <level>] [--account <dir>]
+                  [--domain <label>] [--argv <json>] [--reply <mode>] [--allow-tools] [--yes]
+hippo runners remove <name> [--yes]
+hippo runners migrate [--yes]
+hippo config set role.<role> <runner> [--yes]
+hippo config set fallback.<role> '<runner>[,<runner>…]' [--yes]
+hippo config unset role.<role> [--yes]
+```
+
+`hippo runners` lists each runner (preset, model, effort, account, data domain, whether it runs in the sandbox), each role with its runner and fallbacks (a fallback in another data domain shows as refused), any reason a runner may not serve a role, the agent CLIs on `PATH`, and the sandbox this machine has. The changes print what they remove and add in `config.toml` and write only with `--yes`; a change that would leave the tables unusable is refused. `add` on a configuration with `model_command` or `reviewer_command_override` moves those into `[runners]` in the same change. `remove` refuses a runner a role or a fallback names. `migrate` turns the older keys into `[runners.custom]` and `[runners.custom-review]`; migrated runners run in the sandbox with the limited environment, so a command that needs a variable gets `env_pass`. The keys are in [Configuration](configuration.md#runners-which-cli-model-and-account-hippos-own-calls-use).
+
+```sh
+hippo runners add work --preset claude --account ~/.claude-work --model claude-opus-5-5 --effort high --domain acme --yes
+hippo config set fallback.default claude --yes
+hippo doctor --model
+```
+
+Receipts record the runner's name, preset, model, effort, data domain, whether it was sandboxed, and any fallback; never its account folder.
 
 ## hippo hooks
 
@@ -432,17 +456,19 @@ Writes the session log to `log_path` and prints the path. With `--stdout` it pri
 ## hippo doctor
 
 ```text
-hippo doctor [--model] [--fix-permissions]
+hippo doctor [--model [--canary] [--runner <name>]] [--fix-permissions]
 ```
 
 Prints a table `check | status | detail`, one row per check. Status is `ok`, `warn` or `problem`. Exits 1 if any row is a problem, else 0. A healthy new setup passes: a schedule or a dreaming run that does not exist yet is an `ok` row whose detail starts `not set up yet:`. See [Troubleshooting](troubleshooting.md).
 
 | Flag | Meaning |
 |---|---|
-| `--model` | Also send one word through `model_command` to check that it answers. This is one model call. A nightly check should pass it ([Scheduling](scheduling.md#a-nightly-check)). |
+| `--model` | Also send one word through each runner a role uses, fallbacks included, to check that it answers: one model call per runner. A nightly check should pass it ([Scheduling](scheduling.md#a-nightly-check)). |
+| `--canary` | With `--model`: plant two files holding random words, one in the call's run folder and one in `$HIPPO_HOME` outside it, and ask each runner to print both. A runner that prints neither passes and may serve `propose`, `review` and `lessons`; one that prints the outside word is not sandboxed, whatever its profile says. |
+| `--runner <name>` | With `--model`: check only that runner. |
 | `--fix-permissions` | First make every file under `$HIPPO_HOME` 0600 and every folder 0700, then check. |
 
-Without `--model` the `model` row says `not checked`, or warns when the program is not on `PATH`.
+There is one `model` row per runner a role uses (`model | ok | work: replied "ok"; sandbox on`). Without `--model` a row says `not checked`, or warns when the program is not on `PATH`, the account is at 95% of a window, or the runner may not serve a role it is given. Runner tables that cannot be used are a `model` problem.
 
 Five rows check what keeps hippo's data and hooks private ([Security and privacy](security.md#what-is-written-where)):
 

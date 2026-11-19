@@ -16,7 +16,7 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Set a key: ingest_interval_minutes, dream_at, budget_bytes, lessons (on|off), snapshot_keep_days, model_command (a JSON array or words)
+    /// Set a key: ingest_interval_minutes, dream_at, budget_bytes, lessons (on|off), snapshot_keep_days, model_command (a JSON array or words), role.<role> <runner>, fallback.<role> 'a,b'
     Set {
         key: String,
         value: String,
@@ -63,6 +63,25 @@ pub fn run(command: Command) -> Result<ExitCode> {
         Command::Add { key, value, yes } => (key, Op::Add(value), yes),
         Command::Remove { key, value, yes } => (key, Op::Remove(value), yes),
     };
+    // role.<role> and fallback.<role> live in [roles] and [fallback].
+    if let Some((table, role)) = key.split_once('.') {
+        use hippo_core::runners::edit::Change;
+        let change = match (table, &op) {
+            ("role", Op::Set(runner)) => Change::SetRole(role.to_owned(), runner.trim().to_owned()),
+            ("role", Op::Unset) => Change::UnsetRole(role.to_owned()),
+            ("fallback", Op::Set(list)) => Change::SetFallback(
+                role.to_owned(),
+                list.split(',')
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_owned)
+                    .collect(),
+            ),
+            ("fallback", Op::Unset) => Change::UnsetFallback(role.to_owned()),
+            _ => anyhow::bail!("{key}: use hippo config set or unset"),
+        };
+        return super::runners::write(&home, &change, yes);
+    }
     let plan = settings::plan(&home, &key, &op)?;
     print!("{}", plan.diff());
     if !plan.changed {

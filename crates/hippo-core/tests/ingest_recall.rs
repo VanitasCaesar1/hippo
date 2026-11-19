@@ -69,6 +69,9 @@ fn setup(home: &Path, workspace: &Path) -> (Config, Workspace) {
         ingest_interval_minutes: 10,
         dream_at: "03:30".into(),
         reviewer_command_override: None,
+        fallback: Default::default(),
+        roles: Default::default(),
+        runners: Default::default(),
     };
     let ws = Workspace {
         root: workspace.to_path_buf(),
@@ -196,6 +199,33 @@ fn ingest_indexes_the_fixtures_and_recall_finds_them_without_leaks() {
     let second = ingest(&config, Some(&ws), false).unwrap();
     assert_eq!(
         second,
+        IngestSummary::Done {
+            indexed: 0,
+            skipped: 3,
+            derived: 0,
+            removed: 0
+        }
+    );
+}
+
+/// A CLI that saved hippo's own model call where hippo reads transcripts:
+/// a session whose working directory is a run folder is never indexed,
+/// whatever adapter read it (`docs/designs/runners.md`, Leaving no
+/// transcript).
+#[test]
+fn sessions_that_ran_in_a_model_run_folder_are_not_indexed() {
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let (mut config, ws) = setup(home.path(), workspace.path());
+    let copies = home.path().join("own-calls");
+    fixtures_in(&copies, &home.path().join("model-runs").join("01RUN"));
+    config.transcript_roots = vec![
+        copies.join("claude-code").display().to_string(),
+        copies.join("codex").display().to_string(),
+    ];
+    let summary = ingest(&config, Some(&ws), false).unwrap();
+    assert_eq!(
+        summary,
         IngestSummary::Done {
             indexed: 0,
             skipped: 3,

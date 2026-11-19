@@ -1,4 +1,4 @@
-//! `hippo doctor [--model] [--fix-permissions]`: prints the `check | status | detail` table and
+//! `hippo doctor [--model [--canary] [--runner <name>]] [--fix-permissions]`: prints the `check | status | detail` table and
 //! exits 1 on any problem. Nothing leaves the machine unless `--model` asks
 //! for the one-word model check.
 
@@ -15,6 +15,12 @@ pub struct Args {
     /// First make every file under $HIPPO_HOME 0600 and every folder 0700
     #[arg(long)]
     fix_permissions: bool,
+    /// With --model: plant two canary files and check each runner reads neither (one model call per runner)
+    #[arg(long)]
+    canary: bool,
+    /// With --model: check only this runner
+    #[arg(long)]
+    runner: Option<String>,
 }
 
 pub fn run(args: Args) -> Result<ExitCode> {
@@ -26,7 +32,14 @@ pub fn run(args: Args) -> Result<ExitCode> {
             home.display()
         );
     }
-    let report = doctor::run_in(&home, args.model);
+    let report = doctor::run_with_options(
+        &home,
+        &doctor::ModelOptions {
+            model: args.model,
+            canary: args.canary,
+            runner: args.runner,
+        },
+    );
     print!("{report}");
     Ok(if report.has_problem() {
         ExitCode::FAILURE

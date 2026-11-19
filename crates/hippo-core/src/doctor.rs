@@ -43,14 +43,12 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fs;
-use std::io::{Read, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use time::format_description::well_known::Rfc3339;
 use time::{Duration, OffsetDateTime};
 use ulid::Ulid;
-use wait_timeout::ChildExt;
 use walkdir::WalkDir;
 
 use crate::adapters;
@@ -129,10 +127,34 @@ impl fmt::Display for Report {
 /// `config` problem.
 /// The model ping runs only with `model` (`hippo doctor --model`).
 pub fn run_in(home: &Path, model: bool) -> Report {
+    run_with_options(
+        home,
+        &ModelOptions {
+            model,
+            ..ModelOptions::default()
+        },
+    )
+}
+
+/// What `hippo doctor` sends to models.
+#[derive(Debug, Clone, Default)]
+pub struct ModelOptions {
+    /// `--model`: one word through each runner a role uses.
+    pub model: bool,
+    /// `--canary`: plant the two canary files instead of one word.
+    pub canary: bool,
+    /// `--runner <name>`: check only that runner.
+    pub runner: Option<String>,
+}
+
+/// [`run_in`] with `--canary` and `--runner`.
+pub fn run_with_options(home: &Path, options: &ModelOptions) -> Report {
     let loaded =
         Config::load_in(home).and_then(|cfg| Workspace::load_optional(&cfg).map(|ws| (cfg, ws)));
     let env = Env {
-        check_model: model,
+        check_model: options.model || options.canary,
+        check_canary: options.canary,
+        only_runner: options.runner.clone(),
         ..Env::current()
     };
     match loaded {
@@ -228,6 +250,11 @@ struct Env {
     model_timeout: std::time::Duration,
     /// Whether to send the one-word model run (`hippo doctor --model`).
     check_model: bool,
+    /// With `check_model`, plant the two canary files instead
+    /// (`hippo doctor --model --canary`).
+    check_canary: bool,
+    /// Check only this runner (`--runner <name>`).
+    only_runner: Option<String>,
     /// The per-person hooks files outside a workspace: Codex's, Cursor's,
     /// Gemini CLI's.
     user_hook_files: Vec<(PathBuf, crate::hooks::Agent)>,
@@ -248,6 +275,8 @@ impl Env {
             exe: std::env::current_exe().ok(),
             model_timeout: std::time::Duration::from_secs(60),
             check_model: false,
+            check_canary: false,
+            only_runner: None,
             user_hook_files: user_hook_files(),
             mcp_files: crate::config::user_home()
                 .map(|home| security::mcp_files(&home))
@@ -315,7 +344,7 @@ fn run_with(cfg: &Config, ws: &Workspace, env: &Env) -> Report {
     checks.push(git_check(ws));
     checks.push(lessons_check(cfg));
     checks.extend(security_checks(cfg, Some(ws), env));
-    checks.push(model_check(cfg, env));
+    checks.extend(model_checks(cfg, env));
     Report { checks }
 }
 
@@ -1267,26 +1296,125 @@ fn records_check(records: &[Session], unreadable: &[String], index: Option<&Inde
     }
 }
 
-/// With `hippo doctor --model`, runs `model_command` with a one-word
-/// prompt when its program is on `PATH`. A reply is `ok`; anything else is
-/// `warn`, never a problem. Without the flag nothing is sent.
-fn model_check(cfg: &Config, env: &Env) -> Check {
-    let Some(program) = cfg.model_command.first() else {
-        return row("model", Status::Warn, "model_command is empty");
+/// One row per runner some role resolves to, fallbacks included
+/// (`docs/designs/runners.md`, `hippo doctor --model`). Without `--model`
+/// a row checks only that the program is on `PATH`; with it, one word is
+/// sent through each runner (or only `--runner <name>`), and with
+/// `--canary` the two canary files are planted instead. A reply is `ok`;
+/// anything else is `warn`, never a problem. Runner tables that cannot be
+/// used are a problem: every model-calling command fails on them.
+fn model_checks(cfg: &Config, env: &Env) -> Vec<Check> {
+    use crate::runners::{self, Role};
+    let plan = match runners::plan(cfg) {
+        Ok(plan) => plan,
+        Err(err) => return vec![row("model", Status::Problem, err.to_string())],
     };
-    if find_program(program).is_none() {
-        let not_found = std::io::Error::from(std::io::ErrorKind::NotFound);
-        let detail = crate::model::spawn_error(program, &not_found);
-        return row("model", Status::Warn, detail);
+    let mut names: Vec<&str> = Vec::new();
+    for role in Role::ALL {
+        for step in plan.chain(role) {
+            if step.refused.is_none() && !names.contains(&step.runner.name.as_str()) {
+                names.push(&step.runner.name);
+            }
+        }
     }
-    if !env.check_model {
-        let detail = format!("not checked (hippo doctor --model sends one word through {program})");
-        return row("model", Status::Ok, detail);
+    if let Some(only) = &env.only_runner {
+        if !plan.runners.contains_key(only) {
+            return vec![row(
+                "model",
+                Status::Warn,
+                format!("no runner named {only}"),
+            )];
+        }
+        names = vec![only.as_str()];
     }
-    match ask_one_word(cfg, env.model_timeout) {
-        Ok(reply) => row("model", Status::Ok, format!("replied {reply:?}")),
-        Err(err) => row("model", Status::Warn, err),
-    }
+    let now = env.now.unix_timestamp();
+    names
+        .into_iter()
+        .filter_map(|name| plan.runners.get(name))
+        .map(|runner| {
+            let label = if plan.configured {
+                format!("{}: ", runner.name)
+            } else {
+                String::new()
+            };
+            let mut notes = Vec::new();
+            for role in Role::ALL {
+                if plan.runner_name(role) == runner.name {
+                    if let Some(why) = plan.refusal(&cfg.home, runner, role) {
+                        notes.push(why);
+                    }
+                }
+            }
+            if runner.legacy && plan.configured {
+                notes.push("an older key: no sandbox, whole environment".into());
+            }
+            let argv = runner.argv();
+            let Some(program) = argv.first() else {
+                return row("model", Status::Warn, format!("{label}the command is empty"));
+            };
+            if find_program(program).is_none() {
+                let not_found = std::io::Error::from(std::io::ErrorKind::NotFound);
+                let detail = crate::model::spawn_error(program, &not_found);
+                return row("model", Status::Warn, format!("{label}{detail}"));
+            }
+            if let Some(why) = crate::model::near_limit(runner, now) {
+                notes.push(why);
+            }
+            let tail = if notes.is_empty() {
+                String::new()
+            } else {
+                format!("; {}", notes.join("; "))
+            };
+            if !env.check_model {
+                let detail = format!(
+                    "{label}not checked (hippo doctor --model sends one word through {program}){tail}"
+                );
+                let status = if notes.is_empty() { Status::Ok } else { Status::Warn };
+                return row("model", status, detail);
+            }
+            let mut quick = runner.clone();
+            quick.timeout = env.model_timeout;
+            if env.check_canary {
+                return match crate::model::canary(cfg, &quick) {
+                    Ok(c) if c.passed() => row(
+                        "model",
+                        Status::Ok,
+                        format!("{label}canary passed: it read neither planted file{tail}"),
+                    ),
+                    Ok(c) => row(
+                        "model",
+                        Status::Warn,
+                        format!(
+                            "{label}canary failed: it read {}; treat it as having tools{}{tail}",
+                            match (c.read_run_folder, c.read_outside) {
+                                (true, true) => "both files, so it is not sandboxed",
+                                (false, true) => "the file outside its run folder, so it is not sandboxed",
+                                _ => "the file in its run folder",
+                            },
+                            ""
+                        ),
+                    ),
+                    Err(err) => row("model", Status::Warn, format!("{label}{err}")),
+                };
+            }
+            match crate::model::run_runner(cfg, &quick, "Reply with exactly one word.", "ping") {
+                Ok(reply) => {
+                    let sandbox = reply
+                        .runner
+                        .as_ref()
+                        .map(|r| format!("; sandbox {}", r.sandbox))
+                        .unwrap_or_default();
+                    let status = if notes.is_empty() { Status::Ok } else { Status::Warn };
+                    row(
+                        "model",
+                        status,
+                        format!("{label}replied {:?}{}{tail}", clip(&reply.text), if plan.configured { sandbox } else { String::new() }),
+                    )
+                }
+                Err(err) => row("model", Status::Warn, format!("{label}{err}")),
+            }
+        })
+        .collect()
 }
 
 /// `program` when it is a path to a file, else the first file of that name
@@ -1300,73 +1428,6 @@ fn find_program(program: &str) -> Option<PathBuf> {
     std::env::split_paths(&dirs)
         .map(|dir| dir.join(program))
         .find(|candidate| candidate.is_file())
-}
-
-/// Runs `model_command` in its own new `$HIPPO_HOME/model-runs/<ulid>/`
-/// (0700, removed afterwards, as every model call is), with
-/// `{system_prompt}` asking for one word and `ping` on stdin, and returns
-/// the `result` of the JSON it prints.
-fn ask_one_word(cfg: &Config, timeout: std::time::Duration) -> std::result::Result<String, String> {
-    let runs = cfg.home.join("model-runs");
-    crate::perms::create_private_dir(&runs).map_err(|e| e.to_string())?;
-    let dir = runs.join(Ulid::generate().to_string());
-    fs::create_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    let _ = crate::perms::create_private_dir(&dir);
-    let reply = ask_one_word_in(&dir, cfg, timeout);
-    let _ = fs::remove_dir_all(&dir);
-    reply
-}
-
-fn ask_one_word_in(
-    runs: &Path,
-    cfg: &Config,
-    timeout: std::time::Duration,
-) -> std::result::Result<String, String> {
-    let argv: Vec<String> = cfg
-        .model_command
-        .iter()
-        .map(|arg| match arg.as_str() {
-            "{system_prompt}" => "Reply with exactly one word.".to_owned(),
-            other => other.to_owned(),
-        })
-        .collect();
-    let mut child = Command::new(&argv[0])
-        .args(&argv[1..])
-        .current_dir(runs)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| crate::model::spawn_error(&argv[0], &e))?;
-    if let Some(mut stdin) = child.stdin.take() {
-        let _ = stdin.write_all(b"ping");
-    }
-    let status = match child.wait_timeout(timeout).map_err(|e| e.to_string())? {
-        Some(status) => status,
-        None => {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err(format!("no reply within {} seconds", timeout.as_secs()));
-        }
-    };
-    let mut stdout = String::new();
-    let mut stderr = Vec::new();
-    if let Some(mut out) = child.stdout.take() {
-        let _ = out.read_to_string(&mut stdout);
-    }
-    if let Some(mut err) = child.stderr.take() {
-        let _ = err.read_to_end(&mut stderr);
-    }
-    if !status.success() {
-        let why = crate::model::failure_reason(stdout.as_bytes(), &stderr).unwrap_or_default();
-        return Err(format!("exited with {status}: {why}"));
-    }
-    let reply: serde_json::Value =
-        serde_json::from_str(&stdout).map_err(|_| "the reply is not JSON".to_owned())?;
-    match reply.get("result").and_then(|result| result.as_str()) {
-        Some(result) => Ok(clip(result)),
-        None => Err("the reply has no result".to_owned()),
-    }
 }
 
 /// `text` on one line, cut to 60 characters.
@@ -1425,6 +1486,9 @@ mod tests {
             ingest_interval_minutes: 10,
             dream_at: "03:30".into(),
             reviewer_command_override: None,
+            fallback: Default::default(),
+            roles: Default::default(),
+            runners: Default::default(),
         };
         let ws = Workspace {
             root: root.path().to_path_buf(),
@@ -1456,6 +1520,8 @@ mod tests {
             exe: None,
             model_timeout: std::time::Duration::from_secs(10),
             check_model: true,
+            check_canary: false,
+            only_runner: None,
             user_hook_files: Vec::new(),
             mcp_files: Vec::new(),
         }
@@ -1541,6 +1607,7 @@ mod tests {
             at: datetime!(2026-11-08 03:31:04 UTC),
             applied: applied.then_some(datetime!(2026-11-08 03:31:05 UTC)),
             snapshot: None,
+            runner: None,
         }
     }
 
@@ -2033,7 +2100,7 @@ mod tests {
             assert_eq!(status(&r, "model"), Status::Warn);
             assert!(detail(&r, "model").contains("not logged in"), "{r}");
             s.cfg.model_command = script("echo hello");
-            assert_eq!(detail(&report(&s), "model"), "the reply is not JSON");
+            assert!(detail(&report(&s), "model").ends_with("sh did not print JSON"));
         }
     }
 
@@ -2231,6 +2298,7 @@ mod tests {
             at: NOW,
             applied: None,
             snapshot: None,
+            runner: None,
         };
         receipt
             .save(

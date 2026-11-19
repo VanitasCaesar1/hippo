@@ -81,23 +81,27 @@ pub struct Review {
     pub invocation: String,
     /// When the reply came.
     pub at: OffsetDateTime,
+    /// The runner that answered.
+    pub runner: Option<crate::runners::RunnerRecord>,
 }
 
 /// Runs the reviewer named `reviewer` on `input`. A model error, such as a
 /// non-zero exit, is an error, not a rejection.
 pub fn review(cfg: &Config, reviewer: &str, input: &ReviewerInput) -> Result<Review> {
-    let command = cfg
-        .reviewer_command_override
-        .as_deref()
-        .unwrap_or(&cfg.model_command);
-    let reply = model::run_command(cfg, command, &input.persona, &input.user_prompt())?;
+    let reply = model::run_role(
+        cfg,
+        crate::runners::Role::Review,
+        &input.persona,
+        &input.user_prompt(),
+    )?;
     let (verdict, notes) = parse_reply(&reply.text);
     Ok(Review {
         verdict,
-        notes,
+        notes: crate::redact::cap_note(&notes),
         reviewer: reviewer.to_owned(),
         invocation: reply.invocation,
         at: OffsetDateTime::now_utc(),
+        runner: reply.runner,
     })
 }
 

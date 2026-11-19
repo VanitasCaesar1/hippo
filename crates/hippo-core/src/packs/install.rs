@@ -532,17 +532,8 @@ fn review_lines(record: &PackReview) -> Vec<String> {
     lines
 }
 
-/// The argv a pack review runs: `reviewer_command_override` when set, else
-/// `model_command`.
-fn review_command(cfg: &Config) -> Vec<String> {
-    cfg.reviewer_command_override
-        .clone()
-        .unwrap_or_else(|| cfg.model_command.clone())
-}
-
 fn run_review(cfg: &Config, request: &ReviewRequest) -> Result<PackReview> {
-    review::review(&cfg.home, &review_command(cfg), request)
-        .map_err(|e| pack_err(format!("the review could not run: {e}")))
+    review::review(cfg, request).map_err(|e| pack_err(format!("the review could not run: {e}")))
 }
 
 /// Install steps 4 to 9: validate, refuse an existing pack or pass name,
@@ -1530,6 +1521,9 @@ mod tests {
                     .chain([format!("HIPPO_STUB_VERDICT={verdict}"), STUB.to_owned()])
                     .collect(),
             ),
+            fallback: Default::default(),
+            roles: Default::default(),
+            runners: Default::default(),
         };
         let ws = Workspace {
             root: root_path,

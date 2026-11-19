@@ -6,7 +6,7 @@ hippo reads agent transcripts, which are sensitive, and writes to files that age
 
 hippo's own code makes no network calls: it has no HTTP client among its dependencies. The index, the records and the reports are local files. Data leaves your machine only through two kinds of child process that hippo starts.
 
-**A. The model command.** `model_command` is by default `claude -p …`, which sends the prompt to Anthropic under your own login. If you point `model_command` at another command, that command decides where the prompt goes. These commands run it:
+**A. The runners your roles use.** By default every model call runs `claude -p …`, which sends the prompt to Anthropic under your own login. A [runner](configuration.md#runners-which-cli-model-and-account-hippos-own-calls-use) can name another Claude account, or any CLI, which then decides where the prompt goes; `hippo runners` prints each role's runner and its data domain, and fallback stays inside that domain unless you allow it. These commands call a model:
 
 - `hippo dream`, including `--dry-run`;
 - the lessons pass that follows `dream` (skip it with `--no-lessons`);
@@ -14,7 +14,7 @@ hippo's own code makes no network calls: it has no HTTP client among its depende
 - `hippo ask`, unless you pass `--sources-only`;
 - `hippo add` and `hippo packs update`, for the pack review;
 - `hippo eval` runs that use dreaming with a model (`--with-model`);
-- `hippo doctor --model`, which sends one word;
+- `hippo doctor --model`, which sends one word through each runner a role uses (`--canary`: a request to print two planted files);
 - the scheduled nightly dream.
 
 **B. Git over HTTPS, for packs.** `hippo add <url>`, `hippo add` with `--registry`, `hippo packs update`, and `hippo packs diff` for a git-sourced pack fetch the pack with `git`.
@@ -66,11 +66,15 @@ The reviewer receives only its persona (as the system prompt), the note, the pro
 Each model run:
 
 - starts in its own new, empty folder, `$HIPPO_HOME/model-runs/<ulid>/` (mode 0700), which is removed when the run ends, so two runs at once never see each other's files; a run that starts removes folders older than a day, which only a crashed run leaves;
-- with the default command, runs `claude` with no tools, no settings files, no MCP servers and no saved session, so the model can read nothing on your disk and leaves no transcript. A canary test in the repository checks that this command cannot read a planted file in its working directory;
+- with the default runner, runs `claude` with no tools, no settings files, no MCP servers and no saved session, so the model can read nothing on your disk and leaves no transcript. `hippo doctor --model --canary` checks that a runner cannot read a planted file in its run folder or in `$HIPPO_HOME`;
+- runs inside an OS sandbox where the machine has one (`sandbox-exec` on macOS, `bwrap` on Linux): the CLI can read its run folder, its install and its account folder (for Claude Code also `~/.claude.json` and the macOS login keychain it signs in with), not the rest of your home folder, `$HIPPO_HOME` or the workspace, and it can write only its run folder, its account folder and the system's temporary folders. Network is allowed. The account folder holds the CLI's own credentials, which is why a runner that may have tools cannot write notes, receipts or lessons without `allow_tools`, and why a reviewer's notes and a proposal's reason are redacted and cut to 2,000 characters before they are written. The sandbox narrows what injected text can make a CLI read; it is not a security boundary;
+- gets a limited environment: a base list (`PATH`, `HOME`, locale, terminal, proxy and certificate variables), `TMPDIR` set to the run folder, the sign-in variables of its preset, and the runner's `env_pass`. A credential in the shell that started hippo does not reach it;
 - is stopped after 600 seconds;
 - receives transcript text on standard input, not in its arguments, so it does not show in the process list.
 
-hippo does not clear the environment of the model command; it inherits the environment of whoever ran hippo. If you replace the default command, the isolation above is your command's job.
+The exception is a configuration that still sets `model_command` or `reviewer_command_override`: those commands run as before 0.5.0, with hippo's whole environment and no sandbox, so an existing setup keeps working, and their isolation is the command's own job. `hippo runners migrate` turns them into runners. Where a machine has no sandbox (`hippo runners` says which), `claude` still runs, with no tools as before, and a `command` runner may serve `propose`, `review` or `lessons` only with `allow_unsandboxed = true`.
+
+Which provider sees which call is the runners your roles use: `hippo runners` prints each role's runner and data domain, and a fallback never leaves that domain unless `[fallback] cross_domain` names the role.
 
 ## What limits a write
 

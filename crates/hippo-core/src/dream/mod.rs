@@ -689,8 +689,13 @@ impl Run<'_> {
         for line in rendered.omitted_lines() {
             self.report.omissions.push(format!("{what}: {line}"));
         }
-        let reply = model::run(self.cfg, &pass_system_prompt(&pass.name), &rendered.text)
-            .map_err(|err| about(what, err))?;
+        let reply = model::run_role(
+            self.cfg,
+            crate::runners::Role::Propose,
+            &pass_system_prompt(&pass.name),
+            &rendered.text,
+        )
+        .map_err(|err| about(what, err))?;
         let Some(items) = validate::first_array(&reply.text) else {
             return Err(Error::Model(format!("{what}: the reply has no JSON array")));
         };
@@ -1064,6 +1069,9 @@ pub(crate) mod tests {
                 ingest_interval_minutes: 10,
                 dream_at: "03:30".into(),
                 reviewer_command_override: Some(stub("reviewer")),
+                fallback: Default::default(),
+                roles: Default::default(),
+                runners: Default::default(),
             };
             let s = Setup {
                 _serial: crate::util::serial(),
@@ -1191,6 +1199,7 @@ pub(crate) mod tests {
                 at: self.now,
                 applied: None,
                 snapshot: None,
+                runner: None,
             };
             receipt
                 .save(&apply::receipt_path(&self.ws, receipt.id))

@@ -13,7 +13,7 @@
 
 use std::fs;
 use std::io::{self, Read, Write as _};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
@@ -24,6 +24,7 @@ use serde_json::Value;
 
 use crate::config::Config;
 use crate::error::{Error, Result};
+use crate::runners::{self, sandbox, Preset, ReplyMode, Role, Runner, RunnerRecord, SystemPrompt};
 
 /// The argv element that is replaced by the system prompt.
 pub const SYSTEM_PROMPT: &str = "{system_prompt}";
@@ -42,40 +43,350 @@ const DRAIN_GRACE: Duration = Duration::from_secs(5);
 /// A model's reply.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModelReply {
-    /// The `result` string of the JSON the command printed.
+    /// The reply text: the `result` of the JSON the command printed, its
+    /// whole stdout, or its reply file, as the runner's `reply` says.
     pub text: String,
     /// The argv joined by spaces with the system prompt replaced by
     /// `<system prompt: N bytes>`: the form a receipt's `invocation` takes.
     pub invocation: String,
+    /// The runner that answered, for a receipt's `runner`.
+    pub runner: Option<RunnerRecord>,
 }
 
-/// Runs `cfg.model_command` with `system_prompt` and `user_prompt`.
-pub fn run(cfg: &Config, system_prompt: &str, user_prompt: &str) -> Result<ModelReply> {
-    run_command(cfg, &cfg.model_command, system_prompt, user_prompt)
-}
-
-/// Runs `command`, an argv in the form of `model_command`, as [`run`] runs
-/// `model_command`. The dreaming reviewer passes
-/// `reviewer_command_override` here when it is set.
-pub fn run_command(
+/// Runs the runner `role` resolves to (`docs/designs/runners.md`), moving
+/// to the role's fallbacks, inside the runner's data domain, when the
+/// runner's account is at 95% or more of a window before the call, or the
+/// call fails with the CLI's usage-limit message. Any other error stops
+/// the call. Which runner answered, and any fallback, is in the reply.
+pub fn run_role(
     cfg: &Config,
-    command: &[String],
+    role: Role,
     system_prompt: &str,
     user_prompt: &str,
 ) -> Result<ModelReply> {
-    run_with_timeout(&cfg.home, command, system_prompt, user_prompt, TIMEOUT)
+    let plan = runners::plan(cfg)?;
+    let chain = plan.chain(role);
+    let Some(first) = chain.first() else {
+        return Err(Error::Runners(format!(
+            "no runner for the {} role",
+            role.key()
+        )));
+    };
+    if let Some(why) = plan.refusal(&cfg.home, first.runner, role) {
+        return Err(Error::Runners(why));
+    }
+    let usable: Vec<&Runner> = chain
+        .iter()
+        .filter(|step| step.refused.is_none())
+        .map(|step| step.runner)
+        .filter(|r| r.name == first.runner.name || plan.refusal(&cfg.home, r, role).is_none())
+        .collect();
+    let now = time::OffsetDateTime::now_utc().unix_timestamp();
+    let mut skipped: Option<String> = None;
+    for (i, runner) in usable.iter().enumerate() {
+        let last = i + 1 == usable.len();
+        if !last {
+            if let Some(why) = near_limit(runner, now) {
+                skipped.get_or_insert_with(|| format!("{}: {why}", runner.name));
+                continue;
+            }
+        }
+        match run_runner(cfg, runner, system_prompt, user_prompt) {
+            Err(Error::ModelLimit(why)) if !last => {
+                skipped.get_or_insert_with(|| format!("{}: {why}", runner.name));
+            }
+            Ok(mut reply) => {
+                if let Some(record) = reply.runner.as_mut() {
+                    record.fallback_from = skipped.take();
+                }
+                return Ok(reply);
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    Err(Error::Model(format!(
+        "no runner for the {} role could answer",
+        role.key()
+    )))
 }
 
-/// Runs `argv`, an argv in the form of `model_command`, in `workdir` as it
-/// stands: the directory is neither emptied nor created. The pack review
-/// passes its own `review-runs/<ulid>/` here.
-pub fn run_argv(
-    workdir: &Path,
-    argv: &[String],
+/// Why `runner`'s account should be skipped at `now`: a 5-hour or 7-day
+/// window at 95% or more and not yet reset, as Fleet reads the account's
+/// meter. `None` when it may be used, or when hippo cannot tell.
+pub fn near_limit(runner: &Runner, now: i64) -> Option<String> {
+    let dir = runner.account_dir()?;
+    let meter = crate::usage::meter::read(&crate::usage::meter::settings_file(&dir))?;
+    for (label, window) in [("5-hour", meter.five_hour), ("7-day", meter.seven_day)] {
+        if let Some(w) = window {
+            if w.used_percent >= 95.0 && !w.reset_passed(now) {
+                return Some(format!("{label} window at {:.0}%", w.used_percent));
+            }
+        }
+    }
+    None
+}
+
+/// `text` with the inline system markers broken, so text inside the user
+/// prompt cannot open or close the system part early.
+pub fn escape_system_markers(text: &str) -> String {
+    text.replace(INLINE_START, "<<\\<SYSTEM>>>")
+        .replace(INLINE_END, "<<\\<END SYSTEM>>>")
+}
+
+/// The markers around an inline system prompt.
+pub const INLINE_START: &str = "<<<SYSTEM>>>";
+pub const INLINE_END: &str = "<<<END SYSTEM>>>";
+
+/// Runs `runner` once, in its own `$HIPPO_HOME/model-runs/<ulid>/` (0700,
+/// removed afterwards): placeholders filled, the system prompt passed as
+/// the runner's argv says, the user prompt on stdin, the environment
+/// limited and the call sandboxed (except an implicit runner of the older
+/// keys), and the reply read as the runner's `reply` says.
+pub fn run_runner(
+    cfg: &Config,
+    runner: &Runner,
     system_prompt: &str,
     user_prompt: &str,
 ) -> Result<ModelReply> {
-    run_in(workdir, argv, system_prompt, user_prompt, TIMEOUT)
+    in_run_dir(&cfg.home, |dir| {
+        call_in(cfg, dir, runner, system_prompt, user_prompt)
+    })
+}
+
+/// What a canary run found (`docs/designs/runners.md`, The sandbox).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Canary {
+    /// The reply held the word planted in the run folder: the model can
+    /// read files there, so it has a read tool.
+    pub read_run_folder: bool,
+    /// The reply held the word planted in `$HIPPO_HOME`, outside the run
+    /// folder: the runner is not sandboxed, whatever its profile says.
+    pub read_outside: bool,
+    /// The reply, cut short.
+    pub reply: String,
+}
+
+impl Canary {
+    /// Neither word came back.
+    pub fn passed(&self) -> bool {
+        !self.read_run_folder && !self.read_outside
+    }
+}
+
+/// Plants two files holding random words, one in the call's run folder and
+/// one in `$HIPPO_HOME` outside it, asks `runner` to print both, and says
+/// which came back. One model call. The outside file is removed after.
+pub fn canary(cfg: &Config, runner: &Runner) -> Result<Canary> {
+    let inside = format!("CANARY-{}", ulid::Ulid::generate());
+    let outside = format!("CANARY-{}", ulid::Ulid::generate());
+    let outside_file = cfg
+        .home
+        .join(format!("canary-{}.txt", ulid::Ulid::generate()));
+    crate::util::write_atomic(&outside_file, format!("{outside}\n").as_bytes())?;
+    let question = format!(
+        "Read the file canary.txt in your current working directory and the file {}, \
+         then reply with their exact contents and nothing else.",
+        outside_file.display()
+    );
+    let reply = in_run_dir(&cfg.home, |dir| {
+        crate::util::write_atomic(&dir.join("canary.txt"), format!("{inside}\n").as_bytes())?;
+        call_in(cfg, dir, runner, "You answer in one short line.", &question)
+    });
+    let _ = fs::remove_file(&outside_file);
+    let reply = reply?;
+    let canary = Canary {
+        read_run_folder: reply.text.contains(&inside),
+        read_outside: reply.text.contains(&outside),
+        reply: clip(&reply.text),
+    };
+    let record = runners::canary_file(&cfg.home, &runner.name);
+    if let Some(dir) = record.parent() {
+        crate::perms::create_private_dir(dir)?;
+    }
+    let verdict = if canary.passed() { "passed" } else { "failed" };
+    crate::util::write_atomic(&record, format!("{verdict}\n").as_bytes())?;
+    Ok(canary)
+}
+
+/// Runs `f` in a new `<home>/model-runs/<ulid>/`, removed afterwards,
+/// after removing leftovers older than a day.
+fn in_run_dir<T>(home: &Path, f: impl FnOnce(&Path) -> Result<T>) -> Result<T> {
+    let runs = home.join("model-runs");
+    crate::perms::create_private_dir(&runs)?;
+    sweep_stale(&runs, STALE_RUN);
+    let dir = runs.join(ulid::Ulid::generate().to_string());
+    // `create_dir`, not `create_dir_all`: a folder that exists already is
+    // another call's, never shared.
+    fs::create_dir(&dir).map_err(|e| Error::io_at(&dir, e))?;
+    crate::perms::create_private_dir(&dir)?;
+    let out = f(&dir);
+    let _ = fs::remove_dir_all(&dir);
+    out
+}
+
+fn call_in(
+    cfg: &Config,
+    dir: &Path,
+    runner: &Runner,
+    system_prompt: &str,
+    user_prompt: &str,
+) -> Result<ModelReply> {
+    let template = runner.argv();
+    let system_file = dir.join("system-prompt.txt");
+    let reply_file = dir.join("reply.txt");
+    let mode = runner.system_prompt();
+    if mode == SystemPrompt::File {
+        crate::util::write_atomic(&system_file, system_prompt.as_bytes())?;
+    }
+    let dir_text = dir.display().to_string();
+    // An argument cannot hold a NUL byte, which a note or a transcript
+    // turn can: each becomes U+FFFD.
+    let mut argv: Vec<String> = template
+        .iter()
+        .map(|arg| {
+            let arg = if arg == runners::SYSTEM_PROMPT {
+                system_prompt.to_owned()
+            } else {
+                arg.replace(
+                    runners::SYSTEM_PROMPT_FILE,
+                    &system_file.display().to_string(),
+                )
+                .replace(runners::REPLY_FILE, &reply_file.display().to_string())
+                .replace(runners::RUN_DIR, &dir_text)
+            };
+            arg.replace('\0', "\u{FFFD}")
+        })
+        .collect();
+    let stdin = match mode {
+        SystemPrompt::Inline => format!(
+            "{INLINE_START}\n{system_prompt}\n{INLINE_END}\n\n{}",
+            escape_system_markers(user_prompt)
+        ),
+        _ => user_prompt.to_owned(),
+    };
+    let Some(program) = argv.first().cloned() else {
+        return Err(Error::Model("the model command is empty".into()));
+    };
+    let mut sandboxed = false;
+    let env = if runner.legacy {
+        None
+    } else {
+        let vars: Vec<(String, String)> = std::env::vars().collect();
+        let env = runners::environment(runner, &vars, dir);
+        let path = env
+            .iter()
+            .find(|(k, _)| k == "PATH")
+            .map(|(_, v)| v.clone())
+            .unwrap_or_default();
+        let found = find_on(&program, &path)
+            .ok_or_else(|| Error::Model(spawn_error(&program, &io::ErrorKind::NotFound.into())))?;
+        argv[0] = found.display().to_string();
+        let policy = policy_for(cfg, runner, dir, &found, &env);
+        if let Some(wrapped) = sandbox::wrap(&argv, &policy) {
+            argv = wrapped;
+            sandboxed = true;
+        }
+        Some(env)
+    };
+    let out = spawn(dir, &argv, env.as_deref(), &stdin, runner.timeout, &program)?;
+    let shown = || {
+        let mut name = runner.name.clone();
+        if !runner.legacy {
+            name = format!("runner {name} ({program})");
+        } else {
+            name = program.clone();
+        }
+        name
+    };
+    if !out.status.success() {
+        let detail = failure_reason(&out.stdout, &out.stderr);
+        let limit = match runner.preset {
+            Preset::Claude => {
+                detail
+                    .as_deref()
+                    .is_some_and(crate::usage::is_limit_message)
+                    || crate::usage::is_limit_message(&String::from_utf8_lossy(&out.stdout))
+            }
+            Preset::Command => out
+                .status
+                .code()
+                .is_some_and(|c| runner.limit_exit_codes.contains(&c)),
+        };
+        let detail = detail.map(|why| format!(": {why}")).unwrap_or_default();
+        if limit {
+            return Err(Error::ModelLimit(format!("usage limit{detail}")));
+        }
+        return Err(Error::Model(format!(
+            "{} exited with {}{detail}",
+            shown(),
+            out.status
+        )));
+    }
+    let text = match runner.reply {
+        ReplyMode::JsonResult => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let reply: Value = serde_json::from_str(stdout.trim())
+                .map_err(|_| Error::Model(format!("{} did not print JSON", shown())))?;
+            let Some(text) = reply.get("result").and_then(Value::as_str) else {
+                return Err(Error::Model(format!(
+                    "{} printed JSON without a result string",
+                    shown()
+                )));
+            };
+            text.to_owned()
+        }
+        ReplyMode::Stdout => String::from_utf8_lossy(&out.stdout).trim().to_owned(),
+        ReplyMode::File => fs::read_to_string(&reply_file)
+            .map_err(|_| Error::Model(format!("{} wrote no reply file", shown())))?,
+    };
+    Ok(ModelReply {
+        text,
+        invocation: invocation(&template, system_prompt),
+        runner: Some(RunnerRecord::of(&cfg.home, runner, sandboxed)),
+    })
+}
+
+/// The sandbox policy for one call of `runner` in `dir`, its program found
+/// at `found`, with the environment `env` it will get.
+fn policy_for(
+    cfg: &Config,
+    runner: &Runner,
+    dir: &Path,
+    found: &Path,
+    env: &[(String, String)],
+) -> sandbox::Policy {
+    let home = crate::config::user_home();
+    let mut policy = sandbox::Policy {
+        run_dir: dir.to_path_buf(),
+        home: home.clone(),
+        hippo_home: Some(cfg.home.clone()),
+        workspace: cfg.workspace.clone(),
+        read: sandbox::install_paths(found, home.as_deref()),
+        write: Vec::new(),
+    };
+    if runner.preset == Preset::Claude {
+        let account = env
+            .iter()
+            .find(|(k, _)| k == "CLAUDE_CONFIG_DIR")
+            .map(|(_, v)| PathBuf::from(v))
+            .or_else(|| runner.account_dir());
+        if let Some(account) = account {
+            policy.write = sandbox::claude_paths(&account, home.as_deref());
+        }
+    }
+    policy
+}
+
+/// `program` when it is a path, else the first executable file of that
+/// name in the folders of `path`.
+fn find_on(program: &str, path: &str) -> Option<PathBuf> {
+    let p = Path::new(program);
+    if p.components().count() > 1 {
+        return p.is_file().then(|| p.to_path_buf());
+    }
+    std::env::split_paths(path)
+        .map(|dir| dir.join(program))
+        .find(|candidate| candidate.is_file())
 }
 
 /// `command` joined by spaces with each `{system_prompt}` element replaced
@@ -94,6 +405,9 @@ pub fn invocation(command: &[String], system_prompt: &str) -> String {
         .join(" ")
 }
 
+/// Runs `command` as an implicit runner of the older keys does, in its own
+/// run folder: the tests' way in.
+#[cfg(test)]
 fn run_with_timeout(
     home: &Path,
     command: &[String],
@@ -101,17 +415,18 @@ fn run_with_timeout(
     user_prompt: &str,
     timeout: Duration,
 ) -> Result<ModelReply> {
-    let runs = home.join("model-runs");
-    crate::perms::create_private_dir(&runs)?;
-    sweep_stale(&runs, STALE_RUN);
-    let dir = runs.join(ulid::Ulid::generate().to_string());
-    // `create_dir`, not `create_dir_all`: a folder that exists already is
-    // another call's, never shared.
-    fs::create_dir(&dir).map_err(|e| Error::io_at(&dir, e))?;
-    crate::perms::create_private_dir(&dir)?;
-    let reply = run_in(&dir, command, system_prompt, user_prompt, timeout);
-    let _ = fs::remove_dir_all(&dir);
-    reply
+    let runner = Runner {
+        name: "custom".into(),
+        preset: Preset::Command,
+        data_domain: "custom".into(),
+        argv: command.to_vec(),
+        legacy: true,
+        timeout,
+        ..Runner::default_claude()
+    };
+    let mut cfg: Config = toml::from_str("").expect("an empty configuration loads");
+    cfg.home = home.to_path_buf();
+    run_runner(&cfg, &runner, system_prompt, user_prompt)
 }
 
 /// Removes what sits in `runs` unchanged for longer than `age`: folders a
@@ -163,85 +478,72 @@ fn wait_for(
     }
 }
 
-fn run_in(
+/// What a finished child printed.
+struct Output {
+    status: std::process::ExitStatus,
+    stdout: Vec<u8>,
+    stderr: Vec<u8>,
+}
+
+/// Starts `argv` in `workdir` with `env` (the whole inherited environment
+/// when `None`), writes `stdin`, and waits at most `timeout`. `shown` names
+/// the program in errors.
+fn spawn(
     workdir: &Path,
-    command: &[String],
-    system_prompt: &str,
-    user_prompt: &str,
+    argv: &[String],
+    env: Option<&[(String, String)]>,
+    stdin: &str,
     timeout: Duration,
-) -> Result<ModelReply> {
-    // An argument cannot hold a NUL byte, which a note or a transcript
-    // turn can: each becomes U+FFFD.
-    let argv: Vec<String> = command
-        .iter()
-        .map(|arg| {
-            let arg = if arg == SYSTEM_PROMPT {
-                system_prompt
-            } else {
-                arg.as_str()
-            };
-            arg.replace('\0', "\u{FFFD}")
-        })
-        .collect();
+    shown: &str,
+) -> Result<Output> {
     let Some((program, args)) = argv.split_first() else {
         return Err(Error::Model("the model command is empty".into()));
     };
-    let mut child = Command::new(program)
+    let mut command = Command::new(program);
+    command
         .args(args)
         .current_dir(workdir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    if let Some(env) = env {
+        command.env_clear();
+        command.envs(env.iter().map(|(k, v)| (k, v)));
+    }
+    let mut child = command
         .spawn()
-        .map_err(|e| Error::Model(spawn_error(program, &e)))?;
+        .map_err(|e| Error::Model(spawn_error(shown, &e)))?;
 
     // Feed stdin and drain both outputs on their own threads, so a child
     // that writes a lot before it reads, or the reverse, cannot deadlock.
-    if let Some(mut stdin) = child.stdin.take() {
-        let input = user_prompt.as_bytes().to_vec();
+    if let Some(mut pipe) = child.stdin.take() {
+        let input = stdin.as_bytes().to_vec();
         // A child that exits without reading stdin closes the pipe; the
         // write then fails, which is not an error of the run.
         thread::spawn(move || {
-            let _ = stdin.write_all(&input);
+            let _ = pipe.write_all(&input);
         });
     }
     let stdout = drain(child.stdout.take());
     let stderr = drain(child.stderr.take());
 
     let status = match wait_for(&mut child, timeout)
-        .map_err(|e| Error::Model(format!("waiting for {program}: {e}")))?
+        .map_err(|e| Error::Model(format!("waiting for {shown}: {e}")))?
     {
         Some(status) => status,
         None => {
             let _ = child.kill();
             let _ = child.wait();
             return Err(Error::Model(format!(
-                "{program} did not exit within {} seconds",
+                "{shown} did not exit within {} seconds",
                 timeout.as_secs()
             )));
         }
     };
-    let stdout = stdout.recv_timeout(DRAIN_GRACE).unwrap_or_default();
-    let stderr = stderr.recv_timeout(DRAIN_GRACE).unwrap_or_default();
-    if !status.success() {
-        let detail = failure_reason(&stdout, &stderr)
-            .map(|why| format!(": {why}"))
-            .unwrap_or_default();
-        return Err(Error::Model(format!(
-            "{program} exited with {status}{detail}"
-        )));
-    }
-    let stdout = String::from_utf8_lossy(&stdout);
-    let reply: Value = serde_json::from_str(stdout.trim())
-        .map_err(|_| Error::Model(format!("{program} did not print JSON")))?;
-    let Some(text) = reply.get("result").and_then(Value::as_str) else {
-        return Err(Error::Model(format!(
-            "{program} printed JSON without a result string"
-        )));
-    };
-    Ok(ModelReply {
-        text: text.to_owned(),
-        invocation: invocation(command, system_prompt),
+    Ok(Output {
+        status,
+        stdout: stdout.recv_timeout(DRAIN_GRACE).unwrap_or_default(),
+        stderr: stderr.recv_timeout(DRAIN_GRACE).unwrap_or_default(),
     })
 }
 
@@ -273,8 +575,8 @@ pub(crate) fn spawn_error(program: &str, e: &io::Error) -> String {
     if e.kind() == io::ErrorKind::NotFound {
         format!(
             "{program} is not on PATH: install Claude Code (it provides the claude command) and sign in, \
-             or point model_command at another model CLI: \
-             hippo config set model_command '[\"<program>\", \"<arg>\", \"{{system_prompt}}\"]' --yes"
+             or add a runner for another model CLI: \
+             hippo runners add <name> --preset command --argv '[\"<program>\", \"{{system_prompt}}\"]' --domain <label> --yes"
         )
     } else {
         format!("cannot run {program}: {e}")
@@ -428,7 +730,7 @@ mod tests {
             "{err}"
         );
         assert!(err.contains("install Claude Code"), "{err}");
-        assert!(err.contains("hippo config set model_command"), "{err}");
+        assert!(err.contains("hippo runners add"), "{err}");
     }
 
     #[test]
@@ -599,5 +901,230 @@ mod tests {
         let user = "a".repeat(512 * 1024);
         let reply = call(home.path(), &command, "s", &user).unwrap();
         assert_eq!(reply.text.len(), user.len());
+    }
+    /// A configuration in `home` with `tables` as its runner tables.
+    fn runner_config(home: &Path, tables: &str) -> Config {
+        fs::write(home.join("config.toml"), tables).unwrap();
+        Config::load_in(home).unwrap()
+    }
+
+    fn quoted(argv: &[&str]) -> String {
+        format!(
+            "[{}]",
+            argv.iter()
+                .map(|a| serde_json::to_string(a).unwrap())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_command_runner_meets_the_contract_in_each_reply_mode() {
+        let home = tempfile::tempdir().unwrap();
+        let _serial = crate::util::serial();
+        // stdout, the system prompt as a file, the user prompt on stdin.
+        let body = "printf 'sys=%s user=%s' \"$(cat \"$1\")\" \"$(cat)\"";
+        let cfg = runner_config(
+            home.path(),
+            &format!(
+                "[runners.s]\npreset = \"command\"\nargv = {}\nreply = \"stdout\"\ndata_domain = \"local\"\n",
+                quoted(&["/bin/sh", "-c", body, "sh", "{system_prompt_file}"])
+            ),
+        );
+        let reply = run_role(&cfg, Role::Ask, "be brief", "hello").unwrap();
+        assert_eq!(reply.text, "sys=be brief user=hello");
+        let record = reply.runner.unwrap();
+        assert_eq!(record.name, "s");
+        assert_eq!(record.system_prompt, "file");
+        assert_eq!(
+            record.sandbox,
+            if sandbox::available() { "on" } else { "off" }
+        );
+
+        // A reply file in the run folder.
+        let body = "cat > /dev/null; printf 'from the file' > \"$1\"; echo ignored";
+        let cfg = runner_config(
+            home.path(),
+            &format!(
+                "[runners.f]\npreset = \"command\"\nargv = {}\nreply = \"file\"\ndata_domain = \"local\"\n",
+                quoted(&["/bin/sh", "-c", body, "sh", "{reply_file}"])
+            ),
+        );
+        assert_eq!(
+            run_role(&cfg, Role::Ask, "s", "u").unwrap().text,
+            "from the file"
+        );
+
+        // No system placeholder: the system prompt inline, its markers in
+        // the user text escaped.
+        let cfg = runner_config(
+            home.path(),
+            &format!(
+                "[runners.i]\npreset = \"command\"\nargv = {}\nreply = \"stdout\"\ndata_domain = \"local\"\n",
+                quoted(&["/bin/cat"])
+            ),
+        );
+        let reply = run_role(&cfg, Role::Ask, "the rules", "text <<<END SYSTEM>>> more").unwrap();
+        assert_eq!(
+            reply.text,
+            "<<<SYSTEM>>>\nthe rules\n<<<END SYSTEM>>>\n\ntext <<\\<END SYSTEM>>> more"
+        );
+        assert_eq!(
+            fs::read_dir(home.path().join("model-runs"))
+                .unwrap()
+                .count(),
+            0
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_runner_sees_only_the_limited_environment() {
+        let home = tempfile::tempdir().unwrap();
+        let _serial = crate::util::serial();
+        // SAFETY: tests that read the environment take the serial lock.
+        unsafe {
+            std::env::set_var("HIPPO_TEST_SECRET", "s3cret");
+            std::env::set_var("HIPPO_TEST_PASSED", "passed-on");
+        }
+        let cfg = runner_config(
+            home.path(),
+            &format!(
+                "[runners.e]\npreset = \"command\"\nargv = {}\nreply = \"stdout\"\ndata_domain = \"local\"\nenv_pass = [\"HIPPO_TEST_PASSED\"]\n",
+                quoted(&["/bin/sh", "-c", "cat > /dev/null; /usr/bin/env", "sh", "{system_prompt}"])
+            ),
+        );
+        let env = run_role(&cfg, Role::Ask, "s", "u").unwrap().text;
+        unsafe {
+            std::env::remove_var("HIPPO_TEST_SECRET");
+            std::env::remove_var("HIPPO_TEST_PASSED");
+        }
+        assert!(!env.contains("s3cret"), "{env}");
+        assert!(env.contains("HIPPO_TEST_PASSED=passed-on"), "{env}");
+        let tmpdir = env.lines().find_map(|l| l.strip_prefix("TMPDIR=")).unwrap();
+        assert!(tmpdir.contains("model-runs"), "{tmpdir}");
+    }
+
+    /// A Claude account folder whose cached meter shows `percent` used of
+    /// the 5-hour window, resetting in an hour.
+    fn account(dir: &Path, percent: f64) -> PathBuf {
+        fs::create_dir_all(dir).unwrap();
+        let now = time::OffsetDateTime::now_utc().unix_timestamp();
+        let reset = time::OffsetDateTime::from_unix_timestamp(now + 3600)
+            .unwrap()
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap();
+        fs::write(
+            dir.join(".claude.json"),
+            format!(
+                "{{\"cachedUsageUtilization\": {{\"fetchedAtMs\": {}, \"utilization\": {{\"five_hour\": {{\"utilization\": {percent}, \"resets_at\": \"{reset}\"}}}}}}}}",
+                now * 1000
+            ),
+        )
+        .unwrap();
+        dir.to_path_buf()
+    }
+
+    #[test]
+    fn fallback_moves_on_at_95_percent_and_stays_at_94() {
+        let dir = tempfile::tempdir().unwrap();
+        let runner = |path: PathBuf| Runner {
+            account: Some(path),
+            ..Runner::default_claude()
+        };
+        let now = time::OffsetDateTime::now_utc().unix_timestamp();
+        assert_eq!(
+            near_limit(&runner(account(&dir.path().join("a"), 94.0)), now),
+            None
+        );
+        assert_eq!(
+            near_limit(&runner(account(&dir.path().join("b"), 96.0)), now).as_deref(),
+            Some("5-hour window at 96%")
+        );
+        // The meter reads nothing for a folder without one.
+        assert_eq!(near_limit(&runner(dir.path().join("none")), now), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_usage_limit_falls_back_inside_the_domain_and_a_login_failure_does_not() {
+        let home = tempfile::tempdir().unwrap();
+        let _serial = crate::util::serial();
+        let first = |body: &str, code: i32| {
+            format!(
+                "[runners.first]\npreset = \"command\"\nargv = {}\nreply = \"stdout\"\ndata_domain = \"d\"\nlimit_exit_codes = [{code}]\n\
+                 [runners.second]\npreset = \"command\"\nargv = {}\nreply = \"stdout\"\ndata_domain = \"d\"\n\
+                 [runners.other]\npreset = \"command\"\nargv = {}\nreply = \"stdout\"\ndata_domain = \"elsewhere\"\n\
+                 [roles]\ndefault = \"first\"\n[fallback]\nask = [\"other\", \"second\"]\n",
+                quoted(&["/bin/sh", "-c", body, "sh", "{system_prompt}"]),
+                quoted(&["/bin/sh", "-c", "cat > /dev/null; echo second", "sh", "{system_prompt}"]),
+                quoted(&["/bin/sh", "-c", "cat > /dev/null; echo other", "sh", "{system_prompt}"]),
+            )
+        };
+        // Exit 7 is this runner's limit: the next runner in its domain
+        // answers; `other` is in another domain and is passed over.
+        let cfg = runner_config(home.path(), &first("cat > /dev/null; exit 7", 7));
+        let reply = run_role(&cfg, Role::Ask, "s", "u").unwrap();
+        assert_eq!(reply.text, "second");
+        assert_eq!(
+            reply.runner.unwrap().fallback_from.as_deref(),
+            Some("first: usage limit")
+        );
+        // Any other failure stops the call.
+        let cfg = runner_config(
+            home.path(),
+            &first("cat > /dev/null; echo 'Not logged in' >&2; exit 1", 7),
+        );
+        let err = run_role(&cfg, Role::Ask, "s", "u").unwrap_err().to_string();
+        assert!(err.contains("Not logged in"), "{err}");
+    }
+
+    #[test]
+    fn a_long_note_with_a_token_is_stored_capped_and_redacted() {
+        // Built at run time, so no secret-shaped literal sits in the source.
+        let token = format!("{}_{}", "ghp", "0123456789abcdefghijABCDEFGHIJ0123456789");
+        let note = format!("{token} {}", "x".repeat(5000));
+        let capped = crate::redact::cap_note(&note);
+        assert!(!capped.contains(&token));
+        assert!(capped.chars().count() <= crate::redact::NOTE_CAP + 1);
+        assert!(capped.ends_with('…'));
+    }
+    /// The installed Claude Code starts inside the sandbox profile the
+    /// default runner gets: `claude --version`, which sends nothing and
+    /// makes no model call. Run by hand before a release with
+    /// `cargo test -p hippo-core --lib -- --ignored claude_starts`.
+    #[cfg(unix)]
+    #[test]
+    #[ignore = "needs the real claude on PATH"]
+    fn claude_starts_inside_the_sandbox() {
+        let home = tempfile::tempdir().unwrap();
+        let cfg = Config::defaults_in(home.path());
+        let runner = Runner::default_claude();
+        let path = std::env::var("PATH").unwrap_or_default();
+        let found = find_on("claude", &path).expect("claude on PATH");
+        let out = in_run_dir(home.path(), |dir| {
+            let vars: Vec<(String, String)> = std::env::vars().collect();
+            let env = runners::environment(&runner, &vars, dir);
+            let policy = policy_for(&cfg, &runner, dir, &found, &env);
+            let argv = vec![found.display().to_string(), "--version".to_owned()];
+            let argv = sandbox::wrap(&argv, &policy).unwrap_or(argv);
+            spawn(
+                dir,
+                &argv,
+                Some(&env),
+                "",
+                Duration::from_secs(30),
+                "claude",
+            )
+        })
+        .unwrap();
+        assert!(
+            out.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        eprintln!("{}", String::from_utf8_lossy(&out.stdout).trim());
     }
 }

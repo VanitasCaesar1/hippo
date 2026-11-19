@@ -189,7 +189,7 @@ pub fn check(
         old: draft.old.clone(),
         new: draft.new.clone(),
         evidence: draft.evidence.clone(),
-        reason: draft.reason.clone(),
+        reason: crate::redact::cap_note(&draft.reason),
     }))
 }
 

@@ -401,7 +401,14 @@ fn insert_top_level(text: &str, line: &str) -> String {
 fn check(file: File, text: &str, ws_root: Option<&Path>) -> Result<()> {
     match file {
         File::Config => {
-            toml::from_str::<Config>(text).map_err(|e| bad(format!("would not load: {e}")))?;
+            let cfg =
+                toml::from_str::<Config>(text).map_err(|e| bad(format!("would not load: {e}")))?;
+            let tables = !cfg.runners.is_empty() || !cfg.roles.is_empty();
+            if tables && crate::runners::has_legacy_keys(&cfg) {
+                return Err(bad(
+                    "config.toml has [runners], so model_command and reviewer_command_override no longer apply: change a runner instead (hippo runners)",
+                ));
+            }
         }
         File::Workspace => {
             let ws: Workspace =

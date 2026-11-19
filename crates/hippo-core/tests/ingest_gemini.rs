@@ -66,6 +66,9 @@ fn ingest_reads_gemini_sessions_without_leaks() {
         ingest_interval_minutes: 10,
         dream_at: "03:30".into(),
         reviewer_command_override: None,
+        fallback: Default::default(),
+        roles: Default::default(),
+        runners: Default::default(),
     };
     let ws = Workspace {
         root: workspace.clone(),

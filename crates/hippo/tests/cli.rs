@@ -734,6 +734,7 @@ impl Hippo {
             at: datetime!(2026-11-08 04:00:00 UTC),
             applied: applied.then_some(datetime!(2026-11-08 04:00:01 UTC)),
             snapshot: None,
+            runner: None,
         };
         receipt
             .save(&self.workspace.join(format!(".hippo/receipts/{id}.json")))

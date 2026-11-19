@@ -32,7 +32,7 @@ pub fn home() -> PathBuf {
 }
 
 /// `$HIPPO_HOME/config.toml`. Missing keys take the Records defaults.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct Config {
     /// The hippo home this configuration was loaded from: [`home()`] unless
     /// a caller or test passed another to [`Config::load_in`]. Files under
@@ -72,6 +72,17 @@ pub struct Config {
     /// the template.
     #[serde(default)]
     pub reviewer_command_override: Option<Vec<String>>,
+    /// `[runners.<name>]`: the CLIs hippo's own model calls may use, read
+    /// by [`crate::runners::plan`] only when a model is called, so a
+    /// mistake in them never stops the configuration from loading.
+    #[serde(default)]
+    pub runners: toml::Table,
+    /// `[roles]`: which runner each role uses.
+    #[serde(default)]
+    pub roles: toml::Table,
+    /// `[fallback]`: the runners each role may move to at a limit.
+    #[serde(default)]
+    pub fallback: toml::Table,
 }
 
 /// The `transcript_roots` a configuration has when it sets none, and where
@@ -168,6 +179,14 @@ impl Config {
             *root = expand_tilde(root);
         }
         Ok(config)
+    }
+
+    /// A configuration with every key at its default, in `home`: what an
+    /// empty `config.toml` loads as.
+    pub fn defaults_in(home: &Path) -> Config {
+        let mut cfg: Config = toml::from_str("").expect("an empty configuration loads");
+        cfg.home = home.to_path_buf();
+        cfg
     }
 
     /// The workspace, or [`Error::NoWorkspace`] when the configuration
@@ -968,6 +987,9 @@ mod tests {
             ingest_interval_minutes: 10,
             dream_at: "03:30".into(),
             reviewer_command_override: None,
+            fallback: Default::default(),
+            roles: Default::default(),
+            runners: Default::default(),
         }
     }
 

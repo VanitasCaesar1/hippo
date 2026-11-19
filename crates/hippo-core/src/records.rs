@@ -183,6 +183,10 @@ pub struct Receipt {
     /// The snapshot's path relative to the workspace; `null` when nothing
     /// was applied.
     pub snapshot: Option<PathBuf>,
+    /// The runner that reviewed: its name, preset, model and sandbox, never
+    /// its account folder. Absent before 0.5.0 and on a revert.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runner: Option<crate::runners::RunnerRecord>,
 }
 
 /// `.hippo/dream-state.json`.

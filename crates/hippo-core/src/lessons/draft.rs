@@ -53,6 +53,7 @@ Reply with only one JSON object: {\"verdict\": \"confirm\" or \"reject\", \"note
 
 /// What became of one drafted cluster.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(clippy::large_enum_variant)]
 pub enum Outcome {
     /// The drafter found no lasting rule.
     Declined,
@@ -231,18 +232,15 @@ pub fn review_prompt(title: &str, rule: &str, target: &Target, evidence: &[Value
 /// Runs the `lesson-reviewer` on a draft: a model error is an error, an
 /// unparsable reply a rejection.
 pub fn review(cfg: &Config, message: &str) -> Result<LessonReview> {
-    let command = cfg
-        .reviewer_command_override
-        .as_deref()
-        .unwrap_or(&cfg.model_command);
-    let reply = model::run_command(cfg, command, REVIEWER_PERSONA, message)?;
+    let reply = model::run_role(cfg, crate::runners::Role::Review, REVIEWER_PERSONA, message)?;
     let (verdict, notes) = parse_reply(&reply.text);
     Ok(LessonReview {
         reviewer: REVIEWER.to_owned(),
         invocation: reply.invocation,
         verdict,
-        notes,
+        notes: crate::redact::cap_note(&notes),
         at: OffsetDateTime::now_utc(),
+        runner: reply.runner,
     })
 }
 
@@ -292,7 +290,12 @@ pub fn draft_clusters(
                 })
                 .collect();
             out.state.model_calls += 1;
-            let reply = match model::run(cfg, SYSTEM_PROMPT, &prompt(&items)) {
+            let reply = match model::run_role(
+                cfg,
+                crate::runners::Role::Lessons,
+                SYSTEM_PROMPT,
+                &prompt(&items),
+            ) {
                 Ok(r) => r,
                 Err(err) => {
                     out.notes.push(format!("drafting failed: {err}"));
@@ -418,7 +421,7 @@ pub fn propose(
         excerpts.iter().map(Value::to_string).collect::<Vec<_>>().join("\n"),
         serde_json::to_string(&offered)?
     );
-    let reply = model::run(cfg, SYSTEM_PROMPT, &message)?;
+    let reply = model::run_role(cfg, crate::runners::Role::Lessons, SYSTEM_PROMPT, &message)?;
     let object = reply_object(reply.text.trim())
         .or_else(|| {
             let t = &reply.text;
@@ -593,7 +596,7 @@ pub fn propose_miss(cfg: &Config, ws: &Workspace, session: &str, ordinal: u32) -
         query = miss.query,
         follow_text = miss.follow.as_deref().unwrap_or("found it"),
     );
-    let reply = model::run(cfg, SYSTEM_PROMPT, &message)?;
+    let reply = model::run_role(cfg, crate::runners::Role::Lessons, SYSTEM_PROMPT, &message)?;
     let object = reply_object(reply.text.trim())
         .or_else(|| {
             let t = &reply.text;

@@ -135,7 +135,7 @@ A per-pass runner was considered and left out: a pack is shared, runners are per
 **The `command` contract**, documented on the configuration page:
 
 - The user prompt is on stdin. hippo never puts transcript text in an argument, so it never appears in the process list.
-- The system prompt reaches the CLI one of three ways: `{system_prompt}` (an argument, as `model_command` today; fine for hippo's own fixed prompts, which hold no transcript text), `{system_prompt_file}` (a file in the run folder), or, with neither placeholder, inline at the top of the user prompt between `<<<SYSTEM>>>` and `<<<END SYSTEM>>>`. Any of those two marker strings inside the user text is escaped the same way the untrusted-data markers are, so a transcript cannot close the system part early.
+- The system prompt reaches the CLI one of three ways: `{system_prompt}` (an argument, as `model_command` today; fine for hippo's own fixed prompts, which hold no transcript text), `{system_prompt_file}` (a file in the run folder), or, with neither placeholder, inline at the top of the user prompt between `<<<SYSTEM>>>` and `<<<END SYSTEM>>>`. Either marker inside the user text is broken (`<<\<SYSTEM>>>`, `<<\<END SYSTEM>>>`), so a transcript cannot open or close the system part.
 - The reply is read as `reply` says. A reply the parser cannot read is a model error naming the runner and the CLI's `--version` output, never a guess.
 - The CLI must not keep a session in a store hippo reads. hippo cannot check that; [the second line](#leaving-no-transcript) catches it if it does.
 - **The review role needs a real system prompt.** A runner that would put the system prompt inline cannot be the `review` role: the reviewer's persona is its rules, and as user text it is easier to argue with. `doctor` names the reason.
@@ -157,18 +157,20 @@ Invariant 4 says a model run is isolated and leaves no transcript. Two layers ho
 Every runner, `claude` included, starts inside an OS sandbox that hippo builds per call:
 
 - **macOS:** `sandbox-exec` with a generated profile. `sandbox-exec` is marked deprecated in its man page but still ships, and Codex's own macOS sandbox is built on it.
-- **Linux:** `bwrap` (bubblewrap) when it is on `PATH`; otherwise Landlock when the kernel has it.
+- **Linux:** `bwrap` (bubblewrap) when it is on `PATH` and can start a process in a new mount namespace. Landlock without `bwrap` is not used in v0.5.0 ([open question 3](#open-questions)); such a machine counts as having no sandbox.
 - **Elsewhere, or when neither is available:** no sandbox. `claude` still runs (its isolation is no tools, as today). A `command` runner in a writing role is refused unless it sets `allow_unsandboxed = true`. `doctor` shows which.
 
 What the profile allows:
 
 | Access | Paths |
 |---|---|
-| Read | the run folder; the resolved CLI executable and its install prefix (for a Node CLI, the Node runtime too); the account folder (and for the default Claude account, `~/.claude.json`); system libraries and certificate stores |
-| Write | the run folder (also the child's `TMPDIR`); the account folder, because CLIs update their own state there |
+| Read | the run folder; the resolved CLI executable and its install folder (two levels above the real executable, never the home folder or a folder directly in it; a link on `PATH` itself); the account folder and its `.claude.json` (`~/.claude.json` for the default account); on macOS the login keychain (`~/Library/Keychains`), because Claude Code reads and refreshes its sign-in there with `/usr/bin/security`; everything outside the home folder, `$HIPPO_HOME` and the workspace |
+| Write | the run folder (also the child's `TMPDIR`); the account folder and the Claude Code paths above, because CLIs update their own state there, plus `~/.local/state/claude`, `~/.cache/claude` and its macOS cache folder; the system's temporary folders and devices, except where they hold one of the denied folders |
 | Network | allowed: the CLI must reach its provider |
 
-Everything else under `$HOME`, `$HIPPO_HOME` outside the run folder, and the workspace are denied. `doctor --model --canary` plants two files with random words: one in the run folder and one in `$HIPPO_HOME`, outside it. A runner that prints the outside word is not sandboxed, whatever this table says; the row says so and the runner is treated as unsandboxed.
+Everything else under `$HOME`, `$HIPPO_HOME` outside the run folder, and the workspace are denied. `doctor --model --canary` plants two files with random words: one in the run folder and one in `$HIPPO_HOME`, outside it. A runner that prints the outside word is not sandboxed, whatever this table says; the row says so and the runner is treated as unsandboxed. A canary that comes back with neither word is recorded in `$HIPPO_HOME/runners/<name>.canary`, and that record is what lets a `command` runner without `allow_tools` serve the writing roles.
+
+Before v0.5.0, `claude --version` was run inside the generated profile against the installed Claude Code (2.1.328) on macOS and started; a signed-in call was not run, because no model may be called to build hippo. `cargo test -p hippo-core --lib -- --ignored claude_starts` repeats that check.
 
 A CLI update can need a path the profile lacks. The symptom is a failed call naming a denied path; `doctor --model` shows it, and the fix is a profile change in a hippo release, not a setting.
 
@@ -218,7 +220,7 @@ Every fallback is written in the run's report and in the receipt (`runner: claud
 | `dsh` | 0.1.5-rc.1 | `dsh --profile headless --patch {run_dir}/hippo.patch.yml` | whether it reads the task from stdin or a file; without that it cannot be used, since the prompt would be in an argument |
 | `cmd` | not installed | `cmd -p --output-format json` | everything |
 
-A recipe moves into the documentation after the end-to-end check in the [test plan](#test-plan) passes for it. It becomes a built-in preset (with model and effort keys) only when people use the recipe and the CLI's flags have held still for two of its releases. The sandbox makes a recipe safe to try either way: a CLI that ignores its own read-only flag still cannot read outside the run folder.
+A recipe moves into the documentation after the end-to-end check in the [test plan](#test-plan) passes for it. In v0.5.0 the recipes for `codex`, `muse` and `opencode` are in the configuration page marked as candidates, not yet checked end to end (no model may be called to build hippo); `dsh` and `cmd` have none, since neither is known to read the task from standard input. It becomes a built-in preset (with model and effort keys) only when people use the recipe and the CLI's flags have held still for two of its releases. The sandbox makes a recipe safe to try either way: a CLI that ignores its own read-only flag still cannot read outside the run folder.
 
 ### The reviewer on another vendor
 
@@ -269,6 +271,7 @@ As with every `config` change, these print the change and write it only with `--
 - No `[runners]` table and no `model_command`: an implicit runner `claude` with today's argv is the default. Nothing is written.
 - `model_command` set: an implicit runner `custom` with `preset = "command"`, that argv, `reply = "json-result"` and `data_domain = "custom"`.
 - `reviewer_command_override` set: an implicit runner `custom-review` is the `review` role.
+- **The two implicit runners keep today's behaviour**: the whole environment and no sandbox, and none of the refusals for writing roles apply. "An existing `model_command` keeps working unchanged" wins over the environment rule here, since a wrapper may need any variable. `hippo runners` and `doctor` mark them as older keys; `hippo runners migrate` turns them into real runners, which get the environment rule and the sandbox, and prints the `env_pass` to add.
 - **Both the old keys and a `[runners]` table:** the configuration still loads. Hooks, `context`, `brief`, `guard check` and every command that makes no model call work as usual. Only model-calling commands fail, naming both keys and `hippo runners migrate`.
 - `hippo runners add` on a configuration with old keys migrates first: it prints the migration and the new runner as one change and writes both with `--yes`. It never leaves both.
 - The old keys stay readable for at least two minor versions.

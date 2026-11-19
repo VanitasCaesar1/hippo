@@ -64,6 +64,7 @@ pub mod records;
 pub mod redact;
 pub mod resume;
 pub mod rollup;
+pub mod runners;
 pub mod session_meta;
 pub mod sessions;
 pub mod settings;

@@ -778,6 +778,7 @@ mod tests {
             at: OffsetDateTime::UNIX_EPOCH,
             applied: None,
             snapshot: None,
+            runner: None,
         };
         Confirmed::check(&file, &proposal, &receipt, made_against).unwrap()
     }

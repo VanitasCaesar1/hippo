@@ -57,7 +57,7 @@ pub struct ManageUi {
     /// A folder picked with Add a folder, for the next draw's sheet.
     pub pending_folder: Option<String>,
     /// Each card's bounds at the last paint, for the side list's jumps.
-    pub card_bounds: Rc<std::cell::RefCell<[Option<gpui::Bounds<gpui::Pixels>>; 8]>>,
+    pub card_bounds: Rc<std::cell::RefCell<[Option<gpui::Bounds<gpui::Pixels>>; 9]>>,
     /// Doctor's passing rows are shown (folded by default).
     pub doctor_open: bool,
     /// Doctor rows whose engine text is shown (behind `▸`).
@@ -83,7 +83,7 @@ impl ManageUi {
             adding_required: false,
             scroll: ScrollHandle::new(),
             pending_folder: None,
-            card_bounds: Rc::new(std::cell::RefCell::new([None; 8])),
+            card_bounds: Rc::new(std::cell::RefCell::new([None; 9])),
             doctor_open: false,
             doctor_detail: Default::default(),
             hooks_help: false,
@@ -95,12 +95,13 @@ impl ManageUi {
 const MONO: &str = "Menlo";
 
 /// The cards, in the side list's order, with their icons.
-const CARDS: [(&str, &str); 8] = [
+const CARDS: [(&str, &str); 9] = [
     ("Agents", "terminal"),
     ("Hooks", "link"),
     ("Schedule", "clock"),
     ("Context", "stack"),
     ("Dreaming & lessons", "moon"),
+    ("Models", "bot"),
     ("Packs", "box"),
     ("Health", "heart"),
     ("Settings", "gear"),
@@ -342,6 +343,7 @@ impl Shell {
             self.schedule_card(&data, look, cx),
             self.context_card(&data, look, cx),
             self.dreaming_card(&data, look, cx),
+            self.models_card(&data, look, cx),
             self.packs_card(&data, look, cx),
             self.health_card(look, cx),
             self.settings_card(look, cx),
@@ -367,6 +369,7 @@ impl Shell {
                     .map(|b| format!("{} KB", b / 1024))
                     .unwrap_or_default(),
                 data.passes.iter().filter(|p| p.1).count().to_string(),
+                data.runners.default.clone(),
                 data.packs.len().to_string(),
                 {
                     let n = self.health_lines().len();
@@ -2096,6 +2099,116 @@ impl Shell {
             );
         }
         card.into_any_element()
+    }
+
+    /// Models: the runners hippo's own model calls use, and a switch for
+    /// the one the default role uses (`hippo config set role.default`).
+    /// Adding a runner stays in the CLI (`hippo runners add`).
+    fn models_card(&self, data: &Manage, look: &Look, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let busy = self.manage_busy();
+        let runners = &data.runners;
+        let mut card = settings_section(look)
+            .p(look.px(16.))
+            .gap(look.px(2.))
+            .child(self.card_head(
+                look,
+                "Models",
+                "the CLIs hippo's own calls use: dreaming, review, lessons, ask",
+                None,
+            ));
+        if let Some(error) = &runners.error {
+            return card
+                .child(
+                    div()
+                        .text_size(look.text(12.))
+                        .text_color(look.c.text_muted)
+                        .child(format!("{error}. Hooks and context still work; model calls fail until it is fixed.")),
+                )
+                .into_any_element();
+        }
+        for (i, (name, what)) in runners.list.iter().enumerate() {
+            let is_default = *name == runners.default;
+            let control: gpui::AnyElement = if is_default {
+                div()
+                    .text_size(look.text(12.))
+                    .text_color(kit::dim(look))
+                    .child("default")
+                    .into_any_element()
+            } else if runners.configured {
+                let target = name.clone();
+                kit::button(
+                    look,
+                    SharedString::from(format!("manage-runner-{i}")),
+                    "Use by default",
+                    if busy { Kind::Disabled } else { Kind::Plain },
+                )
+                .when(!busy, |b| {
+                    b.on_click(cx.listener(move |this, _, window, cx| {
+                        this.ask_commands(
+                            format!("Use {target} by default"),
+                            "Dreaming, review, lessons and ask use this runner unless a role names another. Its prompts go where its data domain says.",
+                            vec![vec![
+                                "config".into(),
+                                "set".into(),
+                                "role.default".into(),
+                                target.clone(),
+                                "--yes".into(),
+                            ]],
+                            window,
+                            cx,
+                        );
+                    }))
+                })
+                .into_any_element()
+            } else {
+                div().into_any_element()
+            };
+            card = card.child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(look.px(10.))
+                    .py(look.px(8.))
+                    .border_b(look.fixed(1.))
+                    .border_color(look.c.border_variant.opacity(0.6))
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .flex_1()
+                            .min_w_0()
+                            .child(name.clone())
+                            .child(
+                                div()
+                                    .text_size(look.text(12.))
+                                    .text_color(kit::dim(look))
+                                    .child(what.clone()),
+                            ),
+                    )
+                    .child(control),
+            );
+        }
+        for (role, name) in &runners.roles {
+            card = card.child(
+                div()
+                    .text_size(look.text(12.))
+                    .text_color(kit::dim(look))
+                    .py(look.px(4.))
+                    .child(format!("{role}: {name}")),
+            );
+        }
+        card.child(
+            div()
+                .pt(look.px(8.))
+                .text_size(look.text(12.))
+                .text_color(kit::dim(look))
+                .child(if runners.configured {
+                    "Add a runner with hippo runners add; hippo runners lists roles and fallbacks."
+                } else {
+                    "Add a runner (another Claude account, a model, an effort) with hippo runners add."
+                }),
+        )
+        .into_any_element()
     }
 
     fn settings_card(&self, look: &Look, cx: &mut Context<Self>) -> gpui::AnyElement {

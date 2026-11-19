@@ -318,6 +318,7 @@ fn revert_at(
         at: now,
         applied: Some(now),
         snapshot: Some(snapshot),
+        runner: None,
     };
     write_receipt(ws, &receipt)?;
     Ok(receipt)
@@ -344,6 +345,7 @@ fn receipt_for(proposal: &Proposal, file: &[u8], review: &Review) -> Receipt {
         at: review.at,
         applied: None,
         snapshot: None,
+        runner: review.runner.clone(),
     }
 }
 
@@ -408,6 +410,7 @@ mod tests {
             reviewer: "verify-reviewer".into(),
             invocation: "stub <system prompt: 3 bytes>".into(),
             at: OffsetDateTime::now_utc(),
+            runner: None,
         }
     }
 

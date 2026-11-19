@@ -138,6 +138,9 @@ pub struct LessonReview {
     pub notes: String,
     #[serde(with = "time::serde::rfc3339")]
     pub at: OffsetDateTime,
+    /// The runner that reviewed; absent before 0.5.0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runner: Option<crate::runners::RunnerRecord>,
 }
 
 /// What Keep did.
@@ -371,6 +374,7 @@ pub fn keep(
         reviewer: "human".to_owned(),
         invocation: format!("hippo lessons keep {id}"),
         at: now,
+        runner: None,
     };
     let receipt = match apply::confirm(ws, &proposal, &review)? {
         Applied::Written(r) => r,
