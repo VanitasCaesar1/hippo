@@ -4,6 +4,8 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-19
+
 ### Added
 
 - **hippo in any MCP client.** `hippo mcp` is an MCP server over stdio. Any agent that speaks MCP (Cursor, Windsurf, Zed, VS Code's Copilot agent, Gemini CLI, Claude Desktop, Claude Code) can call `hippo_context` (the start block for a task), `hippo_recall`, `hippo_ask` (ranked sources, no model call), `hippo_day` and `hippo_incidents`. Each returns the text of the matching command, redacted before it leaves. `--allow-write` adds `hippo_note_correction`, which proposes a correction as a lesson; the lesson reviewer checks it, and it waits in the Inbox and never reaches a note on its own. `hippo mcp install --client <client>` prints the client's entry, and `--write` merges it into the client's file after a backup. The paths and formats, with their sources, are in [docs/mcp.md](docs/mcp.md). See the [design](docs/designs/mcp-server.md).
@@ -82,7 +84,8 @@ The first release. hippo reads what your coding agents did, keeps your notes tru
 - **Hippo.app**, a macOS window over the same files. Built from source in `app/`; no binary is released. Checked on synthetic data, not in daily use.
 - **Docs** at [vanitascaesar1.github.io/hippo](https://vanitascaesar1.github.io/hippo/), including [Sharing a brain in a team](docs/site/src/sharing.md), tried with two people and one git remote.
 
-[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/VanitasCaesar1/hippo/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/VanitasCaesar1/hippo/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.2.1...v0.3.0
