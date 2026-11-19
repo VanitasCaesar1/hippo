@@ -30,6 +30,14 @@ pub enum SignalKind {
     Blocked,
     /// A destructive command ran.
     Destructive,
+    /// A download piped into an interpreter (`docs/designs/guard.md`).
+    RemoteScript,
+    /// Code of a repository cloned in the same session was run.
+    FreshCloneExec,
+    /// A credential file or the keychain was read.
+    CredentialRead,
+    /// A file that turns hooks off or holds hippo's state was written.
+    GuardBypass,
 }
 
 impl SignalKind {
@@ -38,6 +46,10 @@ impl SignalKind {
             SignalKind::Correction => "correction",
             SignalKind::Blocked => "blocked",
             SignalKind::Destructive => "destructive",
+            SignalKind::RemoteScript => "remote-script",
+            SignalKind::FreshCloneExec => "fresh-clone-exec",
+            SignalKind::CredentialRead => "credential-read",
+            SignalKind::GuardBypass => "guard-bypass",
         }
     }
 
@@ -46,6 +58,10 @@ impl SignalKind {
             "correction" => Some(SignalKind::Correction),
             "blocked" => Some(SignalKind::Blocked),
             "destructive" => Some(SignalKind::Destructive),
+            "remote-script" => Some(SignalKind::RemoteScript),
+            "fresh-clone-exec" => Some(SignalKind::FreshCloneExec),
+            "credential-read" => Some(SignalKind::CredentialRead),
+            "guard-bypass" => Some(SignalKind::GuardBypass),
             _ => None,
         }
     }
@@ -171,6 +187,7 @@ pub fn signals(id: &str, turns: &[StoredTurn], person: bool) -> Vec<Signal> {
             extra: by,
         });
     }
+    out.extend(super::guard::signals(turns));
     out
 }
 

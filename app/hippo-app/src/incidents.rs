@@ -308,6 +308,10 @@ pub fn kind_word(k: Kind) -> &'static str {
         Kind::Redone => "redone",
         Kind::Collision => "collision",
         Kind::Destructive => "destructive",
+        Kind::RemoteScript => "remote script",
+        Kind::FreshCloneExec => "fresh clone run",
+        Kind::CredentialRead => "credential read",
+        Kind::GuardBypass => "hooks changed",
     }
 }
 

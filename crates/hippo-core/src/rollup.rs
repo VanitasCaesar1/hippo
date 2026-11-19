@@ -84,7 +84,9 @@ pub const FILE_NAME: &str = "rollup.sqlite";
 /// 11: signals, edit lines and incidents.
 /// 12: a pull request's title, and a correction's subject.
 /// 13: claims checked by cause, and rules that name no one project's words.
-const FORMAT: i64 = 13;
+/// 14: the guard's signals: remote scripts, fresh clones run, credential
+/// reads, hooks or hippo's state written.
+const FORMAT: i64 = 14;
 
 /// The width of an activity bucket, in seconds. Every UTC offset in use is
 /// a whole number of quarter hours, so a local day is whole buckets.
@@ -119,7 +121,7 @@ CREATE TABLE changes(session_id TEXT NOT NULL, ord INTEGER NOT NULL, path TEXT N
 CREATE TABLE tasks(session_id TEXT NOT NULL, ord INTEGER NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL, started TEXT NOT NULL, ended TEXT, status TEXT, ref TEXT, thread TEXT, child TEXT, input TEXT, report TEXT, tokens INTEGER, tools INTEGER, exit INTEGER, PRIMARY KEY(session_id, ord)) WITHOUT ROWID;
 CREATE INDEX tasks_child ON tasks(child);
 CREATE INDEX sessions_parent ON sessions(parent);
-PRAGMA user_version=13;";
+PRAGMA user_version=14;";
 
 pub(crate) const SESSION_COLUMNS: &str = "id, tool, transcript_path, first_turn, last_turn, turns, tool_calls, edits, files, agents, title, project, parent, automated, asked, outcome, ending, ending_detail, ending_at, project_weight, branch";
 

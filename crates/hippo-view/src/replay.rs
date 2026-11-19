@@ -753,6 +753,12 @@ pub fn load(
             let (kind, word) = match i.kind {
                 IncidentKind::Corrected => (MarkKind::Correction, "You corrected it"),
                 IncidentKind::Destructive => (MarkKind::Destructive, "Destructive command"),
+                IncidentKind::RemoteScript => (MarkKind::Destructive, "Remote script run"),
+                IncidentKind::FreshCloneExec => (MarkKind::Destructive, "Fresh clone's code run"),
+                IncidentKind::CredentialRead => (MarkKind::Destructive, "Credential read"),
+                IncidentKind::GuardBypass => {
+                    (MarkKind::Destructive, "Hooks or hippo's state changed")
+                }
                 _ => (MarkKind::Incident, "Incident"),
             };
             lanes[k].marks.push(Mark {

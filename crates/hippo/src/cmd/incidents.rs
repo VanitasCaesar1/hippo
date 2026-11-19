@@ -1,4 +1,4 @@
-//! `hippo incidents [--json] [--days N] [--all]`: what went wrong in the
+//! `hippo incidents [--json] [--days N] [--all] [--kind K]`: what went wrong in the
 //! last days, which agent did it, at which step, and why when a rule says
 //! so.
 
@@ -8,7 +8,7 @@ use std::process::ExitCode;
 use anyhow::{anyhow, Result};
 use hippo_core::config::Config;
 use hippo_core::incidents::subject::{Subject, SubjectKind};
-use hippo_core::incidents::{Incident, HINTS_HEADING};
+use hippo_core::incidents::{Incident, Kind, HINTS_HEADING};
 use hippo_core::rollup::Rollup;
 use time::{Duration, OffsetDateTime};
 
@@ -30,23 +30,41 @@ pub struct Args {
     /// Print one JSON array
     #[arg(long)]
     json: bool,
+    /// Only this kind: corrected, unverified, blocked, failed, redone, collision, destructive, remote-script, fresh-clone-exec, credential-read, guard-bypass
+    #[arg(long, value_parser = parse_kind)]
+    kind: Option<Kind>,
+}
+
+fn parse_kind(text: &str) -> std::result::Result<Kind, String> {
+    Kind::parse(text).ok_or_else(|| format!("one of {}", Kind::ALL.map(Kind::as_str).join(", ")))
 }
 
 pub fn run(args: Args) -> Result<ExitCode> {
     let (config, _) = load_history()?;
     if args.json {
-        let (list, _) = incidents(&config, args.days, args.all)?;
+        let (list, _) = incidents(&config, args.days, args.all, args.kind)?;
         println!("{}", serde_json::to_string_pretty(&list)?);
         return Ok(ExitCode::SUCCESS);
     }
-    write_text(&config, args.days, args.all, &mut std::io::stdout().lock())?;
+    write_text_of(
+        &config,
+        args.days,
+        args.all,
+        args.kind,
+        &mut std::io::stdout().lock(),
+    )?;
     Ok(ExitCode::SUCCESS)
 }
 
 /// The last `days` days' incidents, quiet ones only with `all`: newest day
 /// first, costliest first within a day, with the local offset the days
 /// are cut at.
-fn incidents(config: &Config, days: u32, all: bool) -> Result<(Vec<Incident>, time::UtcOffset)> {
+fn incidents(
+    config: &Config,
+    days: u32,
+    all: bool,
+    kind: Option<Kind>,
+) -> Result<(Vec<Incident>, time::UtcOffset)> {
     let rollup =
         Rollup::open(&config.home)?.ok_or_else(|| anyhow!("no rollup yet; run hippo ingest"))?;
     let now = OffsetDateTime::now_utc();
@@ -54,6 +72,7 @@ fn incidents(config: &Config, days: u32, all: bool) -> Result<(Vec<Incident>, ti
         .incidents(now - Duration::days(i64::from(days)))?
         .into_iter()
         .filter(|i| all || !i.quiet)
+        .filter(|i| kind.is_none_or(|k| i.kind == k))
         .collect();
     let offset = hippo_core::usage::local_offset_at(now);
     list.sort_by(|a, b| {
@@ -69,7 +88,18 @@ fn incidents(config: &Config, days: u32, all: bool) -> Result<(Vec<Incident>, ti
 /// The text `hippo incidents` prints, to `out`. `hippo mcp`'s
 /// `hippo_incidents` returns it too.
 pub fn write_text(config: &Config, days: u32, all: bool, out: &mut dyn Write) -> Result<()> {
-    let (list, offset) = incidents(config, days.clamp(1, 14), all)?;
+    write_text_of(config, days, all, None, out)
+}
+
+/// [`write_text`] for one kind.
+fn write_text_of(
+    config: &Config,
+    days: u32,
+    all: bool,
+    kind: Option<Kind>,
+    out: &mut dyn Write,
+) -> Result<()> {
+    let (list, offset) = incidents(config, days.clamp(1, 14), all, kind)?;
     // Hints to check are listed apart, after the incidents.
     let (hints, list): (Vec<Incident>, Vec<Incident>) =
         list.into_iter().partition(|i| i.kind.is_hint());

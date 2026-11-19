@@ -119,10 +119,10 @@ Today's sessions: live, stopped at a usage limit, or finished, and the headroom 
 ## hippo incidents
 
 ```text
-hippo incidents [--days <n>] [--all] [--json]
+hippo incidents [--days <n>] [--all] [--kind <kind>] [--json]
 ```
 
-What went wrong, which agent did it, at which step, and why when a rule says so.
+What went wrong, which agent did it, at which step, and why when a rule says so. The kinds are in [Concepts](concepts.md#incidents).
 
 A check an agent said passed with no run of it after its last edit is listed apart, after the incidents, under `Hints to check: a check claimed with no run after the last edit`. It is a hint, not an incident: the rule is not yet precise enough to count, so these rows are not counted anywhere. The check counts a run that came through a wrapper script, a remote sandbox, a background task, CI on the pushed head, or a session the agent delegated to; `hippo xray <session>` shows the evidence it found. `--json` lists them with the incidents, kind `unverified`.
 
@@ -130,6 +130,7 @@ A check an agent said passed with no run of it after its last edit is listed apa
 |---|---|
 | `--days <n>` | Days to cover, 1 to 14. Default 7. |
 | `--all` | Also list destructive commands that nothing harmful followed. |
+| `--kind <kind>` | Only one kind: `corrected`, `unverified`, `blocked`, `failed`, `redone`, `collision`, `destructive`, `remote-script`, `fresh-clone-exec`, `credential-read` or `guard-bypass`. |
 | `--json` | Print one JSON array. |
 
 ## hippo xray

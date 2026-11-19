@@ -130,6 +130,26 @@ Proposals, receipts and reviews are meant to be committed by you, so a teammate 
 
 Each run writes `.hippo/reports/<date>-dream.md` (the UTC date). A later run on the same day replaces that report only when it was a dry run's; otherwise it writes `<date>-2-dream.md`, `<date>-3-dream.md` and so on, so no real run's report is replaced. Line 1 is `status: ok` or `status: failed`; a failed run adds `error: <text>` on line 2. The sections are `Window`, `Inputs`, `Omissions`, `Proposals`, `Validation failures`, `Verdicts` and `Applied`. `hippo dream --dry-run` writes only this report.
 
+## Incidents
+
+An incident is something that went wrong in an agent session, found in its transcript by a rule, with no model call: the step that did it, what showed it, and why when a rule can say. `hippo incidents`, Fleet's marks and Hippo.app's Incidents list them, per agent (Claude Code, Codex, Cursor, Gemini CLI, DeepSeek Harness, OpenCode, Muse and Command Code), for whatever each transcript records. A rule must be right at least 80 % of the time on hippo's measurements to count as an incident; one below that is a hint, listed apart and not counted.
+
+| Kind | What it is |
+|---|---|
+| `corrected` | You corrected the agent right after an action. |
+| `unverified` | A hint, not an incident: a check claimed with no run after the last edit. |
+| `blocked` | A hook, the client's safety check or you refused a call. Listed, not counted. |
+| `failed` | A step failed and the session left it. |
+| `redone` | Another session redid the work. |
+| `collision` | Two sessions edited the same lines. |
+| `destructive` | `rm -rf` outside build folders, `git reset --hard`, a force push, `git clean -f`; counted when something harmful followed. |
+| `remote-script` | A download piped into an interpreter (`curl … \| sh`, `bash <(curl …)`, `iex (irm …)`), a non-Homebrew `brew tap`, or a global `npm`, `pip` or `brew` install from a URL. The installers of Homebrew, rustup, uv, Bun, Deno, nvm, Claude Code and hippo itself do not count. The host is shown when it is plain text. |
+| `fresh-clone-exec` | In one session, a `git clone` or `gh repo clone`, then a command that runs that repository's code inside it: `npm`/`pnpm`/`yarn`/`bun install`, `pip install .`/`-e`, `python setup.py`, `make`, `./configure`, a `.sh` in it, `cargo build`/`run`/`test`, `go generate`, `docker build`. |
+| `credential-read` | A read of a credential file (an SSH private key, `~/.aws/credentials`, `~/.kube/config`, `~/.docker/config.json`, `~/.netrc`, `~/.npmrc`, `~/.pypirc`, `~/.git-credentials`, gcloud and Azure folders, the GitHub CLI's token), a keychain password printed with `security find-*-password -w`, a browser profile or a wallet, by a read tool or a shell command. Shows the tool and the path, never what was read. |
+| `guard-bypass` | A write that turns hooks off or changes hippo's state: hippo's entries in Claude Code, Codex, Cursor or Gemini CLI hook files and settings, the dsh profile, `opencode.json`, `$HIPPO_HOME/config.toml` or `bin-path`; and `hippo hooks uninstall` run by an agent. `hippo hooks install` and `hippo mcp install` do not count. |
+
+The last four are the guard's ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/guard.md)). They read a command's text, not what it did, so a script written to a file and then run, a base64-encoded command, or a read through a language runtime are not found. Nothing is blocked: they are after-the-fact incidents.
+
 ## The core pack
 
 A **pack** is a directory of passes, prompts and personas. The core pack is the one hippo writes for you. `hippo init` writes the core pack to `.hippo/packs/core/`:

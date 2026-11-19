@@ -32,6 +32,7 @@ use crate::rollup::{parse_ts, row_facts, SessionFacts, Stored, SESSION_COLUMNS};
 use crate::session_meta::{self, TurnKind};
 use crate::util::{hex, sha256};
 
+pub mod guard;
 pub mod signals;
 pub mod subject;
 
@@ -63,13 +64,21 @@ pub enum Kind {
     Redone,
     Collision,
     Destructive,
+    /// A download piped into an interpreter (`docs/designs/guard.md`).
+    RemoteScript,
+    /// Code of a repository cloned in the same session was run.
+    FreshCloneExec,
+    /// A credential file or the keychain was read.
+    CredentialRead,
+    /// A file that turns hooks off or holds hippo's state was written.
+    GuardBypass,
 }
 
 /// The heading hints are listed under, apart from incidents.
 pub const HINTS_HEADING: &str = "Hints to check: a check claimed with no run after the last edit";
 
 impl Kind {
-    pub const ALL: [Kind; 7] = [
+    pub const ALL: [Kind; 11] = [
         Kind::Corrected,
         Kind::Unverified,
         Kind::Blocked,
@@ -77,6 +86,18 @@ impl Kind {
         Kind::Redone,
         Kind::Collision,
         Kind::Destructive,
+        Kind::RemoteScript,
+        Kind::FreshCloneExec,
+        Kind::CredentialRead,
+        Kind::GuardBypass,
+    ];
+
+    /// The guard's kinds (`docs/designs/guard.md`, Part A).
+    pub const GUARD: [Kind; 4] = [
+        Kind::RemoteScript,
+        Kind::FreshCloneExec,
+        Kind::CredentialRead,
+        Kind::GuardBypass,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -88,6 +109,10 @@ impl Kind {
             Kind::Redone => "redone",
             Kind::Collision => "collision",
             Kind::Destructive => "destructive",
+            Kind::RemoteScript => "remote-script",
+            Kind::FreshCloneExec => "fresh-clone-exec",
+            Kind::CredentialRead => "credential-read",
+            Kind::GuardBypass => "guard-bypass",
         }
     }
 
@@ -113,6 +138,10 @@ impl Kind {
             Kind::Redone => "redone by another session",
             Kind::Collision => "collision",
             Kind::Destructive => "destructive command",
+            Kind::RemoteScript => "remote script run",
+            Kind::FreshCloneExec => "fresh clone's code run",
+            Kind::CredentialRead => "credential read",
+            Kind::GuardBypass => "hooks or hippo's state changed",
         }
     }
 }
@@ -902,6 +931,42 @@ pub(crate) fn detect(
                         fixed: None,
                         other: None,
                         detail,
+                        subject: None,
+                    },
+                });
+            }
+            SignalKind::RemoteScript
+            | SignalKind::FreshCloneExec
+            | SignalKind::CredentialRead
+            | SignalKind::GuardBypass => {
+                let kind = match kind {
+                    SignalKind::RemoteScript => Kind::RemoteScript,
+                    SignalKind::FreshCloneExec => Kind::FreshCloneExec,
+                    SignalKind::CredentialRead => Kind::CredentialRead,
+                    _ => Kind::GuardBypass,
+                };
+                let minutes = (kind == Kind::FreshCloneExec)
+                    .then(|| (at - did.at).whole_minutes())
+                    .filter(|m| *m >= 0);
+                out.push(Incident {
+                    id: stable_id(&[kind.as_str(), session, &ordinal.to_string(), extra]),
+                    kind,
+                    quiet: false,
+                    at,
+                    cause: Cause::NotEstablished,
+                    minutes,
+                    lines: None,
+                    tokens: None,
+                    body: Body {
+                        told: w.told(session, did.ordinal),
+                        rule: None,
+                        read: w.read(session, did.at),
+                        chain,
+                        did,
+                        showed,
+                        fixed: None,
+                        other: None,
+                        detail: Some(extra.clone()),
                         subject: None,
                     },
                 });
