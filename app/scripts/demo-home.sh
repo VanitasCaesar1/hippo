@@ -874,12 +874,17 @@ prun() {
   t=$1 n=0
   while [ "$t" -gt "$2" ]; do
     n=$((n + 1)) c=c$pk
+    # Each input is built first: inside $(…) in a case arm, macOS's /bin/sh
+    # (bash 3.2) drops the opening brace of a quoted {…} that holds a comma.
     case $((n % 4)) in
-      0) pa "$t" "$(tuse "$c" Bash "{\"command\":\"npm test -- $4\",\"description\":\"Run the tests\"}")"
+      0) input="{\"command\":\"npm test -- $4\",\"description\":\"Run the tests\"}"
+         pa "$t" "$(tuse "$c" Bash "$input")"
          pres $((t - 20)) "$c" 'Tests  24 passed (24)' ;;
-      2) pa "$t" "$(tuse "$c" Read "{\"file_path\":\"$ws/src/$4\"}")"
+      2) input="{\"file_path\":\"$ws/src/$4\"}"
+         pa "$t" "$(tuse "$c" Read "$input")"
          pres $((t - 1)) "$c" 'const n = 1' ;;
-      *) pa "$t" "$(tuse "$c" Edit "{\"file_path\":\"$ws/src/$4\",\"old_string\":\"const n = $n\",\"new_string\":\"const n = $((n + 1))\\nconst m = $n\"}")"
+      *) input="{\"file_path\":\"$ws/src/$4\",\"old_string\":\"const n = $n\",\"new_string\":\"const n = $((n + 1))\\nconst m = $n\"}"
+         pa "$t" "$(tuse "$c" Edit "$input")"
          pres $((t - 2)) "$c" 'The file has been updated.' ;;
     esac
     # Steps of 0.2 to 2.6 times <every>, so the activity has a shape.
@@ -937,6 +942,9 @@ HIPPO_STUB_SCENARIO=lessons hippo lessons scan
 # is in the Style guide, so every session whose start block carried the
 # Style guide started with it (Pulse's ring and "started with 1 kept rule").
 kept_at=$(date -u -v-2d +%Y-%m-%dT%H:%M:%SZ)
+# The scan writes no folder when it reads no session (a home under
+# /var/folders, whose sessions count as automated).
+mkdir -p "$home/lessons"
 printf '{"protocol":"HIPPO_V1","id":"01M6Z00000000000000000KEPT","kind":"correction","key":"bundl mid work","terms":["bundl","mid","work"],"title":"Bundle the app only when asked","rule":"Never bundle the app mid-work. Bundle it only when asked.","target":{"note":"notes/Style guide.md","section":null,"new":false},"evidence":[],"seen":{"sessions":2,"profiles":["default"],"first":"%s","last":"%s","most_in_a_day":1},"status":"kept","review":null,"created":"%s","updated":"%s","closed_sessions":null,"kept":{"receipt":"01M6Z000000000000000000RC1","at":"%s","edited":false},"ask":null}\n' \
   "$kept_at" "$kept_at" "$kept_at" "$kept_at" "$kept_at" >"$home/lessons/01M6Z00000000000000000KEPT.json"
 
