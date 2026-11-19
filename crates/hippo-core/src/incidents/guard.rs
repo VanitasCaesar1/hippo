@@ -63,6 +63,9 @@ pub(crate) fn shell_script(name: &str, input: &str) -> Option<String> {
     if !matches!(
         lower.as_str(),
         "run_shell_command"
+            | "run_shell"
+            | "shell_command"
+            | "bash_command"
             | "shell"
             | "bash"
             | "run_command"
