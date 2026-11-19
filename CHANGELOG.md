@@ -4,6 +4,8 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-19
+
 **Upgrading.** Everyone on a shared workspace should be on 0.5.0 before anyone turns on a team, guard or secrets setting: older hippo silently ignores settings it does not know, and only 0.5.0 and later refuse to write under a `min_hippo_version` or unknown keys. On your machine: run `hippo hooks install --yes` once in each workspace to move hippo's Claude Code hooks from the shared `.claude/settings.json` to your own `.claude/settings.local.json` (until then they keep working where they are, and `hippo doctor` warns), and `hippo doctor --fix-permissions` once to close files an older hippo left readable by others. The rollup is rebuilt at the next ingest. `hippo ingest --full` counts secrets in sessions ingested before this release.
 
 ### Added
@@ -111,7 +113,8 @@ The first release. hippo reads what your coding agents did, keeps your notes tru
 - **Hippo.app**, a macOS window over the same files. Built from source in `app/`; no binary is released. Checked on synthetic data, not in daily use.
 - **Docs** at [vanitascaesar1.github.io/hippo](https://vanitascaesar1.github.io/hippo/), including [Sharing a brain in a team](docs/site/src/sharing.md), tried with two people and one git remote.
 
-[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/VanitasCaesar1/hippo/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/VanitasCaesar1/hippo/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.3.0...v0.4.0
