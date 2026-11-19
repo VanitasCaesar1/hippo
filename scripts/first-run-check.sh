@@ -176,7 +176,7 @@ has "no turn matches" "hippo ask --sources-only"
 
 # No model CLI: the sources still print, and the error names the way out.
 run "$home" 10-ask-no-model 0 ask "export queue retry"
-has "is not on PATH" "install Claude Code" "hippo config set model_command"
+has "is not on PATH" "install Claude Code" "hippo runners add"
 run "$home" 11-config-model-command 0 config set model_command "mymodel --json"
 has "model_command = [\"mymodel\", \"--json\"]"
 
