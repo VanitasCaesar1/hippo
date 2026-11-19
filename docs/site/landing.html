@@ -8,7 +8,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>hippo: your coding agents learn while you sleep</title>
-<meta name="description" content="Every night hippo goes through the day's Claude Code, Codex, DeepSeek Harness, OpenCode, Muse Code and Command Code sessions, turns what went wrong into rules, and has a second model check each one against what happened. Keep a rule and the next sessions start with it. Open source, MIT, local.">
+<meta name="description" content="Every night hippo goes through the day's Claude Code, Codex, Cursor, Gemini CLI, DeepSeek Harness, OpenCode, Muse Code and Command Code sessions, turns what went wrong into rules, and has a second model check each one against what happened. Keep a rule and the next sessions start with it. Open source, MIT, local.">
 <meta name="color-scheme" content="dark light">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self' data:">
 <link rel="canonical" href="https://vanitascaesar1.github.io/hippo/">
@@ -136,6 +136,9 @@ rules:
       <span class="how-a"><i class="ag ds">DS</i><span><b>DeepSeek Harness</b> at session start</span></span>
       <span class="how-a"><i class="ag oc">OC</i><span><b>OpenCode</b> in each request</span></span>
       <span class="how-a"><i class="ag cx">Cx</i><span><b>Codex</b> at session start, through its hooks</span></span>
+      <span class="how-a"><i class="ag gm">Gm</i><span><b>Gemini CLI</b> at session start, through its hooks</span></span>
+      <span class="how-a"><i class="ag cu">Cu</i><span><b>Cursor</b> at chat start, and through MCP</span></span>
+      <span class="how-a"><i class="ag mc">MCP</i><span><b>Any MCP client</b> through <code>hippo mcp</code></span></span>
     </figcaption>
   </figure>
   <p class="day-note">Demo data from <a href="https://github.com/VanitasCaesar1/hippo/blob/main/app/scripts/demo-home.sh"><code>app/scripts/demo-home.sh</code></a>, the synthetic home in the repo. Its sessions are all Claude Code; the Codex and DeepSeek Harness ones are drawn.</p>
@@ -337,7 +340,7 @@ rules:
   <aside class="limits" id="limits">
     <h2>Limits</h2>
     <ul>
-      <li>Claude Code, Codex, DeepSeek Harness, OpenCode, Muse Code and Command Code only. Muse Code and Command Code are read, not given the notes.</li>
+      <li>History from Claude Code, Codex, Cursor, Gemini CLI, DeepSeek Harness, OpenCode, Muse Code and Command Code; other MCP clients get the notes, not their history read. Muse Code and Command Code are read, not given the notes.</li>
       <li>Used daily on macOS; Linux is tested in CI.</li>
       <li>Not measured whether it makes agents better.</li>
       <li>Built by one person for their own many-agent setup. v0.4.1, MIT.</li>

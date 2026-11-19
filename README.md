@@ -9,7 +9,7 @@
 
 <p align="center"><b>Your coding agents learn while you sleep.</b></p>
 
-hippo is short for hippocampus, the part of a brain that turns the day into long-term memory during sleep. Coding agents have none: every session starts from zero, and each agent is an island. Every night hippo goes through the day's Claude Code, Codex, DeepSeek Harness (`dsh`), OpenCode, Muse Code and Command Code sessions and turns what went wrong into rules. A second model with a fresh context checks each one against what actually happened. Keep a rule, and the next session starts with it.
+hippo is short for hippocampus, the part of a brain that turns the day into long-term memory during sleep. Coding agents have none: every session starts from zero, and each agent is an island. Every night hippo goes through the day's Claude Code, Codex, Cursor, Gemini CLI, DeepSeek Harness (`dsh`), OpenCode, Muse Code and Command Code sessions and turns what went wrong into rules. A second model with a fresh context checks each one against what actually happened. Keep a rule, and the next session starts with it.
 
 ## A day, a night, the next morning
 
@@ -33,12 +33,17 @@ Why this is not a memory file an agent keeps for itself:
 - **It cannot make things up.** A second model must confirm every change against the evidence, and `hippo revert` undoes any change by its receipt. On the repo's eval set with a real model it fixed 3 of 7 planted errors and damaged 0 of 8 correct notes; on the maintainer's own notes it has fixed 7 wrong statements, each checked by hand.
 - **Small.** A session gets about 1.5 KB: the notes that matter to its task, not the whole pile.
 
+**Works with** Claude Code, Codex, Cursor, Gemini CLI, OpenCode, DeepSeek Harness, Muse Code and Command Code (their sessions are read), and with any MCP client through `hippo mcp`: Windsurf, Zed, VS Code (Copilot), Claude Desktop and the rest.
+
 | Agent | How it gets the memory |
 |---|---|
 | Claude Code | At session start, through `hippo hooks install` or the plugin. |
 | DeepSeek Harness (`dsh`) | At session start, through [its plugin](plugins/dsh/README.md). |
 | OpenCode | In the system prompt of each request, through [its plugin](plugins/opencode/README.md). |
 | Codex | At session start and first prompt, through `hippo hooks install --agent codex` once you trust the hooks in Codex. |
+| Gemini CLI | At session start and first prompt, through `hippo hooks install --agent gemini`. |
+| Cursor | At chat start, through `hippo hooks install --agent cursor`; the notes for a task through `hippo mcp install --client cursor`. |
+| Any MCP client (Windsurf, Zed, VS Code, Claude Desktop, …) | When the agent asks, through hippo's MCP tools: `hippo mcp install --client <client>` ([docs/mcp.md](docs/mcp.md)). Their own history is not read. |
 | Muse Code | Not given the notes yet. Its sessions are read like the others. |
 | Command Code | Not given the notes yet. Its sessions are read like the others. |
 
@@ -102,7 +107,7 @@ Everything else, including `hippo`, `start`, `card`, `recall`, `ask --sources-on
 
 ## What it does not do yet
 
-- **Claude Code, Codex, DeepSeek Harness, OpenCode, Muse Code and Command Code only.** Cursor and Gemini folders are detected, not read; for OpenCode, only OpenCode 2's database; for Muse Code, what its 1.4.18 logs were seen to hold; for Command Code, version 3 session files. Claude Code and Codex get the notes at session start through hooks (Claude Code also through its plugin), a dsh session through [its plugin](plugins/dsh/README.md) and an OpenCode session through [its plugin](plugins/opencode/README.md).
+- **Eight agents' history.** Claude Code, Codex, Cursor, Gemini CLI, DeepSeek Harness, OpenCode, Muse Code and Command Code sessions are read; other MCP clients use hippo's tools but their history is not indexed. For OpenCode, only OpenCode 2's database; for Muse Code, what its 1.4.18 logs were seen to hold; for Command Code, version 3 session files; for Cursor, its agent transcripts (no tool results); for Gemini CLI, the format in its source, not yet checked against a real session. Claude Code, Codex and Gemini CLI get the notes at session start through hooks (Claude Code also through its plugin), Cursor the start block through its `sessionStart` hook, a dsh session through [its plugin](plugins/dsh/README.md) and an OpenCode session through [its plugin](plugins/opencode/README.md).
 - **Scheduling** is launchd on macOS. Elsewhere `hippo schedule install` prints cron and systemd lines for you to install.
 - **Linux is tested in CI, not in daily use.** The release has static Linux binaries (x86_64 and arm64) and the test suite passes on Linux in CI, but hippo is used day to day on macOS on Apple silicon (the Intel build passes the first-run check under Rosetta).
 - **The desktop app**, Hippo.app in [`app/`](app/README.md), is macOS only, built from source, and early: checked on synthetic data, not in daily use.

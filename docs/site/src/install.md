@@ -43,6 +43,18 @@ The repository is also a Claude Code plugin marketplace. In a Claude Code sessio
 
 Then `/hippo:setup` installs the binary with the script above if it is missing (after asking you) and runs `hippo start`. `/hippo:ask <question>` asks whether an agent already solved something, and `/hippo:day [date]` shows a day's work. Once you have a notes folder (`hippo init`), the plugin gives every session in that workspace the start block; it stays silent everywhere else, and when `hippo hooks install` has already added the workspace's own hooks.
 
+## In Cursor, Gemini CLI and other agents
+
+Install the binary as above, then give the agent hippo's notes:
+
+```sh
+hippo hooks install --agent gemini            # Gemini CLI: start block and first-prompt notes
+hippo hooks install --agent cursor            # Cursor: the start block in each new chat
+hippo mcp install --client cursor --write     # any MCP client: hippo's tools (prints the entry without --write)
+```
+
+`hippo mcp install` takes `cursor`, `claude-desktop`, `gemini`, `windsurf`, `zed`, `vscode` or `claude-code`; [Any MCP client](mcp.md) lists each client's file and what the tools return. Restart the agent afterwards.
+
 ## Requirements
 
 - For dreaming, and for `hippo ask`'s written answers, a model command. The default is the `claude` CLI (Claude Code), signed in. You can set another command; see [Configuration](configuration.md).
