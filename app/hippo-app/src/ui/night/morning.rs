@@ -220,7 +220,6 @@ impl Shell {
                 .p(look.px(16.))
                 .child(
                     div()
-                        .font_family(kit::MONO)
                         .text_size(look.text(26.))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(color)
@@ -347,12 +346,7 @@ impl Shell {
                                     .text_color(t.text)
                                     .child("Morning"),
                             )
-                            .child(
-                                div()
-                                    .font_family(kit::MONO)
-                                    .text_color(t.muted)
-                                    .child(s.morning.clone()),
-                            ),
+                            .child(div().text_color(t.muted).child(s.morning.clone())),
                     ),
             )
             .into_any_element()
@@ -600,11 +594,10 @@ impl Shell {
             .flex()
             .items_start()
             .gap(look.px(8.))
-            .children(e.agent.as_ref().map(|a| kit::badge(look, a)))
+            .children(e.agent.as_ref().map(|a| kit::badge(look, t, a)))
             .child(
                 div()
                     .flex_shrink_0()
-                    .font_family(kit::MONO)
                     .text_size(look.text(12.5))
                     .text_color(t.faint)
                     .child(e.when.clone()),
@@ -640,7 +633,7 @@ impl Shell {
                     .flex()
                     .items_center()
                     .gap(look.px(8.))
-                    .children(e.agent.as_ref().map(|a| kit::badge(look, a)))
+                    .children(e.agent.as_ref().map(|a| kit::badge(look, t, a)))
                     .child(
                         div()
                             .flex_1()
@@ -652,7 +645,6 @@ impl Shell {
                     )
                     .child(
                         div()
-                            .font_family(kit::MONO)
                             .text_size(look.text(12.5))
                             .text_color(t.faint)
                             .child(e.when.clone()),
@@ -762,6 +754,11 @@ impl Shell {
                             Btn::Go,
                             false,
                         )
+                        .when(busy, kit::disabled)
+                        .tooltip(crate::ui::tooltip::Tooltip::with_keys(
+                            "Keep the rule",
+                            Some("↩"),
+                        ))
                         .debug_selector(move || format!("keep-{i}"))
                         .on_click(cx.listener(move |this, _, _, cx| {
                             cx.stop_propagation();
@@ -770,6 +767,10 @@ impl Shell {
                     )
                     .child(
                         kit::button(look, t, ("edit", i), None, "Edit", Btn::Second, false)
+                            .tooltip(crate::ui::tooltip::Tooltip::with_keys(
+                                "Edit the rule, then keep it",
+                                Some("E"),
+                            ))
                             .on_click(cx.listener(move |this, _, window, cx| {
                                 cx.stop_propagation();
                                 this.edit_lesson(id, window, cx);
@@ -1120,7 +1121,7 @@ impl Shell {
                     .mb(look.px(6.))
                     .rounded(look.px(10.))
                     .bg(t.inset)
-                    .child(kit::badge(look, &r.agent))
+                    .child(kit::badge(look, t, &r.agent))
                     .child(
                         div()
                             .flex_1()

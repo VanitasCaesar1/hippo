@@ -329,7 +329,7 @@ impl Shell {
                                     ("review-right", k),
                                     match (busy, narrow) {
                                         (true, _) => "…",
-                                        (false, true) => "✓",
+                                        (false, true) => "OK",
                                         (false, false) => "Looks right",
                                     },
                                     if busy { Kind::Disabled } else { Kind::Plain },

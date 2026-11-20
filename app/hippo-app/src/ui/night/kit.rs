@@ -1,6 +1,7 @@
 //! The night map's tokens and parts (`docs/designs/app-night-map.md`):
-//! colours with four meanings, cards, chips, counts, buttons, agent
-//! badges, quotes, the dotted ground, the right-angled connectors and the
+//! colours with four meanings, cards, chips, counts, the controls
+//! (buttons, icon buttons, keys, a select, a menu, segments), agent
+//! marks, quotes, the dotted ground, the right-angled connectors and the
 //! strip.
 
 use gpui::{
@@ -135,19 +136,6 @@ impl Nt {
             t.dot = look.c.text.opacity(0.12);
         }
         t
-    }
-}
-
-/// An agent's badge colour.
-pub fn agent_color(code: &str) -> Hsla {
-    match code {
-        "cc" => c(0xB5562F),
-        "cx" => c(0x1F7A68),
-        "cu" => c(0x5B6472),
-        "gm" => c(0x2478B8),
-        "oc" => c(0x7A6841),
-        "ds" => c(0x4460DD),
-        _ => c(0x5B6472),
     }
 }
 
@@ -290,21 +278,37 @@ pub fn count(look: &Look, t: &Nt, n: usize, tone: Tone) -> gpui::Div {
         .child(n.to_string())
 }
 
-/// An agent's two letters on its colour.
-pub fn badge(look: &Look, a: &Agent) -> gpui::Div {
-    div()
+/// The file of an agent's mark (brand/agents/README.md), or Lucide's
+/// terminal for an agent with none.
+pub fn mark_path(a: &Agent) -> &'static str {
+    match a.code.as_str() {
+        "cc" => "icons/agent-claude-code.svg",
+        "cx" => "icons/agent-codex.svg",
+        "cu" => "icons/agent-cursor.svg",
+        "gm" => "icons/agent-gemini-cli.svg",
+        "oc" => "icons/agent-opencode.svg",
+        "ds" => "icons/agent-deepseek.svg",
+        "mu" => "icons/agent-muse.svg",
+        "co" => "icons/agent-command-code.svg",
+        _ => "icons/terminal.svg",
+    }
+}
+
+/// An agent's own mark, one colour (`color`, normally the text's), at
+/// `size` points (14, 16 or 20). It says which agent; the agent's name is
+/// next to it or in its accessible label.
+pub fn mark(look: &Look, a: &Agent, size: f32, color: Hsla) -> gpui::Svg {
+    svg()
+        .path(mark_path(a))
         .flex_shrink_0()
-        .w(look.px(24.))
-        .h(look.px(18.))
-        .rounded(look.px(5.))
-        .bg(agent_color(&a.code))
-        .text_color(gpui::white())
-        .text_size(look.text(10.5))
-        .font_weight(FontWeight::BOLD)
-        .flex()
-        .items_center()
-        .justify_center()
-        .child(a.short.clone())
+        .size(look.px(size))
+        .text_color(color)
+}
+
+/// The mark in the muted text colour, at 16 points: what replaces the old
+/// two-letter badge in rows and cards.
+pub fn badge(look: &Look, t: &Nt, a: &Agent) -> gpui::Svg {
+    mark(look, a, 16., t.muted)
 }
 
 /// What a button is.
@@ -318,7 +322,60 @@ pub enum Btn {
     Quiet,
 }
 
-/// A 30-point button (26 when `small`).
+/// A control's height: 28, 32 or 36 points.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Size {
+    Sm,
+    Md,
+    Lg,
+}
+
+impl Size {
+    pub fn h(self) -> f32 {
+        match self {
+            Size::Sm => 28.,
+            Size::Md => 32.,
+            Size::Lg => 36.,
+        }
+    }
+    fn pad(self) -> f32 {
+        match self {
+            Size::Sm => 10.,
+            Size::Md => 12.,
+            Size::Lg => 14.,
+        }
+    }
+    fn icon(self) -> f32 {
+        match self {
+            Size::Lg => 16.,
+            _ => 14.,
+        }
+    }
+}
+
+/// The states every control shares: hover, pressed, the keyboard focus
+/// ring, a place in the tab order, and the pointer.
+fn interactive(
+    d: gpui::Stateful<gpui::Div>,
+    look: &Look,
+    t: &Nt,
+    kind: Btn,
+) -> gpui::Stateful<gpui::Div> {
+    let (hover, press, ring) = (t.hover, t.selected, t.night);
+    let w = look.px(2.);
+    d.tab_index(0)
+        .cursor_pointer()
+        .focus_visible(move |s| s.border_color(ring).border(w))
+        .when(kind == Btn::Go, |d| {
+            d.hover(|h| h.opacity(0.92)).active(|a| a.opacity(0.8))
+        })
+        .when(kind != Btn::Go, move |d| {
+            d.hover(move |h| h.bg(hover)).active(move |a| a.bg(press))
+        })
+}
+
+/// A button: a label with an optional Lucide icon before it. `small` is
+/// 28 points high, otherwise 32.
 pub fn button(
     look: &Look,
     t: &Nt,
@@ -328,20 +385,40 @@ pub fn button(
     kind: Btn,
     small: bool,
 ) -> gpui::Stateful<gpui::Div> {
+    button_sized(
+        look,
+        t,
+        id,
+        lead,
+        label,
+        kind,
+        if small { Size::Sm } else { Size::Md },
+    )
+}
+
+/// [`button`] at a given [`Size`].
+pub fn button_sized(
+    look: &Look,
+    t: &Nt,
+    id: impl Into<gpui::ElementId>,
+    lead: Option<&str>,
+    label: impl Into<String>,
+    kind: Btn,
+    size: Size,
+) -> gpui::Stateful<gpui::Div> {
     let label = label.into();
     let (bg, fg, border) = match kind {
         Btn::Go => (t.you, t.you_ink, t.you),
         Btn::Second => (t.raised, t.text, t.line2),
         Btn::Quiet => (gpui::transparent_black(), t.text, gpui::transparent_black()),
     };
-    let hover = t.hover;
-    div()
+    let d = div()
         .id(id.into())
         .role(Role::Button)
         .aria_label(label.clone())
         .flex_shrink_0()
-        .h(look.px(if small { 26. } else { 30. }))
-        .px(look.px(if small { 10. } else { 12. }))
+        .h(look.px(size.h()))
+        .px(look.px(size.pad()))
         .flex()
         .items_center()
         .gap(look.px(6.))
@@ -353,11 +430,171 @@ pub fn button(
         .text_size(look.text(13.))
         .font_weight(FontWeight::SEMIBOLD)
         .whitespace_nowrap()
-        .cursor_pointer()
-        .when(kind == Btn::Go, |d| d.hover(|h| h.opacity(0.9)))
-        .when(kind != Btn::Go, move |d| d.hover(move |h| h.bg(hover)))
-        .children(lead.map(|n| icon(look, n, 14., fg)))
-        .child(label)
+        .children(lead.map(|n| icon(look, n, size.icon(), fg)))
+        .child(label);
+    interactive(d, look, t, kind)
+}
+
+/// A button drawn as a disabled one: dimmed, no pointer, no hover; the
+/// caller attaches no click.
+pub fn disabled(d: gpui::Stateful<gpui::Div>) -> gpui::Stateful<gpui::Div> {
+    d.opacity(0.45).cursor_default()
+}
+
+/// A square button with one Lucide icon; `label` is its accessible name
+/// and its tooltip, with `keys` (a shortcut such as `⌘=`) beside it.
+pub fn icon_button(
+    look: &Look,
+    t: &Nt,
+    id: impl Into<gpui::ElementId>,
+    name: &str,
+    label: &str,
+    keys: Option<&str>,
+    size: Size,
+) -> gpui::Stateful<gpui::Div> {
+    let tip = crate::ui::tooltip::Tooltip::with_keys(label, keys);
+    let d = div()
+        .id(id.into())
+        .role(Role::Button)
+        .aria_label(label.to_owned())
+        .flex_shrink_0()
+        .size(look.px(size.h()))
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(look.px(8.))
+        .border(look.fixed(1.))
+        .border_color(gpui::transparent_black())
+        .text_color(t.muted)
+        .child(icon(look, name, size.icon() + 2., t.muted))
+        .tooltip(tip);
+    interactive(d, look, t, Btn::Quiet)
+}
+
+/// One key of a shortcut: a Lucide icon for ⌘ ⌥ ⇧ ↩ ⌫ and the arrows,
+/// the letter otherwise, in a small bordered box.
+pub fn kbd(look: &Look, t: &Nt, keys: &str) -> gpui::Div {
+    let mut row = div().flex().flex_shrink_0().items_center().gap(look.px(2.));
+    for k in keys.chars() {
+        let key = div()
+            .min_w(look.px(18.))
+            .h(look.px(18.))
+            .px(look.px(4.))
+            .rounded(look.px(4.))
+            .border(look.fixed(1.))
+            .border_color(t.line2)
+            .bg(t.inset)
+            .flex()
+            .items_center()
+            .justify_center()
+            .text_size(look.text(11.))
+            .text_color(t.muted);
+        let lucide = match k {
+            '⌘' => Some("command"),
+            '⌥' => Some("option"),
+            '⇧' => Some("arrow-big-up"),
+            '↩' | '⏎' => Some("corner-down-left"),
+            '⌫' => Some("delete"),
+            '↑' => Some("arrow-up"),
+            '↓' => Some("arrow-down"),
+            '←' => Some("arrow-left"),
+            '→' => Some("arrow-right"),
+            _ => None,
+        };
+        row = row.child(match lucide {
+            Some(n) => key.child(icon_plain(look, n, 11., t.muted)),
+            None => key.child(k.to_string()),
+        });
+    }
+    row
+}
+
+/// A Lucide icon by its own name.
+pub fn icon_plain(look: &Look, name: &str, size: f32, color: Hsla) -> gpui::Svg {
+    svg()
+        .path(format!("icons/{name}.svg"))
+        .flex_shrink_0()
+        .size(look.px(size))
+        .text_color(color)
+}
+
+/// A compact select's trigger: what is chosen (with `lead` before it, such
+/// as an agent's mark) and the up-down chevrons; the caller opens the menu.
+pub fn select(
+    look: &Look,
+    t: &Nt,
+    id: impl Into<gpui::ElementId>,
+    lead: Option<AnyElement>,
+    label: impl Into<String>,
+    aria: &str,
+) -> gpui::Stateful<gpui::Div> {
+    let d = div()
+        .id(id.into())
+        .role(Role::Button)
+        .aria_label(aria.to_owned())
+        .flex_shrink_0()
+        .h(look.px(Size::Sm.h()))
+        .pl(look.px(8.))
+        .pr(look.px(6.))
+        .flex()
+        .items_center()
+        .gap(look.px(6.))
+        .rounded(look.px(8.))
+        .border(look.fixed(1.))
+        .border_color(t.line)
+        .bg(t.raised)
+        .text_size(look.text(13.))
+        .text_color(t.text)
+        .whitespace_nowrap()
+        .children(lead)
+        .child(label.into())
+        .child(icon_plain(look, "chevrons-up-down", 13., t.faint));
+    interactive(d, look, t, Btn::Second)
+}
+
+/// A menu: a floating list of rows, each a Lucide icon or mark, a label
+/// and a check on the chosen one. The caller places it and attaches
+/// clicks to the rows it returns, in order.
+pub fn menu_row(
+    look: &Look,
+    t: &Nt,
+    id: impl Into<gpui::ElementId>,
+    lead: Option<AnyElement>,
+    label: impl Into<String>,
+    chosen: bool,
+) -> gpui::Stateful<gpui::Div> {
+    let d = div()
+        .id(id.into())
+        .role(Role::MenuItem)
+        .h(look.px(Size::Md.h()))
+        .px(look.px(10.))
+        .flex()
+        .items_center()
+        .gap(look.px(8.))
+        .rounded(look.px(6.))
+        .border(look.fixed(1.))
+        .border_color(gpui::transparent_black())
+        .text_size(look.text(13.))
+        .text_color(t.text)
+        .children(lead)
+        .child(div().flex_1().min_w_0().truncate().child(label.into()))
+        .when(chosen, |d| d.child(icon_plain(look, "check", 14., t.night)));
+    interactive(d, look, t, Btn::Quiet)
+}
+
+/// The menu's surface.
+pub fn menu(look: &Look, t: &Nt) -> gpui::Div {
+    div()
+        .min_w(look.px(220.))
+        .p(look.px(4.))
+        .flex()
+        .flex_col()
+        .gap(look.px(2.))
+        .rounded(look.px(10.))
+        .bg(t.surface)
+        .border(look.fixed(1.))
+        .border_color(t.line2)
+        .shadow(float_shadow(look, t))
 }
 
 /// Your own words on the amber highlight, the whole quote one rounded
@@ -628,27 +865,4 @@ pub fn strip(look: &Look, t: &Nt, s: &hippo_view::night::strip::Strip, h: f32) -
             .size_full(),
         )
         .into_any_element()
-}
-
-/// The theme toggle's and the panel's small icon buttons.
-pub fn icon_button(
-    look: &Look,
-    t: &Nt,
-    id: impl Into<gpui::ElementId>,
-    name: &str,
-    label: &str,
-) -> gpui::Stateful<gpui::Div> {
-    let hover = t.hover;
-    div()
-        .id(id.into())
-        .role(Role::Button)
-        .aria_label(label.to_owned())
-        .size(look.px(30.))
-        .rounded(look.px(8.))
-        .flex()
-        .items_center()
-        .justify_center()
-        .cursor_pointer()
-        .hover(move |h| h.bg(hover))
-        .child(icon(look, name, 16., t.muted))
 }

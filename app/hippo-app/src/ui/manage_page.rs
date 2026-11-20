@@ -1502,7 +1502,7 @@ impl Shell {
                         .cursor_pointer()
                         .text_color(look.c.text_muted)
                         .hover(|h| h.bg(look.c.hover).text_color(look.c.text))
-                        .child("×")
+                        .child(kit::icon(look, "x", 12., look.c.text_muted))
                         .when(!busy, |d| {
                             d.on_click(cx.listener(move |this, _, window, cx| {
                                 this.ask_config(
@@ -2013,9 +2013,18 @@ impl Shell {
                             .text_color(look.c.text_muted)
                             .child(kit::dot(look, kit::ok(look)))
                             .child(format!(
-                                "{passing} check{} pass {}",
+                                "{passing} check{} pass",
                                 if passing == 1 { "" } else { "s" },
-                                if open { "▾" } else { "▸" }
+                            ))
+                            .child(kit::icon(
+                                look,
+                                if open {
+                                    "chevron-down"
+                                } else {
+                                    "chevron-right"
+                                },
+                                12.,
+                                look.c.text_muted,
                             ))
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.manage_ui.doctor_open = !this.manage_ui.doctor_open;
@@ -2064,7 +2073,16 @@ impl Shell {
                                                 div()
                                                     .flex_shrink_0()
                                                     .text_color(look.c.text_muted)
-                                                    .child(if shown { "▾" } else { "▸" }),
+                                                    .child(kit::icon(
+                                                        look,
+                                                        if shown {
+                                                            "chevron-down"
+                                                        } else {
+                                                            "chevron-right"
+                                                        },
+                                                        12.,
+                                                        look.c.text_muted,
+                                                    )),
                                             )
                                             .on_click(cx.listener(move |this, _, _, cx| {
                                                 let d = &mut this.manage_ui.doctor_detail;

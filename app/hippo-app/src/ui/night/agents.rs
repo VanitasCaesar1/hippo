@@ -153,7 +153,6 @@ impl Shell {
                     .child(
                         div()
                             .w(look.px(44.))
-                            .font_family(kit::MONO)
                             .text_size(look.text(13.))
                             .text_color(color)
                             .child(if l.is_some() {
@@ -187,6 +186,7 @@ impl Shell {
                         .gap(look.px(10.))
                         .child(kit::badge(
                             look,
+                            t,
                             &agent(if h.codex { "codex" } else { "claude-code" }),
                         ))
                         .child(
@@ -243,7 +243,7 @@ impl Shell {
                         .flex()
                         .items_center()
                         .gap(look.px(10.))
-                        .child(kit::badge(look, &a))
+                        .child(kit::badge(look, t, &a))
                         .child(
                             div()
                                 .flex_1()
@@ -257,7 +257,6 @@ impl Shell {
                         .child(
                             div()
                                 .flex_shrink_0()
-                                .font_family(kit::MONO)
                                 .text_size(look.text(12.5))
                                 .text_color(t.faint)
                                 .child(right),
@@ -551,7 +550,7 @@ impl Shell {
                     .flex()
                     .items_center()
                     .gap(look.px(8.))
-                    .child(kit::badge(look, &a))
+                    .child(kit::badge(look, t, &a))
                     .child(
                         div()
                             .text_size(look.text(13.5))

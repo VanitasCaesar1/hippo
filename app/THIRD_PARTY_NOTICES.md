@@ -2,7 +2,11 @@
 
 ## Lucide (ISC)
 
-The icons in `hippo-app/icons/*.svg` are from Lucide (`lucide-static` 0.460.0; `circle-alert`, `circle-dot-dashed`, `git-pull-request-arrow` and `shield-question` from 1.54.0), stroke width set to 1.75. The `hippo-app/icons/n-*.svg` icons (the night map's) were drawn for this project and are under its MIT licence. Licence of the Lucide icons: `hippo-app/icons/LICENSE-lucide.txt` (ISC; portions MIT from Feather).
+The icons in `hippo-app/icons/*.svg` (all but `agent-*.svg`) are from Lucide (`lucide-static` 0.460.0; `circle-alert`, `circle-dot-dashed`, `git-pull-request-arrow` and `shield-question` from 1.54.0; `arrow-big-up`, `arrow-down`, `arrow-left`, `chevron-up`, `command`, `corner-down-left`, `delete`, `external-link`, `eye`, `file-terminal`, `flag`, `folder-git-2`, `hourglass`, `key-round`, `message-square-quote`, `messages-square`, `minus`, `option`, `plus`, `receipt`, `scroll-text`, `send`, `shield`, `sun` and `sunrise` from 1.77.0), stroke width set to 1.75. Every UI icon in the app is a Lucide icon; the hand-drawn night-map icons of 0.7.0 were replaced by these. Licence of the Lucide icons: `hippo-app/icons/LICENSE-lucide.txt` (ISC; portions MIT from Feather).
+
+## LobeHub icons (MIT)
+
+`hippo-app/icons/agent-*.svg` are the marks of the coding agents hippo reads, from `@lobehub/icons-static-svg` 1.104.0, used only to say which agent a session came from; the marks belong to their owners. Sources, changes and licence: `brand/agents/README.md` and `hippo-app/icons/LICENSE-lobe-icons.txt`.
 
 ## T3 Code (MIT)
 

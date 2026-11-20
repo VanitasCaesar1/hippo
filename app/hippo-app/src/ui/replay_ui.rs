@@ -879,20 +879,22 @@ impl Shell {
                 .items_center()
                 .justify_center()
                 .size(look.px(24.))
-                .rounded(look.px(3.))
-                .font_family(kit::MONO)
-                .text_size(look.text(12.))
-                .text_color(if enabled {
-                    look.c.text_muted
-                } else {
-                    look.c.border_strong
-                })
+                .rounded(look.px(6.))
                 .when(enabled, |d| {
                     d.cursor_pointer()
                         .hover(|h| h.bg(look.c.hover).text_color(look.c.text))
                         .active(|a| a.bg(look.c.selected))
                 })
-                .child(arrow)
+                .child(kit::icon(
+                    look,
+                    arrow,
+                    14.,
+                    if enabled {
+                        look.c.text_muted
+                    } else {
+                        look.c.border_strong
+                    },
+                ))
                 .tooltip(super::tooltip::Tooltip::text(tip))
                 .on_click(cx.listener(move |this, _, _, cx| {
                     if let Some(d) = to {
@@ -913,7 +915,13 @@ impl Shell {
                     .flex()
                     .items_center()
                     .gap(look.px(2.))
-                    .child(nav(cx, "lanes-prev", "←", prev, "The day before"))
+                    .child(nav(
+                        cx,
+                        "lanes-prev",
+                        "chevron-left",
+                        prev,
+                        "The day before",
+                    ))
                     .child(
                         div()
                             .min_w(look.px(84.))
@@ -921,7 +929,13 @@ impl Shell {
                             .justify_center()
                             .child(kit::cap(look, &day_name(date, today), look.c.text)),
                     )
-                    .child(nav(cx, "lanes-next", "→", next, "The day after")),
+                    .child(nav(
+                        cx,
+                        "lanes-next",
+                        "chevron-right",
+                        next,
+                        "The day after",
+                    )),
             )
             .child(zoom_seg)
             .child(div().flex_1())

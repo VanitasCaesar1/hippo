@@ -131,18 +131,12 @@ fn sized_button(
         .border(look.fixed(1.))
         .text_size(look.text(text))
         .cursor_pointer();
-    // `…  ↩`: the Return glyph as a small keycap, a keyboard hint.
+    // `…  ↩`: Return as a key cap (Lucide's corner-down-left), a keyboard hint.
     let base = match label.strip_suffix("  ↩") {
-        Some(name) => base.gap(look.px(8.)).child(name.to_owned()).child(
-            div()
-                .px(look.px(4.))
-                .rounded(look.px(3.))
-                .border(look.fixed(1.))
-                .border_color(gpui::black().opacity(0.25))
-                .text_size(look.text(text - 2.))
-                .opacity(0.75)
-                .child("↩"),
-        ),
+        Some(name) => base
+            .gap(look.px(8.))
+            .child(name.to_owned())
+            .child(super::kit::kbd(look, "↩")),
         None => base.child(label.clone()),
     };
     if primary {

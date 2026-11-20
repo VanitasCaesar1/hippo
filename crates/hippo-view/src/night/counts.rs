@@ -39,7 +39,15 @@ pub struct Asker {
 
 /// The runner `ask` resolves to.
 pub fn asker(plan: &Plan) -> Option<Asker> {
-    let r = plan.runner(Role::Ask)?;
+    plan.runner(Role::Ask).map(asker_for)
+}
+
+/// Every configured runner, by name: what Ask's runner menu lists.
+pub fn runners(plan: &Plan) -> Vec<Asker> {
+    plan.runners.values().map(asker_for).collect()
+}
+
+fn asker_for(r: &hippo_core::runners::Runner) -> Asker {
     let a = match r.preset {
         Preset::Claude => agent("claude-code"),
         Preset::Command => {
@@ -62,13 +70,13 @@ pub fn asker(plan: &Plan) -> Option<Asker> {
     });
     let account = account.filter(|a| !a.is_empty());
     let known = ["cc", "cx", "cu", "gm", "oc", "ds", "mu", "co"].contains(&a.code.as_str());
-    Some(Asker {
+    Asker {
         runner: r.name.clone(),
         label: format!("{} answers", a.name),
         known,
         agent: a,
         account,
-    })
+    }
 }
 
 #[cfg(test)]
@@ -94,6 +102,7 @@ mod tests {
         let plan = hippo_core::runners::plan(&cfg).unwrap();
         let a = asker(&plan).unwrap();
         assert_eq!(a.label, "my-model answers");
+        assert_eq!(runners(&plan).len(), 1);
         assert!(!a.known);
     }
 }

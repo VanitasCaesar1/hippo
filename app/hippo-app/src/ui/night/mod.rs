@@ -20,6 +20,10 @@ use crate::state::{Section, Tab};
 
 /// The top bar's height.
 pub const TOP_H: f32 = 56.;
+/// The window width from which the search field shows its words and key:
+/// below it, the right group would need more than its half of the bar
+/// beside the nav (about 450 points against (width − 480) / 2).
+pub const SEARCH_WORDS: f32 = 1440.;
 /// Below this window width Morning and Brain take the feed and the board.
 pub const NARROW: f32 = 900.;
 /// The floating panel's width, and below 1200 points.
@@ -55,6 +59,8 @@ pub struct NightUi {
     pub panel_scroll: ScrollHandle,
     /// The Ask bar's answer card shows.
     pub answer_open: bool,
+    /// The Ask bar's runner menu is open.
+    pub runner_menu: bool,
     /// A dialog drawn as a view for screenshots (`HIPPO_APP_DEV_DIALOG`).
     pub dev_dialog: Option<String>,
     /// What to select once the models load (`HIPPO_APP_DEV_SELECT`).
@@ -84,6 +90,7 @@ impl Default for NightUi {
             scroll: ScrollHandle::new(),
             panel_scroll: ScrollHandle::new(),
             answer_open: false,
+            runner_menu: false,
             dev_dialog: None,
             dev_select: None,
             dev_zoom: None,
@@ -204,10 +211,14 @@ impl Shell {
             .as_ref()
             .and_then(|l| l.status.as_ref())
             .map(|s| (s.last_ingest.map(super::kit::hm), !s.errors.is_empty()));
+        // The nav sits in the middle; the groups either side take what is
+        // left and clip, so they never draw over it. Each drops its words
+        // before it would need more than its half.
         let left = div()
             .flex()
             .flex_1()
             .min_w_0()
+            .overflow_hidden()
             .items_center()
             .gap(look.px(12.))
             .pl(look.px(86.))
@@ -245,16 +256,18 @@ impl Shell {
                     .rounded(look.px(8.))
                     .border(look.fixed(1.))
                     .border_color(t.line2)
+                    .max_w(look.px(200.))
                     .text_size(look.text(14.))
                     .text_color(t.muted)
                     .cursor_pointer()
-                    .child(ws)
+                    .child(div().min_w_0().truncate().child(ws))
                     .child(kit::icon(look, "down", 14., t.faint))
                     .on_click(cx.listener(|this, _, window, cx| {
                         this.select_section(Section::Manage, window, cx);
                     })),
             );
         let nav_bar = div()
+            .flex_shrink_0()
             .flex()
             .items_center()
             .gap(look.px(2.))
@@ -300,6 +313,7 @@ impl Shell {
             .flex()
             .flex_1()
             .min_w_0()
+            .overflow_hidden()
             .items_center()
             .justify_end()
             .gap(look.px(12.))
@@ -323,13 +337,15 @@ impl Shell {
                     .cursor_pointer()
                     .hover(move |h| h.bg(hover))
                     .child(kit::icon(look, "search", 15., t.faint))
-                    .when(w >= 1200., |d| {
-                        d.child("Find a note or session").child(
-                            div()
-                                .font_family(kit::MONO)
-                                .text_size(look.text(11.))
-                                .child("⌘P"),
-                        )
+                    .when(w >= SEARCH_WORDS, |d| {
+                        d.child("Find a note or session")
+                            .child(kit::kbd(look, &t, "⌘P"))
+                    })
+                    .when(w < SEARCH_WORDS, |d| {
+                        d.tooltip(crate::ui::tooltip::Tooltip::with_keys(
+                            "Find a note or session",
+                            Some("⌘P"),
+                        ))
                     })
                     .on_click(cx.listener(|this, _, window, cx| this.open_finder(window, cx))),
             )
@@ -339,7 +355,6 @@ impl Shell {
                         .flex()
                         .items_center()
                         .gap(look.px(6.))
-                        .font_family(kit::MONO)
                         .text_size(look.text(13.))
                         .text_color(if bad { t.bad } else { t.muted })
                         .child(div().size(look.px(7.)).rounded_full().bg(if bad {
@@ -367,6 +382,8 @@ impl Shell {
                     } else {
                         "Use the dark theme"
                     },
+                    None,
+                    kit::Size::Sm,
                 )
                 .on_click(cx.listener(|this, _, window, cx| this.toggle_night_theme(window, cx))),
             );
@@ -497,21 +514,91 @@ impl Shell {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let t = Nt::of(look);
-        let asker = self
-            .loaded
-            .as_ref()
-            .and_then(|l| l.night.as_ref())
-            .and_then(|n| n.asker.clone());
+        let night = self.loaded.as_ref().and_then(|l| l.night.as_ref());
+        let asker = night.and_then(|n| n.asker.clone());
+        let runners = night.map(|n| n.runners.clone()).unwrap_or_default();
         let answer = self
             .night
             .answer_open
             .then(|| self.render_answer_card(look, &t, cx));
+        let menu = self.night.runner_menu.then(|| {
+            let current = asker.as_ref().map(|a| a.runner.clone());
+            let mut m = kit::menu(look, &t).child(
+                div()
+                    .px(look.px(10.))
+                    .pt(look.px(6.))
+                    .pb(look.px(4.))
+                    .text_size(look.text(12.))
+                    .text_color(t.faint)
+                    .child("Who answers Ask"),
+            );
+            for (i, r) in runners.iter().enumerate() {
+                let name = r.runner.clone();
+                let label = match &r.account {
+                    Some(acc) => format!("{} · {acc}", r.agent.name),
+                    None => r.agent.name.clone(),
+                };
+                let chosen = current.as_deref() == Some(name.as_str());
+                m = m.child(
+                    kit::menu_row(
+                        look,
+                        &t,
+                        ("runner", i),
+                        Some(kit::mark(look, &r.agent, 16., t.text).into_any_element()),
+                        label,
+                        chosen,
+                    )
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.night.runner_menu = false;
+                        if !chosen {
+                            this.start_job(
+                                crate::flow::Purpose::Manage,
+                                vec![vec![
+                                    "config".into(),
+                                    "set".into(),
+                                    "role.ask".into(),
+                                    name.clone(),
+                                    "--yes".into(),
+                                ]],
+                                cx,
+                            );
+                        }
+                        cx.notify();
+                    })),
+                );
+            }
+            m.child(
+                div()
+                    .px(look.px(10.))
+                    .py(look.px(6.))
+                    .text_size(look.text(12.))
+                    .text_color(t.faint)
+                    .child("Add another with hippo runners add"),
+            )
+        });
+        let (lead, label) = match &asker {
+            Some(a) => (
+                kit::mark(look, &a.agent, 16., t.text).into_any_element(),
+                a.agent.name.clone(),
+            ),
+            None => (
+                kit::icon_plain(look, "terminal", 16., t.muted).into_any_element(),
+                "No model set".to_owned(),
+            ),
+        };
+        let runner = kit::select(look, &t, "ask-runner", Some(lead), label, "Who answers Ask")
+            .tooltip(crate::ui::tooltip::Tooltip::text("Who answers Ask"))
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.night.runner_menu = !this.night.runner_menu;
+                cx.notify();
+            }));
         div()
             .flex()
             .flex_col()
             .gap(look.px(10.))
             .w(look.px(width))
             .children(answer)
+            .children(menu.map(|m| div().flex().justify_end().pr(look.px(56.)).child(m)))
             .child(
                 div()
                     .h(look.px(ASK_H))
@@ -528,36 +615,7 @@ impl Shell {
                     .shadow(kit::float_shadow(look, &t))
                     .text_size(look.text(15.))
                     .child(div().flex_1().min_w_0().child(self.ask_field.clone()))
-                    .when(asker.is_none(), |d| {
-                        d.child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .h(look.px(34.))
-                                .px(look.px(10.))
-                                .rounded(look.px(10.))
-                                .bg(t.inset)
-                                .text_size(look.text(13.5))
-                                .text_color(t.muted)
-                                .child("No model set: hippo runners"),
-                        )
-                    })
-                    .when_some(asker, |d, a| {
-                        d.child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap(look.px(8.))
-                                .h(look.px(34.))
-                                .px(look.px(10.))
-                                .rounded(look.px(10.))
-                                .bg(t.inset)
-                                .text_size(look.text(13.5))
-                                .text_color(t.text)
-                                .when(a.known, |d| d.child(kit::badge(look, &a.agent)))
-                                .child(a.label),
-                        )
-                    })
+                    .child(runner)
                     .child(
                         div()
                             .id("ask-send")
@@ -640,11 +698,19 @@ impl Shell {
                             .child(a.question.clone()),
                     )
                     .child(
-                        kit::icon_button(look, t, "answer-close", "x", "Close the answer")
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.night.answer_open = false;
-                                cx.notify();
-                            })),
+                        kit::icon_button(
+                            look,
+                            t,
+                            "answer-close",
+                            "x",
+                            "Close the answer",
+                            Some("esc"),
+                            kit::Size::Sm,
+                        )
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.night.answer_open = false;
+                            cx.notify();
+                        })),
                     ),
             )
             .children(status.map(|s| div().text_size(look.text(13.)).text_color(t.faint).child(s)))
@@ -694,6 +760,9 @@ impl Shell {
     ) -> AnyElement {
         let t = Nt::of(look);
         self.apply_dev_select();
+        if self.night.dev_dialog.as_deref() == Some("runners") {
+            self.night.runner_menu = true;
+        }
         if self.night.dev_scroll_end {
             self.night.scroll.scroll_to_bottom();
         }

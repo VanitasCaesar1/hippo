@@ -1132,7 +1132,8 @@ impl Shell {
                     this.pulse.focus_open = false;
                     cx.notify();
                 }))
-                .child(kit::cap(look, "← Queue", look.c.text_muted))
+                .child(kit::icon(look, "arrow-left", 12., look.c.text_muted))
+                .child(kit::cap(look, "Queue", look.c.text_muted))
                 .child(kit::cap(look, "Esc", look.c.faint))
         });
         let body = match item {

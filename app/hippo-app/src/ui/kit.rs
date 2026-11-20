@@ -43,8 +43,9 @@ pub fn button(
     button_key(look, id, label, "", kind)
 }
 
-/// A button with its own key written inside after the label (`Keep ↵`,
-/// `Copy resume ⌘C`), in SF Mono: faint, or the primary text at 55 %.
+/// A button with its own key drawn inside after the label (`Keep ↩`,
+/// `Copy resume ⌘C`), as Lucide icons for the modifier and arrow keys:
+/// faint, or the primary text at 55 %.
 pub fn button_key(
     look: &Look,
     id: impl Into<gpui::ElementId>,
@@ -86,21 +87,20 @@ pub fn button_icon(
         .items_center()
         .justify_center()
         .gap(look.px(10.))
-        .rounded(look.px(3.))
+        .rounded(look.px(8.))
         .border(look.fixed(1.))
         .border_color(gpui::transparent_black())
         .text_size(look.text(12.5))
         .whitespace_nowrap()
+        .when(kind != Kind::Disabled, |d| {
+            let (ring, w) = (look.c.text_accent, look.px(2.));
+            d.tab_index(0)
+                .focus_visible(move |s| s.border_color(ring).border(w))
+        })
         .children(lead.map(|n| icon(look, n, 14., lead_color)))
         .child(label)
         .when(!key.is_empty(), |d| {
-            d.child(
-                div()
-                    .font_family(MONO)
-                    .text_size(look.text(10.5))
-                    .text_color(key_color)
-                    .child(key.to_owned()),
-            )
+            d.child(keys_inline(look, key, key_color))
         });
     match kind {
         Kind::Primary => d
@@ -130,6 +130,39 @@ pub fn button_icon(
             .active(|a| a.opacity(0.8)),
         Kind::Disabled => d.border_color(look.c.border).text_color(look.c.faint),
     }
+}
+
+/// A shortcut drawn inline, with no caps: Lucide icons for ⌘ ⌥ ⇧ ↩ ⌫ and
+/// the arrows, letters as text, in `color`.
+pub fn keys_inline(look: &Look, keys: &str, color: Hsla) -> gpui::Div {
+    let mut row = div().flex().flex_shrink_0().items_center().gap(look.px(1.));
+    for k in keys.chars() {
+        let name = match k {
+            '⌘' => Some("command"),
+            '⌥' => Some("option"),
+            '⇧' => Some("arrow-big-up"),
+            '↩' | '↵' | '⏎' => Some("corner-down-left"),
+            '⌫' => Some("delete"),
+            '↑' => Some("arrow-up"),
+            '↓' => Some("arrow-down"),
+            '←' => Some("arrow-left"),
+            '→' => Some("arrow-right"),
+            _ => None,
+        };
+        row = row.child(match name {
+            Some(n) => svg()
+                .path(format!("icons/{n}.svg"))
+                .size(look.px(11.))
+                .text_color(color)
+                .into_any_element(),
+            None => div()
+                .text_size(look.text(11.))
+                .text_color(color)
+                .child(k.to_string())
+                .into_any_element(),
+        });
+    }
+    row
 }
 
 /// A 24-point square icon button: a Lucide glyph in the faint colour that
@@ -339,22 +372,10 @@ pub fn info(
         .tooltip(super::tooltip::Tooltip::text(text))
 }
 
-/// A key cap: `⌘K`.
+/// Key caps for a shortcut (`⌘K`): Lucide icons for the modifier and
+/// arrow keys, letters as text ([`super::night::kit::kbd`]).
 pub fn kbd(look: &Look, keys: &str) -> gpui::Div {
-    div()
-        .flex_shrink_0()
-        .px(look.px(5.))
-        .h(look.px(18.))
-        .flex()
-        .items_center()
-        .rounded(look.px(4.))
-        .border(look.fixed(1.))
-        .border_color(look.c.border_strong)
-        .bg(look.c.surface)
-        .text_size(look.text(11.))
-        .text_color(look.c.text_muted)
-        .whitespace_nowrap()
-        .child(keys.to_owned())
+    super::night::kit::kbd(look, &super::night::kit::Nt::of(look), keys)
 }
 
 /// A profile's display name: its folder's suffix (`work`),
@@ -1598,45 +1619,63 @@ pub fn square(look: &Look, m: Mark) -> gpui::Div {
     }
 }
 
-/// A switch: a label, the selected one underlined in the text colour
-/// (`PULSE LANES ROWS`, `STATE PROJECT ACCOUNT`, `DAY 6H 1H`).
+/// One segment of a segmented control (`Pulse | Lanes | Rows`, `State |
+/// Project | Account`, `Day | 6h | 1h`): the chosen one raised, in the text
+/// colour; the others muted. Put them in [`switches`].
 pub fn switch(
     look: &Look,
     id: impl Into<gpui::ElementId>,
     label: &str,
     on: bool,
 ) -> gpui::Stateful<gpui::Div> {
+    let (hover, ring) = (look.c.hover, look.c.text_accent);
+    let w = look.px(2.);
     div()
         .id(id.into())
         .role(Role::Tab)
         .aria_label(label.to_owned())
         .aria_selected(on)
+        .tab_index(0)
         .flex_shrink_0()
         .flex()
         .items_center()
-        .h(look.px(28.))
-        .border_b(look.fixed(1.))
+        .h_full()
+        .px(look.px(10.))
+        .rounded(look.px(6.))
+        .border(look.fixed(1.))
         .border_color(if on {
-            look.c.text
+            look.c.border
         } else {
             gpui::transparent_black()
         })
+        .when(on, |d| d.bg(look.c.elevated))
         .cursor_pointer()
-        .font_family(MONO)
-        .text_size(look.text(10.5))
+        .text_size(look.text(12.5))
+        .font_weight(if on {
+            FontWeight::SEMIBOLD
+        } else {
+            FontWeight::NORMAL
+        })
         .whitespace_nowrap()
-        .text_color(if on { look.c.text } else { look.c.faint })
-        .hover(|h| h.text_color(look.c.text))
-        .child(label.to_uppercase())
+        .text_color(if on { look.c.text } else { look.c.text_muted })
+        .when(!on, move |d| d.hover(move |h| h.bg(hover)))
+        .focus_visible(move |s| s.border_color(ring).border(w))
+        .child(label.to_owned())
 }
 
-/// Switches in a row, 18 points apart.
+/// The segmented control's track, 28 points high.
 pub fn switches(look: &Look) -> gpui::Div {
     div()
         .flex_shrink_0()
         .flex()
         .items_center()
-        .gap(look.px(18.))
+        .gap(look.px(2.))
+        .p(look.px(2.))
+        .h(look.px(28.))
+        .rounded(look.px(8.))
+        .bg(look.c.surface)
+        .border(look.fixed(1.))
+        .border_color(look.c.border)
 }
 
 /// A heading: a label and its count in two digits (`NEEDS YOU 02`), the

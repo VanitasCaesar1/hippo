@@ -238,6 +238,8 @@ pub struct Night {
     pub week_sessions: usize,
     pub titles: std::collections::HashMap<String, String>,
     pub asker: Option<counts::Asker>,
+    /// Every configured runner, for Ask's runner menu.
+    pub runners: Vec<counts::Asker>,
     pub reaches: Vec<reach::Reach>,
 }
 
@@ -322,9 +324,9 @@ pub fn load(
         ),
         None => (Vec::new(), 0, HashMap::new()),
     };
-    let asker = hippo_core::runners::plan(cfg)
-        .ok()
-        .and_then(|p| counts::asker(&p));
+    let plan = hippo_core::runners::plan(cfg).ok();
+    let asker = plan.as_ref().and_then(counts::asker);
+    let runners = plan.as_ref().map(counts::runners).unwrap_or_default();
     Ok(Night {
         morning,
         strip,
@@ -333,6 +335,7 @@ pub fn load(
         week_sessions,
         titles,
         asker,
+        runners,
         reaches: reach::reaches(&ws.root),
     })
 }

@@ -1230,7 +1230,7 @@ impl Shell {
                     self.sessions_ui.harness.contains(&(id.to_string(), item))
                 };
                 let text = if group {
-                    format!("{} {}", steps.label(), if open { "▾" } else { "▸" })
+                    steps.label().to_string()
                 } else if open {
                     "hide harness steps".to_string()
                 } else {
@@ -1263,6 +1263,20 @@ impl Shell {
                         look.c.text_muted
                     } else {
                         look.c.text_accent
+                    })
+                    .items_center()
+                    .gap(look.px(4.))
+                    .when(group, |d| {
+                        d.child(super::kit::icon(
+                            look,
+                            if open {
+                                "chevron-down"
+                            } else {
+                                "chevron-right"
+                            },
+                            12.,
+                            look.c.text_muted,
+                        ))
                     })
                     .child(div().truncate().child(text))
                     .on_click(cx.listener(move |this, _, window, cx| {
@@ -1310,19 +1324,13 @@ impl Shell {
             ),
             Kind::Assistant => ("Assistant".into(), look.c.text_muted, false),
             Kind::Tool { name, summary, .. } => (
-                format!(
-                    "{} {}  {}",
-                    if open { "▾" } else { "▸" },
-                    visible(&tool_label(name)),
-                    visible(summary)
-                ),
+                format!("{}  {}", visible(&tool_label(name)), visible(summary)),
                 look.c.text_muted,
                 true,
             ),
             Kind::Injection(kind) => (
                 format!(
-                    "{} {} · {}",
-                    if open { "▾" } else { "▸" },
+                    "{} · {}",
                     kind.label(),
                     conversation::size(entry.text.len())
                 ),
@@ -1335,6 +1343,21 @@ impl Shell {
             .flex()
             .items_center()
             .gap(look.px(8.))
+            .when(
+                matches!(entry.kind, Kind::Tool { .. } | Kind::Injection(_)),
+                |d| {
+                    d.child(super::kit::icon(
+                        look,
+                        if open {
+                            "chevron-down"
+                        } else {
+                            "chevron-right"
+                        },
+                        12.,
+                        look.c.text_muted,
+                    ))
+                },
+            )
             .child(
                 div()
                     .flex_1()

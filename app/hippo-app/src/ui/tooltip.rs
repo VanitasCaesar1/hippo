@@ -6,6 +6,8 @@ use super::theme::Look;
 
 pub struct Tooltip {
     text: String,
+    /// A shortcut shown beside the text (`⌘=`).
+    keys: Option<String>,
 }
 
 impl Tooltip {
@@ -14,7 +16,20 @@ impl Tooltip {
         let text = text.into();
         move |_, cx| {
             let text = text.clone();
-            cx.new(|_| Tooltip { text }).into()
+            cx.new(|_| Tooltip { text, keys: None }).into()
+        }
+    }
+
+    /// As [`Tooltip::text`], with the control's shortcut beside the text.
+    pub fn with_keys(
+        text: impl Into<String>,
+        keys: Option<&str>,
+    ) -> impl Fn(&mut Window, &mut App) -> AnyView + 'static {
+        let text = text.into();
+        let keys = keys.map(str::to_owned);
+        move |_, cx| {
+            let (text, keys) = (text.clone(), keys.clone());
+            cx.new(|_| Tooltip { text, keys }).into()
         }
     }
 }
@@ -35,7 +50,16 @@ impl Render for Tooltip {
                 .border_color(look.c.border)
                 .text_size(look.text(12.))
                 .text_color(look.c.text)
-                .child(self.text.clone()),
+                .flex()
+                .items_center()
+                .gap(look.px(8.))
+                .child(self.text.clone())
+                .children(self.keys.clone().map(|k| {
+                    div()
+                        .text_size(look.text(11.5))
+                        .text_color(look.c.text_muted)
+                        .child(k)
+                })),
         )
     }
 }

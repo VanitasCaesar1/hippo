@@ -928,9 +928,9 @@ impl Shell {
                                 .flex()
                                 .items_center()
                                 .justify_center()
-                                .text_size(look.text(11.))
-                                .text_color(look.c.window)
-                                .child(if on { "✓" } else { "" }),
+                                .when(on, |d| {
+                                    d.child(kit::icon(look, "check", 11., look.c.window))
+                                }),
                         )
                         .child(
                             div()

@@ -250,7 +250,7 @@ impl Shell {
                     .flex()
                     .items_center()
                     .gap(look.px(8.))
-                    .child(kit::badge(look, &i.agent))
+                    .child(kit::badge(look, t, &i.agent))
                     .child(
                         div()
                             .text_size(look.text(15.))
@@ -593,7 +593,7 @@ impl Shell {
                                 })),
                         )
                         .child(
-                            kit::button(look, t, "guard-fix", Some("fix"), format!("Fix with {}", fix.fix_agent.name), Btn::Go, false)
+                            kit::button_sized(look, t, "guard-fix", Some("fix"), format!("Fix with {}", fix.fix_agent.name), Btn::Go, kit::Size::Lg)
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.night.fixing = Some(id.clone());
                                     cx.notify();

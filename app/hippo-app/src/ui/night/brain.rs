@@ -907,16 +907,36 @@ impl Shell {
             .border_color(t.line)
             .shadow(kit::float_shadow(look, t))
             .child(
-                kit::button(look, t, "zoom-out", None, "−", Btn::Quiet, true)
-                    .on_click(cx.listener(|this, _, _, cx| this.brain_zoom_step(1. / STEP, cx))),
+                kit::icon_button(
+                    look,
+                    t,
+                    "zoom-out",
+                    "minus",
+                    "Zoom out",
+                    Some("⌘−"),
+                    kit::Size::Sm,
+                )
+                .on_click(cx.listener(|this, _, _, cx| this.brain_zoom_step(1. / STEP, cx))),
             )
             .child(
                 kit::button(look, t, "zoom-fit", None, pct, Btn::Quiet, true)
+                    .tooltip(crate::ui::tooltip::Tooltip::with_keys(
+                        "Fit the map",
+                        Some("⌘0"),
+                    ))
                     .on_click(cx.listener(|this, _, _, cx| this.brain_fit(cx))),
             )
             .child(
-                kit::button(look, t, "zoom-in", None, "+", Btn::Quiet, true)
-                    .on_click(cx.listener(|this, _, _, cx| this.brain_zoom_step(STEP, cx))),
+                kit::icon_button(
+                    look,
+                    t,
+                    "zoom-in",
+                    "plus",
+                    "Zoom in",
+                    Some("⌘="),
+                    kit::Size::Sm,
+                )
+                .on_click(cx.listener(|this, _, _, cx| this.brain_zoom_step(STEP, cx))),
             );
         let mapdiv = div()
             .id("brain-map")
@@ -1154,7 +1174,6 @@ impl Shell {
                 .gap(look.px(2.))
                 .child(
                     div()
-                        .font_family(kit::MONO)
                         .text_size(look.text(20.))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(t.text)
@@ -1329,10 +1348,9 @@ impl Shell {
                                     .flex()
                                     .items_center()
                                     .gap(look.px(8.))
-                                    .children(e.agent.as_ref().map(|a| kit::badge(look, a)))
+                                    .children(e.agent.as_ref().map(|a| kit::badge(look, t, a)))
                                     .child(
                                         div()
-                                            .font_family(kit::MONO)
                                             .text_size(look.text(12.5))
                                             .text_color(t.faint)
                                             .child(e.when.clone()),
@@ -1354,7 +1372,7 @@ impl Shell {
                             .flex()
                             .items_center()
                             .gap(look.px(6.))
-                            .child(kit::badge(look, a))
+                            .child(kit::badge(look, t, a))
                             .child(
                                 div()
                                     .text_size(look.text(13.))
