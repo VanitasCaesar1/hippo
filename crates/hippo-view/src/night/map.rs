@@ -88,8 +88,18 @@ pub const OUT_ROW_H: f32 = 44.;
 pub const OUT_ROWS: usize = 6;
 /// A mark's diameter.
 pub const OUT_DOT: f32 = 12.;
+/// An Out card's icon, as a share of its name's size.
+pub const OUT_ICON: f32 = 0.8;
+/// Note rows in a folder card on a map of more blocks than
+/// [`OUT_FEW`]: its overview is drawn smaller, so it lists fewer.
+pub const OUT_ROWS_MANY: usize = 3;
+/// Below this zoom an Out card's note rows are too small to read and are
+/// not drawn (about 8 points on screen); below the next, its legend too.
+pub const OUT_ROWS_BELOW: f32 = 0.33;
+pub const OUT_META_BELOW: f32 = 0.27;
+pub const OUT_FEW: usize = 8;
 /// Between Out cards in a column.
-pub const OUT_GAP: f32 = 40.;
+pub const OUT_GAP: f32 = 72.;
 /// A line of text is this many times its size high.
 pub const LEADING: f32 = 1.25;
 /// Points around a map fitted to its view.
@@ -331,6 +341,9 @@ pub struct Mark {
     pub y: f32,
     pub d: f32,
     pub tone: &'static str,
+    /// A note row's mark in a folder card (dropped first when zoomed far
+    /// out), not the legend's or the card's icon.
+    pub row: bool,
 }
 
 /// One level's drawing.
@@ -341,10 +354,8 @@ pub struct Layout {
     /// Folder frames (Mid and In); empty at Out, where the folder is a card.
     pub frames: Vec<(usize, Rect)>,
     pub cards: Vec<Card>,
-    /// Every line, when the level has at most [`LINE_BUDGET`]; else none.
-    pub lines: Vec<Line>,
-    /// Each linked card's own lines, bundled, drawn while it is hovered or
-    /// selected.
+    /// Each linked card's lines, bundled, drawn while it is hovered or
+    /// selected; no line is drawn at rest.
     pub focus: Vec<(Item, Vec<Line>)>,
     /// Every word drawn on the map at this level, on top of the cards.
     pub labels: Vec<Label>,
@@ -367,44 +378,19 @@ impl Layout {
         self.cards.iter().filter(move |c| c.rect.meets(view))
     }
 
-    /// The lines whose bounds meet `view`.
-    pub fn lines_in<'a>(&'a self, view: &'a Rect) -> impl Iterator<Item = &'a Line> + 'a {
-        self.lines.iter().filter(move |l| l.bounds.meets(view))
-    }
-
-    /// The lines drawn while `focus` is hovered or selected, each with
-    /// whether it is one of the focus's: the focus's own, bundled; on a
-    /// level with at most [`LINE_BUDGET`] lines, every other line too.
-    pub fn shown(&self, focus: Option<Item>) -> Vec<(&Line, bool)> {
-        let own: Vec<(&Line, bool)> = focus
+    /// The lines drawn while `focus` is hovered or selected: its own,
+    /// bundled; none without a focus.
+    pub fn shown(&self, focus: Option<Item>) -> &[Line] {
+        focus
             .and_then(|f| self.focus.iter().find(|(i, _)| *i == f))
-            .map(|(_, ls)| ls.iter().map(|l| (l, true)).collect())
-            .unwrap_or_default();
-        let touches = |l: &Line| !own.is_empty() && focus.is_some_and(|f| l.from == f || l.to == f);
-        let mut out: Vec<(&Line, bool)> = self
-            .lines
-            .iter()
-            .filter(|l| !touches(l))
-            .map(|l| (l, false))
-            .collect();
-        out.extend(own);
-        out
+            .map_or(&[], |(_, ls)| ls.as_slice())
     }
 
     /// How many lines the eye sees with `focus`: a trunk and its branches
     /// count once.
     pub fn visible(&self, focus: Option<Item>) -> usize {
-        let trunks: BTreeSet<(bool, usize)> = self
-            .shown(focus)
-            .iter()
-            .map(|(l, lit)| (*lit, l.trunk))
-            .collect();
+        let trunks: BTreeSet<usize> = self.shown(focus).iter().map(|l| l.trunk).collect();
         trunks.len()
-    }
-
-    /// The labels that meet `view`.
-    pub fn labels_in<'a>(&'a self, view: &'a Rect) -> impl Iterator<Item = &'a Label> + 'a {
-        self.labels.iter().filter(move |l| l.rect.meets(view))
     }
 
     /// The zoom at which the whole layout just fits a `w` × `h` view
@@ -543,15 +529,13 @@ impl NotesMap {
         }
     }
 
-    /// `level` laid out from `arr` (settled first), without its lines: what
-    /// a drag shows while the pointer moves, cheap enough for every move.
+    /// `level` laid out from `arr` (settled first): what a drag shows
+    /// while the pointer moves, made only when the place it would land
+    /// changes.
     pub fn preview(&self, arr: &Arrangement, level: Level) -> Layout {
         let arr = settle(&self.notes, &self.folders, arr);
         let plan = plan(&self.notes, &self.folders);
-        let (frames, cards, labels, marks) = place(level, &self.notes, &self.folders, &arr, &|b| {
-            draw(level, b, &self.notes, &self.folders, plan)
-        });
-        finish(frames, cards, Vec::new(), labels, marks)
+        pack(level, &self.notes, &self.folders, &self.edges, &arr, plan)
     }
 
     /// The block whose handle is under a map point at `level`: at Out any
@@ -886,11 +870,10 @@ pub fn build(inp: &Inputs<'_>) -> NotesMap {
             format!("{}, and {last}. ", capital_first(&said.join(", ")))
         }
     };
-    lead.push_str(if edges.is_empty() {
-        "No note links to another yet."
-    } else {
-        "Lines are links between notes."
-    });
+    if edges.is_empty() {
+        lead.push_str("No note links to another yet.");
+    }
+    let lead = lead.trim_end().to_owned();
     let name = ws
         .root
         .file_name()
@@ -964,15 +947,58 @@ fn folders(notes: &[MapNote]) -> Vec<Folder> {
     out
 }
 
-/// An In card's height.
+/// An In card's words, wrapped to its width: the summary, each rule and
+/// each piece of evidence on up to three lines.
+#[derive(Debug, Clone, PartialEq)]
+pub struct InText {
+    pub summary: Vec<String>,
+    pub rows: Vec<(Vec<String>, &'static str)>,
+}
+
+/// Where an In card's summary starts, from its top; its line height; the
+/// space between rows.
+pub const IN_SUMMARY: f32 = 50.;
+pub const IN_ROW_GAP: f32 = 4.;
+/// An In card's summary and row sizes.
+pub const IN_SUMMARY_SIZE: f32 = 13.5;
+pub const IN_ROW_SIZE: f32 = 13.;
+
+/// An In card's words, wrapped.
+pub fn in_text(n: &MapNote) -> InText {
+    let w = CARD_W - 32.;
+    let summary = super::fit::fit(&n.summary, w, IN_SUMMARY_SIZE, IN_SUMMARY_SIZE, 3, false).lines;
+    let rows = n
+        .in_lines()
+        .into_iter()
+        .map(|(s, kind)| {
+            (
+                super::fit::fit(&s, w - 22., IN_ROW_SIZE, IN_ROW_SIZE, 3, false).lines,
+                kind,
+            )
+        })
+        .collect();
+    InText { summary, rows }
+}
+
+/// Where an In card's chips sit, from its top.
+pub fn in_chips_y(t: &InText) -> f32 {
+    IN_SUMMARY + t.summary.len().max(1) as f32 * IN_LINE + 5.
+}
+
+/// An In card's height: its summary, its chips, its rules and evidence,
+/// and as much room below as above.
 pub fn in_height(n: &MapNote) -> f32 {
-    let lines = n.in_lines().len();
-    CARD_H
-        + if lines == 0 {
-            0.
-        } else {
-            10. + lines as f32 * IN_LINE
-        }
+    let t = in_text(n);
+    let mut h = in_chips_y(&t) + 22.;
+    if !t.rows.is_empty() {
+        h += 14.
+            + t.rows
+                .iter()
+                .map(|r| r.0.len() as f32 * IN_LINE)
+                .sum::<f32>()
+            + (t.rows.len() - 1) as f32 * IN_ROW_GAP;
+    }
+    (h + 16.).max(CARD_H)
 }
 
 /// A person's order of the map: its columns left to right, each its
@@ -1132,12 +1158,15 @@ pub fn default_arrangement_in(notes: &[MapNote], folders: &[Folder], cols: usize
     if !pinned.is_empty() {
         heights[0] = pinned.len() as f32 * (CARD_H + GAP) - GAP + FRAME_GAP;
     }
+    // The notes read in every session keep the first column to themselves
+    // when there is another, so folder cards line up across columns.
+    let first = usize::from(!pinned.is_empty() && plan.cols >= 2);
     for (fi, f) in folders.iter().enumerate() {
         let span = span_of(f, base);
         let per = f.notes.len().div_ceil(span);
-        let span = span.min(plan.cols);
-        let mut best = (0usize, f32::MAX);
-        for c in 0..=(plan.cols - span) {
+        let span = span.min(plan.cols - first).max(1);
+        let mut best = (first, f32::MAX);
+        for c in first..=(plan.cols - span) {
             let top = heights[c..c + span].iter().cloned().fold(0., f32::max);
             if top < best.1 - 0.5 {
                 best = (c, top);
@@ -1170,7 +1199,7 @@ pub fn view_arrangement(notes: &[MapNote], folders: &[Folder], w: f32, h: f32) -
     let (out, mid) = (drawn(Level::Out), drawn(Level::Mid));
     let zoom = |level: Level, d: &HashMap<Block, Drawn>, arr: &Arrangement| {
         let (frames, cards, _, _) = place(level, notes, folders, arr, &|b| d[&b].clone());
-        finish(frames, cards, Vec::new(), Vec::new(), Vec::new()).fit_zoom(w, h, FIT_PAD)
+        finish(frames, cards, Vec::new(), Vec::new()).fit_zoom(w, h, FIT_PAD)
     };
     let mut best: Option<(bool, f32, Arrangement)> = None;
     for k in 1..=all.len().max(1) {
@@ -1368,6 +1397,11 @@ fn draw(level: Level, b: Block, notes: &[MapNote], folders: &[Folder], plan: Pla
             let item = Item::Note(i);
             d.h = out_card(
                 item,
+                if n.flags.entry {
+                    "icon-flag"
+                } else {
+                    "icon-note"
+                },
                 &n.title,
                 &legend,
                 &[],
@@ -1399,8 +1433,14 @@ fn draw(level: Level, b: Block, notes: &[MapNote], folders: &[Folder], plan: Pla
                     ));
                 }
             }
-            let shown = if f.notes.len() > OUT_ROWS {
-                OUT_ROWS - 1
+            // A big map's overview is drawn smaller: fewer rows.
+            let most = if folders.len() + pinned_of(notes).len() > OUT_FEW {
+                OUT_ROWS_MANY
+            } else {
+                OUT_ROWS
+            };
+            let shown = if f.notes.len() > most {
+                most - 1
             } else {
                 f.notes.len()
             };
@@ -1412,6 +1452,7 @@ fn draw(level: Level, b: Block, notes: &[MapNote], folders: &[Folder], plan: Pla
             let name = if f.name.is_empty() { "Notes" } else { &f.name };
             d.h = out_card(
                 item,
+                "icon-folder",
                 name,
                 &legend,
                 &rows,
@@ -1519,8 +1560,8 @@ fn pack(
     let (frames, cards, labels, marks) = place(level, notes, folders, arr, &|b| {
         draw(level, b, notes, folders, plan)
     });
-    let (lines, focus) = links(level, folders, edges, &frames, &cards);
-    let mut lay = finish(frames, cards, lines, labels, marks);
+    let focus = links(level, folders, edges, &frames, &cards);
+    let mut lay = finish(frames, cards, labels, marks);
     lay.focus = focus;
     lay
 }
@@ -1599,20 +1640,18 @@ fn place(
     (frames, cards, labels, marks)
 }
 
-/// One level's lines: one per pair of linked cards (at Out a note in a
-/// folder is its folder's card), counting the links it stands for. With at
-/// most [`LINE_BUDGET`] pairs, every line, routed together; and for each
-/// linked card, its own lines, drawn while it is in focus: one trunk each
-/// way (left, right, and to its own column), which drops a branch in the
-/// gap beside each column it reaches.
-#[allow(clippy::type_complexity)]
+/// Each linked card's lines at one level, drawn while it is in focus: one
+/// line per card it links to (at Out a note in a folder is its folder's
+/// card), counting the links it stands for, bundled into one trunk each
+/// way (right, with its own column; left), which drops a branch in the gap
+/// beside each column it reaches.
 fn links(
     level: Level,
     folders: &[Folder],
     edges: &[(usize, usize)],
     frames: &[(usize, Rect)],
     cards: &[Card],
-) -> (Vec<Line>, Vec<(Item, Vec<Line>)>) {
+) -> Vec<(Item, Vec<Line>)> {
     let rect_of: HashMap<Item, Rect> = cards.iter().map(|c| (c.item, c.rect)).collect();
     let folder_of: HashMap<usize, usize> = folders
         .iter()
@@ -1643,49 +1682,32 @@ fn links(
         .iter()
         .map(|(_, r)| Rect::new(r.x, r.y, r.w, FRAME_HEAD))
         .collect();
-    let mut lines = Vec::new();
-    if pairs.len() <= LINE_BUDGET {
-        let wants: Vec<Want> = pairs
-            .iter()
-            .enumerate()
-            .map(|(k, (&(a, b), &n))| Want {
-                a,
-                to: vec![(b, n)],
-                trunk: k,
-            })
-            .collect();
-        lines = route(&wants, &rect_of, &heads, level == Level::Out);
-    }
     let items: BTreeSet<Item> = pairs.keys().flat_map(|&(a, b)| [a, b]).collect();
     let mut focus = Vec::new();
     for f in items {
-        let others: Vec<(Item, usize)> = pairs
-            .iter()
-            .filter_map(|(&(a, b), &n)| {
-                if a == f {
-                    Some((b, n))
-                } else if b == f {
-                    Some((a, n))
-                } else {
-                    None
-                }
-            })
-            .collect();
-        let rf = rect_of[&f];
-        let mut by: BTreeMap<(u8, usize), Vec<(Item, usize)>> = BTreeMap::new();
-        for (o, n) in others {
-            let ro = rect_of[&o];
-            let side = match kind_of(&rf, &ro) {
-                Kind::Bracket => 0,
-                Kind::Right => 1,
-                Kind::Left => 2,
+        let ca = col_of(rect_of[&f].x);
+        let mut right: Vec<(Item, usize)> = Vec::new();
+        let mut left: Vec<(Item, usize)> = Vec::new();
+        for (&(a, b), &n) in &pairs {
+            let o = if a == f {
+                b
+            } else if b == f {
+                a
+            } else {
+                continue;
             };
-            by.entry((side, 0)).or_default().push((o, n));
+            if col_of(rect_of[&o].x) >= ca {
+                right.push((o, n));
+            } else {
+                left.push((o, n));
+            }
         }
-        let mut groups: Vec<Vec<(Item, usize)>> = by.into_values().collect();
+        let mut groups: Vec<Vec<(Item, usize)>> = [right, left]
+            .into_iter()
+            .filter(|g| !g.is_empty())
+            .collect();
         let weight = |g: &Vec<(Item, usize)>| g.iter().map(|x| x.1).sum::<usize>();
         groups.sort_by_key(|g| std::cmp::Reverse(weight(g)));
-        groups.truncate(LINE_BUDGET);
         let wants: Vec<Want> = groups
             .into_iter()
             .enumerate()
@@ -1693,14 +1715,13 @@ fn links(
             .collect();
         focus.push((f, route(&wants, &rect_of, &heads, level == Level::Out)));
     }
-    (lines, focus)
+    focus
 }
 
 /// The layout's size around what it holds.
 fn finish(
     frames: Vec<(usize, Rect)>,
     cards: Vec<Card>,
-    lines: Vec<Line>,
     labels: Vec<Label>,
     marks: Vec<Mark>,
 ) -> Layout {
@@ -1708,21 +1729,18 @@ fn finish(
         .iter()
         .map(|c| c.rect.right())
         .chain(frames.iter().map(|f| f.1.right()))
-        .chain(lines.iter().map(|l| l.bounds.right()))
         .fold(0., f32::max)
         + FRAME_PAD;
     let height = cards
         .iter()
         .map(|c| c.rect.bottom())
         .chain(frames.iter().map(|f| f.1.bottom()))
-        .chain(lines.iter().map(|l| l.bounds.bottom()))
         .fold(0., f32::max);
     Layout {
         width,
         height,
         frames,
         cards,
-        lines,
         focus: Vec::new(),
         labels,
         marks,
@@ -1733,6 +1751,7 @@ fn finish(
 #[allow(clippy::too_many_arguments)]
 fn out_card(
     item: Item,
+    icon: &'static str,
     title: &str,
     legend: &[(String, Option<&'static str>)],
     rows: &[(String, &'static str)],
@@ -1745,31 +1764,49 @@ fn out_card(
     let iw = COL_W - 2. * OUT_PAD;
     let x0 = x + OUT_PAD;
     let mut cy = y + OUT_PAD;
-    let mut t = label(
-        item,
-        LabelKind::Title,
-        title,
-        x0,
-        cy,
-        iw,
-        OUT_TITLE,
-        OUT_TITLE_MIN,
-        3,
-    );
-    // A word too long for the card at the floor: smaller still, not cut.
-    if t.lines.last().is_some_and(|l| l.ends_with('…')) {
-        t = label(
+    // The name beside its icon: a folder, the entry note's flag, a note.
+    // The icon is sized to the name, so the room it takes depends on the
+    // size the name is set at: fitted once at the largest, then again for
+    // the size that gave.
+    let room = |size: f32| size * OUT_ICON + 12.;
+    let at = |r: f32, max: f32, min: f32| {
+        label(
             item,
             LabelKind::Title,
             title,
-            x0,
+            x0 + r,
             cy,
-            iw,
-            OUT_TITLE_MIN,
-            8.,
+            iw - r,
+            max,
+            min,
             3,
-        );
+        )
+    };
+    let mut t = at(room(OUT_TITLE), OUT_TITLE, OUT_TITLE_MIN);
+    if t.size < OUT_TITLE {
+        let again = at(room(t.size), t.size, OUT_TITLE_MIN);
+        let fits = again
+            .lines
+            .iter()
+            .all(|l| super::fit::width(l, again.size, true) <= iw - room(again.size) + 0.01);
+        if fits && !again.lines.last().is_some_and(|l| l.ends_with('…')) {
+            t = again;
+        }
     }
+    // A word too long for the card at the floor: smaller still, not cut.
+    if t.lines.last().is_some_and(|l| l.ends_with('…')) {
+        t = at(room(OUT_TITLE_MIN), OUT_TITLE_MIN, 8.);
+    }
+    let d = t.size * OUT_ICON;
+    t.rect.x = x0 + d + 12.;
+    marks.push(Mark {
+        item,
+        x: x0 + d / 2.,
+        y: cy + t.size * LEADING / 2.,
+        d,
+        tone: icon,
+        row: false,
+    });
     cy = t.rect.bottom() + 12.;
     labels.push(t);
     // The legend flows in lines: a mark and its words per entry.
@@ -1790,6 +1827,7 @@ fn out_card(
                 y: cy + line_h / 2.,
                 d: OUT_DOT,
                 tone,
+                row: false,
             });
         }
         let l = label(
@@ -1818,6 +1856,7 @@ fn out_card(
             y: cy + OUT_ROW_H / 2.,
             d: OUT_DOT,
             tone,
+            row: true,
         });
         let rx = x0 + OUT_DOT + 12.;
         let mut l = label(
@@ -1866,70 +1905,28 @@ fn col_of(x: f32) -> usize {
     (x / (COL_W + COL_GAP)).floor().max(0.) as usize
 }
 
-/// How a line meets its two cards.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Kind {
-    /// One column: out of both cards' right edges.
-    Bracket,
-    /// `a` is left of `b`: out of `a`'s right edge into `b`'s left.
-    Right,
-    /// `a` is right of `b`: out of `a`'s left edge into `b`'s right.
-    Left,
-}
-
-fn kind_of(ra: &Rect, rb: &Rect) -> Kind {
-    if ra.x < rb.right() && rb.x < ra.right() {
-        Kind::Bracket
-    } else if ra.x < rb.x {
-        Kind::Right
-    } else {
-        Kind::Left
-    }
-}
-
 /// Lines a router is asked for: from card `a` to each of `to` (with the
-/// links each stands for), sharing one trunk; one target for a line on its
-/// own. Every target of a trunk is on one side of `a`, or in its column.
+/// links each stands for), sharing one trunk. Every target is on one side
+/// of `a`: in its column or right of it, or left of it.
 struct Want {
     a: Item,
     to: Vec<(Item, usize)>,
     trunk: usize,
 }
 
-/// Routes lines so none runs through a card or a frame's name band.
+/// Routes trunks so none runs through a card or a frame's name band, nor
+/// closer to one than a clearance (20 points at Out, 12 at Mid and In).
 ///
-/// Each card spreads the lines that leave one of its edges along it,
-/// ordered by where their other ends sit, so they do not cross at the card.
-/// A line runs level out of its card toward the other's column; before
-/// each column it crosses it keeps its height when that is clear of the
-/// column's cards (4 points either side) and of lines already crossing
-/// there, else it turns, in the gap before that column, to the clear
-/// height nearest to the way to its targets past it; in the gap beside a
-/// column with targets a branch leaves it for them. Every vertical run in a
-/// gap has a lane of its own: brackets (two cards in one column) nearest
-/// the column they join, shortest innermost; then the rest, longest first.
+/// A trunk leaves its card at one port, level, toward its targets. Before
+/// each column it crosses it keeps its height while that is clear of the
+/// column's cards, name bands and other trunks; else, in the gap before
+/// that column, it turns to the middle of the free channel nearest the way
+/// to the targets past it. In the gap beside each column with targets it
+/// drops a branch to them, on the same vertical as any turn it makes there,
+/// so each gap holds one vertical per trunk. Lines that leave one edge of a
+/// card are spread along it, ordered by where their other ends sit.
 fn route(wants: &[Want], rect_of: &HashMap<Item, Rect>, heads: &[Rect], out: bool) -> Vec<Line> {
-    struct Path {
-        a: Item,
-        ra: Rect,
-        to: Vec<(Item, Rect, usize)>,
-        kind: Kind,
-        trunk: usize,
-        ya: f32,
-        yb: Vec<f32>,
-        runs: Vec<Run>,
-        lanes: Vec<f32>,
-    }
-    /// A vertical run in a gap: the trunk turning from `y` to `to`, or a
-    /// branch leaving the trunk at `y` for `targets` (their places in
-    /// `to` of the path).
-    struct Run {
-        gap: usize,
-        y: f32,
-        to: f32,
-        span: f32,
-        targets: Option<Vec<usize>>,
-    }
+    let clear = if out { 20f32 } else { 12f32 };
     // A note card's lines meet it by its title; an Out card's, by its
     // middle, spread wider.
     let centre = |r: &Rect| {
@@ -1940,6 +1937,19 @@ fn route(wants: &[Want], rect_of: &HashMap<Item, Rect>, heads: &[Rect], out: boo
         }
     };
     let spread = if out { 24f32 } else { 14f32 };
+    struct Path {
+        a: Item,
+        ra: Rect,
+        to: Vec<(Item, Rect, usize)>,
+        right: bool,
+        trunk: usize,
+        ya: f32,
+        yb: Vec<f32>,
+        /// Each gap the trunk reaches: the gap, the trunk's height there,
+        /// the targets it branches to, and the height it turns to.
+        stops: Vec<(usize, f32, Vec<usize>, f32)>,
+        lanes: Vec<f32>,
+    }
     let mut paths: Vec<Path> = Vec::new();
     for w in wants {
         let Some(&ra) = rect_of.get(&w.a) else {
@@ -1949,22 +1959,27 @@ fn route(wants: &[Want], rect_of: &HashMap<Item, Rect>, heads: &[Rect], out: boo
             w.to.iter()
                 .filter_map(|&(i, n)| rect_of.get(&i).map(|r| (i, *r, n)))
                 .collect();
-        let Some(&(_, rb, _)) = to.first() else {
+        if to.is_empty() {
             continue;
-        };
+        }
+        let ca = col_of(ra.x);
+        let right = to.iter().all(|t| col_of(t.1.x) >= ca);
         let yb = to.iter().map(|t| centre(&t.1)).collect();
         paths.push(Path {
             a: w.a,
             ra,
-            kind: kind_of(&ra, &rb),
+            to,
+            right,
             trunk: w.trunk,
             ya: centre(&ra),
             yb,
-            to,
-            runs: Vec::new(),
+            stops: Vec::new(),
             lanes: Vec::new(),
         });
     }
+    // Which edge a target is entered by: its right edge when it is in the
+    // trunk's own column or left of it.
+    let enters_right = |p: &Path, j: usize| !p.right || col_of(p.to[j].1.x) == col_of(p.ra.x);
     // Ports: each (card, edge) spreads its lines, ordered by the other end.
     // (card, right edge) -> (the other end's y, path, the target's place or
     // usize::MAX for the path's own card).
@@ -1972,11 +1987,11 @@ fn route(wants: &[Want], rect_of: &HashMap<Item, Rect>, heads: &[Rect], out: boo
     let mut ends: Ends = HashMap::new();
     for (k, p) in paths.iter().enumerate() {
         let mean = p.to.iter().map(|t| centre(&t.1)).sum::<f32>() / p.to.len() as f32;
-        ends.entry((p.a, p.kind != Kind::Left))
+        ends.entry((p.a, p.right))
             .or_default()
             .push((mean, k, usize::MAX));
         for (j, t) in p.to.iter().enumerate() {
-            ends.entry((t.0, p.kind != Kind::Right))
+            ends.entry((t.0, enters_right(p, j)))
                 .or_default()
                 .push((centre(&p.ra), k, j));
         }
@@ -2004,170 +2019,126 @@ fn route(wants: &[Want], rect_of: &HashMap<Item, Rect>, heads: &[Rect], out: boo
             }
         }
     }
-    // What is in the way across each column: its cards and name bands,
-    // 4 points either side, and the lines already crossing it.
+    // What is in the way across each column: its cards and name bands, and
+    // the trunks already crossing it.
     let mut blocked: BTreeMap<usize, Vec<(f32, f32)>> = BTreeMap::new();
     for r in rect_of.values().chain(heads) {
         for c in col_of(r.x)..=col_of(r.right() - 1.) {
-            blocked
-                .entry(c)
-                .or_default()
-                .push((r.y - 4., r.bottom() + 4.));
+            blocked.entry(c).or_default().push((r.y, r.bottom()));
         }
     }
-    let clear = |no: &[(f32, f32)], y: f32| !no.iter().any(|&(lo, hi)| lo < y && y < hi);
-    // The clear height in a column nearest the way from `y` to `want`: in
-    // each free stretch the point nearest `want` that keeps clear of both
-    // sides when there is room; of those, the one that adds the least
-    // climbing, then the one nearest `want`.
+    let ok =
+        |no: &[(f32, f32)], y: f32| !no.iter().any(|&(lo, hi)| lo - clear < y && y < hi + clear);
+    // The middle of the free channel nearest the way from `y` to `want`
+    // (one at least twice the clearance high), or below everything.
     let pick = |no: &mut Vec<(f32, f32)>, y: f32, want: f32| {
         no.sort_by(|a, b| a.0.total_cmp(&b.0));
         let mut free: Vec<(f32, f32)> = Vec::new();
-        let mut from = 0f32;
-        for (lo, hi) in no.iter() {
-            if *lo > from {
-                free.push((from, *lo));
+        let mut from = f32::MIN;
+        for &(lo, hi) in no.iter() {
+            if from > f32::MIN && lo - from >= 2. * clear {
+                free.push((from, lo));
             }
-            from = from.max(*hi);
+            from = from.max(hi);
         }
-        free.push((from, f32::MAX));
         let mut best: Option<(f32, f32, f32)> = None;
-        for (lo, hi) in free {
-            let pad = (14f32).min((hi - lo) / 2.);
-            let p = want.clamp(lo + pad, (hi - pad).max(lo + pad));
+        let mut consider = |p: f32| {
             let (cost, near) = ((p - y).abs() + (p - want).abs(), (p - want).abs());
             if best.is_none_or(|(c, n, _)| cost < c - 1e-3 || (cost < c + 1e-3 && near < n - 1e-3))
             {
                 best = Some((cost, near, p));
             }
+        };
+        for (lo, hi) in free {
+            consider((lo + hi) / 2.);
         }
+        consider(want.max(from.max(0.) + clear));
         best.map_or(want, |b| b.2)
     };
     for p in &mut paths {
         let ca = col_of(p.ra.x);
         let tcol: Vec<usize> = p.to.iter().map(|t| col_of(t.1.x)).collect();
-        // The farthest column the trunk goes to.
-        let far = match p.kind {
-            Kind::Bracket => ca,
-            Kind::Right => tcol.iter().copied().max().unwrap_or(ca),
-            Kind::Left => tcol.iter().copied().min().unwrap_or(ca),
-        };
-        // Columns crossed, each with the gap before it; the last gap.
-        let (steps, last): (Vec<(usize, usize)>, usize) = match p.kind {
-            Kind::Bracket => (Vec::new(), ca + 1),
-            Kind::Right => (((ca + 1)..far).map(|c| (c, c)).collect(), far),
-            Kind::Left => (((far + 1)..ca).rev().map(|c| (c, c + 1)).collect(), far + 1),
-        };
-        // The targets in column `c`, and those past it.
-        let here = |c: usize| -> Vec<usize> { (0..tcol.len()).filter(|&j| tcol[j] == c).collect() };
-        let beyond = |c: usize| -> Vec<usize> {
-            (0..tcol.len())
-                .filter(|&j| match p.kind {
-                    Kind::Right => tcol[j] > c,
-                    Kind::Left => tcol[j] < c,
-                    Kind::Bracket => false,
-                })
-                .collect()
-        };
-        let branch = |g: usize, y: f32, js: Vec<usize>, yb: &[f32]| {
-            let (lo, hi) = js
-                .iter()
-                .fold((y, y), |(lo, hi), &j| (lo.min(yb[j]), hi.max(yb[j])));
-            Run {
-                gap: g,
-                y,
-                to: y,
-                span: hi - lo,
-                targets: Some(js),
+        // Each gap reached: the gap, the columns entered there, the column
+        // crossed after it.
+        let mut gaps: Vec<(usize, Vec<usize>, Option<usize>)> = Vec::new();
+        if p.right {
+            let far = tcol.iter().copied().max().unwrap_or(ca).max(ca + 1);
+            for g in ca + 1..=far {
+                let mut cols = vec![g];
+                if g == ca + 1 {
+                    cols.push(ca);
+                }
+                gaps.push((g, cols, (g < far).then_some(g)));
             }
-        };
-        let mut y = p.ya;
-        for (c, g) in steps {
-            // Targets in this column branch off in the gap before it.
-            let js = here(c);
-            if !js.is_empty() {
-                p.runs.push(branch(g, y, js, &p.yb));
+        } else {
+            let far = tcol.iter().copied().min().unwrap_or(ca);
+            for g in (far + 1..=ca).rev() {
+                gaps.push((g, vec![g - 1], (g - 1 > far).then_some(g - 1)));
             }
-            let past = beyond(c);
-            let want = past.iter().map(|&j| p.yb[j]).sum::<f32>() / past.len().max(1) as f32;
-            let no = blocked.entry(c).or_default();
-            if !clear(no, y) {
-                let mut all = no.clone();
-                let y2 = pick(&mut all, y, want);
-                p.runs.push(Run {
-                    gap: g,
-                    y,
-                    to: y2,
-                    span: (y2 - y).abs(),
-                    targets: None,
-                });
-                y = y2;
-            }
-            blocked.entry(c).or_default().push((y - 4., y + 4.));
         }
-        let js = here(far);
-        p.runs.push(branch(last, y, js, &p.yb));
-        p.lanes = vec![0.; p.runs.len()];
+        let mut y = p.ya;
+        for (g, cols, cross) in gaps {
+            let js: Vec<usize> = (0..tcol.len())
+                .filter(|&j| cols.contains(&tcol[j]))
+                .collect();
+            let mut to = y;
+            if let Some(c) = cross {
+                let past: Vec<usize> = (0..tcol.len())
+                    .filter(|&j| if p.right { tcol[j] > c } else { tcol[j] < c })
+                    .collect();
+                let want = past.iter().map(|&j| p.yb[j]).sum::<f32>() / past.len().max(1) as f32;
+                let no = blocked.entry(c).or_default();
+                if !ok(no, y) {
+                    let mut all = no.clone();
+                    to = pick(&mut all, y, want);
+                }
+                blocked.entry(c).or_default().push((to, to));
+            }
+            if !js.is_empty() || to != y {
+                p.stops.push((g, y, js, to));
+            }
+            y = to;
+        }
+        p.lanes = vec![0.; p.stops.len()];
     }
-    // Lanes: one per vertical run in each gap. (path, run, span).
+    // Lanes: one vertical per trunk in each gap, longest outermost.
     let mut by_gap: BTreeMap<usize, Vec<(usize, usize, f32)>> = BTreeMap::new();
     for (k, p) in paths.iter().enumerate() {
-        for (j, r) in p.runs.iter().enumerate() {
-            by_gap.entry(r.gap).or_default().push((k, j, r.span));
+        for (s, (g, y, js, to)) in p.stops.iter().enumerate() {
+            let (lo, hi) = js
+                .iter()
+                .map(|&j| p.yb[j])
+                .chain([*y, *to])
+                .fold((f32::MAX, f32::MIN), |(lo, hi), v| (lo.min(v), hi.max(v)));
+            by_gap.entry(*g).or_default().push((k, s, hi - lo));
         }
     }
+    let lane_step = if out { 24f32 } else { 16f32 };
     for (gap, mut members) in by_gap {
-        members.sort_by(|x, y| {
-            let (bx, by) = (
-                paths[x.0].kind == Kind::Bracket,
-                paths[y.0].kind == Kind::Bracket,
-            );
-            by.cmp(&bx)
-                .then_with(|| {
-                    if bx {
-                        x.2.total_cmp(&y.2)
-                    } else {
-                        y.2.total_cmp(&x.2)
-                    }
-                })
-                .then((x.0, x.1).cmp(&(y.0, y.1)))
-        });
+        members.sort_by(|x, y| y.2.total_cmp(&x.2).then((x.0, x.1).cmp(&(y.0, y.1))));
         let (lo, hi) = gap_span(gap);
         let n = members.len();
         let step = if n <= 1 {
             0.
         } else {
-            (8f32).min((hi - lo) / (n - 1) as f32)
+            lane_step.min((hi - lo) / (n - 1) as f32)
         };
         let start = (lo + hi) / 2. - step * (n.saturating_sub(1)) as f32 / 2.;
-        for (k, (m, j, _)) in members.into_iter().enumerate() {
-            paths[m].lanes[j] = start + k as f32 * step;
+        for (k, (m, s, _)) in members.into_iter().enumerate() {
+            paths[m].lanes[s] = start + k as f32 * step;
         }
     }
     let mut lines = Vec::new();
-    for p in paths {
-        let a0 = if p.kind == Kind::Left {
-            p.ra.x
-        } else {
-            p.ra.right()
-        };
+    for p in &paths {
+        let a0 = if p.right { p.ra.right() } else { p.ra.x };
         let mut trunk = vec![(a0, p.ya)];
-        for (k, r) in p.runs.iter().enumerate() {
-            let x = p.lanes[k];
-            let Some(js) = &r.targets else {
-                trunk.push((x, r.y));
-                trunk.push((x, r.to));
-                continue;
-            };
+        for (s, (_, y, js, to)) in p.stops.iter().enumerate() {
+            let x = p.lanes[s];
             for &j in js {
                 let (item, t, links) = p.to[j];
-                let b0 = if p.kind == Kind::Right {
-                    t.x
-                } else {
-                    t.right()
-                };
+                let b0 = if enters_right(p, j) { t.right() } else { t.x };
                 let mut points = trunk.clone();
-                points.push((x, r.y));
+                points.push((x, *y));
                 points.push((x, p.yb[j]));
                 points.push((b0, p.yb[j]));
                 let (mut x0, mut y0, mut x1, mut y1) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
@@ -2185,6 +2156,10 @@ fn route(wants: &[Want], rect_of: &HashMap<Item, Rect>, heads: &[Rect], out: boo
                     links,
                     trunk: p.trunk,
                 });
+            }
+            if to != y {
+                trunk.push((x, *y));
+                trunk.push((x, *to));
             }
         }
     }
@@ -2406,19 +2381,14 @@ mod tests {
         assert_eq!(m.out.cards.len(), 1 + m.folders.len());
     }
 
-    /// Every line a level can draw: all of them, or each card's own.
+    /// Every line a level can draw: each card's own.
     fn all_lines(l: &Layout) -> Vec<&Line> {
-        l.lines
-            .iter()
-            .chain(l.focus.iter().flat_map(|(_, ls)| ls.iter()))
-            .collect()
+        l.focus.iter().flat_map(|(_, ls)| ls.iter()).collect()
     }
 
-    /// Each set of lines drawn at once: every line, or a card's own.
+    /// Each set of lines drawn at once: a card's own.
     fn line_sets(l: &Layout) -> Vec<Vec<&Line>> {
-        let mut out = vec![l.lines.iter().collect::<Vec<_>>()];
-        out.extend(l.focus.iter().map(|(_, ls)| ls.iter().collect()));
-        out
+        l.focus.iter().map(|(_, ls)| ls.iter().collect()).collect()
     }
 
     #[test]
@@ -2490,15 +2460,11 @@ mod tests {
             .find(|(i, _)| *i == Item::Note(0))
             .expect("the hub's lines");
         assert_eq!(lines.len(), 39, "every link of the hub, one branch each");
-        // One trunk each way: left, right, its own column.
-        let hub = m.mid.card(Item::Note(0)).unwrap().rect;
-        let sides: BTreeSet<u8> = lines
+        // One trunk each way: right (with its own column), left.
+        let hub = col_of(m.mid.card(Item::Note(0)).unwrap().rect.x);
+        let sides: BTreeSet<bool> = lines
             .iter()
-            .map(|l| match kind_of(&hub, &m.mid.card(l.to).unwrap().rect) {
-                Kind::Bracket => 0,
-                Kind::Right => 1,
-                Kind::Left => 2,
-            })
+            .map(|l| col_of(m.mid.card(l.to).unwrap().rect.x) >= hub)
             .collect();
         let trunks: BTreeSet<usize> = lines.iter().map(|l| l.trunk).collect();
         assert_eq!(trunks.len(), sides.len());
@@ -2529,19 +2495,18 @@ mod tests {
             .find(|(i, _)| *i == Item::Note(7))
             .unwrap();
         assert_eq!(one.len(), 1);
-        assert!(m.mid.lines.is_empty());
     }
 
     #[test]
     fn at_most_the_budget_of_lines_shows_at_once_at_every_zoom() {
         for m in maps() {
             for (lv, l) in [("out", &m.out), ("mid", &m.mid), ("in", &m.inner)] {
-                assert!(l.visible(None) <= LINE_BUDGET, "{lv}: {}", l.visible(None));
+                // Nothing at rest; a card's own at most one trunk each way.
+                assert_eq!(l.visible(None), 0, "{lv}");
                 for c in &l.cards {
                     let n = l.visible(Some(c.item));
-                    assert!(n <= LINE_BUDGET, "{lv}: {:?} shows {n}", c.item);
+                    assert!(n <= 2, "{lv}: {:?} shows {n}", c.item);
                 }
-                assert!(l.lines.len() <= LINE_BUDGET);
             }
             // Zoomed out, a line stands for every link between two blocks.
             assert!(all_lines(&m.out).iter().all(|l| l.links >= 1));
@@ -2566,10 +2531,11 @@ mod tests {
                 }
             }
         }
-        // Small maps draw every link; at Out one line joins two blocks.
+        // Every link is a line of both its cards; at Out one line joins
+        // two blocks.
         let m = synthetic(12, 3, 8);
-        assert_eq!(m.mid.lines.len(), 8);
-        assert!(m.out.lines.iter().map(|l| l.links).sum::<usize>() <= 8);
+        assert_eq!(all_lines(&m.mid).len(), 16);
+        assert!(all_lines(&m.out).iter().map(|l| l.links).sum::<usize>() <= 16);
     }
 
     #[test]
@@ -2841,7 +2807,12 @@ mod tests {
             .expect("+ n more");
         assert_eq!(more.lines, ["+ 9 more notes"]);
         // A mark per row and per legend entry with a tone, all small.
-        assert!(m.out.marks.iter().all(|k| k.d <= OUT_DOT));
+        assert!(m
+            .out
+            .marks
+            .iter()
+            .filter(|k| !k.tone.starts_with("icon-"))
+            .all(|k| k.d <= OUT_DOT));
         assert!(m.out.marks.iter().filter(|k| k.item == item).count() >= rows);
     }
 
@@ -2908,9 +2879,93 @@ mod tests {
         let view = Rect::new(0., 0., 1100., 700.);
         let shown = m.mid.cards_in(&view).count();
         assert!(shown > 0 && shown < 60, "{shown}");
-        let m = synthetic(12, 3, 8);
-        let view = Rect::new(0., 0., 300., 200.);
-        assert!(m.mid.lines_in(&view).count() < m.mid.lines.len());
+    }
+
+    /// A trunk keeps clear of every card and name band it passes, and of
+    /// every other line it shares a gap with: 20 points at Out, 12 at Mid
+    /// and In. Only a branch's last stretch, into its card, comes closer.
+    #[test]
+    fn lines_keep_clear_of_cards_and_of_each_other() {
+        for m in maps() {
+            for (lv, l, clear) in [
+                ("out", &m.out, 20.),
+                ("mid", &m.mid, 12.),
+                ("in", &m.inner, 12.),
+            ] {
+                let mut walls: Vec<Rect> = l.cards.iter().map(|c| c.rect).collect();
+                walls.extend(
+                    l.frames
+                        .iter()
+                        .map(|(_, r)| Rect::new(r.x, r.y, r.w, FRAME_HEAD)),
+                );
+                for set in line_sets(l) {
+                    for line in &set {
+                        let n = line.points.len();
+                        // Level runs but the first (out of its card) and
+                        // the last (into its target).
+                        for w in line.points[1..n - 1]
+                            .windows(2)
+                            .filter(|w| w[0].1 == w[1].1)
+                        {
+                            let (x0, x1, y) = (w[0].0.min(w[1].0), w[0].0.max(w[1].0), w[0].1);
+                            for r in &walls {
+                                let across = r.x < x1 - 0.5 && x0 + 0.5 < r.right();
+                                let near = y > r.y - clear + 0.01 && y < r.bottom() + clear - 0.01;
+                                assert!(
+                                    !(across && near),
+                                    "{lv}: {w:?} is closer than {clear} to {r:?}"
+                                );
+                            }
+                        }
+                    }
+                    // One port per edge of the focus card.
+                    let mut ports: BTreeSet<(i64, i64)> = BTreeSet::new();
+                    for line in &set {
+                        ports.insert((line.points[0].0 as i64, line.points[0].1 as i64));
+                    }
+                    assert!(ports.len() <= 2, "{lv}: {ports:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_notes_in_every_session_keep_the_first_column() {
+        for m in [demo_shaped(), synthetic(300, 12, 1000)] {
+            let f = m.fitted(1220., 690.);
+            let first = &f.arrangement.columns[0];
+            assert!(first.iter().all(|k| k.starts_with("note:")), "{first:?}");
+            // Folder cards at Out line up: one height on the 300-note map.
+            if m.notes.len() == 300 {
+                let hs: BTreeSet<i64> = f
+                    .out
+                    .cards
+                    .iter()
+                    .filter(|c| matches!(c.item, Item::Folder(_)))
+                    .map(|c| c.rect.h as i64)
+                    .collect();
+                assert_eq!(hs.len(), 1, "{hs:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn in_cards_wrap_their_words_and_keep_their_padding() {
+        let mut m = demo_shaped();
+        m.notes[3].summary = "A summary long enough to need a second line on an In card, and then a little more so it wraps.".into();
+        m.notes[3].rules = vec![
+            "A kept rule that is long enough that it has to wrap onto a second line on the card."
+                .into(),
+        ];
+        let t = in_text(&m.notes[3]);
+        assert!(t.summary.len() >= 2 && t.summary.len() <= 3, "{t:?}");
+        assert!(!t.summary.last().unwrap().ends_with('…'));
+        assert!(t.rows[0].0.len() >= 2 && !t.rows[0].0.last().unwrap().ends_with('…'));
+        // The last row ends 16 points above the card's foot.
+        let h = in_height(&m.notes[3]);
+        let rows: f32 = t.rows.iter().map(|r| r.0.len() as f32 * IN_LINE).sum();
+        let bottom = in_chips_y(&t) + 22. + 14. + rows;
+        assert!((h - bottom - 16.).abs() < 0.01, "{h} {bottom}");
     }
 
     #[test]

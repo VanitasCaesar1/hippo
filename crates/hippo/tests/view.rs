@@ -9,9 +9,28 @@ use std::process::Command;
 
 use serde_json::Value;
 
+/// A time zone where it is about noon now. The demo home stamps its
+/// sessions minutes and hours before now, and hippo groups corrections by
+/// local day: run where midnight is far from now, so the counts never
+/// depend on the hour the test runs at.
+fn midday_tz() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let off = 12 - (secs / 3600 % 24) as i64;
+    match off {
+        0 => "UTC".into(),
+        // The Etc zones' sign is the other way round: Etc/GMT-5 is UTC+5.
+        o if o > 0 => format!("Etc/GMT-{o}"),
+        o => format!("Etc/GMT+{}", -o),
+    }
+}
+
 fn hippo(home: &Path, user_home: &Path, args: &[&str]) -> Value {
     let out = Command::new(env!("CARGO_BIN_EXE_hippo"))
         .args(args)
+        .env("TZ", midday_tz())
         .env("HIPPO_HOME", home)
         .env("HOME", user_home)
         .env("CODEX_HOME", user_home.join(".codex"))
@@ -73,7 +92,10 @@ fn an_empty_workspace_says_no_pass_has_run() {
     assert_eq!(map["notes"].as_array().unwrap().len(), 2);
     assert_eq!(map["edges"].as_array().unwrap().len(), 1);
     assert_eq!(map["mid"]["cards"].as_array().unwrap().len(), 2);
-    assert_eq!(map["mid"]["lines"].as_array().unwrap().len(), 1);
+    // No line at rest; each of the two notes has the one link as its own.
+    let focus = map["mid"]["focus"].as_array().unwrap();
+    assert_eq!(focus.len(), 2);
+    assert!(focus.iter().all(|f| f[1].as_array().unwrap().len() == 1));
 
     let note = hippo(
         home.path(),
@@ -107,6 +129,7 @@ fn the_demo_home_fills_every_view() {
         .arg(script)
         .arg(&demo)
         .env("HIPPO_BIN", env!("CARGO_BIN_EXE_hippo"))
+        .env("TZ", midday_tz())
         .env("HOME", user.path())
         .env("CODEX_HOME", user.path().join(".codex"))
         .env("CLAUDE_CONFIG_DIR", user.path().join(".claude"))

@@ -283,6 +283,10 @@ fn main() {
                         std::env::var("HIPPO_APP_DEV_DROP").is_ok_and(|v| v == "0");
                     shell.night.dev_hover =
                         std::env::var("HIPPO_APP_DEV_HOVER").ok().and_then(|v| {
+                            // `line`: on the selected card's longest trunk.
+                            if v == "line" {
+                                return Some((f32::NAN, f32::NAN));
+                            }
                             let (x, y) = v.split_once(',')?;
                             Some((x.parse().ok()?, y.parse().ok()?))
                         });

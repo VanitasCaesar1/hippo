@@ -7,8 +7,8 @@
 (function (root) {
   'use strict';
   var CARD_H = 112, GAP = 12, FRAME_PAD = 14, FRAME_HEAD = 40, FRAME_GAP = 24,
-    COL_GAP = 72, CARD_W = 340, COL_W = CARD_W + 2 * FRAME_PAD, OUT_GAP = 40,
-    LINE_BUDGET = 12, OUT_BELOW = 0.55, OUT_FIT = 0.54, MIN_ZOOM = 0.15, FIT_PAD = 28;
+    COL_GAP = 72, CARD_W = 340, COL_W = CARD_W + 2 * FRAME_PAD, OUT_GAP = 72,
+    OUT_BELOW = 0.55, OUT_FIT = 0.54, MIN_ZOOM = 0.15, FIT_PAD = 28;
 
   function colX(c) { return c * (COL_W + COL_GAP); }
   function right(r) { return r.x + r.w; }
@@ -122,31 +122,24 @@
       d.frames.forEach(function (f) { frames.push([f[0], mv(f[1], dx, dy)]); });
       d.cards.forEach(function (x) { cards.push({ item: x.item, rect: mv(x.rect, dx, dy) }); });
       d.labels.forEach(function (x) { labels.push({ item: x.item, kind: x.kind, rect: mv(x.rect, dx, dy), lines: x.lines, size: x.size }); });
-      d.marks.forEach(function (x) { marks.push({ item: x.item, x: x.x + dx, y: x.y + dy, d: x.d, tone: x.tone }); });
+      d.marks.forEach(function (x) { marks.push({ item: x.item, x: x.x + dx, y: x.y + dy, d: x.d, tone: x.tone, row: x.row }); });
     }
     return { frames: frames, cards: cards, labels: labels, marks: marks };
   }
-  function size(p, lines) {
+  function size(p) {
     var w = 0, h = 0;
     p.cards.forEach(function (x) { w = Math.max(w, right(x.rect)); h = Math.max(h, bottom(x.rect)); });
     p.frames.forEach(function (f) { w = Math.max(w, right(f[1])); h = Math.max(h, bottom(f[1])); });
-    (lines || []).forEach(function (l) { w = Math.max(w, right(l.bounds)); h = Math.max(h, bottom(l.bounds)); });
     return [w + FRAME_PAD, h];
   }
 
   function pack(M, L, arr, blocks) {
-    var p = place(M, L, arr, blocks), lk = links(M, L, p.frames, p.cards), wh = size(p, lk[0]);
-    return { width: wh[0], height: wh[1], frames: p.frames, cards: p.cards, lines: lk[0], focus: lk[1], labels: p.labels, marks: p.marks };
+    var p = place(M, L, arr, blocks), wh = size(p);
+    return { width: wh[0], height: wh[1], frames: p.frames, cards: p.cards, focus: links(M, L, p.frames, p.cards), labels: p.labels, marks: p.marks };
   }
 
-  function kindOf(ra, rb) {
-    if (ra.x < right(rb) && rb.x < right(ra)) return 'bracket';
-    return ra.x < rb.x ? 'right' : 'left';
-  }
-  var SIDE = { bracket: 0, right: 1, left: 2 };
-
-  /* One level's lines (Rust: links): every line with at most LINE_BUDGET
-     pairs, and each linked card's own, one trunk each way. */
+  /* Each linked card's lines (Rust: links): one trunk each way, right
+     (with its own column) and left. */
   function links(M, L, frames, cards) {
     var rectOf = {};
     cards.forEach(function (x) { rectOf[itemKey(x.item)] = x.rect; });
@@ -165,34 +158,34 @@
     });
     pairs.sort(function (p, q) { return itemCmp(p.a, q.a) || itemCmp(p.b, q.b); });
     var heads = frames.map(function (f) { return { x: f[1].x, y: f[1].y, w: f[1].w, h: FRAME_HEAD }; });
-    var out = L === 'out';
-    var lines = pairs.length <= LINE_BUDGET ? route(pairs.map(function (p, k) { return { a: p.a, to: [[p.b, p.n]], trunk: k }; }), rectOf, heads, out) : [];
     var items = {}, list = [];
     pairs.forEach(function (p) { [p.a, p.b].forEach(function (it) { var k = itemKey(it); if (!items[k]) { items[k] = 1; list.push(it); } }); });
     list.sort(itemCmp);
     var focus = [];
     list.forEach(function (f) {
-      var kf = itemKey(f), rf = rectOf[kf], groups = [[], [], []];
+      var kf = itemKey(f), ca = colOf(rectOf[kf].x), right = [], left = [];
       pairs.forEach(function (p) {
         var o = itemKey(p.a) === kf ? p.b : itemKey(p.b) === kf ? p.a : null;
         if (!o) return;
-        groups[SIDE[kindOf(rf, rectOf[itemKey(o)])]].push([o, p.n]);
+        (colOf(rectOf[itemKey(o)].x) >= ca ? right : left).push([o, p.n]);
       });
-      groups = groups.filter(function (g) { return g.length; });
       var weight = function (g) { return g.reduce(function (s, x) { return s + x[1]; }, 0); };
-      groups = groups.map(function (g, i) { return [g, i]; }).sort(function (x, y) { return weight(y[0]) - weight(x[0]) || x[1] - y[1]; }).map(function (x) { return x[0]; }).slice(0, LINE_BUDGET);
-      focus.push([f, route(groups.map(function (g, k) { return { a: f, to: g, trunk: k }; }), rectOf, heads, out)]);
+      var groups = [right, left].filter(function (g) { return g.length; })
+        .map(function (g, i) { return [g, i]; })
+        .sort(function (x, y) { return weight(y[0]) - weight(x[0]) || x[1] - y[1]; })
+        .map(function (x) { return x[0]; });
+      focus.push([f, route(groups.map(function (g, k) { return { a: f, to: g, trunk: k }; }), rectOf, heads, L === 'out')]);
     });
-    return [lines, focus];
+    return focus;
   }
 
   function colOf(x) { return Math.max(0, Math.floor(x / (COL_W + COL_GAP))); }
 
-  /* Rust: route. Lines turn only in the gaps between columns; a trunk
-     branches off beside each column it reaches. */
+  /* Rust: route. Trunks keep a clearance from cards, name bands and each
+     other, turn only in gaps, and branch beside each column they reach. */
   function route(wants, rectOf, heads, out) {
+    var clear = out ? 20 : 12, spread = out ? 24 : 14;
     function centre(r) { return out ? r.y + r.h / 2 : r.y + Math.min(r.h, CARD_H) / 2; }
-    var spread = out ? 24 : 14;
     var paths = [];
     wants.forEach(function (w) {
       var ra = rectOf[itemKey(w.a)];
@@ -200,8 +193,10 @@
       var to = [];
       w.to.forEach(function (t) { var r = rectOf[itemKey(t[0])]; if (r) to.push([t[0], r, t[1]]); });
       if (!to.length) return;
-      paths.push({ a: w.a, ra: ra, to: to, kind: kindOf(ra, to[0][1]), trunk: w.trunk, ya: centre(ra), yb: to.map(function (t) { return centre(t[1]); }), runs: [], lanes: [] });
+      var ca = colOf(ra.x);
+      paths.push({ a: w.a, ra: ra, to: to, right: to.every(function (t) { return colOf(t[1].x) >= ca; }), trunk: w.trunk, ya: centre(ra), yb: to.map(function (t) { return centre(t[1]); }), stops: [], lanes: [] });
     });
+    function entersRight(p, j) { return !p.right || colOf(p.to[j][1].x) === colOf(p.ra.x); }
     var ends = {}, order = [], MAXJ = 1e9;
     function end(key, item, e) {
       if (!ends[key]) { ends[key] = { item: item, list: [] }; order.push(key); }
@@ -209,8 +204,8 @@
     }
     paths.forEach(function (p, k) {
       var mean = p.to.reduce(function (s, t) { return s + centre(t[1]); }, 0) / p.to.length;
-      end(itemKey(p.a) + (p.kind !== 'left' ? 'R' : 'L'), p.a, [mean, k, MAXJ]);
-      p.to.forEach(function (t, j) { end(itemKey(t[0]) + (p.kind !== 'right' ? 'R' : 'L'), t[0], [centre(p.ra), k, j]); });
+      end(itemKey(p.a) + (p.right ? 'R' : 'L'), p.a, [mean, k, MAXJ]);
+      p.to.forEach(function (t, j) { end(itemKey(t[0]) + (entersRight(p, j) ? 'R' : 'L'), t[0], [centre(p.ra), k, j]); });
     });
     order.forEach(function (key) {
       var en = ends[key], r = rectOf[itemKey(en.item)];
@@ -225,80 +220,77 @@
     var blocked = {};
     function block(c) { return blocked[c] || (blocked[c] = []); }
     Object.keys(rectOf).map(function (k) { return rectOf[k]; }).concat(heads).forEach(function (r) {
-      for (var c = colOf(r.x); c <= colOf(right(r) - 1); c++) block(c).push([r.y - 4, bottom(r) + 4]);
+      for (var c = colOf(r.x); c <= colOf(right(r) - 1); c++) block(c).push([r.y, bottom(r)]);
     });
-    function clear(no, y) { return !no.some(function (s) { return s[0] < y && y < s[1]; }); }
+    function ok(no, y) { return !no.some(function (s) { return s[0] - clear < y && y < s[1] + clear; }); }
     function pick(no, y, want) {
       no.sort(function (a, b) { return a[0] - b[0]; });
-      var free = [], from = 0;
-      no.forEach(function (s) { if (s[0] > from) free.push([from, s[0]]); from = Math.max(from, s[1]); });
-      free.push([from, Infinity]);
+      var free = [], from = -Infinity;
+      no.forEach(function (s) { if (from > -Infinity && s[0] - from >= 2 * clear) free.push([from, s[0]]); from = Math.max(from, s[1]); });
       var best = null;
-      free.forEach(function (s) {
-        var pad = Math.min(14, (s[1] - s[0]) / 2);
-        var p = Math.min(Math.max(want, s[0] + pad), Math.max(s[1] - pad, s[0] + pad));
+      function consider(p) {
         var cost = Math.abs(p - y) + Math.abs(p - want), near = Math.abs(p - want);
         if (!best || cost < best[0] - 1e-3 || (cost < best[0] + 1e-3 && near < best[1] - 1e-3)) best = [cost, near, p];
-      });
+      }
+      free.forEach(function (s) { consider((s[0] + s[1]) / 2); });
+      consider(Math.max(want, Math.max(from, 0) + clear));
       return best ? best[2] : want;
     }
     paths.forEach(function (p) {
-      var ca = colOf(p.ra.x), tcol = p.to.map(function (t) { return colOf(t[1].x); });
-      var far = p.kind === 'bracket' ? ca : p.kind === 'right' ? Math.max.apply(null, tcol) : Math.min.apply(null, tcol);
-      var steps = [], last, c;
-      if (p.kind === 'bracket') last = ca + 1;
-      else if (p.kind === 'right') { for (c = ca + 1; c < far; c++) steps.push([c, c]); last = far; }
-      else { for (c = ca - 1; c > far; c--) steps.push([c, c + 1]); last = far + 1; }
-      function here(cc) { var js = []; tcol.forEach(function (t, j) { if (t === cc) js.push(j); }); return js; }
-      function beyond(cc) { var js = []; tcol.forEach(function (t, j) { if (p.kind === 'right' ? t > cc : p.kind === 'left' ? t < cc : false) js.push(j); }); return js; }
-      function branch(g, y, js) {
-        var lo = y, hi = y;
-        js.forEach(function (j) { lo = Math.min(lo, p.yb[j]); hi = Math.max(hi, p.yb[j]); });
-        return { gap: g, y: y, to: y, span: hi - lo, targets: js };
+      var ca = colOf(p.ra.x), tcol = p.to.map(function (t) { return colOf(t[1].x); }), gaps = [], g, far;
+      if (p.right) {
+        far = Math.max(Math.max.apply(null, tcol), ca + 1);
+        for (g = ca + 1; g <= far; g++) gaps.push([g, g === ca + 1 ? [g, ca] : [g], g < far ? g : null]);
+      } else {
+        far = Math.min.apply(null, tcol);
+        for (g = ca; g >= far + 1; g--) gaps.push([g, [g - 1], g - 1 > far ? g - 1 : null]);
       }
       var y = p.ya;
-      steps.forEach(function (st) {
-        var cc = st[0], g = st[1], js = here(cc);
-        if (js.length) p.runs.push(branch(g, y, js));
-        var past = beyond(cc);
-        var want = past.reduce(function (s, j) { return s + p.yb[j]; }, 0) / Math.max(1, past.length);
-        if (!clear(block(cc), y)) {
-          var y2 = pick(block(cc).slice(), y, want);
-          p.runs.push({ gap: g, y: y, to: y2, span: Math.abs(y2 - y), targets: null });
-          y = y2;
+      gaps.forEach(function (gp) {
+        var js = [];
+        tcol.forEach(function (t, j) { if (gp[1].indexOf(t) >= 0) js.push(j); });
+        var to = y, c = gp[2];
+        if (c != null) {
+          var past = [];
+          tcol.forEach(function (t, j) { if (p.right ? t > c : t < c) past.push(j); });
+          var want = past.reduce(function (s, j) { return s + p.yb[j]; }, 0) / Math.max(1, past.length);
+          if (!ok(block(c), y)) to = pick(block(c).slice(), y, want);
+          block(c).push([to, to]);
         }
-        block(cc).push([y - 4, y + 4]);
+        if (js.length || to !== y) p.stops.push([gp[0], y, js, to]);
+        y = to;
       });
-      p.runs.push(branch(last, y, here(far)));
-      p.lanes = p.runs.map(function () { return 0; });
+      p.lanes = p.stops.map(function () { return 0; });
     });
     var byGap = {};
-    paths.forEach(function (p, k) { p.runs.forEach(function (r, j) { (byGap[r.gap] = byGap[r.gap] || []).push([k, j, r.span]); }); });
-    Object.keys(byGap).forEach(function (g) {
-      var members = byGap[g].sort(function (x, y) {
-        var bx = paths[x[0]].kind === 'bracket', by = paths[y[0]].kind === 'bracket';
-        if (bx !== by) return bx ? -1 : 1;
-        var d = bx ? x[2] - y[2] : y[2] - x[2];
-        return d || x[0] - y[0] || x[1] - y[1];
+    paths.forEach(function (p, k) {
+      p.stops.forEach(function (st, s) {
+        var lo = Infinity, hi = -Infinity;
+        st[2].map(function (j) { return p.yb[j]; }).concat([st[1], st[3]]).forEach(function (v) { lo = Math.min(lo, v); hi = Math.max(hi, v); });
+        (byGap[st[0]] = byGap[st[0]] || []).push([k, s, hi - lo]);
       });
-      var s = gapSpan(+g), n = members.length;
-      var step = n <= 1 ? 0 : Math.min(8, (s[1] - s[0]) / (n - 1));
-      var start = (s[0] + s[1]) / 2 - step * Math.max(0, n - 1) / 2;
+    });
+    var laneStep = out ? 24 : 16;
+    Object.keys(byGap).forEach(function (g) {
+      var members = byGap[g].sort(function (x, y) { return y[2] - x[2] || x[0] - y[0] || x[1] - y[1]; });
+      var sp = gapSpan(+g), n = members.length;
+      var step = n <= 1 ? 0 : Math.min(laneStep, (sp[1] - sp[0]) / (n - 1));
+      var start = (sp[0] + sp[1]) / 2 - step * Math.max(0, n - 1) / 2;
       members.forEach(function (m, k) { paths[m[0]].lanes[m[1]] = start + k * step; });
     });
     var lines = [];
     paths.forEach(function (p) {
-      var trunk = [[p.kind === 'left' ? p.ra.x : right(p.ra), p.ya]];
-      p.runs.forEach(function (r, k) {
-        var x = p.lanes[k];
-        if (!r.targets) { trunk.push([x, r.y]); trunk.push([x, r.to]); return; }
-        r.targets.forEach(function (j) {
-          var t = p.to[j], b0 = p.kind === 'right' ? t[1].x : right(t[1]);
-          var pts = trunk.concat([[x, r.y], [x, p.yb[j]], [b0, p.yb[j]]]);
+      var trunk = [[p.right ? right(p.ra) : p.ra.x, p.ya]];
+      p.stops.forEach(function (st, s) {
+        var x = p.lanes[s];
+        st[2].forEach(function (j) {
+          var t = p.to[j], b0 = entersRight(p, j) ? right(t[1]) : t[1].x;
+          var pts = trunk.concat([[x, st[1]], [x, p.yb[j]], [b0, p.yb[j]]]);
           var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
           pts.forEach(function (q) { x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]); });
           lines.push({ from: p.a, to: t[0], points: pts, bounds: { x: x0 - 6, y: y0 - 6, w: x1 - x0 + 12, h: y1 - y0 + 12 }, links: t[2], trunk: p.trunk });
         });
+        if (st[3] !== st[1]) { trunk.push([x, st[1]]); trunk.push([x, st[3]]); }
       });
     });
     return lines;
@@ -311,11 +303,8 @@
     return res;
   }
 
-  /* `level` laid out from `arr` without its lines (Rust: preview). */
-  function preview(M, arr, L) {
-    var p = place(M, L, settle(M, arr), blocksOf(M, L)), wh = size(p, []);
-    return { width: wh[0], height: wh[1], frames: p.frames, cards: p.cards, lines: [], focus: [], labels: p.labels, marks: p.marks };
-  }
+  /* `level` laid out from `arr` (Rust: preview). */
+  function preview(M, arr, L) { return pack(M, L, settle(M, arr), blocksOf(M, L)); }
 
   /* The notes in every session, the entry note first (Rust: pinned_of). */
   function pinnedOf(M) {
@@ -337,11 +326,13 @@
     var pinned = pinnedOf(M);
     pinned.forEach(function (i) { columns[0].push('note:' + M.notes[i].path); });
     if (pinned.length) heights[0] = pinned.length * (CARD_H + GAP) - GAP + FRAME_GAP;
+    // The notes in every session keep the first column to themselves.
+    var first = pinned.length && cols >= 2 ? 1 : 0;
     M.folders.forEach(function (f) {
       var key = 'folder:' + f.name, span = mid[key].span, per = Math.ceil(f.notes.length / span);
-      span = Math.min(span, cols);
-      var best = [0, Infinity];
-      for (var c2 = 0; c2 <= cols - span; c2++) {
+      span = Math.max(1, Math.min(span, cols - first));
+      var best = [first, Infinity];
+      for (var c2 = first; c2 <= cols - span; c2++) {
         var top = 0;
         for (var k = c2; k < c2 + span; k++) top = Math.max(top, heights[k]);
         if (top < best[1] - 0.5) best = [c2, top];
@@ -415,6 +406,6 @@
   root.HippoArrange = {
     layout: layout, settle: settle, moveTo: moveTo, nudge: nudge, same: same, find: find,
     blockKey: blockKey, handleAt: handleAt, blockRect: blockRect, dropAt: dropAt,
-    preview: preview, viewArrangement: viewArrangement, fit: fit, LINE_BUDGET: LINE_BUDGET
+    preview: preview, viewArrangement: viewArrangement, fit: fit
   };
 })(typeof window !== 'undefined' ? window : globalThis);

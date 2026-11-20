@@ -2077,11 +2077,7 @@ mod tests {
             // The whole map, above the Ask bar, in hippo's layout for the view.
             let m = s.night.map.map.clone().unwrap();
             assert!(!m.is_arranged());
-            m.fit(
-                w / unit,
-                (h / unit - crate::ui::night::brain::FOOT).max(100.),
-            )
-            .0
+            m.fit(w / unit, h / unit).0
         });
         assert!((state(&mut vcx).0 - fitted).abs() < 0.001);
     }

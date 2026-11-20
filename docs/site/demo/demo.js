@@ -22,7 +22,7 @@
     brain: '<path d="M12 18V5"/><path d="M15 13a4.17 4.17 0 01-3-4 4.17 4.17 0 01-3 4"/><path d="M17.707 6.294A3 3 0 1012 5a3 3 0 10-5.707 1.294"/><path d="M17.996 5.125a4 4 0 012.526 5.77"/><path d="M18 18a4 4 0 002-7.465"/><path d="M19.967 17.482a4 4 0 11-7.967.517 4 4 0 11-7.967-.517"/><path d="M6 18a4 4 0 01-2-7.465"/><path d="M6.004 5.125a4 4 0 00-2.526 5.77"/>',
     agents: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
     guard: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
-    note: '<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+    note: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
     folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
     check: '<path d="M20 6 9 17l-5-5"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
@@ -33,7 +33,10 @@
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
     moon: '<path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/>',
     start: '<path d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528"/>',
-    right: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>'
+    right: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    minus: '<path d="M5 12h14"/>',
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    grid: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>'
   };
   function ic(n, s) {
     s = s || 16;
@@ -204,7 +207,14 @@
   // flies home; none under Reduce Motion.
   var still = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   var SLIDE = still ? 0 : 150, SETTLE = still ? 0 : 180, BACK = still ? 0 : 220;
-  // The layouts drawn: hippo's layout for this view (S.def, from
+  // The app's frame: its top bar, Brain's header, the Ask bar's clearance,
+  // the panel and the gaps (app/hippo-app/src/ui/night). The map view is
+  // the app's at the same window size, so it gets the same columns.
+  var TOP_H = 56, HEAD = 118, ASK_CLEAR = 102, PANEL_W = 360, EDGE = 18;
+  function appView() {
+    return [window.innerWidth - PANEL_W - 2 * EDGE + EDGE, Math.max(200, window.innerHeight - TOP_H - HEAD - ASK_CLEAR)];
+  }
+  // The layouts drawn: hippo's layout for the view (S.def, from
   // demo/arrange.js), or the person's arrangement (kept in this page only).
   function LY() {
     var arr = S.arr || S.def;
@@ -259,34 +269,55 @@
     var sel = selIndex();
     return sel >= 0 ? sameItem({ note: sel }, L) : null;
   }
-  // The lines drawn with that focus (Rust: Layout::shown): the focus's own,
-  // bundled; on a level with at most LINE_BUDGET lines, the rest too.
+  // Its lines (Rust: Layout::shown), bundled; none without a focus.
   function shown(lay, f) {
     var fk = f ? key(f) : null, own = [];
-    (lay.focus || []).forEach(function (x) { if (key(x[0]) === fk) own = x[1].map(function (l) { return [l, true]; }); });
-    return lay.lines.filter(function (l) { return !own.length || (key(l.from) !== fk && key(l.to) !== fk); })
-      .map(function (l) { return [l, false]; }).concat(own);
+    (lay.focus || []).forEach(function (x) { if (key(x[0]) === fk) own = x[1]; });
+    return own;
   }
-  function lineWidth(L, l, lit) { return L === 'out' ? Math.min(3.5, 1.25 + 0.55 * Math.log2(Math.max(1, l.links))) : lit ? 2 : 1.4; }
+  // As the app draws them: at Out up to 2 px by the links a line stands
+  // for, thinning below the fitted zoom; 1.5 px closer in.
+  function lineWidth(L, l) {
+    if (L !== 'out') return 1.5;
+    return Math.min(2, 1 + 0.35 * Math.log2(Math.max(1, l.links))) * Math.min(1, Math.max(0.55, S.zoom / (S.fitZoom || 1)));
+  }
+  // A polyline with its corners rounded to 7 px on screen.
+  function roundedPath(pts) {
+    var r0 = 7 / S.zoom, v = [];
+    pts.forEach(function (q) { var l = v[v.length - 1]; if (!l || Math.abs(l[0] - q[0]) + Math.abs(l[1] - q[1]) > 0.05) v.push(q); });
+    var d = 'M' + v[0][0] + ' ' + v[0][1];
+    for (var i = 1; i < v.length - 1; i++) {
+      var a = v[i - 1], c = v[i], n = v[i + 1];
+      var di = Math.hypot(c[0] - a[0], c[1] - a[1]), dn = Math.hypot(n[0] - c[0], n[1] - c[1]);
+      var r = Math.min(r0, di / 2, dn / 2);
+      if (r < 0.5 / S.zoom) { d += 'L' + c[0] + ' ' + c[1]; continue; }
+      d += 'L' + (c[0] - (c[0] - a[0]) / di * r) + ' ' + (c[1] - (c[1] - a[1]) / di * r) +
+        'Q' + c[0] + ' ' + c[1] + ' ' + (c[0] + (n[0] - c[0]) / dn * r) + ' ' + (c[1] + (n[1] - c[1]) / dn * r);
+    }
+    var z = v[v.length - 1];
+    return d + 'L' + z[0] + ' ' + z[1];
+  }
   function linesSvg(L) {
-    var lay = LY()[L], f = focusOf(L), list = shown(lay, f).slice();
-    var dim = list.some(function (x) { return x[1]; });
-    list.sort(function (a, b) { return a[1] - b[1]; });
+    var lay = LY()[L], f = focusOf(L), list = shown(lay, f), lifting = !!S.lifting;
+    var accent = !!S.hover && f && key(S.hover) === key(f);
     var hot = S.hoverLine ? S.hoverLine.ends : [];
-    return list.map(function (x) {
-      var l = x[0], on = x[1], h = hot.some(function (e) { return e[0] === key(l.from) && e[1] === key(l.to); });
-      var pts = l.points.map(function (p) { return p[0] + ',' + p[1]; }).join(' ');
-      var cls = h ? 'hot' : on ? 'on' : dim ? 'dim' : '';
-      var a = l.points[0], b = l.points[l.points.length - 1], w = lineWidth(L, l, on || h);
-      var r = Math.max(3 * Math.min(1.4, Math.max(0.6, S.zoom)), w * 0.9) / S.zoom;
-      // Widths in screen pixels at any zoom; the end rings sized to match.
-      return '<polyline class="' + cls + '" vector-effect="non-scaling-stroke" style="stroke-width:' + w + 'px" points="' + pts + '"/>' +
-        '<circle class="end ' + cls + '" vector-effect="non-scaling-stroke" cx="' + a[0] + '" cy="' + a[1] + '" r="' + r + '"/>' +
-        '<circle class="end ' + cls + '" vector-effect="non-scaling-stroke" cx="' + b[0] + '" cy="' + b[1] + '" r="' + r + '"/>';
-    }).join('');
+    var h = '', ends = [];
+    list.forEach(function (l) {
+      var isHot = hot.some(function (e) { return e[0] === key(l.from) && e[1] === key(l.to); });
+      var cls = (accent || isHot ? 'acc' : 'sel') + (lifting ? ' faint' : '');
+      var w = lineWidth(L, l) + (isHot ? 1 : 0), d = roundedPath(l.points);
+      if ((accent || isHot) && !dark() && !lifting) h += '<path class="edge" vector-effect="non-scaling-stroke" style="stroke-width:' + (w + 1) + 'px" d="' + d + '"/>';
+      h += '<path class="' + cls + '" vector-effect="non-scaling-stroke" style="stroke-width:' + w + 'px" d="' + d + '"/>';
+      [l.points[0], l.points[l.points.length - 1]].forEach(function (e) {
+        if (!ends.some(function (q) { return Math.abs(q[0] - e[0]) < 0.5 && Math.abs(q[1] - e[1]) < 0.5; })) ends.push([e[0], e[1], accent ? 'acc' : 'sel']);
+      });
+    });
+    // Ports, close enough in to read.
+    if (S.zoom >= 0.6 && !lifting) ends.forEach(function (e) { h += '<circle class="end ' + e[2] + '" vector-effect="non-scaling-stroke" cx="' + e[0] + '" cy="' + e[1] + '" r="' + (3 / S.zoom) + '"/>'; });
+    return h;
   }
   function worldHtml(L) {
-    var lay = LY()[L], sel = selIndex(), near = sel >= 0 ? neighbours(sel) : {}, f = focusOf(L);
+    var lay = LY()[L], sel = selIndex(), selItem = sel >= 0 ? key(sameItem({ note: sel }, L)) : null;
     var blk = {}, order = [];
     function into(item, html) {
       var k = A ? A.blockKey(M, item) : 'all';
@@ -303,25 +334,25 @@
     });
     lay.cards.forEach(function (c) {
       var r = c.rect, st = 'left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;height:' + r.h + 'px';
+      var isSel = key(c.item) === selItem ? ' sel' : '';
       if (c.item.folder != null) {
-        var fsel = f && f.folder === c.item.folder && !S.hover;
-        into(c.item, '<div class="folder' + (fsel ? ' sel' : '') + '" data-folder="' + c.item.folder + '" style="' + st + '"></div>');
+        into(c.item, '<div class="folder' + isSel + '" data-folder="' + c.item.folder + '" style="' + st + '"></div>');
         return;
       }
       if (L === 'out') {
-        into(c.item, '<div class="ocard' + (c.item.note === sel ? ' sel' : near[c.item.note] ? ' near' : '') + '" data-note="' + c.item.note + '" style="' + st + '"></div>');
+        into(c.item, '<div class="ocard' + isSel + '" data-note="' + c.item.note + '" style="' + st + '"></div>');
         return;
       }
       var i = c.item.note, n = M.notes[i], fl = n.flags, tl = titles[i];
       var ch = fl.rejected ? chip('fix rejected', 'bad') : fl.waiting ? chip(fl.waiting === 1 ? 'rule waiting' : fl.waiting + ' rules waiting', 'you') : fl.fixed ? chip('fixed last night', 'ok') : fl.stale_days != null ? chip('stale, ' + fl.stale_days + ' days') : (fl.required || fl.entry) ? chip('every session', 'night') : '';
       var inner = '';
       if (L === 'in') {
-        inner = '<div class="in">' + n.pending.map(function (p) { return '<p class="bullet hollow">' + esc(p) + '</p>'; }).join('') +
-          n.evidence.map(function (e) { return '<p><span class="said">' + esc(e) + '</span></p>'; }).join('') +
-          n.rules.map(function (p) { return '<p class="bullet">' + esc(p) + '</p>'; }).join('') + '</div>';
+        inner = '<div class="in">' + n.pending.map(function (p) { return '<p class="wait">' + esc(p) + '</p>'; }).join('') +
+          n.evidence.map(function (e) { return '<p class="said"><span>' + esc(e) + '</span></p>'; }).join('') +
+          n.rules.map(function (p) { return '<p class="kept">' + esc(p) + '</p>'; }).join('') + '</div>';
       }
-      into(c.item, '<div class="note' + (i === sel ? ' sel' : near[i] ? ' near' : '') + '" data-note="' + i + '" style="' + st + '"><div class="row">' + ic(fl.entry ? 'start' : 'note') + '<span class="t"' + (tl ? ' style="font-size:' + tl.size + 'px"' : '') + '>' + esc(tl ? tl.lines[0] : n.title) + '</span></div>' +
-        '<p class="s clamp1">' + esc(n.summary) + '</p><div class="row">' + ch + chip(n.reads_week ? 'read ' + n.reads_week + '× this week' : 'not read this week') + '</div>' + inner + '</div>');
+      into(c.item, '<div class="note' + isSel + (L === 'in' ? ' inner' : '') + '" data-note="' + i + '" style="' + st + '"><div class="row">' + ic(fl.entry ? 'start' : 'note') + '<span class="t"' + (tl ? ' style="font-size:' + tl.size + 'px"' : '') + '>' + esc(tl ? tl.lines[0] : n.title) + '</span></div>' +
+        '<p class="s">' + esc(n.summary) + '</p><div class="row chips">' + ch + chip(n.reads_week ? 'read ' + n.reads_week + '× this week' : 'not read this week') + '</div>' + inner + '</div>');
     });
     (lay.labels || []).forEach(function (l) {
       if (L !== 'out' && l.kind === 'title') return;
@@ -329,7 +360,13 @@
       into(l.item, '<div class="lab k-' + l.kind + '" style="left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;font-size:' + l.size + 'px">' + l.lines.map(esc).join('<br>') + '</div>');
     });
     (lay.marks || []).forEach(function (m) {
-      into(m.item, '<span class="mk t-' + m.tone + '" style="left:' + (m.x - m.d / 2) + 'px;top:' + (m.y - m.d / 2) + 'px;width:' + m.d + 'px;height:' + m.d + 'px"></span>');
+      var st = 'left:' + (m.x - m.d / 2) + 'px;top:' + (m.y - m.d / 2) + 'px;width:' + m.d + 'px;height:' + m.d + 'px';
+      if (m.tone.indexOf('icon-') === 0) {
+        var name = m.tone.slice(5);
+        into(m.item, '<span class="mk icon i-' + name + '" style="' + st + '">' + ic(name === 'flag' ? 'start' : name === 'folder' ? 'folder' : 'note', m.d) + '</span>');
+        return;
+      }
+      into(m.item, '<span class="mk t-' + m.tone + (m.row ? ' row' : '') + '" style="' + st + '"></span>');
     });
     var h = '<svg class="links" width="' + lay.width + '" height="' + lay.height + '">' + linesSvg(L) + '</svg>';
     // Each block in a box of its own, so it can slide and be lifted whole.
@@ -349,11 +386,40 @@
     var tip = wrap.querySelector('.linktip');
     if (S.hoverLine) {
       if (!tip) { tip = document.createElement('div'); tip.className = 'linktip'; wrap.appendChild(tip); }
-      tip.textContent = S.hoverLine.words;
-      var x = S.hoverLine.at[0] + 14, y = S.hoverLine.at[1] + 16;
-      if (x + 260 > wrap.clientWidth) x = S.hoverLine.at[0] - 14 - Math.min(260, tip.offsetWidth || 200);
-      tip.style.left = x + 'px'; tip.style.top = y + 'px';
+      tip.innerHTML = '<span>' + esc(S.hoverLine.from) + '</span>' + ic('right', 13) + '<span>' + esc(S.hoverLine.to) + '</span>';
+      // Beside the pointer, clear of the cards where there is room.
+      var tw = tip.offsetWidth || 220, th = tip.offsetHeight || 28, at = S.hoverLine.at;
+      var lay = LY()[level(S.zoom)], cards = lay.cards.map(function (c) {
+        return [(c.rect.x - S.pan[0]) * S.zoom, (c.rect.y - S.pan[1]) * S.zoom, c.rect.w * S.zoom, c.rect.h * S.zoom];
+      });
+      // Beside the pointer, then a little farther along the line.
+      var spots = [];
+      [16, 48, 96, 160].forEach(function (d) { spots.push([at[0] + 14, at[1] + d], [at[0] + 14, at[1] - d - th], [at[0] - 14 - tw, at[1] + d], [at[0] - 14 - tw, at[1] - d - th]); });
+      var inside = function (q) { return q[0] >= 4 && q[1] >= 4 && q[0] + tw <= wrap.clientWidth - 4 && q[1] + th <= wrap.clientHeight - 4; };
+      var free = function (q) { return !cards.some(function (c) { return q[0] < c[0] + c[2] && c[0] < q[0] + tw && q[1] < c[1] + c[3] && c[1] < q[1] + th; }); };
+      var pick = spots.filter(function (q) { return inside(q) && free(q); })[0] || spots.filter(inside)[0] || spots[0];
+      tip.style.left = pick[0] + 'px'; tip.style.top = pick[1] + 'px';
     } else if (tip) tip.remove();
+  }
+  // A folder whose name band has scrolled above the view keeps its name
+  // at the view's top (Mid and In).
+  function stickies() {
+    var wrap = app.querySelector('.mapwrap');
+    if (!wrap) return;
+    wrap.querySelectorAll('.sticky').forEach(function (x) { x.remove(); });
+    var L = level(S.zoom);
+    if (L === 'out') return;
+    var lay = LY()[L], vy = S.pan[1], vx0 = S.pan[0], vx1 = S.pan[0] + wrap.clientWidth / S.zoom;
+    lay.frames.forEach(function (fr) {
+      var r = fr[1];
+      if (r.y >= vy || r.y + r.h < vy + 90 / S.zoom || r.x + r.w < vx0 || r.x > vx1) return;
+      var lab = (lay.labels || []).filter(function (l) { return l.kind === 'frame' && l.item.folder === fr[0]; })[0];
+      var el = document.createElement('div');
+      el.className = 'sticky';
+      el.textContent = lab ? lab.lines[0] : '';
+      el.style.left = Math.max(8, (r.x + 14 - S.pan[0]) * S.zoom) + 'px';
+      wrap.appendChild(el);
+    });
   }
   var drawnLevel = null;
   function placeWorld(force) {
@@ -366,32 +432,37 @@
       world.style.height = LY()[L].height + 'px';
       drawnLevel = L;
     } else {
-      // End rings keep their size on screen.
+      // Line widths and port rings keep their size on screen.
       redrawLines();
     }
     world.style.transform = 'translate(' + (-S.pan[0] * S.zoom) + 'px,' + (-S.pan[1] * S.zoom) + 'px) scale(' + S.zoom + ')';
-    var pct = wrap.querySelector('[data-act="fit"]');
+    // Far out a folder card keeps its name and counts; further out, its name.
+    wrap.classList.toggle('far', L === 'out' && S.zoom < 0.33);
+    wrap.classList.toggle('farther', L === 'out' && S.zoom < 0.27);
+    stickies();
+    var pct = app.querySelector('[data-act="fit"]');
     if (pct) pct.textContent = Math.round(S.zoom * 100) + '%';
   }
   function fit() {
     var wrap = app.querySelector('.mapwrap');
     if (!wrap) return;
     var w = wrap.clientWidth, h = wrap.clientHeight;
-    // Hippo's layout for this view, unless the person arranged it.
-    // Clear of the zoom bar at the top and the Ask bar floating over the foot.
-    var top = 52, foot = 0, ask = app.querySelector('.ask');
-    if (ask && ask.getBoundingClientRect) {
-      var wr = wrap.getBoundingClientRect(), ar = ask.getBoundingClientRect();
-      if (ar.height) foot = Math.max(0, wr.bottom - ar.top + 8);
-    }
-    var hh = Math.max(200, h - top - foot);
-    if (A) S.def = A.viewArrangement(M, w, hh);
+    // Hippo's layout for the app's view at this window size, unless the
+    // person arranged it.
+    if (A) { var v = appView(); S.def = A.viewArrangement(M, v[0], v[1]); }
     S.lay = null;
-    var f = A ? A.fit(LY(), w, hh) : [1, [0, 0]];
+    var f = A ? A.fit(LY(), w, h) : [1, [0, 0]];
     S.zoom = f[0];
-    S.pan = [f[1][0], f[1][1] - top / f[0]];
+    S.fitZoom = f[0];
+    S.pan = f[1];
     S.fitted = true;
     placeWorld(true);
+  }
+  // Whether the view shows the whole map.
+  function showsAll() {
+    var wrap = app.querySelector('.mapwrap'), lay = LY()[level(S.zoom)];
+    if (!wrap) return false;
+    return S.pan[0] <= 0.5 && S.pan[1] <= 0.5 && S.pan[0] + wrap.clientWidth / S.zoom >= lay.width - 0.5 && S.pan[1] + wrap.clientHeight / S.zoom >= lay.height - 0.5;
   }
   function zoomAt(z, px, py) {
     z = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
@@ -403,8 +474,14 @@
     placeWorld(false);
   }
   function brain() {
-    return '<p class="kicker">' + esc(M.kicker) + '</p><h1>' + esc(M.headline) + '</h1><p class="lead">' + esc(M.lead) + '</p>' +
-      '<div class="mapwrap card" style="padding:0;margin-top:18px"><div class="world"></div><div class="zoombar">' + (S.arr ? '<button data-act="reset" class="reset" title="Back to the layout hippo chooses">' + ic('undo', 14) + 'Reset layout</button>' : '') + '<button data-act="zout" aria-label="Zoom out">−</button><button data-act="fit" aria-label="Fit">100%</button><button data-act="zin" aria-label="Zoom in">+</button></div></div>' +
+    // The map's controls sit in the header, never over the map.
+    var zoom = '<div class="ctl"><button data-act="zout" aria-label="Zoom out" title="Zoom out">' + ic('minus', 15) + '</button><button data-act="fit" class="pct" title="Fit the map">100%</button><button data-act="zin" aria-label="Zoom in" title="Zoom in">' + ic('plus', 15) + '</button></div>';
+    var undo = S.toastUndo ? '<span class="mtoast" role="status">' + esc(S.toast) + ' <button class="btn second" data-act="undo-layout">' + ic('undo', 14) + 'Undo</button></span>' : '';
+    return '<div class="mhead"><div class="krow"><p class="kicker">' + esc(M.kicker) + '</p>' + undo +
+      (S.arr ? '<button data-act="reset" class="qbtn" title="Back to the layout hippo chooses">' + ic('undo', 14) + 'Reset layout</button>' : '') + zoom +
+      '<button data-act="treemap" class="qbtn">' + ic('grid', 14) + 'Treemap</button></div>' +
+      '<h1>' + esc(M.headline) + '</h1><p class="lead">' + esc(M.lead) + '</p></div>' +
+      '<div class="mapwrap"><div class="world"></div><div class="fade t"></div><div class="fade b"></div><div class="fade r"></div></div>' +
       '<div class="boardwrap"></div>';
   }
   function boardHtml() {
@@ -446,10 +523,14 @@
     var panel = S.view === 'brain' ? notePanel() : startPanel();
     app.innerHTML = '<div class="banner">A replica of Hippo.app\'s Morning and Brain, drawn from hippo\'s own output for a synthetic project. Nothing you click is saved. <a href="index.html">Back to hippo</a></div>' +
       top() + '<div class="stage"><main class="main">' + main + '</main><aside class="panel" aria-label="Details">' + panel + '</aside></div>' + ask() +
-      (S.toast ? '<div class="toast" role="status">' + esc(S.toast) + (S.toastUndo ? ' <button class="btn second" data-act="undo-layout">' + ic('undo', 14) + 'Undo</button>' : '') + '</div>' : '');
+      (S.toast && !S.toastUndo ? '<div class="toast" role="status">' + esc(S.toast) + '</div>' : '');
     if (S.view === 'brain') {
       var wrap = app.querySelector('.mapwrap'), board = app.querySelector('.boardwrap');
       if (narrow) { wrap.style.display = 'none'; board.innerHTML = boardHtml(); } else {
+        // The map ends above the Ask bar: nothing floats over it.
+        var askEl = app.querySelector('.ask'), wr = wrap.getBoundingClientRect();
+        var askTop = askEl && askEl.getBoundingClientRect ? askEl.getBoundingClientRect().top : window.innerHeight - 74;
+        wrap.style.height = Math.max(240, (askTop || window.innerHeight - 74) - wr.top - 28) + 'px';
         drawnLevel = null;
         if (!S.fitted) fit(); else placeWorld(true);
         bindMap(wrap);
@@ -534,8 +615,8 @@
     var c = cardAt(lay, m[0], m[1]), hits = [];
     if (!c) {
       var tol = 6 / S.zoom;
-      shown(lay, focusOf(L)).forEach(function (x) {
-        var l = x[0], d = Infinity;
+      shown(lay, focusOf(L)).forEach(function (l) {
+        var d = Infinity;
         for (var i = 1; i < l.points.length; i++) {
           var a = l.points[i - 1], b = l.points[i];
           var qx = Math.min(Math.max(m[0], Math.min(a[0], b[0])), Math.max(a[0], b[0]));
@@ -554,12 +635,14 @@
         var k = A.blockKey(M, it);
         return k.indexOf('folder:') === 0 ? (k.slice(7) || 'Notes') : M.notes[it.note].title;
       };
-      var names = function (v) { return v.length === 1 ? v[0] : v.length <= 3 ? v.slice(0, -1).join(', ') + ' and ' + v[v.length - 1] : v.length + ' others'; };
-      var n = hits.reduce(function (s, l) { return s + l.links; }, 0), plural = function (k, a, b) { return k + ' ' + (k === 1 ? a : b); };
+      var n = hits.reduce(function (s2, l) { return s2 + l.links; }, 0), plural = function (k, a, b) { return k + ' ' + (k === 1 ? a : b); };
+      var to = hits.map(function (l) { return name(l.to); });
       line = {
         ends: hits.map(function (l) { return [key(l.from), key(l.to)]; }), at: p,
-        words: name(hits[0].from) + ' and ' + names(hits.map(function (l) { return name(l.to); })) + ' · ' + plural(n, 'link', 'links')
+        from: name(hits[0].from),
+        to: (to.length <= 3 ? to.join(', ') : plural(to.length, 'other', 'others')) + ' · ' + plural(n, 'link', 'links')
       };
+      line.words = line.from + '|' + line.to;
     }
     var same = (hover ? key(hover) : '') === (S.hover ? key(S.hover) : '') && !line === !S.hoverLine && (!line || line.words === S.hoverLine.words);
     S.hover = hover; S.hoverLine = line;
@@ -574,6 +657,7 @@
     if (!d.grab) {
       d.grab = [m[0] - r.x, m[1] - r.y];
       S.hover = null; S.hoverLine = null;
+      S.lifting = true;
       wrap.classList.add('lifting');
       redrawLines();
     }
@@ -598,6 +682,17 @@
       slot.style.left = s2.x + 'px'; slot.style.top = s2.y + 'px'; slot.style.width = s2.w + 'px'; slot.style.height = s2.h + 'px';
       slot.classList.toggle('round', d.L === 'out' || d.key.indexOf('folder:') === 0);
       d.slot = s2;
+      // Once the blocks stop, where the focus's lines will run, faint.
+      var svg = world.querySelector('svg.links');
+      if (svg) svg.innerHTML = '';
+      var tgt = t;
+      setTimeout(function () {
+        if (d.target !== tgt || !S.lifting || !svg) return;
+        var keep = S.lay;
+        S.lay = { out: pv, mid: pv, in: pv };
+        svg.innerHTML = linesSvg(d.L);
+        S.lay = keep;
+      }, SLIDE + 20);
     }
     var me = world.querySelector('.blk[data-key="' + cssq(d.key) + '"]');
     if (me) {
@@ -617,7 +712,23 @@
       me.style.transition = 'transform ' + SETTLE + 'ms cubic-bezier(.2,.8,.2,1)';
       me.style.transform = 'translate(' + (d.slot.x - d.r.x) + 'px,' + (d.slot.y - d.r.y) + 'px) scale(1)';
     }
-    setTimeout(function () { setArr(next); wrap.classList.remove('lifting'); render(); }, SETTLE);
+    setTimeout(function () {
+      var whole = showsAll();
+      S.lifting = false;
+      // A move is undone, not confirmed.
+      var prev = S.arr, moved = !A.same(A.settle(M, from), next);
+      setArr(next);
+      if (moved) { S.prevArr = prev; S.toast = (d.key.indexOf('folder:') === 0 ? (d.key.slice(7) || 'Notes') : d.key.slice(5).replace(/^.*\//, '').replace(/\.md$/, '')) + ' moved.'; S.toastUndo = true; var tw = S.toast; setTimeout(function () { if (S.toast === tw) { S.toast = ''; S.toastUndo = false; render(); } }, 6000); }
+      wrap.classList.remove('lifting');
+      render();
+      // A view that showed the whole map keeps showing it.
+      var w2 = app.querySelector('.mapwrap');
+      if (whole && w2 && !showsAll()) {
+        var f = A.fit(LY(), w2.clientWidth, w2.clientHeight);
+        S.zoom = f[0]; S.fitZoom = f[0]; S.pan = f[1];
+        placeWorld(true);
+      }
+    }, SETTLE);
   }
   /* Put back: every block flies home, the lifted one too. */
   function putBack(wrap, d) {
@@ -628,9 +739,10 @@
     });
     var slot = world.querySelector('.slot');
     if (slot) slot.remove();
-    setTimeout(function () { clearLift(wrap); }, BACK);
+    setTimeout(function () { clearLift(wrap); redrawLines(); }, BACK);
   }
   function clearLift(wrap) {
+    S.lifting = false;
     wrap.classList.remove('lifting');
     wrap.querySelectorAll('.slot').forEach(function (x) { x.remove(); });
     wrap.querySelectorAll('.blk').forEach(function (b) { b.classList.remove('lifted'); b.style.transition = ''; b.style.transform = ''; });
@@ -681,6 +793,7 @@
     else if (act === 'undo') { S.undone[id] = true; toast('Undone. In the app: hippo revert, from the change\'s snapshot.'); }
     else if (act === 'zin' || act === 'zout') { var wrap = app.querySelector('.mapwrap'); zoomAt(S.zoom * (act === 'zin' ? 1.25 : 0.8), wrap.clientWidth / 2, wrap.clientHeight / 2); }
     else if (act === 'fit') { fit(); }
+    else if (act === 'treemap') { toast('Treemap is in the app.'); }
     else if (act === 'reset') { S.prevArr = S.arr; setArr(null); toast('Layout reset to the default.', true); }
     else if (act === 'undo-layout') { setArr(S.prevArr); S.toast = ''; S.toastUndo = false; render(); }
     else if (b.hasAttribute('data-rule')) { S.rule = b.getAttribute('data-rule'); render(); }

@@ -4,72 +4,71 @@ Status: accepted 21 Nov 2026, to build in 0.8.3. Amends [brain-arrange.md](brain
 
 ## Background
 
-0.8.2 drew every link at every zoom. On the demo home that was fine; on a 300-note map with 1,000 links it was a mesh under the cards, and the links that had to cross a column of cards all fell into one band of detours below the map. The entry note, linked from most notes, showed a fan of crowded lines at its right edge. Zoomed out, a 300-note map was a strip across the top of the window with empty space below, because Out used Mid's twelve columns. A dragged block was an empty outline.
+0.8.2 drew every link at every zoom. On a 300-note map with 1,000 links that was a mesh under the cards, and links that had to cross a column of cards fell into a band of detours below the map. The entry note, linked from most notes, fanned out at its edge. Zoomed out, a 300-note map was a strip across the top of the window. A dragged block was an empty outline, and the zoom bar and the Ask bar floated over the map.
 
 ## Rules
 
-### At most 12 lines at once
+### Lines
 
-`LINE_BUDGET` is 12. Judged on the demo home and the 300-note synthetic map at 0.15 to 2.0: 12 separate lines still read one by one; at 15 to 20 they start to read as texture, and past that as a mesh. A level (Out, Mid, In) counts its pairs of linked cards (at Out, a note in a folder is its folder's card, so a pair is folder↔folder or pinned note↔folder):
+- **No line at rest.** Brain draws the lines of one card: the one under the pointer, else the selected note (at Out, the card of its folder). Moving the pointer from a card onto one of its lines keeps that card in focus.
+- **One trunk each way.** A card's lines leave it at one port per side, as one trunk to the right (which also serves cards in its own column) and one to the left. Each trunk drops a branch in the gap beside every column it reaches, and the branch splits into short stubs, one per card. So at most two trunks show at once, on any map.
+- **Clear of cards and of each other.** Lines turn only in the gaps between columns. A trunk keeps its height across a column while it stays 20 points (Out) or 12 points (Mid and In) from that column's cards, folder name bands and other trunks; else, in the gap before the column, it turns to the middle of the nearest free channel that is at least twice that high, or below everything. A branch and a turn in one gap share one vertical.
+- **Drawn quietly.** Corners round at 7 px. At Out a line's width shows the links it stands for, `1 + 0.35 × log2(links)` px, at most 2; below the zoom the map was fitted at it thins with the map, down to 55 %. Closer in, 1.5 px. The selected note's lines are in the text colour; a hovered card's in lime (with a thin darker edge on a light ground). Port rings show only at 60 % and closer, one per trunk and one per card it reaches.
+- **What a line stands for.** At Out, with the pointer on a line, it turns lime and a label beside the pointer, clear of the cards where there is room, says `START HERE → Style guide, Decisions · 2 links` (up to three names, else `4 others`), with Lucide's arrow.
 
-- **At most 12 pairs**: every line is drawn, one per pair. With a card in focus, its lines are drawn bright and the rest at 40 % of the quiet line colour.
-- **More than 12 pairs**: only the lines of the card in focus are drawn, and nothing else. They leave the card as **one trunk each way** (one to the right, one to the left, one to cards in its own column) and each trunk drops **a branch in the gap beside every column it reaches**, which splits there into short stubs, one per card. So a card linked to 40 others draws at most three trunks; what the eye counts as separate lines (trunks) never passes 12, and in practice is 1 to 3.
+### Cards
 
-The **focus** is the card under the pointer, else the selected note (at Out, the card of its folder). Moving the pointer from a card onto one of its lines keeps that card in focus.
-
-### Zoomed out (below 55 %)
-
-One line per pair of blocks. Its width shows how many links it stands for: `1.25 + 0.55 × log2(links)` points, at most 3.5, on screen at any zoom. With the pointer on a line, it turns lime and a label says what it stands for: `Notes and Runbooks · 6 links`, or on a shared trunk `START HERE and Style guide and Decisions · 2 links` (up to three names, else `and 4 others`).
-
-### Closer in (Mid and In)
-
-The same rules with note cards: on a level with more than 12 linked pairs (any map past a few dozen links), the selected or hovered note's links are drawn, routed around cards; nothing else.
-
-### Routing
-
-Lines turn only in the gaps between columns, so no line runs through a card or through a folder's name band:
-
-- A line leaves its card level, toward the other card's column. Before each column it crosses, it keeps its height when that height is clear of the column's cards and name bands (4 points either side) and of lines already crossing there; else, in the gap before that column, it steps to the clear height nearest to the way to its targets. In the gap beside its target's column it turns to the target.
-- So a long link climbs between cards column by column instead of running to a band below the map. With at most 12 trunks drawn, there is always room.
-- Every vertical run in a gap has a lane of its own (8 points apart at most): brackets (two cards in one column) nearest their column, shortest innermost; then the rest, longest first.
-- The lines that leave one edge of a card are spread along it, ordered by where their other ends are, 14 points apart on a note card and 24 on an Out card (which they meet at its middle, not its title), so they do not cross at the card.
+- One resting edge for every card. The selection ring stays while another card is hovered; hover adds a lime edge and a soft lift.
+- At Out, a folder card shows a folder icon, a pinned note its flag (the entry note) or note icon. Below 33 % a folder card drops its note rows, below 27 % its counts: only names are left where text would be under about 8 px.
+- On a map of more than 8 blocks a folder card lists 2 notes (and `+ n more`), not 5, so its overview fits the view at a zoom where the rows read.
+- Closer in (In), a card's summary, rules and evidence wrap to three lines each, with 16 points below the last as above the first.
+- Pills hug their words; in dark a plain pill sits one step above the card's ground.
 
 ### The overview fills the view
 
-hippo's layout now depends on the view. `view_arrangement(w, h)` lays hippo's layout out (pinned notes in the first column, then each folder into the lowest run of columns, as before) in each number of columns from one to one per block, and keeps the one that shows the whole map largest: the one whose Mid fits at 55 % or more, if any, else the one whose Out fits at the largest zoom. Hippo.app does this when Brain opens and on Fit (⌘0); `hippo view map --view 1220x690` prints it. A person's arrangement is never changed by it.
+hippo's layout depends on the view. `view_arrangement(w, h)` lays hippo's layout out (the notes read in every session in a first column of their own, then each folder into the lowest run of columns) in each number of columns from one to one per block, and keeps the one that shows the whole map largest: the one whose Mid fits at 55 % or more, if any, else the one whose Out fits at the largest zoom. Out cards are 72 points apart both ways, so channels between rows are as wide as gaps between columns. Hippo.app does this when Brain opens and on Fit (⌘0); `hippo view map --view 1220x690` prints it. A person's arrangement is never changed by it.
 
-Fit shows the whole map: at Mid when it fits there at 55 % or more (at most 100 %), else at Out at up to 54 %, centred both ways, above the Ask bar that floats over the map's foot. A folder spans as many columns at Mid as before, whatever the number of columns, so a block's drawing never changes with the view.
+Fit shows the whole map, centred: at Mid when it fits there at 55 % or more (at most 100 %), else at Out at up to 54 %.
 
-Results at a 860 × 600 map view: the demo home (22 notes) opens whole at 54 %, its names at 26 points on screen; a 40-note map opens whole at 54 %; the 300-note map opens at Out in 5 columns, filling the view (0.8.2: 12 columns, a strip a quarter of the view high).
+### Nothing floats over the map
+
+The map runs from Brain's header to the panel's edge and ends above the Ask bar. Its controls (`Reset layout` while the layout is a person's, its Undo line, zoom with Lucide minus and plus and tabular figures, `Treemap` with Lucide's layout grid) sit in the header's first row. The map's edges fade into the ground, so a card cut by the view's edge does not end in mid-air. At Mid and In a folder whose name band has scrolled above the view keeps its name at the view's top.
 
 ### Dragging a block
 
-- The lifted block is the real block, drawn under the pointer at the point it was grabbed, 3 % larger, at full opacity, with a soft shadow under it; a folder's frame gets a solid ground.
-- Where it will land is a sunk slot (its shape, lime-tinted, dashed). It starts in the block's own place; as the pointer moves, the other blocks slide (150 ms, ease-out) to open the slot where it would land, and close the old one.
-- On release the block settles into the slot (180 ms) and shrinks back to its size; on Escape every block flies back to where it was (220 ms).
-- ⌥-arrows, Reset layout and its Undo slide the blocks too.
-- Lines hide while blocks move and come back when they stop.
-- With macOS Reduce Motion on (or `prefers-reduced-motion` in the browser) nothing slides: blocks jump to their places.
-- The web demo does the same.
+- The lifted block is the real block under the pointer at the point it was grabbed, 3 % larger, with a shadow; in dark it takes the raised ground, so it reads as lifted. A folder's frame gets a solid ground.
+- Where it will land is a quiet dashed slot with an 8 % lime tint, the same in both themes. As the pointer moves, the other blocks slide (150 ms, ease-out) to open the slot and close the old one.
+- While blocks move, lines hide; once they stop, the focus's lines show faintly where they will run after the drop.
+- On release the block settles (180 ms) and `Runbooks moved. Undo` shows in the header for 6 seconds. On Escape every block flies back (220 ms). ⌥-arrows, Reset and Undo slide too.
+- A view that showed the whole map before a drop is fitted again after it; otherwise the dropped block is kept in view.
+- With macOS Reduce Motion on (or `prefers-reduced-motion` in the browser) nothing slides.
+
+### The web demo is the same map
+
+The live demo draws the same layout (it chooses columns for the view Hippo.app would have at the same window size), the same lines and weights, the same controls in the same place with the same Lucide icons, and the same tabular figures in the system font.
 
 ## How it works
 
-- `hippo_view::night::map`: `Layout` gains `focus: Vec<(Item, Vec<Line>)>` (each linked card's lines, on a level with more than `LINE_BUDGET` pairs; `lines` is then empty) and `Line` gains `trunk` (lines with one trunk share their points up to their branch). `Layout::shown(focus)` gives the lines to draw with whether each is the focus's; `Layout::visible(focus)` counts trunks. `route` takes each want (a card and its targets, one for a lone line) and routes as above. `default_arrangement_in(cols)`, `view_arrangement(w, h)`, `NotesMap::fitted(w, h)`, `NotesMap::fit(w, h)`, `NotesMap::preview(arr, level)` (one level without lines, cheap enough for every pointer move) and `block_rect_in`.
-- Hippo.app: `MapView` gains `hover`, `hover_line`, `slide` (the layout blocks slide to, each block's offset when it started, the dropped block's scale, the drop it previews) and `view_size`. The painter draws each block at its pose (offset and scale) and asks for another frame while a slide runs. `reduce_motion()` reads `NSWorkspace.accessibilityDisplayShouldReduceMotion`. Dev-only `HIPPO_APP_DEV_HOVER=x,y` rests the pointer on the map, `HIPPO_APP_DEV_SLOW=<factor>` stretches motion for screenshots and `HIPPO_APP_DEV_REDUCE_MOTION=1` turns it off.
-- The demo: `demo/arrange.js` ports `links`, `route`, `view_arrangement`, `fit` and `preview`; `demo/demo.js` draws each block in a box of its own that slides with a CSS transition. `docs/site/demo-data.sh` writes the map hippo laid out for an 860 × 600 view, and `check-demo-render.mjs` fails when the port chooses other columns or lays it out differently.
+- `hippo_view::night::map`: `Layout.focus` holds each linked card's lines (there is no `lines` field: nothing is drawn at rest); `Line.trunk` groups a trunk's branches; `Layout::shown(focus)` and `visible(focus)`. `route` routes the trunks as above. `Mark.row` marks a folder card's note rows. `default_arrangement_in(cols)`, `view_arrangement(w, h)`, `NotesMap::fitted`, `NotesMap::fit`, `NotesMap::preview(arr, level)` and `block_rect_in`. `in_text` and `in_height` wrap In cards.
+- Hippo.app: `MapView` gains `hover`, `hover_line`, `slide` (the layout blocks slide to, each block's offset when it started, the dropped block's scale, the drop it previews), `view_size` and `fit_zoom`. The painter draws each block at its pose and asks for another frame while a slide runs. `reduce_motion()` reads `NSWorkspace.accessibilityDisplayShouldReduceMotion`. Dev-only `HIPPO_APP_DEV_HOVER=x,y` (or `line`), `HIPPO_APP_DEV_PROGRESS`, `HIPPO_APP_DEV_SLOW`, `HIPPO_APP_DEV_REDUCE_MOTION` and `HIPPO_APP_DEV_DROP=0` set states for screenshots.
+- The demo: `demo/arrange.js` ports `links`, `route`, `view_arrangement`, `fit` and `preview`; `demo/demo.js` draws each block in a box of its own that slides with a CSS transition. `docs/site/demo-data.sh` writes the map hippo laid out for an 860 × 600 view, and `check-demo-render.mjs` fails if the port chooses other columns or lays it out differently.
 
 ## Tests
 
 On maps of 3 to 300 notes, each in its default layout, two random arrangements and fitted to two views, at every level:
 
-- no line enters a card or a folder's name or count, for every focus and none;
-- at most 12 trunks are visible for every focus and none;
-- every line turns at right angles and its vertical runs are in gaps;
-- two trunks never share a lane or a port;
-- a card with many links leaves as one trunk each way, and the lines to one column share every point up to their branch;
-- the 300-note map, fitted to three views, opens at Out filling more than 60 % of the view both ways; maps of up to 40 notes open whole at 42 % or more;
+- no line enters a card or a folder's name or count, for every focus;
+- no level run of a trunk comes within the clearance of a card or name band;
+- no line shows at rest, and at most two trunks for any focus;
+- every line turns at right angles, its vertical runs in gaps; two trunks never share a lane or a port, and a card has at most one port per side;
+- a card with many links leaves as one trunk each way, and lines to one column share every point up to their branch;
+- the notes read in every session keep the first column; on the 300-note map folder cards are one height;
+- In cards wrap their words and keep 16 points below them;
+- the 300-note overview fills more than 60 % of the view both ways; maps of up to 40 notes open whole at 42 % or more;
 - a person's arrangement is kept when the map is fitted.
+
+The app's tests cover the drag (the slot opens at the drop's column, Escape slides every block back), hover focus and ⌘0.
 
 ## Not in this
 
-Curved lines; lines between notes in one folder at Out (they are inside one card); a count on hover at Mid and In.
+Curved (non-orthogonal) lines; lines between notes in one folder at Out (they are inside one card); a count on hover at Mid and In.
