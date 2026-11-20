@@ -2,7 +2,7 @@
 
 ## Lucide (ISC)
 
-The icons in `hippo-app/icons/*.svg` are from Lucide (`lucide-static` 0.460.0; `circle-alert`, `circle-dot-dashed`, `git-pull-request-arrow` and `shield-question` from 1.54.0), stroke width set to 1.75. Licence: `hippo-app/icons/LICENSE-lucide.txt` (ISC; portions MIT from Feather).
+The icons in `hippo-app/icons/*.svg` are from Lucide (`lucide-static` 0.460.0; `circle-alert`, `circle-dot-dashed`, `git-pull-request-arrow` and `shield-question` from 1.54.0), stroke width set to 1.75. The `hippo-app/icons/n-*.svg` icons (the night map's) were drawn for this project and are under its MIT licence. Licence of the Lucide icons: `hippo-app/icons/LICENSE-lucide.txt` (ISC; portions MIT from Feather).
 
 ## T3 Code (MIT)
 

@@ -189,6 +189,26 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.ask_with(sources_only, true, window, cx);
+    }
+
+    /// Asks without leaving the view: the night map's floating bar.
+    pub(crate) fn submit_ask_here(
+        &mut self,
+        sources_only: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.ask_with(sources_only, false, window, cx);
+    }
+
+    fn ask_with(
+        &mut self,
+        sources_only: bool,
+        open_tab: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let question = self.ask_field.read(cx).text().trim().to_owned();
         if question.is_empty() {
             return;
@@ -213,10 +233,12 @@ impl Shell {
         self.ask.answering = false;
         self.ask.sources_only = sources_only;
         self.ask.selected = 0;
-        if self.state.tabs.section() != Section::Home {
-            self.state.tabs.select(Section::Home);
+        if open_tab {
+            if self.state.tabs.section() != Section::Home {
+                self.state.tabs.select(Section::Home);
+            }
+            self.state.tabs.open(Tab::Ask);
         }
-        self.state.tabs.open(Tab::Ask);
         let want_answer = !sources_only && self.ask_answers;
         let installation = self.installation.clone();
         cx.spawn(async move |this, cx| {
@@ -288,7 +310,9 @@ impl Shell {
             .ok();
         })
         .detach();
-        window.focus(&self.ask.focus, cx);
+        if open_tab {
+            window.focus(&self.ask.focus, cx);
+        }
         cx.notify();
     }
 

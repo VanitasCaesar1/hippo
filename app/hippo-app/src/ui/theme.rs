@@ -213,6 +213,8 @@ pub struct Look {
     pub font_family: Option<String>,
     pub font_size: f32,
     pub scale: f32,
+    /// One of Hippo's own themes: the night map uses its exact tokens.
+    pub hippo_theme: bool,
 }
 
 impl Look {
@@ -222,6 +224,7 @@ impl Look {
             font_family: active.theme.font_family.clone(),
             font_size: active.theme.font_size,
             scale,
+            hippo_theme: active.theme.name.starts_with("Hippo "),
         }
     }
 

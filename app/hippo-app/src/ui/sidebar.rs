@@ -197,6 +197,7 @@ impl Shell {
     ) -> impl IntoElement + use<> {
         let on = self.state.tabs.section() == section;
         let (icon, count) = match section {
+            Section::Morning | Section::Brain | Section::Agents | Section::Guard => ("house", 0),
             Section::Home => ("house", 0),
             Section::Inbox => ("inbox", self.inbox_count()),
             Section::Fleet => ("bot", 0),
@@ -206,6 +207,7 @@ impl Shell {
         };
         let color = if on { look.c.text } else { look.c.text_muted };
         let tip = match section {
+            Section::Morning | Section::Brain | Section::Agents | Section::Guard => "",
             Section::Home => "Home ⌘1",
             Section::Inbox => "Inbox ⌘I",
             Section::Fleet => "Fleet ⌘F",

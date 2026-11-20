@@ -15,7 +15,7 @@ A was chosen, with two things from B: B's **four figures** at the top of Morning
 
 ### The window
 
-- **A top bar replaces the sidebar.** At its left (after the window controls): the hippo mark and the **workspace switcher** (the workspace's name; its menu shows the workspace's path and notes folder and opens Manage to change it). In the middle, four destinations, each with a count: **Morning** (rules waiting for you, amber), **Brain**, **Agents** (sessions waiting on you, amber) and **Guard** (important guard incidents you have not marked "Not a problem", red). A count of zero is not drawn. At the right: **search** (`Find a note or session ⌘P`, the existing finder), the **indexed** state (`Indexed 08:41`, a green dot; red with what failed when ingest failed) and the **theme toggle** (dark and light; the theme picker still has every theme).
+- **A top bar replaces the sidebar.** At its left (after the window controls): the hippo mark and the **workspace switcher** (the workspace's name; it opens Manage, where the workspace is set). In the middle, four destinations, each with a count: **Morning** (rules waiting for you, amber), **Brain**, **Agents** (sessions waiting on you, amber) and **Guard** (important guard incidents you have not marked "Not a problem", red). A count of zero is not drawn. At the right: **search** (`Find a note or session ⌘P`, the existing finder), the **indexed** state (`Indexed 08:41`, a green dot; red with what failed when ingest failed) and the **theme toggle** (dark and light; the theme picker still has every theme).
 - **The ground** is a blue-black (`#0B0D14`) or a cool off-white (`#F3F4F8`) with a 2-point dot every 24 points. Cards are surfaces with a 1-point border and 14-point corners; the selected card has a 2-point indigo border, reserved on every selectable card so nothing moves.
 - **Colour has four meanings.** Amber is you: something you said, a rule made from it, a thing waiting on you, the primary button. Indigo is the night: what hippo did overnight, the selection, links. Green is what the second model confirmed. Red is rejected, harmful, or running dry. Everything else is ink and three greys. Agent badges (two letters on the agent's colour) keep their own colours; nothing else uses them.
 - **Type** stays the system's: SF Pro for prose, SF Mono for numbers, times, counts, commands and receipt ids. Labels are sentence case, not tracked capitals (this replaces the instrument look's capital labels).
@@ -35,7 +35,7 @@ Morning answers "what did hippo do last night, and what does it need from me".
    - *Applied overnight*: each change the pass applied, as a card with the note's title, `was` struck through and `now`, the receipt id and **Undo**. Then *Rejected by the second model*: each rejected change with the reviewer's reason quoted under a red bar.
 5. **The panel: "Your agents now start with"**: what a new session's start block holds for a task you can change (the last task asked, else the entry note's task): the entry and required notes (*Always*), the notes picked for the task, the rules you kept, the rules waiting (*Not yet*, hollow squares), the bytes against the budget, and *Reaches*: each agent hippo is installed in and how (at session start, through its hooks, in each request).
 
-Keep, Edit (Keep with the rule's text changed), Dismiss and Undo run the commands that exist: `hippo lessons keep`, `hippo lessons keep --text`, `hippo lessons dismiss`, `hippo revert <receipt>`. After Keep or Dismiss the card leaves with a toast that undoes it (Keep is undone by reverting its receipt).
+Keep, Edit (Keep with the rule's text changed), Dismiss and Undo run the commands that exist: `hippo lessons keep`, `hippo lessons keep --text`, `hippo lessons dismiss`, `hippo revert <receipt>`. The card leaves when the command finishes and the models reload. Keep, Edit and Dismiss also have the Inbox's keys (Return, E, Delete) on the selected rule. A kept rule is undone like any change, from its receipt (`hippo revert`).
 
 ### Brain
 
@@ -83,13 +83,13 @@ Below 900 points of width a canvas has no room. Morning and Brain switch to B's 
 | Was | Now |
 |---|---|
 | Home | Morning (last night, waiting on you), Agents (accounts) |
-| Inbox | Morning's *Waiting for you*; the team's shared Inbox (`L-<id>` entries) stays a view of its own, opened from Morning's *Team inbox* link when the workspace shares one |
+| Inbox | Morning's *Waiting for you*; the Inbox itself, with the team's shared entries (`L-<id>`), stays a view of its own (⌘I and the command palette) |
 | Fleet (Pulse, Lanes, Rows) | Agents; Pulse, Lanes and Rows from Agents' header |
 | Incidents | Guard for the guard's kinds; *All incidents* opens the full list |
 | Memory | Brain; the treemap from Brain's header (*Treemap*) |
-| Manage | The workspace switcher's menu, ⌘, and the command palette |
+| Manage | The workspace switcher, ⌘, and the command palette |
 
-Session, note, proposal and x-ray tabs open in the window as today, under the top bar, with a back arrow to the view they came from. Every view keeps its keys; the command palette lists every view.
+Session, note, proposal and x-ray tabs open in the window as today, under the top bar, with their title bar and its way back. Every view keeps its keys (⌘1 Home, ⌘I Inbox, ⌘F Fleet, ⌘4 Memory, ⌘6 Incidents); the command palette lists every view. On Brain, ⌘= / ⌘− / ⌘0 zoom the map instead of the text.
 
 ## What the engine adds
 
@@ -114,7 +114,7 @@ GPUI has no transform for a subtree, so a canvas cannot be scaled as a picture. 
 - **Out** uses the same folder frames as Mid, each drawn as one card, so moving between Out and Mid moves nothing.
 - **In** uses taller cards (each note's rules and evidence, clamped to six lines) in the same columns. When the zoom crosses into or out of In, the app keeps the card under the pointer under the pointer: it finds the card at the pointer in the old layout, its relative position inside the card, and pans the new layout so the same point of the same card is there.
 - **Links** are polylines: from the right edge of one card, one turn in the gap between columns, into the left edge of the other; two cards in one column are joined by a short bracket at their right. A link to a note in a folder that is drawn as one card ends at the folder.
-- **Culling.** The app draws only the cards whose rectangle meets the view and the links whose bounding box does; text is shaped only for drawn cards. The target is 60 frames a second at 300 notes and 1,000 links on the machine the app is built on.
+- **Culling.** The app draws only the cards whose rectangle meets the view and the links whose bounding box does; text is shaped only for drawn cards, at sizes rounded to half a pixel so a zoom gesture reuses shaped lines. Every segment of a link is level or plumb, so links are painted as thin quads, not stroked paths. The target is a paint well under the 16.7 ms of a 60 fps frame at 300 notes and 1,000 links; `HIPPO_APP_DEV_FRAMES` logs each paint's time.
 
 Morning and Guard are fixed layouts in the app (three columns of cards with clamped text, so card heights are known and the lines can be drawn from the same numbers). They scroll; they do not zoom.
 
@@ -124,8 +124,9 @@ A pass's report says when it ended (the file's time) but not when it began. `hip
 
 ## Dev and test
 
-- Dev-only environment variables for screenshots of a synthetic home: `HIPPO_APP_DEV_VIEW` (`morning`, `brain`, `agents`, `guard`, and the old names), `HIPPO_APP_DEV_THEME` (`dark`, `light`), `HIPPO_APP_DEV_SIZE` (`1440x900`), `HIPPO_APP_DEV_ZOOM` (Brain's zoom factor) and `HIPPO_APP_DEV_SELECT` (the selected note, rule, session or incident). A dialog is shown for a screenshot as a view in its place (`HIPPO_APP_DEV_DIALOG`), never as a window of its own.
-- Zoom, pan, Keep and Dismiss are tested through GPUI's test harness, not by sending keys to a window.
+- Dev-only environment variables for screenshots of a synthetic home: `HIPPO_APP_DEV_VIEW` (`morning`, `brain`, `agents`, `guard`, and the old names), `HIPPO_APP_DEV_THEME` (`dark`, `light`; nothing is saved), `HIPPO_APP_DEV_SIZE` (`1440x900`), `HIPPO_APP_DEV_ZOOM` (Brain's zoom factor), `HIPPO_APP_DEV_SELECT` (`rule:0`, `fix:1`, `note:<path>`, `session:<id>`, `incident:<id>`), `HIPPO_APP_DEV_SYNTHETIC_MAP` (`300x1000`: a synthetic map of that many notes and links) and `HIPPO_APP_DEV_FRAMES` (a file each paint of the map appends its time to). A dialog is shown for a screenshot as a view in its place (`HIPPO_APP_DEV_DIALOG`), never as a window of its own. With any of them set the app does not bring itself to the front.
+- Zoom, pan, Keep and Dismiss are tested through GPUI's test harness (actions and simulated events on a test window), and the layout arithmetic by unit tests, never by sending keys to a real window.
+- The built-in Hippo Dark and Hippo Light themes take the night map's colours, so the views drawn under the top bar match it.
 - `app/scripts/demo-home.sh` gains the guard's kinds (a piped installer, a credential read, a fresh clone run) so Guard has something to show.
 
 ## The web demo and the landing page

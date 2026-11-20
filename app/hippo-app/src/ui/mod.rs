@@ -22,6 +22,7 @@ pub mod manage_page;
 pub mod markdown;
 pub mod memory;
 pub mod menus;
+pub mod night;
 pub mod note_tab;
 pub mod onboarding;
 pub mod overview;
@@ -170,6 +171,8 @@ pub struct Shell {
     /// The menu-bar item, notifications, Open and Resume, the
     /// digest.
     pub(crate) reach: reach_ui::ReachUi,
+    /// The night map's selections, scrolls and zoom.
+    pub(crate) night: night::NightUi,
     _theme_poll: Option<gpui::Task<()>>,
     _fleet_poll: Option<gpui::Task<()>>,
     _subscriptions: Vec<Subscription>,
@@ -352,6 +355,7 @@ impl Shell {
             flow: crate::flow::Flow::default(),
             title_drag: false,
             reach,
+            night: Default::default(),
             _theme_poll: None,
             _fleet_poll: None,
             _subscriptions: subscriptions,
@@ -649,7 +653,7 @@ impl Shell {
     }
 
     /// Command-P: the finder over every note and every session.
-    fn open_finder(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn open_finder(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(panels) = self.loaded.as_ref().and_then(|l| l.panels.as_ref()) else {
             return;
         };
@@ -892,6 +896,9 @@ impl Shell {
             "RunContext" => self.run_context(cx),
             "FocusAsk" => self.focus_ask(window, cx),
             "AskSubmit" if self.brief.mode => self.submit_brief(window, cx),
+            "AskSubmit" if self.state.tabs.active_tab().is_some_and(night::is_night) => {
+                self.night_ask(window, cx)
+            }
             "AskSubmit" => self.submit_ask(false, window, cx),
             "ToggleBrief" => {
                 let on = !self.brief.mode;
@@ -906,6 +913,11 @@ impl Shell {
             "SourceOpen" => self.open_source(self.ask.selected, window, cx),
             "InboxNext" => self.step_inbox(1),
             "InboxPrevious" => self.step_inbox(-1),
+            "InboxKeep" | "InboxEdit" | "InboxDismiss"
+                if self.state.tabs.active_tab() == Some(&Tab::Morning) =>
+            {
+                self.morning_act(id, window, cx)
+            }
             "InboxKeep" => self.act_on_selected('k', window, cx),
             "InboxEdit" => self.act_on_selected('e', window, cx),
             "InboxDismiss" => self.act_on_selected('d', window, cx),
@@ -1460,7 +1472,7 @@ impl Render for Shell {
         if docked || !shell_ready {
             self.sidebar.overlay = false;
         }
-        let sidebar = (shell_ready && docked)
+        let sidebar = (shell_ready && docked && false)
             .then(|| self.render_sidebar(&look, window, cx).into_any_element());
         // Where it does not dock, the full sidebar opens over the
         // content; a click outside or Esc closes it.
@@ -1506,7 +1518,31 @@ impl Render for Shell {
                 })
                 .into_any_element()
         });
-        root.child(
+        // The night map: a top bar instead of the sidebar, and its views
+        // on the dotted ground; other views keep their title bar below it.
+        let night_view = self.state.tabs.active_tab().cloned().filter(night::draws);
+        let main = if shell_ready {
+            let content = match night_view {
+                Some(tab) => self.render_night(&tab, &look, window, cx),
+                None => div()
+                    .flex()
+                    .flex_col()
+                    .flex_1()
+                    .min_w_0()
+                    .min_h_0()
+                    .bg(look.c.canvas)
+                    .child(self.render_title_bar(&look, window, cx))
+                    .child(body)
+                    .into_any_element(),
+            };
+            div()
+                .flex()
+                .flex_col()
+                .flex_1()
+                .min_h_0()
+                .child(self.render_top_bar(&look, window, cx))
+                .child(div().flex().flex_col().flex_1().min_h_0().child(content))
+        } else {
             div()
                 .flex()
                 .flex_row()
@@ -1523,37 +1559,41 @@ impl Render for Shell {
                         .bg(look.c.canvas)
                         .child(self.render_title_bar(&look, window, cx))
                         .child(body),
-                ),
-        )
-        .children(overlay)
-        .children(confirmation)
-        .children(self.render_manage_confirm(&look, cx))
-        .children(self.render_hook_sheet(&look, cx))
-        .children(self.render_incident_toast(&look, cx))
-        .children(self.render_resume_confirm(&look, cx))
-        .children(step_two)
-        .children(self.render_health_popover(&look, cx))
-        .when_some(picker, |d, picker| {
-            d.child(
-                div()
-                    .id("picker-overlay")
-                    .absolute()
-                    .top_0()
-                    .left_0()
-                    .size_full()
-                    .flex()
-                    .justify_center()
-                    .pt(look.px(32. + 72.))
-                    .occlude()
-                    .child(
-                        div()
-                            .on_mouse_down_out(
-                                cx.listener(|this, _, window, cx| this.close_picker(window, cx)),
-                            )
-                            .child(picker),
-                    ),
-            )
-        })
+                )
+        };
+        let overlay = overlay.filter(|_| !shell_ready);
+        root.child(main)
+            .children(overlay)
+            .children(confirmation)
+            .children(self.render_manage_confirm(&look, cx))
+            .children(self.render_hook_sheet(&look, cx))
+            .children(self.render_incident_toast(&look, cx))
+            .children(self.render_resume_confirm(&look, cx))
+            .children(step_two)
+            .children(self.render_health_popover(&look, cx))
+            .when_some(picker, |d, picker| {
+                d.child(
+                    div()
+                        .id("picker-overlay")
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .size_full()
+                        .flex()
+                        .justify_center()
+                        .pt(look.px(32. + 72.))
+                        .occlude()
+                        .child(
+                            div()
+                                .on_mouse_down_out(
+                                    cx.listener(|this, _, window, cx| {
+                                        this.close_picker(window, cx)
+                                    }),
+                                )
+                                .child(picker),
+                        ),
+                )
+            })
     }
 }
 
@@ -1570,7 +1610,8 @@ pub fn window_options(cx: &App) -> WindowOptions {
             title: Some("Hippo".into()),
             appears_transparent: true,
             // In the vertical middle of the 36-point title-bar row.
-            traffic_light_position: Some(point(px(16.), px(15.))),
+            // In the vertical middle of the night map's 56-point top bar.
+            traffic_light_position: Some(point(px(18.), px(21.))),
         }),
         // The app's title bar starts the drag itself, as Zed's does, which
         // avoids AppKit's click delay on the title bar.
@@ -1816,7 +1857,8 @@ mod tests {
         let active = |vcx: &mut VisualTestContext| {
             root.read_with(vcx, |s, _| s.state().tabs.active_tab().cloned())
         };
-        assert_eq!(active(&mut vcx), Some(Tab::Home), "Home at launch");
+        assert_eq!(active(&mut vcx), Some(Tab::Morning), "Morning at launch");
+        dispatch(&mut vcx, window, &actions::ShowHome);
         dispatch(&mut vcx, window, &Help);
         dispatch(&mut vcx, window, &actions::ShowMemory);
         assert_eq!(active(&mut vcx), Some(Tab::Memory));
@@ -1837,6 +1879,65 @@ mod tests {
         );
         dispatch(&mut vcx, window, &actions::ShowMemory);
         assert!(matches!(active(&mut vcx), Some(Tab::Note(_))));
+    }
+
+    /// Morning's Keep runs `hippo lessons keep <id>` through the job the
+    /// Inbox uses, from a click on the card's button.
+    #[gpui::test]
+    fn morning_keep_runs_lessons_keep(cx: &mut TestAppContext) {
+        setup_globals(cx);
+        let (dir, home) = ready_home();
+        let notes = dir.path().join("ws/notes");
+        std::fs::create_dir_all(&notes).unwrap();
+        std::fs::write(notes.join("index.md"), "# Index\n\nThe entry note.\n").unwrap();
+        std::fs::create_dir_all(home.join("lessons")).unwrap();
+        let id = "01M70000000000000000000001";
+        let at = "2026-11-19T10:07:00Z";
+        std::fs::write(
+            home.join(format!("lessons/{id}.json")),
+            format!(
+                r#"{{"protocol":"HIPPO_V1","id":"{id}","kind":"correction","key":"preview staging","terms":["preview","staging"],"title":"Previews use staging","rule":"Run previews against the staging database, never production.","target":{{"note":"notes/index.md","section":null,"new":false}},"evidence":[{{"session":"s1","ordinal":3,"profile":null,"project":null,"at":"{at}","quote":"no, previews use the staging database","action":null}}],"seen":{{"sessions":2,"profiles":["default"],"first":"{at}","last":"{at}","most_in_a_day":2}},"status":"pending","review":null,"created":"{at}","updated":"{at}","closed_sessions":null,"kept":null,"ask":null}}"#
+            ),
+        )
+        .unwrap();
+        let (window, mut vcx) = open(cx, &home);
+        let root = window.root(&mut vcx).unwrap();
+        root.read_with(&vcx, |s, _| {
+            assert_eq!(s.state().tabs.active_tab(), Some(&Tab::Morning));
+            let n = s
+                .loaded()
+                .and_then(|l| l.night.as_ref())
+                .expect("the night models load");
+            assert_eq!(n.morning.rules.len(), 1);
+        });
+        // Select the rule as a click on its card does, then Keep (Return).
+        root.update(&mut vcx, |s, cx| {
+            let id = s.loaded().unwrap().night.as_ref().unwrap().morning.rules[0].id;
+            s.night.morning = Some(night::Sel::Rule(id));
+            cx.notify();
+        });
+        // The key guard: the window forward, settled, and pressed in.
+        vcx.update(|window, _| window.activate_window());
+        vcx.run_until_parked();
+        vcx.update(|_, cx| {
+            cx.default_global::<crate::keyguard::KeyGuard>()
+                .backdate(std::time::Duration::from_millis(1500))
+        });
+        vcx.simulate_mouse_down(
+            gpui::point(gpui::px(40.), gpui::px(120.)),
+            gpui::MouseButton::Left,
+            gpui::Modifiers::default(),
+        );
+        dispatch(&mut vcx, window, &actions::InboxKeep);
+        root.read_with(&vcx, |s, _| {
+            let rule: ulid::Ulid = id.parse().unwrap();
+            assert_eq!(s.inbox.busy, Some(rule), "Keep started on the rule");
+            assert_eq!(
+                s.flow.job.as_ref().map(|j| j.purpose),
+                Some(crate::flow::Purpose::Lesson),
+                "through the Inbox's lesson job"
+            );
+        });
     }
 
     fn write_harbour(home: &Path, window: &str, pad: usize) {

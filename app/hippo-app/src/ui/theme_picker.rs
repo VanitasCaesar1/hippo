@@ -129,7 +129,12 @@ impl Shell {
         self.after_state_change(window, cx);
     }
 
-    fn show_theme(&mut self, active: ActiveTheme, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn show_theme(
+        &mut self,
+        active: ActiveTheme,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         cx.set_global(active);
         window.refresh();
         cx.notify();

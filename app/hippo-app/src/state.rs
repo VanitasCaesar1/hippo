@@ -20,6 +20,11 @@ use crate::rows::Panels;
 /// A section of the rail: Home, Inbox, Fleet, Memory and Manage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Section {
+    /// The night map's views (`docs/designs/app-night-map.md`).
+    Morning,
+    Brain,
+    Agents,
+    Guard,
     Home,
     Inbox,
     Fleet,
@@ -30,7 +35,11 @@ pub enum Section {
 }
 
 impl Section {
-    pub const ALL: [Section; 6] = [
+    pub const ALL: [Section; 10] = [
+        Section::Morning,
+        Section::Brain,
+        Section::Agents,
+        Section::Guard,
         Section::Home,
         Section::Inbox,
         Section::Fleet,
@@ -41,6 +50,10 @@ impl Section {
 
     pub fn name(self) -> &'static str {
         match self {
+            Section::Morning => "Morning",
+            Section::Brain => "Brain",
+            Section::Agents => "Agents",
+            Section::Guard => "Guard",
             Section::Home => "Home",
             Section::Inbox => "Inbox",
             Section::Fleet => "Fleet",
@@ -53,6 +66,10 @@ impl Section {
     /// The view the section opens on.
     pub fn root(self) -> Tab {
         match self {
+            Section::Morning => Tab::Morning,
+            Section::Brain => Tab::Brain,
+            Section::Agents => Tab::Agents,
+            Section::Guard => Tab::Guard,
             Section::Home => Tab::Home,
             Section::Inbox => Tab::Inbox,
             Section::Fleet => Tab::Fleet,
@@ -67,6 +84,14 @@ impl Section {
 /// it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Tab {
+    /// The last night pass and what waits on the person.
+    Morning,
+    /// The notes as a map.
+    Brain,
+    /// Accounts and sessions by what they need.
+    Agents,
+    /// The guard's incidents in plain words.
+    Guard,
     /// The Ask bar, headroom, the inbox and the fleet at a glance.
     Home,
     /// The answer to a question asked in the Ask bar.
@@ -122,13 +147,26 @@ impl Tab {
     pub fn is_root(&self) -> bool {
         matches!(
             self,
-            Tab::Home | Tab::Inbox | Tab::Fleet | Tab::Incidents | Tab::Memory | Tab::Manage
+            Tab::Morning
+                | Tab::Brain
+                | Tab::Agents
+                | Tab::Guard
+                | Tab::Home
+                | Tab::Inbox
+                | Tab::Fleet
+                | Tab::Incidents
+                | Tab::Memory
+                | Tab::Manage
         )
     }
 
     /// The title when nothing better is known.
     pub fn default_title(&self) -> String {
         match self {
+            Tab::Morning => "Morning".to_owned(),
+            Tab::Brain => "Brain".to_owned(),
+            Tab::Agents => "Agents".to_owned(),
+            Tab::Guard => "Guard".to_owned(),
             Tab::Home => "Home".to_owned(),
             Tab::Ask => "Ask".to_owned(),
             Tab::Brief => "Brief a new agent".to_owned(),
@@ -191,7 +229,7 @@ pub struct Nav {
 impl Default for Nav {
     fn default() -> Nav {
         Nav {
-            current: Section::Home,
+            current: Section::Morning,
             stacks: Section::ALL.iter().map(|s| (*s, vec![s.root()])).collect(),
         }
     }
@@ -460,6 +498,12 @@ pub struct Loaded {
     /// What keeps hippo from working, as Manage shows it: `ingest
     /// is off`, `hook not installed`.
     pub gaps: Vec<String>,
+    /// The night map's models: Morning, the strip, Brain's map, Guard.
+    pub night: Option<hippo_view::night::Night>,
+    /// Morning's panel: the start block for a task, and the task.
+    pub start_block: Option<(String, hippo_core::brief::Brief)>,
+    /// Rules the person kept, newest first.
+    pub kept_rules: Vec<String>,
 }
 
 impl Loaded {
@@ -494,6 +538,9 @@ pub fn load(home: &Path, now: OffsetDateTime) -> Loaded {
         incidents: None,
         memory: None,
         gaps: Vec::new(),
+        night: None,
+        start_block: None,
+        kept_rules: Vec::new(),
     };
     if let Setup::Ready { cfg, .. } = &loaded.setup {
         loaded.lessons = hippo_core::lessons::pending(&cfg.home).unwrap_or_default();
@@ -519,6 +566,22 @@ pub fn load(home: &Path, now: OffsetDateTime) -> Loaded {
             loaded.suggestions = suggestions(r, now);
         }
         loaded.home = load_home(&loaded, rollup.as_ref(), now, offset);
+        if let Setup::Ready { cfg, ws } = &loaded.setup {
+            loaded.night = hippo_view::night::load(cfg, ws, now, offset).ok();
+            let mut kept: Vec<hippo_core::lessons::Lesson> = hippo_core::lessons::list(&cfg.home)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|l| l.status == hippo_core::lessons::Status::Kept)
+                .collect();
+            kept.sort_by_key(|l| std::cmp::Reverse(l.updated));
+            loaded.kept_rules = kept.into_iter().map(|l| l.rule).collect();
+            // The panel's task: the newest session's topic, else the entry
+            // note's (an empty task still gives the required notes).
+            let task = loaded.suggestions.first().cloned().unwrap_or_default();
+            loaded.start_block = hippo_core::brief::run(cfg, ws, &task)
+                .ok()
+                .map(|b| (task, b));
+        }
         if let (Some(panels), Some(ws)) = (loaded.panels.as_ref(), loaded.setup.workspace()) {
             // The x-ray's fleet week: what start blocks cost.
             let fleet = rollup
@@ -738,6 +801,8 @@ mod tests {
     #[test]
     fn each_section_keeps_its_own_stack_and_opens_on_its_top() {
         let mut n = Nav::default();
+        assert_eq!(n.active_tab(), Some(&Tab::Morning));
+        n.select(Section::Home);
         assert_eq!(n.active_tab(), Some(&Tab::Home));
         n.open(Tab::Ask);
         n.open(Tab::Session {
@@ -765,7 +830,7 @@ mod tests {
         let mut n = Nav::default();
         n.open(Tab::Ask);
         assert!(n.back());
-        assert_eq!(n.active_tab(), Some(&Tab::Home));
+        assert_eq!(n.active_tab(), Some(&Tab::Morning));
         assert!(!n.back());
         assert_eq!(n.depth(), 1);
     }

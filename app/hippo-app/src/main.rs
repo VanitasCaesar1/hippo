@@ -111,6 +111,36 @@ fn icon(name: &str) -> Option<&'static [u8]> {
         "wrench" => include_bytes!("../icons/wrench.svg").as_slice(),
         "x" => include_bytes!("../icons/x.svg").as_slice(),
         "zap" => include_bytes!("../icons/zap.svg").as_slice(),
+        "n-morning" => include_bytes!("../icons/n-morning.svg").as_slice(),
+        "n-brain" => include_bytes!("../icons/n-brain.svg").as_slice(),
+        "n-agents" => include_bytes!("../icons/n-agents.svg").as_slice(),
+        "n-guard" => include_bytes!("../icons/n-guard.svg").as_slice(),
+        "n-note" => include_bytes!("../icons/n-note.svg").as_slice(),
+        "n-folder" => include_bytes!("../icons/n-folder.svg").as_slice(),
+        "n-check" => include_bytes!("../icons/n-check.svg").as_slice(),
+        "n-x" => include_bytes!("../icons/n-x.svg").as_slice(),
+        "n-undo" => include_bytes!("../icons/n-undo.svg").as_slice(),
+        "n-said" => include_bytes!("../icons/n-said.svg").as_slice(),
+        "n-rule" => include_bytes!("../icons/n-rule.svg").as_slice(),
+        "n-receipt" => include_bytes!("../icons/n-receipt.svg").as_slice(),
+        "n-clock" => include_bytes!("../icons/n-clock.svg").as_slice(),
+        "n-up" => include_bytes!("../icons/n-up.svg").as_slice(),
+        "n-search" => include_bytes!("../icons/n-search.svg").as_slice(),
+        "n-sun" => include_bytes!("../icons/n-sun.svg").as_slice(),
+        "n-moon" => include_bytes!("../icons/n-moon.svg").as_slice(),
+        "n-terminal" => include_bytes!("../icons/n-terminal.svg").as_slice(),
+        "n-right" => include_bytes!("../icons/n-right.svg").as_slice(),
+        "n-script" => include_bytes!("../icons/n-script.svg").as_slice(),
+        "n-key" => include_bytes!("../icons/n-key.svg").as_slice(),
+        "n-tomodel" => include_bytes!("../icons/n-tomodel.svg").as_slice(),
+        "n-clone" => include_bytes!("../icons/n-clone.svg").as_slice(),
+        "n-fix" => include_bytes!("../icons/n-fix.svg").as_slice(),
+        "n-eye" => include_bytes!("../icons/n-eye.svg").as_slice(),
+        "n-down" => include_bytes!("../icons/n-down.svg").as_slice(),
+        "n-open" => include_bytes!("../icons/n-open.svg").as_slice(),
+        "n-thread" => include_bytes!("../icons/n-thread.svg").as_slice(),
+        "n-wait" => include_bytes!("../icons/n-wait.svg").as_slice(),
+        "n-start" => include_bytes!("../icons/n-start.svg").as_slice(),
         _ => return None,
     })
 }
@@ -184,10 +214,29 @@ fn main() {
                 // Dev-only: a card to show selected, and the Share dialog.
                 shell.inbox.selected = std::env::var("HIPPO_APP_DEV_SELECT").ok();
                 shell.inbox.dev_share = std::env::var_os("HIPPO_APP_DEV_SHARE").is_some();
+                // Dev-only, the night map: what to select (`rule:0`,
+                // `fix:1`, `note:<path>`, `session:0`, `incident:0`), a
+                // dialog drawn as a view, and Brain's zoom.
+                shell.night.dev_select = std::env::var("HIPPO_APP_DEV_SELECT").ok();
+                shell.night.dev_dialog = std::env::var("HIPPO_APP_DEV_DIALOG").ok();
+                shell.night.dev_zoom = std::env::var("HIPPO_APP_DEV_ZOOM")
+                    .ok()
+                    .and_then(|z| z.parse().ok());
                 shell
             })
         })
         .expect("the window opens");
+        // Dev-only: HIPPO_APP_DEV_THEME (`dark`, `light`) draws Hippo's
+        // theme of that appearance, saving nothing.
+        if let Ok(which) = std::env::var("HIPPO_APP_DEV_THEME") {
+            let [light, dark] = hippo_core::theme::builtin();
+            let mut theme = if which == "light" { light } else { dark };
+            hippo_core::theme::apply_focus_floor(&mut theme);
+            cx.set_global(ui::theme::ActiveTheme {
+                theme,
+                system: false,
+            });
+        }
         if dev_size.is_none() && dev_view.is_none() {
             cx.activate(true);
         }
