@@ -65,13 +65,18 @@ fn release(asset: &str, version: &str) -> Release {
 }
 
 fn hippo(r: &Release, args: &[&str]) -> Output {
+    hippo_with(r, args, &format!("file://{}", r.dist().display()), &[])
+}
+
+fn hippo_with(r: &Release, args: &[&str], base: &str, env: &[(&str, &str)]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_hippo"))
         .args(args)
         .env_clear()
         .env("HOME", r.home())
         .env("HIPPO_HOME", r.home().join(".hippo"))
         .env("PATH", "/usr/bin:/bin")
-        .env("HIPPO_BASE_URL", format!("file://{}", r.dist().display()))
+        .env("HIPPO_BASE_URL", base)
+        .envs(env.iter().copied())
         .current_dir(r.home())
         .stdin(Stdio::null())
         .output()
@@ -107,6 +112,8 @@ fn install_checks_records_and_uninstalls() {
     let out = hippo(&r, &["app", "install", "--version", "0.9.9"]);
     let said = text(&out);
     assert_eq!(out.status.code(), Some(0), "{said}");
+    // Not on a terminal: no bar, the size and time once it is done.
+    assert!(said.contains("Downloaded 0.0 MB in"), "{said}");
     assert!(
         said.contains("Checked Hippo-0.9.9-macos.tar.gz against its published sha256"),
         "{said}"
@@ -157,6 +164,55 @@ fn install_checks_records_and_uninstalls() {
     assert_eq!(gone.status.code(), Some(0), "{}", text(&gone));
     assert!(!app.exists());
     assert!(!r.home().join(".hippo/install.json").exists());
+}
+
+#[test]
+fn a_missing_release_says_how_to_retry() {
+    let r = release("0.9.9", "0.9.9");
+    let out = hippo(&r, &["app", "install", "--version", "0.9.7"]);
+    let said = text(&out);
+    assert_ne!(out.status.code(), Some(0), "{said}");
+    assert!(said.contains("the file is not there"), "{said}");
+    assert!(
+        said.contains(
+            "Nothing was installed; check the connection and run hippo app install again to retry"
+        ),
+        "{said}"
+    );
+    assert!(!r.apps().join("Hippo.app").exists());
+    assert_eq!(fs::read_dir(r.apps()).unwrap().count(), 0);
+}
+
+/// A server that accepts the connection and never answers: the download
+/// stops after the stall limit (2 s here, 30 s by default) with a message.
+#[test]
+fn a_stalled_download_times_out() {
+    let r = release("0.9.9", "0.9.9");
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        let mut held = Vec::new();
+        for c in listener.incoming().flatten() {
+            held.push(c);
+        }
+    });
+    let started = std::time::Instant::now();
+    let out = hippo_with(
+        &r,
+        &["app", "install", "--version", "0.9.9"],
+        &format!("http://127.0.0.1:{port}"),
+        &[("HIPPO_APP_DOWNLOAD_TIMEOUTS", "2,2")],
+    );
+    let said = text(&out);
+    assert_ne!(out.status.code(), Some(0), "{said}");
+    assert!(said.contains("the download timed out"), "{said}");
+    assert!(said.contains("no data for 2 s"), "{said}");
+    assert!(
+        said.contains("run hippo app install again to retry"),
+        "{said}"
+    );
+    assert!(started.elapsed() < std::time::Duration::from_secs(20));
+    assert!(!r.apps().join("Hippo.app").exists());
 }
 
 #[test]

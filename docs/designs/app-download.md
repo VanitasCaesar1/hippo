@@ -48,7 +48,7 @@ The release workflow gains a macOS job: Hippo.app built for `aarch64-apple-darwi
 `hippo app install [--version <v>] [--dir <folder>]`, `hippo app uninstall`, `hippo app status`. macOS only; elsewhere they say so and exit 1.
 
 - The version is the CLI's own unless `--version` names one. The source is `https://github.com/VanitasCaesar1/hippo/releases/download/v<version>/`, or `HIPPO_BASE_URL` (as for `install.sh`: a folder of release files, `file://` or `http://127.0.0.1:…` for tests).
-- Download: `curl -fsSL` into a new temporary folder. Unpack: `tar -xzf` there; the archive must hold exactly `Hippo.app/` with `Contents/MacOS/hippo-app` and an `Info.plist` whose `CFBundleShortVersionString` is the version asked for.
+- Download: `curl -fL` into a new temporary folder, with a progress bar on a terminal (a line with the size and time otherwise), a 15-second connect timeout and a 30-second stall limit (under 1 byte a second). A failed download says why (timed out, refused, no such release) and that running `hippo app install` again retries; nothing is installed. Unpack: `tar -xzf` there; the archive must hold exactly `Hippo.app/` with `Contents/MacOS/hippo-app` and an `Info.plist` whose `CFBundleShortVersionString` is the version asked for.
 - Install: the old bundle, if any, is moved aside, the new one moved into `--dir` (default `~/Applications`, created if missing), the old one deleted. Then the record. If Hippo is running, it says to quit and reopen it.
 - Uninstall removes only the path recorded, and only if its name is `Hippo.app`.
 

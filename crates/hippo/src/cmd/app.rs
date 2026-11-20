@@ -52,18 +52,90 @@ fn asset(version: &str) -> String {
     format!("Hippo-{version}-macos.tar.gz")
 }
 
-/// `curl -fsSL <url> -o <file>`.
-fn fetch(url: &str, file: &Path) -> Result<()> {
-    let out = Process::new("curl")
-        .args(["-fsSL", "--proto", "=https,http,file", url, "-o"])
+/// How long curl may take to connect, and how long a download may go with
+/// no data, in seconds. `HIPPO_APP_DOWNLOAD_TIMEOUTS=<connect>,<stall>`
+/// changes them (the tests use it).
+const CONNECT_SECS: u64 = 15;
+const STALL_SECS: u64 = 30;
+
+fn timeouts() -> (u64, u64) {
+    std::env::var("HIPPO_APP_DOWNLOAD_TIMEOUTS")
+        .ok()
+        .and_then(|v| {
+            let (c, s) = v.split_once(',')?;
+            Some((c.trim().parse().ok()?, s.trim().parse().ok()?))
+        })
+        .unwrap_or((CONNECT_SECS, STALL_SECS))
+}
+
+/// What a curl exit code means, in words.
+fn curl_failure(code: Option<i32>, connect: u64, stall: u64) -> String {
+    match code {
+        Some(28) => format!(
+            "the download timed out (no connection within {connect} s, or no data for {stall} s)"
+        ),
+        Some(6) => "the host's name could not be resolved".to_owned(),
+        Some(7) => "the connection was refused".to_owned(),
+        Some(22) => {
+            "the server answered with an error (is there a release of this version?)".to_owned()
+        }
+        Some(35 | 60) => "the secure connection failed".to_owned(),
+        Some(37) => "the file is not there".to_owned(),
+        Some(c) => format!("curl stopped with exit code {c}"),
+        None => "curl was stopped".to_owned(),
+    }
+}
+
+/// Download `url` to `file` with curl: a progress bar on a terminal when
+/// `progress`, a 15-second connect timeout and a 30-second stall limit.
+fn fetch(url: &str, file: &Path, progress: bool) -> Result<()> {
+    use std::io::IsTerminal as _;
+    let (connect, stall) = timeouts();
+    let bar = progress && std::io::stderr().is_terminal();
+    let mut cmd = Process::new("curl");
+    cmd.args(["-fL", "--proto", "=https,http,file"])
+        .args(["--connect-timeout", &connect.to_string()])
+        // Under 1 byte a second for `stall` seconds: a stalled download.
+        .args(["--speed-limit", "1", "--speed-time", &stall.to_string()])
+        .arg(if bar { "--progress-bar" } else { "-sS" })
+        .arg(url)
+        .arg("-o")
         .arg(file)
         .stdin(Stdio::null())
-        .output()
-        .map_err(|e| anyhow!("cannot run curl to download {url}: {e}"))?;
-    if !out.status.success() {
+        .stdout(Stdio::null());
+    let started = std::time::Instant::now();
+    let (status, stderr) = if bar {
+        let status = cmd
+            .stderr(Stdio::inherit())
+            .status()
+            .map_err(|e| anyhow!("cannot run curl to download {url}: {e}"))?;
+        (status, String::new())
+    } else {
+        let out = cmd
+            .output()
+            .map_err(|e| anyhow!("cannot run curl to download {url}: {e}"))?;
+        (
+            out.status,
+            String::from_utf8_lossy(&out.stderr).trim().to_owned(),
+        )
+    };
+    if !status.success() {
+        let why = curl_failure(status.code(), connect, stall);
+        let detail = if stderr.is_empty() {
+            String::new()
+        } else {
+            format!(" ({stderr})")
+        };
         bail!(
-            "could not download {url}: {}",
-            String::from_utf8_lossy(&out.stderr).trim()
+            "could not download {url}: {why}{detail}. Nothing was installed; check the connection and run hippo app install again to retry"
+        );
+    }
+    if progress && !bar {
+        let size = fs::metadata(file).map(|m| m.len()).unwrap_or(0);
+        println!(
+            "Downloaded {:.1} MB in {:.0} s",
+            size as f64 / 1_000_000.0,
+            started.elapsed().as_secs_f64().max(1.0)
         );
     }
     Ok(())
@@ -115,8 +187,8 @@ fn install_staged(
     println!("Downloading Hippo.app {version} from {base}/{name}");
     let tarball = stage.join(name);
     let sumfile = stage.join(format!("{name}.sha256"));
-    fetch(&format!("{base}/{name}"), &tarball)?;
-    fetch(&format!("{base}/{name}.sha256"), &sumfile)?;
+    fetch(&format!("{base}/{name}"), &tarball, true)?;
+    fetch(&format!("{base}/{name}.sha256"), &sumfile, false)?;
     let want = fs::read_to_string(&sumfile)?
         .split_whitespace()
         .next()

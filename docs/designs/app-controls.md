@@ -41,4 +41,4 @@ LongBridge's `gpui-component` (now `gpui-kit`, Apache-2.0) has the components ab
 | Two button kits with 26/30 and 28-point heights, radius 3 and 8 | One spec: 28/32/36, radius 8, focus ring, tab stop, disabled |
 | SF Mono for times, figures and percentages in the night views | The system font |
 
-Still SF Mono in the older views: their small capital captions (`kit::cap`) and some timestamps. A later pass moves them.
+Since 0.7.2 the older views' small capital captions (`kit::cap`) are in the system font too, medium weight. Some timestamps there are still SF Mono.

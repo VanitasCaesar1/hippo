@@ -1487,12 +1487,12 @@ mod run_tests {
 // The instrument look (docs/designs/app-instrument.md): labels, readouts,
 // meters, spec tables, marks and the scope band.
 
-/// A label: SF Mono capitals at 10.5 points.
+/// A label: capitals in the system font, medium, at 10.5 points.
 pub fn cap(look: &Look, text: &str, color: Hsla) -> gpui::Div {
     div()
         .flex_shrink_0()
-        .font_family(MONO)
         .text_size(look.text(10.5))
+        .font_weight(FontWeight::MEDIUM)
         .text_color(color)
         .whitespace_nowrap()
         .child(text.to_uppercase())
