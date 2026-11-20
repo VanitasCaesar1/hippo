@@ -35,7 +35,7 @@ use hippo_core::config::Workspace;
 use hippo_core::lessons::{Lesson, Status};
 use hippo_core::notes::{self, Link as NoteLink, LintFinding};
 use hippo_core::rollup::Rollup;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use time::{Duration, OffsetDateTime, UtcOffset};
 
 use super::{agent, count, Agent};
@@ -366,8 +366,10 @@ impl Layout {
         let zx = (w - 2. * pad).max(1.) / self.width.max(1.);
         let zy = (h - 2. * pad).max(1.) / self.height.max(1.);
         let z = zx.min(zy).clamp(MIN_ZOOM, 1.0);
-        let ox = -((w / z - self.width) / 2.);
-        let oy = -((h / z - self.height) / 2.).min(pad / z);
+        // Centred across and `pad` below the top; a map wider than the
+        // view at the smallest zoom starts `pad` from its left.
+        let ox = -((w / z - self.width) / 2.).max(pad / z);
+        let oy = -pad / z;
         (z, (ox, oy))
     }
 }
@@ -390,9 +392,122 @@ pub struct NotesMap {
     pub mid: Layout,
     #[serde(rename = "in")]
     pub inner: Layout,
+    /// The arrangement the layouts are made from, and the one hippo
+    /// chooses.
+    pub arrangement: Arrangement,
+    pub default_arrangement: Arrangement,
 }
 
 impl NotesMap {
+    /// The same map laid out from `arr` (settled first).
+    pub fn arranged(&self, arr: &Arrangement) -> NotesMap {
+        let arrangement = settle(&self.notes, &self.folders, arr);
+        let (out, mid, inner) = lay_out_in(&self.notes, &self.folders, &self.edges, &arrangement);
+        NotesMap {
+            out,
+            mid,
+            inner,
+            arrangement,
+            ..self.clone()
+        }
+    }
+
+    /// Whether the layout is a person's, not the default.
+    pub fn is_arranged(&self) -> bool {
+        self.arrangement != self.default_arrangement
+    }
+
+    /// The block a card stands for: a folder for a note in one.
+    pub fn block_of(&self, item: Item) -> Block {
+        match item {
+            Item::Folder(f) => Block::Folder(f),
+            Item::Note(i) if self.pinned(i) => Block::Note(i),
+            Item::Note(i) => self
+                .folders
+                .iter()
+                .position(|f| f.notes.contains(&i))
+                .map_or(Block::Note(i), Block::Folder),
+        }
+    }
+
+    /// A block's key in an [`Arrangement`].
+    pub fn key(&self, b: Block) -> String {
+        block_key(&self.notes, &self.folders, b)
+    }
+
+    /// A block's outline at `level`: a folder's frame (Mid, In) or card
+    /// (Out), a pinned note's card.
+    pub fn block_rect(&self, level: Level, b: Block) -> Option<Rect> {
+        let lay = self.layout(level);
+        match b {
+            Block::Note(i) => lay.card(Item::Note(i)).map(|c| c.rect),
+            Block::Folder(f) => lay
+                .frames
+                .iter()
+                .find(|x| x.0 == f)
+                .map(|x| x.1)
+                .or_else(|| lay.card(Item::Folder(f)).map(|c| c.rect)),
+        }
+    }
+
+    /// The block whose handle is under a map point at `level`: at Out any
+    /// card; at Mid and In a folder's name band or a pinned note's card.
+    pub fn handle_at(&self, level: Level, x: f32, y: f32) -> Option<Block> {
+        let lay = self.layout(level);
+        if level == Level::Out {
+            return lay.card_at(x, y).map(|c| self.block_of(c.item));
+        }
+        if let Some(c) = lay.card_at(x, y) {
+            return match c.item {
+                Item::Note(i) if self.pinned(i) => Some(Block::Note(i)),
+                _ => None,
+            };
+        }
+        lay.frames
+            .iter()
+            .find(|(_, r)| r.contains(x, y) && y < r.y + FRAME_HEAD)
+            .map(|(f, _)| Block::Folder(*f))
+    }
+
+    /// The block a key names.
+    pub fn block(&self, key: &str) -> Option<Block> {
+        block_named(&self.notes, &self.folders, key)
+    }
+
+    /// Where a block dropped at map point `(x, y)` of `level` lands: its
+    /// column and place among that column's other blocks, and where the
+    /// drop line goes. A point right of the last column is a new column.
+    pub fn drop_at(&self, level: Level, b: Block, x: f32, y: f32) -> Drop {
+        let key = self.key(b);
+        let n = self.arrangement.columns.len();
+        let col = ((x + COL_GAP / 2.) / (COL_W + COL_GAP)).floor().max(0.) as usize;
+        let col = col.min(n);
+        let others: Vec<Rect> = self
+            .arrangement
+            .columns
+            .get(col)
+            .map(|c| {
+                c.iter()
+                    .filter(|k| **k != key)
+                    .filter_map(|k| block_named(&self.notes, &self.folders, k))
+                    .filter_map(|o| self.block_rect(level, o))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let at = others.iter().filter(|r| r.y + r.h / 2. < y).count();
+        let line_y = match (at, others.len()) {
+            (_, 0) => 0.,
+            (0, _) => others[0].y - FRAME_GAP / 2.,
+            (k, _) => others[k - 1].bottom() + FRAME_GAP / 2.,
+        };
+        Drop {
+            col,
+            at,
+            y: line_y,
+            x: col_x(col),
+            new_column: col == n,
+        }
+    }
     pub fn layout(&self, level: Level) -> &Layout {
         match level {
             Level::Out => &self.out,
@@ -611,7 +726,8 @@ pub fn build(inp: &Inputs<'_>) -> NotesMap {
     let edges: Vec<(usize, usize)> = edges.into_iter().collect();
 
     let folders = folders(&notes_out);
-    let (out, mid, inner) = lay_out(&notes_out, &folders, &edges);
+    let arrangement = default_arrangement(&notes_out, &folders);
+    let (out, mid, inner) = lay_out_in(&notes_out, &folders, &edges, &arrangement);
 
     let n = notes_out.len();
     let fixed = notes_out.iter().filter(|n| n.flags.fixed).count();
@@ -690,6 +806,8 @@ pub fn build(inp: &Inputs<'_>) -> NotesMap {
         out,
         mid,
         inner,
+        default_arrangement: arrangement.clone(),
+        arrangement,
     }
 }
 
@@ -753,45 +871,156 @@ pub fn in_height(n: &MapNote) -> f32 {
         }
 }
 
-/// Where each folder goes: its first column, how many columns it spans,
-/// and its notes in column-major order.
-struct Placed {
-    folder: usize,
-    col: usize,
-    span: usize,
-    /// Notes per sub-column.
-    per: usize,
+/// A person's order of the map: its columns left to right, each its
+/// blocks top to bottom, by key (`note:<path>` for a note read in every
+/// session, `folder:<name>` for a folder; see [`block_key`]). Every level
+/// is laid out from one, so a block keeps its column at every zoom.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Arrangement {
+    pub columns: Vec<Vec<String>>,
 }
 
-/// Lays out all three levels.
-pub fn lay_out(
-    notes: &[MapNote],
-    folders: &[Folder],
-    edges: &[(usize, usize)],
-) -> (Layout, Layout, Layout) {
+/// What can be arranged: a note read in every session, or a folder (with
+/// its notes, which stay in it).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Block {
+    Note(usize),
+    Folder(usize),
+}
+
+/// Where a dragged block lands: its column and its place among that
+/// column's other blocks; the drop line's y and its column's left edge (it
+/// is a column wide); and whether the column is a new one at the right.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Drop {
+    pub col: usize,
+    pub at: usize,
+    pub y: f32,
+    pub x: f32,
+    pub new_column: bool,
+}
+
+/// A one-key move of a block.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Nudge {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+/// A block's key in an [`Arrangement`].
+pub fn block_key(notes: &[MapNote], folders: &[Folder], b: Block) -> String {
+    match b {
+        Block::Note(i) => format!("note:{}", notes[i].path.display()),
+        Block::Folder(f) => format!("folder:{}", folders[f].name),
+    }
+}
+
+impl Arrangement {
+    /// Where `key` is: its column and its place in it.
+    pub fn find(&self, key: &str) -> Option<(usize, usize)> {
+        self.columns
+            .iter()
+            .enumerate()
+            .find_map(|(c, col)| col.iter().position(|k| k == key).map(|r| (c, r)))
+    }
+
+    /// Every key, column by column.
+    pub fn keys(&self) -> impl Iterator<Item = &String> {
+        self.columns.iter().flatten()
+    }
+
+    /// `key` moved to column `col` at place `at` (counted among the
+    /// column's other blocks). A column past the last makes a new one at
+    /// the right; a column left empty goes.
+    pub fn move_to(&self, key: &str, col: usize, at: usize) -> Arrangement {
+        let mut columns = self.columns.clone();
+        if self.find(key).is_none() {
+            return self.clone();
+        }
+        for c in &mut columns {
+            c.retain(|k| k != key);
+        }
+        if col >= columns.len() {
+            columns.push(vec![key.to_owned()]);
+        } else {
+            let at = at.min(columns[col].len());
+            columns[col].insert(at, key.to_owned());
+        }
+        columns.retain(|c| !c.is_empty());
+        Arrangement { columns }
+    }
+
+    /// `key` moved one column left or right (keeping its place where the
+    /// column has room), or one place up or down.
+    pub fn nudge(&self, key: &str, n: Nudge) -> Arrangement {
+        let Some((c, r)) = self.find(key) else {
+            return self.clone();
+        };
+        match n {
+            Nudge::Left if c > 0 => self.move_to(key, c - 1, r),
+            Nudge::Right if !(c + 1 == self.columns.len() && self.columns[c].len() == 1) => {
+                self.move_to(key, c + 1, r)
+            }
+            Nudge::Up if r > 0 => self.move_to(key, c, r - 1),
+            Nudge::Down if r + 1 < self.columns[c].len() => self.move_to(key, c, r + 1),
+            _ => self.clone(),
+        }
+    }
+}
+
+/// The notes read in every session, the entry note first.
+fn pinned_of(notes: &[MapNote]) -> Vec<usize> {
+    let mut p: Vec<usize> = (0..notes.len())
+        .filter(|i| notes[*i].flags.entry || notes[*i].flags.required)
+        .collect();
+    p.sort_by_key(|i| (!notes[*i].flags.entry, notes[*i].title.clone()));
+    p
+}
+
+/// How many columns hippo chooses, and how many notes a folder's frame
+/// holds per column at Mid and In.
+#[derive(Debug, Clone, Copy)]
+struct Plan {
+    cols: usize,
+    per_col: usize,
+}
+
+fn plan(notes: &[MapNote], folders: &[Folder]) -> Plan {
     let n_notes = folders.iter().map(|f| f.notes.len()).sum::<usize>().max(1);
-    let pinned: Vec<usize> = {
-        let mut p: Vec<usize> = (0..notes.len())
-            .filter(|i| notes[*i].flags.entry || notes[*i].flags.required)
-            .collect();
-        p.sort_by_key(|i| (!notes[*i].flags.entry, notes[*i].title.clone()));
-        p
-    };
+    let pinned = pinned_of(notes).len();
     // Columns for a map about 1.6 times as wide as it is high.
-    let cols = ((0.49 * (n_notes + pinned.len()) as f32).sqrt().round() as usize).clamp(2, 24);
+    let cols = ((0.49 * (n_notes + pinned) as f32).sqrt().round() as usize).clamp(2, 24);
     let per_col = n_notes.div_ceil(cols.saturating_sub(1).max(1)).max(4);
-    let mid_h = |_: usize| CARD_H;
-    let mut heights = vec![0f32; cols];
+    Plan { cols, per_col }
+}
+
+/// The columns a folder's frame spans at Mid and In.
+fn span_of(f: &Folder, plan: Plan) -> usize {
+    f.notes.len().div_ceil(plan.per_col).clamp(1, plan.cols)
+}
+
+/// The layout hippo chooses: the notes in every session in the first
+/// column, then each folder, largest first, into the run of columns whose
+/// tallest is lowest at Mid.
+pub fn default_arrangement(notes: &[MapNote], folders: &[Folder]) -> Arrangement {
+    let plan = plan(notes, folders);
+    let pinned = pinned_of(notes);
+    let mut columns: Vec<Vec<String>> = vec![Vec::new(); plan.cols];
+    let mut heights = vec![0f32; plan.cols];
+    for &i in &pinned {
+        columns[0].push(block_key(notes, folders, Block::Note(i)));
+    }
     if !pinned.is_empty() {
         heights[0] = pinned.len() as f32 * (CARD_H + GAP) - GAP + FRAME_GAP;
     }
-    let mut placed: Vec<Placed> = Vec::new();
     for (fi, f) in folders.iter().enumerate() {
-        let span = f.notes.len().div_ceil(per_col).clamp(1, cols);
+        let span = span_of(f, plan);
         let per = f.notes.len().div_ceil(span);
-        // The leftmost run of `span` columns whose tallest is lowest.
         let mut best = (0usize, f32::MAX);
-        for c in 0..=(cols - span) {
+        for c in 0..=(plan.cols - span) {
             let top = heights[c..c + span].iter().cloned().fold(0., f32::max);
             if top < best.1 - 0.5 {
                 best = (c, top);
@@ -802,19 +1031,76 @@ pub fn lay_out(
         for hh in &mut heights[col..col + span] {
             *hh = top + h + FRAME_GAP;
         }
-        placed.push(Placed {
-            folder: fi,
-            col,
-            span,
-            per,
-        });
+        columns[col].push(block_key(notes, folders, Block::Folder(fi)));
     }
-    let mid = place(notes, folders, &pinned, &placed, edges, &mid_h);
-    let inner = place(notes, folders, &pinned, &placed, edges, &|i| {
-        in_height(&notes[i])
-    });
-    let out = place_out(notes, folders, &pinned, cols, edges);
-    (out, mid, inner)
+    columns.retain(|c| !c.is_empty());
+    Arrangement { columns }
+}
+
+/// `arr` holding every block once: keys that name no block dropped (a
+/// folder renamed or gone), a block it lacks at the foot of its default
+/// column, empty columns dropped.
+pub fn settle(notes: &[MapNote], folders: &[Folder], arr: &Arrangement) -> Arrangement {
+    let known: BTreeSet<String> = blocks(notes, folders)
+        .into_iter()
+        .map(|b| block_key(notes, folders, b))
+        .collect();
+    let mut seen = BTreeSet::new();
+    let mut columns: Vec<Vec<String>> = arr
+        .columns
+        .iter()
+        .map(|c| {
+            c.iter()
+                .filter(|k| known.contains(*k) && seen.insert((*k).clone()))
+                .cloned()
+                .collect()
+        })
+        .collect();
+    let default = default_arrangement(notes, folders);
+    for (dc, col) in default.columns.iter().enumerate() {
+        for k in col {
+            if !seen.contains(k) {
+                while columns.len() <= dc {
+                    columns.push(Vec::new());
+                }
+                columns[dc].push(k.clone());
+                seen.insert(k.clone());
+            }
+        }
+    }
+    columns.retain(|c| !c.is_empty());
+    Arrangement { columns }
+}
+
+/// Every block: the notes in every session, then the folders.
+fn blocks(notes: &[MapNote], folders: &[Folder]) -> Vec<Block> {
+    pinned_of(notes)
+        .into_iter()
+        .map(Block::Note)
+        .chain((0..folders.len()).map(Block::Folder))
+        .collect()
+}
+
+/// Lays out all three levels the way hippo chooses.
+pub fn lay_out(
+    notes: &[MapNote],
+    folders: &[Folder],
+    edges: &[(usize, usize)],
+) -> (Layout, Layout, Layout) {
+    lay_out_in(notes, folders, edges, &default_arrangement(notes, folders))
+}
+
+/// Lays out all three levels from an arrangement (settled first).
+pub fn lay_out_in(
+    notes: &[MapNote],
+    folders: &[Folder],
+    edges: &[(usize, usize)],
+    arr: &Arrangement,
+) -> (Layout, Layout, Layout) {
+    let arr = settle(notes, folders, arr);
+    let plan = plan(notes, folders);
+    let go = |level| pack(level, notes, folders, edges, &arr, plan);
+    (go(Level::Out), go(Level::Mid), go(Level::In))
 }
 
 fn col_x(c: usize) -> f32 {
@@ -853,114 +1139,308 @@ pub fn tone_of(flags: &Flags) -> &'static str {
     }
 }
 
-/// Places cards and frames from the column plan, with `height` per note
-/// (Mid and In).
-fn place(
-    notes: &[MapNote],
-    folders: &[Folder],
-    pinned: &[usize],
-    placed: &[Placed],
-    edges: &[(usize, usize)],
-    height: &dyn Fn(usize) -> f32,
-) -> Layout {
-    let mut cards = Vec::new();
-    let mut frames = Vec::new();
-    let mut labels = Vec::new();
-    let cols = placed
-        .iter()
-        .map(|p| p.col + p.span)
-        .max()
-        .unwrap_or(1)
-        .max(1);
-    let mut bottom = vec![0f32; cols.max(1)];
-    let mut y = 0.;
-    for &i in pinned {
-        let h = height(i);
-        cards.push(Card {
-            item: Item::Note(i),
-            rect: Rect::new(FRAME_PAD, y, CARD_W, h),
-        });
-        y += h + GAP;
+/// One block drawn at one level from its column's left edge and its top:
+/// how many columns it spans, how high it is, and what it draws.
+#[derive(Default)]
+struct Drawn {
+    span: usize,
+    h: f32,
+    pinned: bool,
+    frames: Vec<(usize, Rect)>,
+    cards: Vec<Card>,
+    labels: Vec<Label>,
+    marks: Vec<Mark>,
+}
+
+impl Drawn {
+    fn moved(mut self, dx: f32, dy: f32) -> Drawn {
+        let mv = |r: &mut Rect| {
+            r.x += dx;
+            r.y += dy;
+        };
+        self.frames.iter_mut().for_each(|f| mv(&mut f.1));
+        self.cards.iter_mut().for_each(|c| mv(&mut c.rect));
+        self.labels.iter_mut().for_each(|l| mv(&mut l.rect));
+        for m in &mut self.marks {
+            m.x += dx;
+            m.y += dy;
+        }
+        self
     }
-    if !pinned.is_empty() {
-        bottom[0] = y - GAP + FRAME_GAP;
-    }
-    for p in placed {
-        let f = &folders[p.folder];
-        let top = bottom[p.col..p.col + p.span]
-            .iter()
-            .cloned()
-            .fold(0., f32::max);
-        let x = col_x(p.col);
-        let w = col_x(p.col + p.span - 1) + COL_W - x;
-        let mut sub_bottom = top + FRAME_HEAD;
-        for (k, chunk) in f.notes.chunks(p.per.max(1)).enumerate() {
-            let mut cy = top + FRAME_HEAD;
-            for &i in chunk {
-                let h = height(i);
-                cards.push(Card {
-                    item: Item::Note(i),
-                    rect: Rect::new(col_x(p.col + k) + FRAME_PAD, cy, CARD_W, h),
-                });
-                cy += h + GAP;
+}
+
+/// A note card's title, beside its icon (Mid and In).
+fn title_of(c: &Card, notes: &[MapNote]) -> Option<Label> {
+    let Item::Note(i) = c.item else {
+        return None;
+    };
+    let x = c.rect.x + 16. + 18. + 10.;
+    Some(label(
+        c.item,
+        LabelKind::Title,
+        &notes[i].title,
+        x,
+        c.rect.y + 16.,
+        c.rect.right() - 16. - x,
+        16.,
+        12.,
+        1,
+    ))
+}
+
+/// Draws block `b` at `level` from (0, 0).
+fn draw(level: Level, b: Block, notes: &[MapNote], folders: &[Folder], plan: Plan) -> Drawn {
+    let height = |i: usize| {
+        if level == Level::In {
+            in_height(&notes[i])
+        } else {
+            CARD_H
+        }
+    };
+    let mut d = Drawn {
+        span: 1,
+        pinned: matches!(b, Block::Note(_)),
+        ..Drawn::default()
+    };
+    match (level, b) {
+        (Level::Out, Block::Note(i)) => {
+            let n = &notes[i];
+            let mut legend: Vec<(String, Option<&'static str>)> = Vec::new();
+            if let Some((words, _)) = n.flags.chip() {
+                legend.push((words, Some(tone_of(&n.flags))));
             }
-            sub_bottom = sub_bottom.max(cy - GAP);
+            legend.push((n.reads_label(), None));
+            let item = Item::Note(i);
+            d.h = out_card(
+                item,
+                &n.title,
+                &legend,
+                &[],
+                0,
+                0.,
+                0.,
+                &mut d.labels,
+                &mut d.marks,
+            );
+            d.cards.push(Card {
+                item,
+                rect: Rect::new(0., 0., COL_W, d.h),
+            });
         }
-        let frame = Rect::new(x, top, w, sub_bottom + FRAME_PAD - top);
-        frames.push((p.folder, frame));
-        // The frame's name on the left, its count on the right.
-        let item = Item::Folder(p.folder);
-        let count = count(f.notes.len(), "note", "notes");
-        let cw = super::fit::width(&count, 13., false);
-        let name = if f.name.is_empty() { "Notes" } else { &f.name };
-        let name_w = w - 2. * FRAME_PAD - cw - 16.;
-        labels.push(label(
-            item,
-            LabelKind::Frame,
-            name,
-            x + FRAME_PAD,
-            top + 11.,
-            name_w,
-            14.5,
-            11.,
-            1,
-        ));
-        labels.push(label(
-            item,
-            LabelKind::Count,
-            &count,
-            x + w - FRAME_PAD - cw,
-            top + 13.,
-            cw,
-            13.,
-            13.,
-            1,
-        ));
-        for b in &mut bottom[p.col..p.col + p.span] {
-            *b = frame.bottom() + FRAME_GAP;
+        (Level::Out, Block::Folder(fi)) => {
+            let f = &folders[fi];
+            let mut legend: Vec<(String, Option<&'static str>)> =
+                vec![(count(f.notes.len(), "note", "notes"), None)];
+            for (n, words, tone) in [
+                (f.fixed, ("fixed", "fixed"), "ok"),
+                (f.waiting, ("rule waiting", "rules waiting"), "you"),
+                (f.rejected, ("rejected", "rejected"), "bad"),
+                (f.stale, ("stale", "stale"), "faint"),
+            ] {
+                if n > 0 {
+                    legend.push((
+                        format!("{n} {}", if n == 1 { words.0 } else { words.1 }),
+                        Some(tone),
+                    ));
+                }
+            }
+            let shown = if f.notes.len() > OUT_ROWS {
+                OUT_ROWS - 1
+            } else {
+                f.notes.len()
+            };
+            let rows: Vec<(String, &'static str)> = f.notes[..shown]
+                .iter()
+                .map(|&i| (notes[i].title.clone(), tone_of(&notes[i].flags)))
+                .collect();
+            let item = Item::Folder(fi);
+            let name = if f.name.is_empty() { "Notes" } else { &f.name };
+            d.h = out_card(
+                item,
+                name,
+                &legend,
+                &rows,
+                f.notes.len() - shown,
+                0.,
+                0.,
+                &mut d.labels,
+                &mut d.marks,
+            );
+            d.cards.push(Card {
+                item,
+                rect: Rect::new(0., 0., COL_W, d.h),
+            });
         }
-    }
-    // Each note card's title, beside its icon.
-    for c in &cards {
-        if let Item::Note(i) = c.item {
-            let x = c.rect.x + 16. + 18. + 10.;
-            labels.push(label(
-                c.item,
-                LabelKind::Title,
-                &notes[i].title,
-                x,
-                c.rect.y + 16.,
-                c.rect.right() - 16. - x,
-                16.,
-                12.,
+        (_, Block::Note(i)) => {
+            let card = Card {
+                item: Item::Note(i),
+                rect: Rect::new(FRAME_PAD, 0., CARD_W, height(i)),
+            };
+            d.h = card.rect.h;
+            d.labels.extend(title_of(&card, notes));
+            d.cards.push(card);
+        }
+        (_, Block::Folder(fi)) => {
+            let f = &folders[fi];
+            let span = span_of(f, plan);
+            let per = f.notes.len().div_ceil(span).max(1);
+            let w = col_x(span - 1) + COL_W;
+            let mut sub_bottom = FRAME_HEAD;
+            for (k, chunk) in f.notes.chunks(per).enumerate() {
+                let mut cy = FRAME_HEAD;
+                for &i in chunk {
+                    let h = height(i);
+                    d.cards.push(Card {
+                        item: Item::Note(i),
+                        rect: Rect::new(col_x(k) + FRAME_PAD, cy, CARD_W, h),
+                    });
+                    cy += h + GAP;
+                }
+                sub_bottom = sub_bottom.max(cy - GAP);
+            }
+            let frame = Rect::new(0., 0., w, sub_bottom + FRAME_PAD);
+            d.frames.push((fi, frame));
+            // The frame's name on the left, its count on the right.
+            let item = Item::Folder(fi);
+            let count = count(f.notes.len(), "note", "notes");
+            let cw = super::fit::width(&count, 13., false);
+            let name = if f.name.is_empty() { "Notes" } else { &f.name };
+            d.labels.push(label(
+                item,
+                LabelKind::Frame,
+                name,
+                FRAME_PAD,
+                11.,
+                w - 2. * FRAME_PAD - cw - 16.,
+                14.5,
+                11.,
                 1,
             ));
+            d.labels.push(label(
+                item,
+                LabelKind::Count,
+                &count,
+                w - FRAME_PAD - cw,
+                13.,
+                cw,
+                13.,
+                13.,
+                1,
+            ));
+            let titles: Vec<Label> = d.cards.iter().filter_map(|c| title_of(c, notes)).collect();
+            d.labels.extend(titles);
+            d.span = span;
+            d.h = frame.h;
         }
     }
+    d
+}
+
+/// The block a key names.
+fn block_named(notes: &[MapNote], folders: &[Folder], key: &str) -> Option<Block> {
+    if let Some(name) = key.strip_prefix("folder:") {
+        folders
+            .iter()
+            .position(|f| f.name == name)
+            .map(Block::Folder)
+    } else {
+        let path = key.strip_prefix("note:")?;
+        notes
+            .iter()
+            .position(|n| n.path.display().to_string() == path)
+            .map(Block::Note)
+    }
+}
+
+/// Lays out one level from a settled arrangement. Among the columns' next
+/// blocks it takes the one that would sit highest (the leftmost on a tie)
+/// and puts it below everything already in each column it spans.
+fn pack(
+    level: Level,
+    notes: &[MapNote],
+    folders: &[Folder],
+    edges: &[(usize, usize)],
+    arr: &Arrangement,
+    plan: Plan,
+) -> Layout {
+    let mut columns: Vec<Vec<Drawn>> = arr
+        .columns
+        .iter()
+        .map(|c| {
+            c.iter()
+                .filter_map(|k| block_named(notes, folders, k))
+                .map(|b| draw(level, b, notes, folders, plan))
+                .collect()
+        })
+        .collect();
+    for c in &mut columns {
+        c.reverse();
+    }
+    let width = columns
+        .iter()
+        .enumerate()
+        .flat_map(|(c, col)| {
+            col.iter()
+                .map(move |d| c + if level == Level::Out { 1 } else { d.span })
+        })
+        .max()
+        .unwrap_or(1);
+    // Each column's foot and whether its last block is a note.
+    let mut foot: Vec<Option<(f32, bool)>> = vec![None; width.max(1)];
+    let gap = |prev: bool, this: bool| match level {
+        Level::Out => OUT_GAP,
+        _ if prev && this => GAP,
+        _ => FRAME_GAP,
+    };
+    let (mut frames, mut cards, mut labels, mut marks) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    loop {
+        let mut best: Option<(usize, f32)> = None;
+        for (c, col) in columns.iter().enumerate() {
+            let Some(d) = col.last() else {
+                continue;
+            };
+            let span = if level == Level::Out { 1 } else { d.span };
+            let top = foot[c..c + span]
+                .iter()
+                .map(|f| f.map_or(0., |(y, p)| y + gap(p, d.pinned)))
+                .fold(0., f32::max);
+            if best.is_none_or(|(_, t)| top < t - 0.5) {
+                best = Some((c, top));
+            }
+        }
+        let Some((c, top)) = best else {
+            break;
+        };
+        let d = columns[c].pop().expect("a next block").moved(col_x(c), top);
+        let span = if level == Level::Out { 1 } else { d.span };
+        for f in &mut foot[c..c + span] {
+            *f = Some((top + d.h, d.pinned));
+        }
+        frames.extend(d.frames);
+        cards.extend(d.cards);
+        labels.extend(d.labels);
+        marks.extend(d.marks);
+    }
     let rect_of: HashMap<Item, Rect> = cards.iter().map(|c| (c.item, c.rect)).collect();
+    let folder_of: HashMap<usize, usize> = folders
+        .iter()
+        .enumerate()
+        .flat_map(|(fi, f)| f.notes.iter().map(move |&i| (i, fi)))
+        .collect();
+    let lift = |i: usize| match level {
+        Level::Out => folder_of
+            .get(&i)
+            .map_or(Item::Note(i), |&f| Item::Folder(f)),
+        _ => Item::Note(i),
+    };
+    // One line per pair of cards, counting the links it stands for.
     let mut pairs: BTreeMap<(Item, Item), usize> = BTreeMap::new();
     for &(a, b) in edges {
-        let (ia, ib) = (Item::Note(a), Item::Note(b));
+        let (ia, ib) = (lift(a), lift(b));
+        if ia == ib {
+            continue;
+        }
         let key = if pairs.contains_key(&(ib, ia)) {
             (ib, ia)
         } else {
@@ -968,8 +1448,8 @@ fn place(
         };
         *pairs.entry(key).or_default() += 1;
     }
-    let lines = route(&pairs, &rect_of, Some(4. * CARD_H));
-    finish(frames, cards, lines, labels, Vec::new())
+    let lines = route(&pairs, &rect_of);
+    finish(frames, cards, lines, labels, marks)
 }
 
 /// The layout's size around what it holds.
@@ -1129,122 +1609,6 @@ fn out_card(
     cy + OUT_PAD - y
 }
 
-/// Out: a card per pinned note in the first column, then a card per
-/// folder in whichever of `cols` columns is shortest, none spanning two.
-fn place_out(
-    notes: &[MapNote],
-    folders: &[Folder],
-    pinned: &[usize],
-    cols: usize,
-    edges: &[(usize, usize)],
-) -> Layout {
-    let mut cards = Vec::new();
-    let mut labels = Vec::new();
-    let mut marks = Vec::new();
-    let mut heights = vec![0f32; cols.max(1)];
-    for &i in pinned {
-        let n = &notes[i];
-        let mut legend: Vec<(String, Option<&'static str>)> = Vec::new();
-        if let Some((words, _)) = n.flags.chip() {
-            legend.push((words, Some(tone_of(&n.flags))));
-        }
-        legend.push((n.reads_label(), None));
-        let item = Item::Note(i);
-        let y = heights[0];
-        let h = out_card(
-            item,
-            &n.title,
-            &legend,
-            &[],
-            0,
-            col_x(0),
-            y,
-            &mut labels,
-            &mut marks,
-        );
-        cards.push(Card {
-            item,
-            rect: Rect::new(col_x(0), y, COL_W, h),
-        });
-        heights[0] = y + h + OUT_GAP;
-    }
-    for (fi, f) in folders.iter().enumerate() {
-        let col = (0..heights.len())
-            .min_by(|a, b| heights[*a].total_cmp(&heights[*b]).then(a.cmp(b)))
-            .unwrap_or(0);
-        let mut legend: Vec<(String, Option<&'static str>)> =
-            vec![(count(f.notes.len(), "note", "notes"), None)];
-        for (n, words, tone) in [
-            (f.fixed, ("fixed", "fixed"), "ok"),
-            (f.waiting, ("rule waiting", "rules waiting"), "you"),
-            (f.rejected, ("rejected", "rejected"), "bad"),
-            (f.stale, ("stale", "stale"), "faint"),
-        ] {
-            if n > 0 {
-                legend.push((
-                    format!("{n} {}", if n == 1 { words.0 } else { words.1 }),
-                    Some(tone),
-                ));
-            }
-        }
-        let shown = if f.notes.len() > OUT_ROWS {
-            OUT_ROWS - 1
-        } else {
-            f.notes.len()
-        };
-        let rows: Vec<(String, &'static str)> = f.notes[..shown]
-            .iter()
-            .map(|&i| (notes[i].title.clone(), tone_of(&notes[i].flags)))
-            .collect();
-        let item = Item::Folder(fi);
-        let name = if f.name.is_empty() { "Notes" } else { &f.name };
-        let (x, y) = (col_x(col), heights[col]);
-        let h = out_card(
-            item,
-            name,
-            &legend,
-            &rows,
-            f.notes.len() - shown,
-            x,
-            y,
-            &mut labels,
-            &mut marks,
-        );
-        cards.push(Card {
-            item,
-            rect: Rect::new(x, y, COL_W, h),
-        });
-        heights[col] = y + h + OUT_GAP;
-    }
-    let rect_of: HashMap<Item, Rect> = cards.iter().map(|c| (c.item, c.rect)).collect();
-    let folder_of: HashMap<usize, usize> = folders
-        .iter()
-        .enumerate()
-        .flat_map(|(fi, f)| f.notes.iter().map(move |&i| (i, fi)))
-        .collect();
-    let lift = |i: usize| {
-        folder_of
-            .get(&i)
-            .map_or(Item::Note(i), |&f| Item::Folder(f))
-    };
-    // One line per pair of cards, counting the links it stands for.
-    let mut pairs: BTreeMap<(Item, Item), usize> = BTreeMap::new();
-    for &(a, b) in edges {
-        let (ia, ib) = (lift(a), lift(b));
-        if ia == ib {
-            continue;
-        }
-        let key = if pairs.contains_key(&(ib, ia)) {
-            (ib, ia)
-        } else {
-            (ia, ib)
-        };
-        *pairs.entry(key).or_default() += 1;
-    }
-    let lines = route(&pairs, &rect_of, None);
-    finish(Vec::new(), cards, lines, labels, marks)
-}
-
 /// The gap left of column `g`: where its lanes may go, frame to frame
 /// with a margin.
 fn gap_span(g: usize) -> (f32, f32) {
@@ -1270,17 +1634,12 @@ fn gap_before(x: f32) -> usize {
 /// cross at the card. A line turns in the gap next to one of its cards;
 /// when its straight run across the columns between would cross a card,
 /// it turns in the gaps next to both and crosses in a free channel between
-/// cards (below them when no gap between them lines up; at Mid and In
-/// only a channel within `reach` of its ends, else the run stays). Every
+/// cards (below them when no gap between them lines up). Every
 /// vertical run in a gap gets a lane of its own: brackets (two cards in
 /// one column) nearest the column they join, shortest innermost; then the
 /// rest, longest first, so a line's horizontal run does not cross the
 /// lanes of lines that turn after it.
-fn route(
-    pairs: &BTreeMap<(Item, Item), usize>,
-    rect_of: &HashMap<Item, Rect>,
-    reach: Option<f32>,
-) -> Vec<Line> {
+fn route(pairs: &BTreeMap<(Item, Item), usize>, rect_of: &HashMap<Item, Rect>) -> Vec<Line> {
     #[derive(Clone, Copy, PartialEq)]
     enum Kind {
         /// Both ends on their cards' right edges.
@@ -1434,13 +1793,6 @@ fn route(
             })
             .min_by(|a, b| (a - want).abs().total_cmp(&(b - want).abs()))
             .unwrap_or(want);
-        // At Mid and In a channel far from both ends would draw a long
-        // detour across the map: the straight run stays, under the cards.
-        if let Some(reach) = reach {
-            if yc < p.ya.min(p.yb) - reach || yc > p.ya.max(p.yb) + reach {
-                continue;
-            }
-        }
         taken.push((cx0, cx1, yc));
         p.gap = ga;
         p.via = Some((gb, yc, 0.));
@@ -1597,7 +1949,8 @@ pub fn synthetic(n: usize, n_folders: usize, links: usize) -> NotesMap {
     }
     let edges: Vec<(usize, usize)> = edges.into_iter().collect();
     let folders = folders(&notes);
-    let (out, mid, inner) = lay_out(&notes, &folders, &edges);
+    let arrangement = default_arrangement(&notes, &folders);
+    let (out, mid, inner) = lay_out_in(&notes, &folders, &edges, &arrangement);
     NotesMap {
         kicker: format!("Brain · {n} notes"),
         headline: "A synthetic map".into(),
@@ -1608,12 +1961,138 @@ pub fn synthetic(n: usize, n_folders: usize, links: usize) -> NotesMap {
         out,
         mid,
         inner,
+        default_arrangement: arrangement.clone(),
+        arrangement,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_default_arrangement_lays_out_the_default_map() {
+        let m = synthetic(60, 6, 80);
+        let again = m.arranged(&m.default_arrangement);
+        assert_eq!(again.mid, m.mid);
+        assert_eq!(again.out, m.out);
+        assert!(!again.is_arranged());
+        // Every block once.
+        let keys: Vec<&String> = m.default_arrangement.keys().collect();
+        let set: BTreeSet<&String> = keys.iter().copied().collect();
+        assert_eq!(keys.len(), set.len());
+        assert_eq!(keys.len(), 1 + m.folders.len());
+    }
+
+    #[test]
+    fn settle_keeps_every_block_once_and_drops_what_is_gone() {
+        let m = demo_shaped();
+        let mut arr = m.default_arrangement.clone();
+        arr.columns[0].insert(0, "folder:Gone".into());
+        arr.columns.push(vec!["folder:Runbooks".into()]);
+        arr.columns.push(Vec::new());
+        // A block missing altogether comes back in its default column.
+        let missing = m.key(Block::Folder(0));
+        for c in &mut arr.columns {
+            c.retain(|k| *k != missing);
+        }
+        let s = settle(&m.notes, &m.folders, &arr);
+        let keys: Vec<&String> = s.keys().collect();
+        assert!(!keys.iter().any(|k| *k == "folder:Gone"));
+        assert_eq!(keys.iter().filter(|k| **k == "folder:Runbooks").count(), 1);
+        assert!(keys.contains(&&missing));
+        assert_eq!(keys.len(), m.default_arrangement.keys().count());
+        assert!(s.columns.iter().all(|c| !c.is_empty()));
+    }
+
+    #[test]
+    fn moves_keep_every_block_once_and_do_what_they_say() {
+        let m = demo_shaped();
+        let a = m.default_arrangement.clone();
+        let key = m.key(Block::Folder(1));
+        let (c, _) = a.find(&key).unwrap();
+        // Into a new column at the right.
+        let b = a.move_to(&key, a.columns.len(), 0);
+        assert_eq!(b.find(&key), Some((b.columns.len() - 1, 0)));
+        assert_eq!(b.keys().count(), a.keys().count());
+        // Left, then back right.
+        let l = b.nudge(&key, Nudge::Left);
+        assert_eq!(l.find(&key).unwrap().0, b.columns.len() - 2);
+        // Up and down within a column.
+        let top = a.columns[0][0].clone();
+        let down = a.nudge(&top, Nudge::Down);
+        assert_eq!(down.find(&top), Some((0, 1)));
+        assert_eq!(down.nudge(&top, Nudge::Up), a);
+        // At the edges a nudge does nothing.
+        assert_eq!(a.nudge(&top, Nudge::Up), a);
+        assert_eq!(a.nudge(&top, Nudge::Left), a);
+        let _ = c;
+        // The arranged map is a person's.
+        assert!(m.arranged(&b).is_arranged());
+    }
+
+    #[test]
+    fn a_block_keeps_its_column_at_every_zoom() {
+        let m = demo_shaped();
+        let arr = random_arrangement(&m, 5);
+        let a = m.arranged(&arr);
+        for (c, col) in a.arrangement.columns.iter().enumerate() {
+            for k in col {
+                let b = block_named(&a.notes, &a.folders, k).unwrap();
+                for level in [Level::Out, Level::Mid, Level::In] {
+                    let r = a.block_rect(level, b).unwrap();
+                    let x = if matches!(b, Block::Note(_)) && level != Level::Out {
+                        r.x - FRAME_PAD
+                    } else {
+                        r.x
+                    };
+                    assert_eq!(x, col_x(c), "{k} at {level:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn handles_and_drops() {
+        let m = demo_shaped();
+        let f = m.folders.iter().position(|f| f.name == "Runbooks").unwrap();
+        let fr = m.block_rect(Level::Mid, Block::Folder(f)).unwrap();
+        // The name band lifts the folder; a note in it does not.
+        assert_eq!(
+            m.handle_at(Level::Mid, fr.x + 30., fr.y + 10.),
+            Some(Block::Folder(f))
+        );
+        let note = m
+            .mid
+            .cards
+            .iter()
+            .find(|c| {
+                m.folders[f].notes.contains(&match c.item {
+                    Item::Note(i) => i,
+                    _ => usize::MAX,
+                })
+            })
+            .unwrap();
+        assert_eq!(
+            m.handle_at(Level::Mid, note.rect.x + 5., note.rect.y + 5.),
+            None
+        );
+        // At Out the whole card lifts it.
+        let oc = m.out.card(Item::Folder(f)).unwrap().rect;
+        assert_eq!(
+            m.handle_at(Level::Out, oc.x + 5., oc.bottom() - 5.),
+            Some(Block::Folder(f))
+        );
+        // Dropped right of every column: a new column.
+        let d = m.drop_at(Level::Out, Block::Folder(f), m.out.width + 200., 10.);
+        assert_eq!(
+            (d.col, d.at, d.new_column),
+            (m.arrangement.columns.len(), 0, true)
+        );
+        // Dropped above the first block of column 0: its top.
+        let d = m.drop_at(Level::Out, Block::Folder(f), 10., -50.);
+        assert_eq!((d.col, d.at, d.new_column), (0, 0, false));
+    }
 
     #[test]
     fn levels_follow_the_zoom() {
@@ -1754,17 +2233,54 @@ mod tests {
         for n in long.notes.iter_mut().step_by(3) {
             n.title = "A note whose title runs on for quite a while longer than a card".into();
         }
-        let (out, mid, inner) = lay_out(&long.notes, &long.folders, &long.edges);
-        long.out = out;
-        long.mid = mid;
-        long.inner = inner;
-        vec![
+        let long = relaid(long);
+        let base = vec![
             synthetic(300, 12, 1000),
             synthetic(20, 4, 24),
             synthetic(3, 2, 2),
             demo_shaped(),
             long,
-        ]
+        ];
+        // Each again in two random arrangements.
+        let mut out = Vec::new();
+        for (k, m) in base.into_iter().enumerate() {
+            for seed in [1u64, 2] {
+                out.push(m.arranged(&random_arrangement(&m, seed * 7919 + k as u64)));
+            }
+            out.push(m);
+        }
+        out
+    }
+
+    /// The map's blocks shuffled across up to one column more than it had.
+    fn random_arrangement(m: &NotesMap, seed: u64) -> Arrangement {
+        let mut s = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+        let mut next = move || {
+            s ^= s << 13;
+            s ^= s >> 7;
+            s ^= s << 17;
+            s
+        };
+        let keys: Vec<String> = m.default_arrangement.keys().cloned().collect();
+        let n = m.default_arrangement.columns.len() + 1;
+        let mut columns = vec![Vec::new(); n];
+        for k in keys {
+            let c = (next() % n as u64) as usize;
+            let at = (next() % (columns[c].len() as u64 + 1)) as usize;
+            columns[c].insert(at, k);
+        }
+        Arrangement { columns }
+    }
+
+    /// `m` laid out again in the default arrangement of its notes.
+    fn relaid(mut m: NotesMap) -> NotesMap {
+        m.default_arrangement = default_arrangement(&m.notes, &m.folders);
+        m.arrangement = m.default_arrangement.clone();
+        let (out, mid, inner) = lay_out(&m.notes, &m.folders, &m.edges);
+        m.out = out;
+        m.mid = mid;
+        m.inner = inner;
+        m
     }
 
     /// Three pinned notes, 14 top-level notes, Runbooks 3, Decisions 1,
@@ -1788,11 +2304,7 @@ mod tests {
             .chain([(17, 21), (20, 5), (21, 9)])
             .collect();
         m.folders = folders(&m.notes);
-        let (out, mid, inner) = lay_out(&m.notes, &m.folders, &m.edges);
-        m.out = out;
-        m.mid = mid;
-        m.inner = inner;
-        m
+        relaid(m)
     }
 
     #[test]
@@ -1917,15 +2429,7 @@ mod tests {
     #[test]
     fn no_line_runs_through_a_card_at_any_level() {
         for m in maps() {
-            // A 300-note map with 1000 random links has more long lines at
-            // Mid and In than channels near them (about half run under a
-            // card there, as every one did before): there it is Out only.
-            let levels: Vec<(&str, &Layout)> = if m.notes.len() > 100 {
-                vec![("out", &m.out)]
-            } else {
-                vec![("out", &m.out), ("mid", &m.mid), ("in", &m.inner)]
-            };
-            for (lv, l) in levels {
+            for (lv, l) in [("out", &m.out), ("mid", &m.mid), ("in", &m.inner)] {
                 for line in &l.lines {
                     for w in line.points.windows(2) {
                         assert!(w[0].0 == w[1].0 || w[0].1 == w[1].1, "{lv}: {w:?}");

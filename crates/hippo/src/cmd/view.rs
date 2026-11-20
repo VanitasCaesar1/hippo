@@ -8,7 +8,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use hippo_core::config::{Config, Workspace};
 use hippo_core::dream::History;
 use hippo_core::lessons::{self, Lesson};
@@ -35,6 +35,10 @@ pub enum Command {
     Map {
         #[arg(long)]
         json: bool,
+        /// Lay the map out in an arrangement, as Hippo.app does for a
+        /// person who arranged it: a JSON file `{"columns": [["folder:Runbooks", "note:notes/index.md"], ...]}`
+        #[arg(long, value_name = "FILE")]
+        arrangement: Option<PathBuf>,
     },
     /// One note's rules, pending rules with their evidence, readers, links and receipts
     Note {
@@ -170,9 +174,16 @@ pub fn run(command: Command) -> Result<ExitCode> {
                 println!("{}", sparkline(&s.beats, &s.corrections));
             }
         }
-        Command::Map { json } => {
+        Command::Map { json, arrangement } => {
             let l = load()?;
-            let m = map_of(&l);
+            let mut m = map_of(&l);
+            if let Some(path) = arrangement {
+                let text = std::fs::read_to_string(&path)
+                    .with_context(|| format!("reading {}", path.display()))?;
+                let arr: map::Arrangement = serde_json::from_str(&text)
+                    .with_context(|| format!("{} is not an arrangement", path.display()))?;
+                m = m.arranged(&arr);
+            }
             if json {
                 print_json(&m)?;
             } else {

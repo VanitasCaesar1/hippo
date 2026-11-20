@@ -199,7 +199,19 @@
   }
 
   /* ---- Brain ---- */
-  var M = D.map;
+  var M = D.map, A = window.HippoArrange;
+  // The layouts drawn: hippo's, or the person's arrangement of them
+  // (demo/arrange.js; kept in this page only).
+  function LY() {
+    if (!S.arr || !A) return M;
+    if (!S.lay) S.lay = A.layout(M, S.arr);
+    return S.lay;
+  }
+  function setArr(a) {
+    a = a && A ? A.settle(M, a) : null;
+    S.arr = a && !A.same(a, M.default_arrangement) ? a : null;
+    S.lay = null;
+  }
   function level(z) { return z < OUT_BELOW ? 'out' : z > IN_ABOVE ? 'in' : 'mid'; }
   function key(item) { return item.note != null ? 'n' + item.note : 'f' + item.folder; }
   function pinned(i) { var f = M.notes[i].flags; return f.entry || f.required; }
@@ -222,9 +234,9 @@
     return null;
   }
   function anchor(from, to, x, y) {
-    var a = cardAt(M[from], x, y);
+    var a = cardAt(LY()[from], x, y);
     if (!a) return [x, y];
-    var b = cardOf(M[to], sameItem(a.item, to));
+    var b = cardOf(LY()[to], sameItem(a.item, to));
     if (!b) return [x, y];
     var fx = (x - a.rect.x) / a.rect.w, fy = (y - a.rect.y) / a.rect.h;
     return [b.rect.x + fx * b.rect.w, b.rect.y + fy * b.rect.h];
@@ -236,7 +248,7 @@
     return n;
   }
   function worldHtml(L) {
-    var lay = M[L], sel = selIndex(), near = sel >= 0 ? neighbours(sel) : {};
+    var lay = LY()[L], sel = selIndex(), near = sel >= 0 ? neighbours(sel) : {};
     var h = '<svg class="links' + (sel >= 0 ? ' dim' : '') + '" width="' + lay.width + '" height="' + lay.height + '">' + lay.lines.map(function (l) {
       var on = sel >= 0 && ((l.from.note === sel) || (l.to.note === sel));
       return '<polyline class="' + (on ? 'on' : '') + '" points="' + l.points.map(function (p) { return p[0] + ',' + p[1]; }).join(' ') + '"/>';
@@ -287,8 +299,8 @@
     var world = wrap.querySelector('.world'), L = level(S.zoom);
     if (force || drawnLevel !== L) {
       world.innerHTML = worldHtml(L);
-      world.style.width = M[L].width + 'px';
-      world.style.height = M[L].height + 'px';
+      world.style.width = LY()[L].width + 'px';
+      world.style.height = LY()[L].height + 'px';
       drawnLevel = L;
     }
     world.style.transform = 'translate(' + (-S.pan[0] * S.zoom) + 'px,' + (-S.pan[1] * S.zoom) + 'px) scale(' + S.zoom + ')';
@@ -299,10 +311,11 @@
     var wrap = app.querySelector('.mapwrap');
     if (!wrap) return;
     var w = wrap.clientWidth, h = wrap.clientHeight, pad = 28;
-    var z = Math.max(MIN_ZOOM, Math.min(1, (w - 2 * pad) / M.mid.width, (h - 2 * pad) / M.mid.height));
+    var mid = LY().mid;
+    var z = Math.max(MIN_ZOOM, Math.min(1, (w - 2 * pad) / mid.width, (h - 2 * pad) / mid.height));
     if (M.notes.length <= 80 && z < OUT_BELOW + 0.05) z = OUT_BELOW + 0.1;
     S.zoom = z;
-    S.pan = [-Math.max(pad / z, (w / z - M.mid.width) / 2), -pad / z];
+    S.pan = [-Math.max(pad / z, (w / z - mid.width) / 2), -pad / z];
     S.fitted = true;
     placeWorld(true);
   }
@@ -317,7 +330,7 @@
   }
   function brain() {
     return '<p class="kicker">' + esc(M.kicker) + '</p><h1>' + esc(M.headline) + '</h1><p class="lead">' + esc(M.lead) + '</p>' +
-      '<div class="mapwrap card" style="padding:0;margin-top:18px"><div class="world"></div><div class="zoombar"><button data-act="zout" aria-label="Zoom out">−</button><button data-act="fit" aria-label="Fit">100%</button><button data-act="zin" aria-label="Zoom in">+</button></div></div>' +
+      '<div class="mapwrap card" style="padding:0;margin-top:18px"><div class="world"></div><div class="zoombar">' + (S.arr ? '<button data-act="reset" class="reset" title="Back to the layout hippo chooses">' + ic('undo', 14) + 'Reset layout</button>' : '') + '<button data-act="zout" aria-label="Zoom out">−</button><button data-act="fit" aria-label="Fit">100%</button><button data-act="zin" aria-label="Zoom in">+</button></div></div>' +
       '<div class="boardwrap"></div>';
   }
   function boardHtml() {
@@ -359,7 +372,7 @@
     var panel = S.view === 'brain' ? notePanel() : startPanel();
     app.innerHTML = '<div class="banner">A replica of Hippo.app\'s Morning and Brain, drawn from hippo\'s own output for a synthetic project. Nothing you click is saved. <a href="index.html">Back to hippo</a></div>' +
       top() + '<div class="stage"><main class="main">' + main + '</main><aside class="panel" aria-label="Details">' + panel + '</aside></div>' + ask() +
-      (S.toast ? '<div class="toast" role="status">' + esc(S.toast) + '</div>' : '');
+      (S.toast ? '<div class="toast" role="status">' + esc(S.toast) + (S.toastUndo ? ' <button class="btn second" data-act="undo-layout">' + ic('undo', 14) + 'Undo</button>' : '') + '</div>' : '');
     if (S.view === 'brain') {
       var wrap = app.querySelector('.mapwrap'), board = app.querySelector('.boardwrap');
       if (narrow) { wrap.style.display = 'none'; board.innerHTML = boardHtml(); } else {
@@ -371,10 +384,11 @@
       drawWires();
     }
   }
-  function toast(t) {
+  function toast(t, undo) {
     S.toast = t;
+    S.toastUndo = !!undo;
     render();
-    setTimeout(function () { if (S.toast === t) { S.toast = ''; render(); } }, 2600);
+    setTimeout(function () { if (S.toast === t) { S.toast = ''; S.toastUndo = false; render(); } }, undo ? 6000 : 2600);
   }
   function bindMap(wrap) {
     var drag = null;
@@ -385,24 +399,48 @@
       if (e.ctrlKey || e.metaKey) zoomAt(S.zoom * Math.exp(-e.deltaY * 0.01), p[0], p[1]);
       else { S.pan = [S.pan[0] + e.deltaX / S.zoom, S.pan[1] + e.deltaY / S.zoom]; placeWorld(false); }
     }, { passive: false });
+    var toMap = function (p) { return [S.pan[0] + p[0] / S.zoom, S.pan[1] + p[1] / S.zoom]; };
+    // Escape while a block is lifted puts it back where it was.
+    wrap.__cancel = function () {
+      if (!drag || !drag.key || !drag.moved) return false;
+      drag = null;
+      return true;
+    };
     wrap.addEventListener('pointerdown', function (e) {
       if (e.target.closest('.zoombar')) return;
-      drag = { p: pt(e), pan: S.pan.slice(), moved: false, id: e.pointerId };
+      var p = pt(e), m = toMap(p), L = level(S.zoom);
+      // A block's handle lifts the block (any card at Out; a folder's name
+      // band, or a note in every session, at Mid and In); the rest pans.
+      var key = A ? A.handleAt(M, LY()[L], L, m[0], m[1]) : null;
+      drag = { p: p, pan: S.pan.slice(), moved: false, id: e.pointerId, key: key, L: L };
     });
     wrap.addEventListener('pointermove', function (e) {
       if (!drag) return;
       var p = pt(e), dx = p[0] - drag.p[0], dy = p[1] - drag.p[1];
-      if (Math.abs(dx) + Math.abs(dy) > 3) {
-        if (!drag.moved) { wrap.setPointerCapture(drag.id); wrap.classList.add('drag'); }
-        drag.moved = true;
+      if (!drag.moved && Math.abs(dx) + Math.abs(dy) <= 4) return;
+      if (!drag.moved) { wrap.setPointerCapture(drag.id); wrap.classList.add('drag'); }
+      drag.moved = true;
+      if (!drag.key) {
         S.pan = [drag.pan[0] - dx / S.zoom, drag.pan[1] - dy / S.zoom];
         placeWorld(false);
+        return;
       }
+      // Near the edge the map scrolls under the lifted block.
+      var edge = 40, sx = p[0] < edge ? -8 : p[0] > wrap.clientWidth - edge ? 8 : 0, sy = p[1] < edge ? -8 : p[1] > wrap.clientHeight - edge ? 8 : 0;
+      if (sx || sy) { S.pan = [S.pan[0] + sx / S.zoom, S.pan[1] + sy / S.zoom]; placeWorld(false); }
+      drawLift(wrap, drag, p);
     });
     wrap.addEventListener('pointerup', function (e) {
       var d = drag;
       drag = null;
       wrap.classList.remove('drag');
+      if (d && d.moved && d.key && d.target) {
+        var from = S.arr || M.default_arrangement;
+        setArr(A.moveTo(from, d.key, d.target[0], d.target[1]));
+        render();
+        return;
+      }
+      clearLift(wrap);
       if (!d || d.moved) return;
       var note = e.target.closest('[data-note]'), folder = e.target.closest('[data-folder]');
       if (note) { S.sel = M.notes[+note.getAttribute('data-note')].path; render(); }
@@ -413,12 +451,56 @@
       if (note) zoomInto({ note: +note.getAttribute('data-note') });
     });
   }
+  /* The lifted block: its place dimmed, its outline at the pointer, and a
+     lime line where it will land. */
+  function drawLift(wrap, d, p) {
+    var world = wrap.querySelector('.world'), lay = LY()[d.L], r = A.blockRect(M, lay, d.key);
+    if (!r) return;
+    var m = [S.pan[0] + p[0] / S.zoom, S.pan[1] + p[1] / S.zoom];
+    if (!d.grab) d.grab = [m[0] - r.x, m[1] - r.y];
+    var arr = S.arr || M.default_arrangement;
+    d.target = A.dropAt(M, lay, A.settle(M, arr), d.key, m[0], m[1]);
+    var el = function (cls) {
+      var x = world.querySelector('.' + cls);
+      if (!x) { x = document.createElement('div'); x.className = cls; world.appendChild(x); }
+      return x;
+    };
+    var st = function (x, a, b, w, h) { x.style.left = a + 'px'; x.style.top = b + 'px'; x.style.width = w + 'px'; x.style.height = h + 'px'; };
+    st(el('lift-place'), r.x, r.y, r.w, r.h);
+    st(el('lift-ghost'), m[0] - d.grab[0], m[1] - d.grab[1], r.w, r.h);
+    var t = d.target, line = el('drop-line');
+    // A new column shows where the block will stand; elsewhere, a line.
+    if (t[4]) { line.classList.add('slot'); st(line, t[3][0], 0, t[3][1] - t[3][0], r.h); }
+    else { line.classList.remove('slot'); st(line, t[3][0], t[2] - 1.5, t[3][1] - t[3][0], 3); }
+  }
+  function clearLift(wrap) {
+    ['lift-place', 'lift-ghost', 'drop-line'].forEach(function (c) { var x = wrap.querySelector('.' + c); if (x) x.remove(); });
+  }
+  // Escape puts a lifted block back; ⌥ and an arrow move the selected
+  // note's block a column or a place.
+  document.addEventListener('keydown', function (e) {
+    if (S.view !== 'brain' || !A) return;
+    if (e.key === 'Escape') {
+      var wrap = app.querySelector('.mapwrap');
+      if (wrap) { clearLift(wrap); wrap.classList.remove('drag'); }
+      if (wrap && wrap.__cancel) wrap.__cancel();
+      return;
+    }
+    if (!e.altKey || e.metaKey || e.ctrlKey) return;
+    var dir = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.key];
+    var i = selIndex();
+    if (!dir || i < 0) return;
+    e.preventDefault();
+    var key = A.blockKey(M, { note: i });
+    setArr(A.nudge(A.settle(M, S.arr || M.default_arrangement), key, dir));
+    render();
+  });
   function zoomInto(item) {
     var wrap = app.querySelector('.mapwrap'), w = wrap.clientWidth, h = wrap.clientHeight;
     var L = item.folder != null ? 'mid' : 'in', target = item.folder != null ? 1 : IN_ABOVE + 0.2;
     var r = null;
-    if (item.folder != null) M.mid.frames.forEach(function (f) { if (f[0] === item.folder) r = f[1]; });
-    else { var c = cardOf(M[L], item); r = c && c.rect; }
+    if (item.folder != null) LY().mid.frames.forEach(function (f) { if (f[0] === item.folder) r = f[1]; });
+    else { var c = cardOf(LY()[L], item); r = c && c.rect; }
     if (!r) return;
     var z = item.folder != null ? Math.max(OUT_BELOW + 0.05, Math.min(target, (w - 80) / r.w, (h - 80) / r.h)) : target;
     S.zoom = z;
@@ -441,6 +523,8 @@
     else if (act === 'undo') { S.undone[id] = true; toast('Undone. In the app: hippo revert, from the change\'s snapshot.'); }
     else if (act === 'zin' || act === 'zout') { var wrap = app.querySelector('.mapwrap'); zoomAt(S.zoom * (act === 'zin' ? 1.25 : 0.8), wrap.clientWidth / 2, wrap.clientHeight / 2); }
     else if (act === 'fit') { fit(); }
+    else if (act === 'reset') { S.prevArr = S.arr; setArr(null); toast('Layout reset to the default.', true); }
+    else if (act === 'undo-layout') { setArr(S.prevArr); S.toast = ''; S.toastUndo = false; render(); }
     else if (b.hasAttribute('data-rule')) { S.rule = b.getAttribute('data-rule'); render(); }
     else if (b.hasAttribute('data-note') && S.view === 'brain' && window.innerWidth < 900) { S.sel = M.notes[+b.getAttribute('data-note')].path; render(); }
   });

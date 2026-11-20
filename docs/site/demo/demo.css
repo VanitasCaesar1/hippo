@@ -218,3 +218,10 @@ h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
   .strip-labels { height: auto; display: flex; flex-direction: column; gap: 2px; }
   .strip-labels > span { position: static; }
 }
+/* Arranging Brain: the lifted block's place, its outline at the pointer, where it lands. */
+.world .lift-place { position: absolute; border-radius: 18px; background: var(--canvas); opacity: .6; pointer-events: none; }
+.world .lift-ghost { position: absolute; border-radius: 18px; border: 2px solid var(--night); background: var(--night-bg); pointer-events: none; }
+.world .drop-line { position: absolute; border-radius: 2px; background: var(--you); pointer-events: none; }
+.world .drop-line.slot { background: var(--you-bg); border: 2px dashed var(--you-line); border-radius: 18px; }
+.zoombar .reset { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; font-weight: 500; }
+.toast .btn { margin-left: 10px; }

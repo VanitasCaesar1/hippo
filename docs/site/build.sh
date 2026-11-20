@@ -49,7 +49,7 @@ cp "$root/docs/site/landing.css" "$out/landing.css"
 # demo-data.sh and committed, so the build needs no hippo binary).
 cp "$root/docs/site/demo.html" "$out/demo.html"
 mkdir -p "$out/demo"
-cp "$root"/docs/site/demo/demo.css "$root"/docs/site/demo/demo.js "$root"/docs/site/demo/data.js "$out/demo/"
+cp "$root"/docs/site/demo/demo.css "$root"/docs/site/demo/demo.js "$root"/docs/site/demo/arrange.js "$root"/docs/site/demo/data.js "$out/demo/"
 
 mdbook build "$root/docs/site" -d "$out/docs"
 

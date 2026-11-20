@@ -67,6 +67,7 @@ function stubElement() {
 
 const dataJs = read('docs/site/demo/data.js');
 const demoJs = read('docs/site/demo/demo.js');
+const arrangeJs = read('docs/site/demo/arrange.js');
 const errors = [];
 let drawn = 0;
 
@@ -111,6 +112,7 @@ for (const view of ['morning', 'brain']) {
     vm.createContext(context);
     try {
       vm.runInContext(dataJs, context, { filename: 'data.js' });
+      vm.runInContext(arrangeJs, context, { filename: 'arrange.js' });
       vm.runInContext(demoJs, context, { filename: 'demo.js' });
     } catch (e) {
       errors.push(`${view}/${theme}: the demo threw: ${e.message}`);
@@ -139,8 +141,43 @@ for (const view of ['morning', 'brain']) {
   }
 }
 
+// The demo's port of the arranger lays out the map Rust arranged
+// (data.js's `arranged`, from hippo view map --arrangement) the same.
+{
+  const ctx = { globalThis: {}, window: {} };
+  ctx.globalThis = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(dataJs, ctx, { filename: 'data.js' });
+  vm.runInContext(arrangeJs, ctx, { filename: 'arrange.js' });
+  const D = ctx.window.HIPPO_DEMO, A = ctx.window.HippoArrange;
+  if (!D || !D.arranged || !A) {
+    errors.push('arrange: data.js has no arranged map or arrange.js did not load');
+  } else {
+    const got = A.layout(D.map, D.arranged.arrangement);
+    const diff = (a, b, at) => {
+      if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) > 0.01 ? `${at}: ${a} != ${b}` : null;
+      if (Array.isArray(a) && Array.isArray(b)) {
+        if (a.length !== b.length) return `${at}: ${a.length} items != ${b.length}`;
+        for (let i = 0; i < a.length; i++) { const d = diff(a[i], b[i], `${at}[${i}]`); if (d) return d; }
+        return null;
+      }
+      if (a && b && typeof a === 'object' && typeof b === 'object') {
+        for (const k of Object.keys(b)) { const d = diff(a[k], b[k], `${at}.${k}`); if (d) return d; }
+        return null;
+      }
+      return a === b ? null : `${at}: ${JSON.stringify(a)} != ${JSON.stringify(b)}`;
+    };
+    for (const L of ['out', 'mid', 'in']) {
+      const d = diff(got[L], D.arranged[L], `arranged.${L}`);
+      if (d) errors.push(`arrange: the demo lays the arranged map out differently from hippo: ${d}`);
+    }
+    const da = diff(got.arrangement, D.arranged.arrangement, 'arrangement');
+    if (da) errors.push(`arrange: ${da}`);
+  }
+}
+
 if (errors.length) {
   for (const e of [...new Set(errors)]) console.error(`error: ${e}`);
   process.exit(1);
 }
-console.log(`demo render: Morning and Brain, dark and light, ${drawn} agent marks drawn, each its own (brand/agents/), no letters`);
+console.log(`demo render: Morning and Brain, dark and light, ${drawn} agent marks drawn, each its own (brand/agents/), no letters; the arranged map laid out as hippo does`);

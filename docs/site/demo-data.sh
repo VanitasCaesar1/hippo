@@ -41,6 +41,19 @@ run() {
 morning=$(run view morning --json)
 strip=$(run view strip --json)
 map=$(run view map --json)
+# One arrangement a person might make, laid out by hippo, for the check
+# that the demo's port (demo/arrange.js) lays it out the same: the columns
+# in reverse, and the first block of the first column in a new column.
+printf '%s' "$map" | /usr/bin/python3 -I -c '
+import json, sys
+cols = [list(c) for c in json.load(sys.stdin)["default_arrangement"]["columns"]]
+first = cols[0].pop(0)
+cols = [c for c in reversed(cols) if c] + [[first]]
+print(json.dumps({"columns": cols}))' >"$tmp/arrangement.json"
+arranged=$(run view map --json --arrangement "$tmp/arrangement.json" | /usr/bin/python3 -I -c '
+import json, sys
+m = json.load(sys.stdin)
+print(json.dumps({k: m[k] for k in ("arrangement", "out", "mid", "in")}, separators=(",", ":")))')
 # The demo home answers with a stub model (fixtures/stub-model), so its
 # Ask bar names the stub; the page shows what a default install's says.
 counts=$(run view counts --json | /usr/bin/python3 -I -c '
@@ -71,6 +84,7 @@ out=$root/docs/site/demo/data.js
   printf '"morning": %s,\n' "$morning"
   printf '"strip": %s,\n' "$strip"
   printf '"map": %s,\n' "$map"
+  printf '"arranged": %s,\n' "$arranged"
   printf '"counts": %s,\n' "$counts"
   printf '"brief": %s,\n' "$brief"
   printf '"notes": {\n'
