@@ -4,6 +4,22 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-20
+
+Brain reads when zoomed out; menus close when you click away.
+
+**Upgrading.** Nothing to run or migrate. `hippo view map --json` gains `labels` and `marks` on each level's layout, and its `out` layout now has its own geometry: one card a column wide per pinned note and per folder, where it repeated the Mid frames.
+
+### Fixed
+
+- **Brain zoomed out** (below 55 %). It drew each folder's frame as a card with its notes as bare colour tiles under a huge, clipped name; the notes in every session as small cards over the frames; and links through cards. Each pinned note and each folder is now one card a column wide, none spanning two: its name fitted to the card (on one line when that costs little, else wrapped, then made smaller; never cut), a legend of what its notes carry with small marks (fixed, rejected, stale, a rule waiting), and its most-read notes as labelled rows, each with its mark, then `+ n more notes`. Links that would cross a card go through the free space between cards instead.
+- **Every word on the map is fitted by the layout**, at every zoom: folder names, counts, note titles. The app draws a line smaller rather than cut it if a font runs wider than the layout's estimate. The live demo draws the same words from the same data.
+- **Menus close when you click away.** The Ask bar's "Who answers Ask" stayed open on other pages and after clicks elsewhere, and floated above the bar instead of hanging off its chip. It now opens upward from its chip, lined up with it, the chip shown pressed. Every menu and popover in the app (the Ask runner, Incidents' filters, Fleet's accounts, Manage's "What the hooks do", the sidebar's Snooze and health, Brief's chips) is built by one function and closes on a click outside it, Escape, a change of view, or the window losing focus; ↑ and ↓ move through a menu's rows and Return picks one.
+
+### Known limits
+
+- Links go around cards at every zoom on maps up to about 40 notes. On a very large, densely linked map (300 notes, 1000 links) about half the links still run under a card at the Mid and In zooms, as all of them did before; at Out none do.
+
 ## [0.8.0] - 2026-11-20
 
 **Upgrading.** Nothing to run; read what changes. The first lessons pass after upgrading builds `~/.hippo/groups.json` from the last 30 days and links your existing lessons to it; `hippo lessons backfill` (an estimate first, `--yes` to run, `--max-calls` to cap it) places the rest of your history once. **A correction said in one session is no longer drafted on its own:** a rule is drafted the second time it comes back, in any words. **Every start block now carries the rules you kept** (2000 bytes at most, `rules_budget_bytes`), and the Codex, Gemini CLI and Cursor hooks and the plugin's print your machine-wide rules for sessions outside the workspace, where they printed nothing. **The prompt hook acts on later prompts** when a session's topic changes. **A rule the drafter finds is about how you want agents to work anywhere is kept in `~/.hippo`, not written into a note** (`hippo lessons keep --note` writes it into its note instead). Dismissed rules come back after 2 more sessions and 14 days, not 3 sessions. Lesson records gain only optional fields, so 0.7.x still reads them; `config.toml` gains `auto_keep`, `memory_sources`, `memory_sources_off`, `rules_budget_bytes` and `reinject_every`. Design: [remember.md](docs/designs/remember.md).
