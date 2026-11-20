@@ -16,10 +16,12 @@ const MARK_SVG: &str = include_str!(concat!(
     "/../../brand/hippo-mark.svg"
 ));
 
-const NAVY: (u8, u8, u8) = (0x1E, 0x2A, 0x4A);
-const YELLOW: (u8, u8, u8) = (0xFF, 0xD6, 0x6B);
-const MUTED: (u8, u8, u8) = (0xAE, 0xB8, 0xD6);
-const SOFT: (u8, u8, u8) = (0xDC, 0xE2, 0xF2);
+// Hippo's dark theme (graphite and lime, docs/designs/app-night-map.md):
+// the canvas, lime, the muted and the body text.
+const GROUND: (u8, u8, u8) = (0x0A, 0x0A, 0x0A);
+const LIME: (u8, u8, u8) = (0xC8, 0xF0, 0x31);
+const MUTED: (u8, u8, u8) = (0xA1, 0xA1, 0xA1);
+const SOFT: (u8, u8, u8) = (0xED, 0xED, 0xED);
 const WHITE: (u8, u8, u8) = (0xFF, 0xFF, 0xFF);
 
 // The reference's geometry at 1200 px wide (1 cqw = 12 px).
@@ -281,7 +283,7 @@ pub fn render(words: &Words) -> Vec<u8> {
     let (w, h) = (WIDTH as f32, HEIGHT as f32);
     pixmap.fill_rect(
         Rect::from_xywh(0.0, 0.0, w, h).expect("the card's rectangle"),
-        &paint(NAVY, 1.0),
+        &paint(GROUND, 1.0),
         Transform::identity(),
         None,
     );
@@ -301,7 +303,7 @@ pub fn render(words: &Words) -> Vec<u8> {
         MUTED,
     );
 
-    // The sentence: three lines, bold, -0.02 em, the work time in yellow.
+    // The sentence: three lines, bold, -0.02 em, the work time in lime.
     let widest = |s: f32| {
         [&words.lead, &words.work, &words.tail]
             .iter()
@@ -313,7 +315,7 @@ pub fn render(words: &Words) -> Vec<u8> {
     let mut top = TOP + date_line + BIG_GAP;
     for (text, rgb) in [
         (&words.lead, WHITE),
-        (&words.work, YELLOW),
+        (&words.work, LIME),
         (&words.tail, WHITE),
     ] {
         let base = baseline(&bold, size, top, line);

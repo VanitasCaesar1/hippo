@@ -153,7 +153,7 @@
     }).join('');
     var waiting = m.rules.filter(function (r) { return !S.rules[r.id]; }).length;
     return '<p class="kicker">' + esc(m.kicker) + '</p><h1>' + esc(m.headline) + '</h1><p class="lead">' + esc(m.lead) + '</p>' +
-      '<div class="figures">' + fig(f.rules_waiting, 'rules waiting for you', 'var(--you)') + fig(f.notes_fixed, 'notes fixed and confirmed', 'var(--ok)') +
+      '<div class="figures">' + fig(f.rules_waiting, 'rules waiting for you', 'var(--you-text)') + fig(f.notes_fixed, 'notes fixed and confirmed', 'var(--ok)') +
       fig(f.fixes_rejected, 'fixes rejected by the second model', 'var(--bad)') + fig(f.notes_checked, 'notes checked against what happened', 'var(--text)') + '</div>' +
       stripHtml() +
       '<div class="flow"><svg class="wires"></svg><div class="col"><div class="group" style="margin-bottom:10px"><p class="label evs wide">Yesterday, in your sessions</p><p class="label">Waiting for you <span class="count you">' + waiting + '</span></p></div>' + groups + '</div>' +

@@ -1,21 +1,21 @@
 /* hippo web theme contract 1: dark */
 :root {
-  --hp-page-bg: #121212;
-  --hp-content-bg: #1b1b1b;
-  --hp-text: #e8e6e1;
-  --hp-muted: #a6a6a6;
-  --hp-link: #e8e6e1;
-  --hp-link-visited: #a6a6a6;
-  --hp-bar-bg: #1e2a4a;
+  --hp-page-bg: #0a0a0a;
+  --hp-content-bg: #121212;
+  --hp-text: #ededed;
+  --hp-muted: #a1a1a1;
+  --hp-link: #ededed;
+  --hp-link-visited: #a1a1a1;
+  --hp-bar-bg: #1e1e1e;
   --hp-bar-text: #ffffff;
-  --hp-bar-focus: #ffffff;
+  --hp-bar-focus: #c8f031;
   --hp-vote: #8c8c8c;
-  --hp-focus: #a9bdf0;
-  --hp-rule: #333333;
-  --hp-code-bg: #262626;
-  --hp-input-bg: #232323;
-  --hp-input-text: #e8e6e1;
+  --hp-focus: #ededed;
+  --hp-rule: #2a2a2a;
+  --hp-code-bg: #181818;
+  --hp-input-bg: #181818;
+  --hp-input-text: #ededed;
   --hp-input-border: #8c8c8c;
-  --hp-error: #ff8f85;
+  --hp-error: #f87171;
   --hp-color-scheme: dark;
 }

@@ -1,22 +1,22 @@
 /* hippo web theme contract 1 */
 :root {
-  --hp-page-bg: #ffffff;
-  --hp-content-bg: #f4f4ee;
-  --hp-text: #111111;
-  --hp-muted: #5f5f5f;
-  --hp-link: #111111;
-  --hp-link-visited: #5f5f5f;
-  --hp-bar-bg: #1e2a4a;
+  --hp-page-bg: #fafafa;
+  --hp-content-bg: #ffffff;
+  --hp-text: #0a0a0a;
+  --hp-muted: #52525b;
+  --hp-link: #0a0a0a;
+  --hp-link-visited: #52525b;
+  --hp-bar-bg: #18181b;
   --hp-bar-text: #ffffff;
-  --hp-bar-focus: #ffffff;
-  --hp-vote: #767676;
-  --hp-focus: #1e2a4a;
-  --hp-rule: #d6d6cc;
-  --hp-code-bg: #e9e9e2;
+  --hp-bar-focus: #c8f031;
+  --hp-vote: #71717a;
+  --hp-focus: #0a0a0a;
+  --hp-rule: #e4e4e7;
+  --hp-code-bg: #f4f4f5;
   --hp-input-bg: #ffffff;
-  --hp-input-text: #111111;
-  --hp-input-border: #767676;
-  --hp-error: #a50e1c;
+  --hp-input-text: #0a0a0a;
+  --hp-input-border: #71717a;
+  --hp-error: #cf2020;
   --hp-font: Verdana, Geneva, "DejaVu Sans", sans-serif;
   --hp-font-mono: ui-monospace, Menlo, Consolas, monospace;
   --hp-size-title: 0.8333rem;

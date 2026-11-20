@@ -1,4 +1,5 @@
 /* hippo landing page (direction A, the night map): the night map's tokens
+   (graphite and lime since 0.7.2, the same values as Hippo.app's themes)
    and parts, the page's layout, then direction A's own. */
 /* Hippo.app redesign: tokens and the shared kit.
    Both directions (a/, b/) use this file; they differ in shell and layout.
@@ -10,43 +11,45 @@
    CSS radial-gradient; in GPUI it is a canvas that paints one dot every 24pt.
 
    Colour has four meanings and no others:
-     --you    amber   something you said, a rule made from it, a thing waiting on you
-     --night  indigo  what hippo did overnight, and the current selection
+     --you    lime    something you said, a rule made from it, a thing waiting on you
+     --night  the night colour (near-white in dark, near-black in light, not a
+              hue): what hippo did overnight, and the current selection
      --ok     green   confirmed by the second model
      --bad    red     rejected, harmful, or running dry                              */
 
 :root {
-  --canvas: #0B0D14;
-  --dot: rgba(160, 175, 225, .15);
-  --surface: #12151F;
-  --raised: #191D2B;
-  --inset: #0D1018;
-  --hover: #1C2131;
-  --selected: #20263C;
-  --line: rgba(160, 175, 225, .13);
-  --line2: rgba(160, 175, 225, .26);
-  --text: #ECEEF6;
-  --muted: #A7AEC6;
-  --faint: #7F87A3;
+  --canvas: #0A0A0A;
+  --dot: rgba(255, 255, 255, .09);
+  --surface: #121212;
+  --raised: #181818;
+  --inset: #0E0E0E;
+  --hover: #1E1E1E;
+  --selected: #242424;
+  --line: rgba(255, 255, 255, .09);
+  --line2: rgba(255, 255, 255, .2);
+  --text: #EDEDED;
+  --muted: #A1A1A1;
+  --faint: #828282;
 
-  --you: #FFC53D;
-  --you-ink: #1C1400;
-  --you-text: #FFD778;
-  --you-bg: rgba(255, 197, 61, .13);
-  --you-line: rgba(255, 197, 61, .5);
+  --you: #C8F031;
+  --you-ink: #0F1400;
+  --you-text: #D9F77A;
+  --you-bg: rgba(200, 240, 49, .11);
+  --you-line: rgba(200, 240, 49, .5);
+  --you-mark: var(--you);
 
-  --night: #96A1FF;
-  --night-bg: rgba(150, 161, 255, .13);
-  --night-line: rgba(150, 161, 255, .55);
+  --night: #E5E5E5;
+  --night-bg: rgba(255, 255, 255, .08);
+  --night-line: rgba(255, 255, 255, .45);
 
-  --ok: #45D992;
-  --ok-bg: rgba(69, 217, 146, .12);
-  --bad: #FF7A6B;
-  --bad-ink: #2A0600;
-  --bad-bg: rgba(255, 122, 107, .12);
+  --ok: #4ADE80;
+  --ok-bg: rgba(74, 222, 128, .1);
+  --bad: #F87171;
+  --bad-ink: #1A0505;
+  --bad-bg: rgba(248, 113, 113, .1);
 
-  --shadow: 0 10px 28px rgba(0, 0, 0, .42);
-  --shadow-s: 0 2px 6px rgba(0, 0, 0, .3);
+  --shadow: 0 10px 28px rgba(0, 0, 0, .5);
+  --shadow-s: 0 2px 6px rgba(0, 0, 0, .35);
 
   /* which coding agent: the one place brand-like colours appear */
 
@@ -58,48 +61,49 @@
 }
 
 :root[data-theme="light"] {
-  --canvas: #F3F4F8;
-  --dot: rgba(27, 36, 64, .15);
+  --canvas: #FAFAFA;
+  --dot: rgba(0, 0, 0, .08);
   --surface: #FFFFFF;
   --raised: #FFFFFF;
-  --inset: #EDEFF5;
-  --hover: #F0F2F8;
-  --selected: #E7EAF8;
-  --line: rgba(27, 36, 64, .11);
-  --line2: rgba(27, 36, 64, .24);
-  --text: #161D33;
-  --muted: #4A5370;
-  --faint: #5D6684;
+  --inset: #F4F4F5;
+  --hover: #F4F4F5;
+  --selected: #EDEDEE;
+  --line: rgba(0, 0, 0, .08);
+  --line2: rgba(0, 0, 0, .18);
+  --text: #0A0A0A;
+  --muted: #52525B;
+  --faint: #6B6B73;
 
-  --you: #F7BC1C;
-  --you-ink: #1C1400;
-  --you-text: #7A5200;
-  --you-bg: #FFEDB3;
-  --you-line: #D9A514;
+  --you: #C8F031;
+  --you-ink: #0F1400;
+  --you-text: #3F5A00;
+  --you-bg: #EEF9C8;
+  --you-line: #8DB31A;
+  --you-mark: var(--you-line);
 
-  --night: #4352C7;
-  --night-bg: rgba(67, 82, 199, .09);
-  --night-line: rgba(67, 82, 199, .5);
+  --night: #18181B;
+  --night-bg: rgba(0, 0, 0, .05);
+  --night-line: rgba(0, 0, 0, .42);
 
-  --ok: #0E6B40;
-  --ok-bg: rgba(14, 107, 64, .1);
-  --bad: #B3261E;
+  --ok: #15803D;
+  --ok-bg: rgba(21, 128, 61, .08);
+  --bad: #DC2626;
   --bad-ink: #FFFFFF;
-  --bad-bg: rgba(179, 38, 30, .08);
+  --bad-bg: rgba(220, 38, 38, .07);
 
-  --shadow: 0 10px 28px rgba(27, 36, 64, .13);
-  --shadow-s: 0 1px 3px rgba(27, 36, 64, .1);
+  --shadow: 0 10px 28px rgba(0, 0, 0, .1);
+  --shadow-s: 0 1px 3px rgba(0, 0, 0, .08);
   color-scheme: light;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --canvas: #F3F4F8; --dot: rgba(27, 36, 64, .15); --surface: #FFFFFF; --raised: #FFFFFF; --inset: #EDEFF5;
-    --hover: #F0F2F8; --selected: #E7EAF8; --line: rgba(27, 36, 64, .11); --line2: rgba(27, 36, 64, .24);
-    --text: #161D33; --muted: #4A5370; --faint: #5D6684;
-    --you: #F7BC1C; --you-ink: #1C1400; --you-text: #7A5200; --you-bg: #FFEDB3; --you-line: #D9A514;
-    --night: #4352C7; --night-bg: rgba(67, 82, 199, .09); --night-line: rgba(67, 82, 199, .5);
-    --ok: #0E6B40; --ok-bg: rgba(14, 107, 64, .1); --bad: #B3261E; --bad-ink: #FFFFFF; --bad-bg: rgba(179, 38, 30, .08);
-    --shadow: 0 10px 28px rgba(27, 36, 64, .13); --shadow-s: 0 1px 3px rgba(27, 36, 64, .1);
+    --canvas: #FAFAFA; --dot: rgba(0, 0, 0, .08); --surface: #FFFFFF; --raised: #FFFFFF; --inset: #F4F4F5;
+    --hover: #F4F4F5; --selected: #EDEDEE; --line: rgba(0, 0, 0, .08); --line2: rgba(0, 0, 0, .18);
+    --text: #0A0A0A; --muted: #52525B; --faint: #6B6B73;
+    --you: #C8F031; --you-ink: #0F1400; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line);
+    --night: #18181B; --night-bg: rgba(0, 0, 0, .05); --night-line: rgba(0, 0, 0, .42);
+    --ok: #15803D; --ok-bg: rgba(21, 128, 61, .08); --bad: #DC2626; --bad-ink: #FFFFFF; --bad-bg: rgba(220, 38, 38, .07);
+    --shadow: 0 10px 28px rgba(0, 0, 0, .1); --shadow-s: 0 1px 3px rgba(0, 0, 0, .08);
     color-scheme: light;
   }
 }
@@ -243,10 +247,10 @@ button.card:hover, .card.tap:hover { border-color: var(--line2); }
 .ask-go { width: 36px; height: 36px; border-radius: 12px; background: var(--you); color: var(--you-ink); display: grid; place-items: center; flex: none; }
 .answer { background: var(--surface); border: 1px solid var(--line2); border-radius: var(--r-xl); box-shadow: var(--shadow); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
 
-/* window controls, drawn so the mockups read as a Mac window */
+/* window controls, drawn so the mockups read as a Mac window: grey, as
+   Hippo.app draws them in a window that is not in front */
 .lights { display: flex; gap: 8px; align-items: center; flex: none; }
 .lights i { width: 12px; height: 12px; border-radius: 6px; background: var(--line2); }
-.lights i:nth-child(1) { background: #FF5F57; } .lights i:nth-child(2) { background: #FEBC2E; } .lights i:nth-child(3) { background: #28C840; }
 
 .mark { color: var(--text); }
 

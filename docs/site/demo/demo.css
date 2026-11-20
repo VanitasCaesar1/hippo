@@ -1,42 +1,44 @@
 /* The live demo: a web replica of Hippo.app's Morning and Brain (the night
-   map, docs/designs/app-night-map.md). Colours have four meanings: amber is
-   you, indigo is the night and the selection, green is confirmed, red is
-   rejected or harmful. System fonts only. */
+   map, docs/designs/app-night-map.md), in Hippo.app's tokens (graphite and
+   lime). Colours have four meanings: lime is you, the night colour
+   (near-white in dark, near-black in light) is the night and the
+   selection, green is confirmed, red is rejected or harmful. System fonts
+   only. */
 
 :root {
-  --canvas: #0B0D14; --dot: rgba(160, 175, 225, .15); --surface: #12151F; --raised: #191D2B;
-  --inset: #0D1018; --hover: #1C2131; --selected: #20263C;
-  --line: rgba(160, 175, 225, .13); --line2: rgba(160, 175, 225, .26);
-  --text: #ECEEF6; --muted: #A7AEC6; --faint: #7F87A3;
-  --you: #FFC53D; --you-ink: #1C1400; --you-text: #FFD778; --you-bg: rgba(255, 197, 61, .13); --you-line: rgba(255, 197, 61, .5);
-  --night: #96A1FF; --night-bg: rgba(150, 161, 255, .13); --night-line: rgba(150, 161, 255, .55);
-  --ok: #45D992; --ok-bg: rgba(69, 217, 146, .12);
-  --bad: #FF7A6B; --bad-bg: rgba(255, 122, 107, .12);
-  --shadow: 0 10px 28px rgba(0, 0, 0, .42); --shadow-s: 0 2px 6px rgba(0, 0, 0, .3);
+  --canvas: #0A0A0A; --dot: rgba(255, 255, 255, .09); --surface: #121212; --raised: #181818;
+  --inset: #0E0E0E; --hover: #1E1E1E; --selected: #242424;
+  --line: rgba(255, 255, 255, .09); --line2: rgba(255, 255, 255, .2);
+  --text: #EDEDED; --muted: #A1A1A1; --faint: #828282;
+  --you: #C8F031; --you-ink: #0F1400; --you-text: #D9F77A; --you-bg: rgba(200, 240, 49, .11); --you-line: rgba(200, 240, 49, .5); --you-mark: var(--you);
+  --night: #E5E5E5; --night-bg: rgba(255, 255, 255, .08); --night-line: rgba(255, 255, 255, .45);
+  --ok: #4ADE80; --ok-bg: rgba(74, 222, 128, .1);
+  --bad: #F87171; --bad-bg: rgba(248, 113, 113, .1);
+  --shadow: 0 10px 28px rgba(0, 0, 0, .5); --shadow-s: 0 2px 6px rgba(0, 0, 0, .35);
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --canvas: #F3F4F8; --dot: rgba(27, 36, 64, .15); --surface: #FFFFFF; --raised: #FFFFFF; --inset: #EDEFF5;
-    --hover: #F0F2F8; --selected: #E7EAF8; --line: rgba(27, 36, 64, .11); --line2: rgba(27, 36, 64, .24);
-    --text: #161D33; --muted: #4A5370; --faint: #5D6684;
-    --you: #F7BC1C; --you-text: #7A5200; --you-bg: #FFEDB3; --you-line: #D9A514;
-    --night: #4352C7; --night-bg: rgba(67, 82, 199, .09); --night-line: rgba(67, 82, 199, .5);
-    --ok: #0E6B40; --ok-bg: rgba(14, 107, 64, .1); --bad: #B3261E; --bad-bg: rgba(179, 38, 30, .08);
-    --shadow: 0 10px 28px rgba(27, 36, 64, .13); --shadow-s: 0 1px 3px rgba(27, 36, 64, .1);
+    --canvas: #FAFAFA; --dot: rgba(0, 0, 0, .08); --surface: #FFFFFF; --raised: #FFFFFF; --inset: #F4F4F5;
+    --hover: #F4F4F5; --selected: #EDEDEE; --line: rgba(0, 0, 0, .08); --line2: rgba(0, 0, 0, .18);
+    --text: #0A0A0A; --muted: #52525B; --faint: #6B6B73;
+    --you: #C8F031; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line);
+    --night: #18181B; --night-bg: rgba(0, 0, 0, .05); --night-line: rgba(0, 0, 0, .42);
+    --ok: #15803D; --ok-bg: rgba(21, 128, 61, .08); --bad: #DC2626; --bad-bg: rgba(220, 38, 38, .07);
+    --shadow: 0 10px 28px rgba(0, 0, 0, .1); --shadow-s: 0 1px 3px rgba(0, 0, 0, .08);
     color-scheme: light;
   }
 }
 :root[data-theme="light"] {
-  --canvas: #F3F4F8; --dot: rgba(27, 36, 64, .15); --surface: #FFFFFF; --raised: #FFFFFF; --inset: #EDEFF5;
-  --hover: #F0F2F8; --selected: #E7EAF8; --line: rgba(27, 36, 64, .11); --line2: rgba(27, 36, 64, .24);
-  --text: #161D33; --muted: #4A5370; --faint: #5D6684;
-  --you: #F7BC1C; --you-text: #7A5200; --you-bg: #FFEDB3; --you-line: #D9A514;
-  --night: #4352C7; --night-bg: rgba(67, 82, 199, .09); --night-line: rgba(67, 82, 199, .5);
-  --ok: #0E6B40; --ok-bg: rgba(14, 107, 64, .1); --bad: #B3261E; --bad-bg: rgba(179, 38, 30, .08);
-  --shadow: 0 10px 28px rgba(27, 36, 64, .13); --shadow-s: 0 1px 3px rgba(27, 36, 64, .1);
+  --canvas: #FAFAFA; --dot: rgba(0, 0, 0, .08); --surface: #FFFFFF; --raised: #FFFFFF; --inset: #F4F4F5;
+  --hover: #F4F4F5; --selected: #EDEDEE; --line: rgba(0, 0, 0, .08); --line2: rgba(0, 0, 0, .18);
+  --text: #0A0A0A; --muted: #52525B; --faint: #6B6B73;
+  --you: #C8F031; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line);
+  --night: #18181B; --night-bg: rgba(0, 0, 0, .05); --night-line: rgba(0, 0, 0, .42);
+  --ok: #15803D; --ok-bg: rgba(21, 128, 61, .08); --bad: #DC2626; --bad-bg: rgba(220, 38, 38, .07);
+  --shadow: 0 10px 28px rgba(0, 0, 0, .1); --shadow-s: 0 1px 3px rgba(0, 0, 0, .08);
   color-scheme: light;
 }
 
@@ -137,7 +139,7 @@ h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
 .start .row-note .t { flex: 1; min-width: 0; }
 .bullet { display: flex; gap: 10px; margin-bottom: 8px; }
 .bullet::before { content: ""; flex: none; margin-top: 6px; width: 8px; height: 8px; border-radius: 2px; background: var(--you); }
-.bullet.hollow::before { background: none; border: 1.5px solid var(--you); }
+.bullet.hollow::before { background: none; border: 1.5px solid var(--you-mark); }
 .group-label { color: var(--muted); font-size: 13px; margin: 18px 0 8px; }
 
 /* Brain. */
