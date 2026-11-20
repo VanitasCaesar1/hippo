@@ -1,0 +1,22 @@
+<!doctype html>
+<!-- hippo's live demo: a replica of Hippo.app's Morning and Brain. Its data
+     (demo/data.js) is generated from the synthetic demo home
+     (app/scripts/demo-home.sh) by docs/site/demo-data.sh through hippo view
+     --json; the page loads only its own files. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hippo: live demo</title>
+<meta name="description" content="A replica of Hippo.app's Morning and Brain, drawn from hippo's own output for a synthetic project. Keep a rule, undo a fix, zoom the map of notes. Nothing is saved.">
+<meta name="color-scheme" content="dark light">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="demo/demo.css">
+</head>
+<body>
+<div id="app"><noscript><p style="padding:24px">The live demo draws Hippo.app's Morning and Brain with JavaScript. <a href="index.html">Back to hippo</a></p></noscript></div>
+<script src="demo/data.js"></script>
+<script src="demo/demo.js"></script>
+</body>
+</html>

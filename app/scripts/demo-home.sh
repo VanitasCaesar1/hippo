@@ -7,7 +7,7 @@
 #
 # Layout under <dir> (which must not exist or must be empty):
 #   home/         HIPPO_HOME: config.toml only (hippo's machine state)
-#   ws/           the workspace: notes/ and .hippo/ (sessions, proposals,
+#   ws/           the workspace (HIPPO_DEMO_WS renames it): notes/ and .hippo/ (sessions, proposals,
 #                 receipts, reports, snapshots)
 #   transcripts/  the only transcript root the config names
 #   t3/           a synthetic T3 Code state database (statev2.sqlite)
@@ -118,7 +118,8 @@ if [ -n "$(ls -A "$1")" ]; then
 fi
 dir=$(cd "$1" && pwd -P)
 home=$dir/home
-ws=$dir/ws
+# HIPPO_DEMO_WS names the workspace folder (the site's demo uses `tern`).
+ws=$dir/${HIPPO_DEMO_WS:-ws}
 transcripts=$dir/transcripts
 model=$fixtures/stub-model/model.sh
 
