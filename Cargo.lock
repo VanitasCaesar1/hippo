@@ -571,6 +571,7 @@ dependencies = [
  "tempfile",
  "time",
  "tiny-skia",
+ "toml",
  "tracing-subscriber",
  "ulid",
 ]

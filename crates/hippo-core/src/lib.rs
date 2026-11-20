@@ -51,6 +51,7 @@ pub mod doctor;
 pub mod dream;
 pub mod error;
 pub mod eval;
+pub mod guard;
 pub mod hooks;
 pub mod incidents;
 pub mod index;

@@ -319,6 +319,11 @@ pub fn keep(
         (ProposalKind::Create, String::new(), new, Vec::new())
     } else {
         notes::validate_proposal_path(&ws.root, &ws.notes_dir, &target.note)?;
+        if crate::dream::validate::is_guard_note(ws, &target.note) {
+            return Err(Error::InvalidProposal(
+                crate::dream::validate::GUARD_NOTE.to_owned(),
+            ));
+        }
         let bytes = fs::read(&note_path).map_err(|e| Error::io_at(&note_path, e))?;
         let text = String::from_utf8_lossy(&bytes).into_owned();
         let bullet = bullet(&title, &rule, date);

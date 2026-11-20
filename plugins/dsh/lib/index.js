@@ -6,6 +6,7 @@
  * anywhere. Design: docs/designs/dsh-plugin.md in the hippo repository.
  */
 import { Config, validate } from "./config.js";
+import { addGuard } from "./guard.js";
 import { addStartBlock, projection } from "./start-block.js";
 import { hippoTools } from "./tools.js";
 export { Config };
@@ -23,6 +24,8 @@ export async function apply(ctx, input) {
     if (config.tools)
         for (const tool of hippoTools(config))
             ctx.tools.register(tool);
+    if (config.guard)
+        addGuard(ctx, config);
     const handle = ctx.sessionProjections.register(projection);
     addStartBlock(ctx, config, handle);
     await handle;

@@ -25,6 +25,9 @@ case "$1 $2" in
   "ask --sources-only")
     if [ -n "$FAKE_HIPPO_OUTPUT" ]; then printf '%s' "$FAKE_HIPPO_OUTPUT"
     else printf '%s\n' '{"terms":["fake"],"searched":{"sessions":2,"notes":1,"ms":3},"sources":[]}'; fi ;;
+  "guard check")
+    if [ -n "$FAKE_HIPPO_STDIN" ]; then cat >"$FAKE_HIPPO_STDIN"; else cat >/dev/null; fi
+    printf '%s\n' "${FAKE_HIPPO_GUARD:-{\"decision\":\"none\"\}}" ;;
   "show day") printf '%s' "${FAKE_HIPPO_OUTPUT:-a fake day: 3 sessions}" ;;
   *) echo "fake hippo: unexpected arguments: $*" >&2; exit 64 ;;
 esac

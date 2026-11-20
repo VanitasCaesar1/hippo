@@ -209,6 +209,98 @@ pub fn accept_check(pending: &crate::accept::Pending) -> Check {
     )
 }
 
+/// `guard`: where the guard is installed (each Claude Code account, Gemini
+/// CLI), the binary each hook runs, the rules in force, what could not be
+/// read, and the last day's failures.
+pub fn guard_check(
+    cfg: &crate::config::Config,
+    ws: Option<&Workspace>,
+    user_home: Option<&Path>,
+) -> Check {
+    use crate::hooks::GuardAgent;
+    let compiled = match crate::guard::current(cfg, ws) {
+        Ok(c) => c,
+        Err(e) => {
+            return row(
+                "guard",
+                Status::Problem,
+                format!("the rules do not compile: {e}"),
+            )
+        }
+    };
+    let targets = user_home
+        .map(|h| crate::guard::install::targets(h, &[GuardAgent::ClaudeCode, GuardAgent::Gemini]))
+        .unwrap_or_default();
+    let mut installed = Vec::new();
+    let mut missing = Vec::new();
+    let mut stale_fail = Vec::new();
+    for (agent, path) in &targets {
+        if let Ok(Some(command)) = hooks::guard_installed(path, *agent) {
+            installed.push(path.display().to_string());
+            let program = hooks::command_program(&command).unwrap_or_default();
+            if !Path::new(&program).is_file() {
+                missing.push(format!(
+                    "{} runs {program}, which does not exist",
+                    path.display()
+                ));
+            }
+            let blocks_on_failure =
+                fs::read_to_string(path).is_ok_and(|t| t.contains("\"onFailure\""));
+            let closed = compiled.fail == crate::accept::Fail::Closed;
+            if *agent == GuardAgent::ClaudeCode && closed != blocks_on_failure {
+                stale_fail.push(path.display().to_string());
+            }
+        }
+    }
+    let activity = crate::guard::activity(&cfg.home);
+    let mut parts = vec![if installed.is_empty() {
+        "not installed in any agent (hippo guard install)".to_owned()
+    } else {
+        format!(
+            "installed in {} of {} agent settings files",
+            installed.len(),
+            targets.len()
+        )
+    }];
+    parts.push(format!(
+        "rules: {}; fail = {}; warn-only",
+        crate::guard::summary(&compiled.in_force),
+        compiled.fail
+    ));
+    if activity.checked_today > 0 || activity.matched_day > 0 {
+        parts.push(format!(
+            "{} calls checked today, {} matched a rule in the last day",
+            activity.checked_today, activity.matched_day
+        ));
+    }
+    let mut status = Status::Ok;
+    if activity.failures_day > 0 {
+        status = Status::Warn;
+        parts.push(format!(
+            "{} guard failures in the last day ({})",
+            activity.failures_day,
+            crate::guard::failures_path(&cfg.home).display()
+        ));
+    }
+    if !stale_fail.is_empty() {
+        status = Status::Warn;
+        parts.push(format!(
+            "fail = {} is not what these hooks were installed with: {}; run hippo guard install --yes",
+            compiled.fail,
+            stale_fail.join(", ")
+        ));
+    }
+    if !compiled.problems.is_empty() {
+        status = Status::Warn;
+        parts.push(format!("cannot use: {}", compiled.problems.join("; ")));
+    }
+    if !missing.is_empty() {
+        status = Status::Problem;
+        parts.push(missing.join("; "));
+    }
+    row("guard", status, parts.join("; "))
+}
+
 /// Whether git tracks `path` in the work tree at `root`. `false` when git
 /// cannot say.
 fn git_tracks(root: &Path, path: &Path) -> bool {

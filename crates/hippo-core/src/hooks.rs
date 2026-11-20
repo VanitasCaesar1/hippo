@@ -664,6 +664,233 @@ pub fn uninstall_file(path: &Path, agent: Agent) -> Result<Vec<&'static str>> {
     Ok(removed)
 }
 
+/// An agent whose pre-tool hook can run the guard.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GuardAgent {
+    /// `PreToolUse` in an account's `settings.json`.
+    ClaudeCode,
+    /// `BeforeTool` in `~/.gemini/settings.json`.
+    Gemini,
+}
+
+impl GuardAgent {
+    /// The value of `--agent` for `hippo guard check`.
+    pub fn name(self) -> &'static str {
+        match self {
+            GuardAgent::ClaudeCode => "claude-code",
+            GuardAgent::Gemini => "gemini",
+        }
+    }
+
+    fn event(self) -> &'static str {
+        match self {
+            GuardAgent::ClaudeCode => "PreToolUse",
+            GuardAgent::Gemini => "BeforeTool",
+        }
+    }
+
+    /// The tools the hook runs for: shell, file and fetch tools, and MCP
+    /// tools in Claude Code.
+    fn matcher(self) -> &'static str {
+        match self {
+            GuardAgent::ClaudeCode => "Bash|Read|Write|Edit|MultiEdit|WebFetch|mcp__.*",
+            GuardAgent::Gemini => "run_shell_command|read_file|read_many_files|write_file|replace",
+        }
+    }
+
+    fn suffix(self) -> String {
+        format!("guard check --agent {}", self.name())
+    }
+
+    /// The command the hook runs.
+    pub fn command(self, bin: &str) -> String {
+        format!("{} {}", shell_quote(bin), self.suffix())
+    }
+
+    /// hippo's entry: the matcher and one command hook. The hook's own
+    /// timeout is a second past the guard's, which answers by then itself
+    /// (`fail`); Claude Code's `onFailure: "block"` makes a missing or
+    /// crashed hippo refuse the call when `fail = "closed"`.
+    fn entry(self, bin: &str, timeout_ms: u64, fail_closed: bool) -> J {
+        let command = J::Scalar(Value::from(self.command(bin)));
+        let mut hook = match self {
+            GuardAgent::ClaudeCode => vec![
+                ("type".into(), J::Scalar(Value::from("command"))),
+                ("command".into(), command),
+                (
+                    "timeout".into(),
+                    J::Scalar(Value::from(timeout_ms.div_ceil(1000) + 1)),
+                ),
+            ],
+            GuardAgent::Gemini => vec![
+                ("name".into(), J::Scalar(Value::from("hippo-guard"))),
+                ("type".into(), J::Scalar(Value::from("command"))),
+                ("command".into(), command),
+                ("timeout".into(), J::Scalar(Value::from(timeout_ms + 1000))),
+            ],
+        };
+        if fail_closed && self == GuardAgent::ClaudeCode {
+            hook.push(("onFailure".into(), J::Scalar(Value::from("block"))));
+        }
+        J::Object(vec![
+            ("matcher".into(), J::Scalar(Value::from(self.matcher()))),
+            ("hooks".into(), J::Array(vec![J::Object(hook)])),
+        ])
+    }
+}
+
+/// A planned change to one settings file for the guard.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GuardPlan {
+    pub path: PathBuf,
+    /// `add`, `update`, `remove` or `none`.
+    pub change: &'static str,
+    /// The file's text after the change.
+    pub text: String,
+}
+
+impl GuardPlan {
+    /// Writes the plan, creating the folder when missing.
+    pub fn apply(&self) -> Result<()> {
+        if self.change == "none" {
+            return Ok(());
+        }
+        if let Some(dir) = self.path.parent() {
+            fs::create_dir_all(dir).map_err(|e| Error::io_at(dir, e))?;
+        }
+        crate::util::write_atomic(&self.path, self.text.as_bytes())
+    }
+}
+
+/// Whether the settings file at `path` has hippo's guard entry, and its
+/// command when it has.
+pub fn guard_installed(path: &Path, agent: GuardAgent) -> Result<Option<String>> {
+    let Some(tree) = read(path)? else {
+        return Ok(None);
+    };
+    let wanted = agent.suffix();
+    let Some(J::Array(entries)) = tree.get("hooks").and_then(|h| h.get(agent.event())) else {
+        return Ok(None);
+    };
+    for entry in entries {
+        if let Some(J::Array(hooks)) = entry.get("hooks") {
+            for h in hooks {
+                if is_hippo(h, &wanted) {
+                    if let Some(J::Scalar(Value::String(c))) = h.get("command") {
+                        return Ok(Some(c.clone()));
+                    }
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Plans adding the guard's entry to the settings file at `path` (or
+/// bringing an existing one up to date), every other key kept in order.
+pub fn guard_plan(
+    path: &Path,
+    agent: GuardAgent,
+    bin: &str,
+    timeout_ms: u64,
+    fail_closed: bool,
+) -> Result<GuardPlan> {
+    let mut tree = read(path)?.unwrap_or(J::Object(Vec::new()));
+    if tree.get("hooks").is_none() {
+        if let J::Object(entries) = &mut tree {
+            entries.push(("hooks".into(), J::Object(Vec::new())));
+        }
+    }
+    let Some(J::Object(events)) = tree.get_mut("hooks") else {
+        return Err(invalid(
+            path,
+            "has a \"hooks\" that is not an object; left as it is",
+        ));
+    };
+    let wanted = agent.suffix();
+    let entry = agent.entry(bin, timeout_ms, fail_closed);
+    let event = agent.event();
+    let change = match events.iter_mut().find(|(k, _)| k == event) {
+        None => {
+            events.push((event.to_owned(), J::Array(vec![entry])));
+            "add"
+        }
+        Some((_, J::Array(items))) => {
+            let found = items.iter().position(|e| {
+                matches!(e.get("hooks"), Some(J::Array(h)) if h.iter().any(|h| is_hippo(h, &wanted)))
+            });
+            match found {
+                Some(i) if items[i] == entry => "none",
+                Some(i) => {
+                    items[i] = entry;
+                    "update"
+                }
+                None => {
+                    items.push(entry);
+                    "add"
+                }
+            }
+        }
+        Some(_) => {
+            return Err(invalid(
+                path,
+                &format!("has a hooks.{event} that is not an array; left as it is"),
+            ))
+        }
+    };
+    let mut text = String::new();
+    tree.write(&mut text, 0);
+    text.push('\n');
+    Ok(GuardPlan {
+        path: path.to_path_buf(),
+        change,
+        text,
+    })
+}
+
+/// Plans removing the guard's entry from the settings file at `path`.
+pub fn guard_remove_plan(path: &Path, agent: GuardAgent) -> Result<GuardPlan> {
+    let none = |text: String| GuardPlan {
+        path: path.to_path_buf(),
+        change: "none",
+        text,
+    };
+    let Some(mut tree) = read(path)? else {
+        return Ok(none(String::new()));
+    };
+    let wanted = agent.suffix();
+    let event = agent.event();
+    let mut removed = false;
+    if let Some(J::Object(events)) = tree.get_mut("hooks") {
+        if let Some((_, J::Array(items))) = events.iter_mut().find(|(k, _)| k == event) {
+            for entry in items.iter_mut() {
+                if let Some(J::Array(hooks)) = entry.get_mut("hooks") {
+                    let n = hooks.len();
+                    hooks.retain(|h| !is_hippo(h, &wanted));
+                    removed |= hooks.len() != n;
+                }
+            }
+            if removed {
+                items.retain(|e| !matches!(e.get("hooks"), Some(J::Array(h)) if h.is_empty()));
+            }
+        }
+        if removed {
+            events.retain(|(k, v)| k != event || !matches!(v, J::Array(items) if items.is_empty()));
+        }
+    }
+    let mut text = String::new();
+    tree.write(&mut text, 0);
+    text.push('\n');
+    if !removed {
+        return Ok(none(text));
+    }
+    Ok(GuardPlan {
+        path: path.to_path_buf(),
+        change: "remove",
+        text,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

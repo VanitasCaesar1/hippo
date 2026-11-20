@@ -133,10 +133,10 @@ test('tools off: none added, the start block still on', async () => {
 })
 
 test('the options fill defaults; a wrong or unknown one is reported and its default kept', async () => {
-  assert.deepEqual(readConfig(undefined), { config: { command: 'hippo', timeoutMs: 10000, tools: true }, issues: [] })
-  assert.deepEqual(readConfig({ timeoutMs: 500, tools: false }).config, { command: 'hippo', timeoutMs: 500, tools: false })
+  assert.deepEqual(readConfig(undefined), { config: { command: 'hippo', timeoutMs: 10000, tools: true, guard: false }, issues: [] })
+  assert.deepEqual(readConfig({ timeoutMs: 500, tools: false }).config, { command: 'hippo', timeoutMs: 500, tools: false, guard: false })
   const bad = readConfig({ timeoutMs: -1, command: '', tools: 'no', subagents: true })
-  assert.deepEqual(bad.config, { command: 'hippo', timeoutMs: 10000, tools: true })
+  assert.deepEqual(bad.config, { command: 'hippo', timeoutMs: 10000, tools: true, guard: false })
   assert.deepEqual(bad.issues.map(issue => issue.split(' ')[0]), ['timeoutMs', 'command', 'tools', 'subagents'])
   assert.deepEqual(readConfig([]).issues, ['options must be an object; using the defaults'])
   const { warnings, ctx } = await tools({ timeoutMs: 0 })

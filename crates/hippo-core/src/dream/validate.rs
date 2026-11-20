@@ -68,6 +68,20 @@ pub fn first_array(reply: &str) -> Option<Vec<Value>> {
 /// The most an `append` from a pass outside `core` may add, in bytes.
 pub const OUTSIDE_APPEND_CAP: usize = 2048;
 
+/// Why a change to the guard note is refused.
+pub const GUARD_NOTE: &str =
+    "the guard note holds the team's guard rules; only people change it, never dreaming";
+
+/// Whether `path` (relative to the workspace) is the guard note.
+pub fn is_guard_note(ws: &Workspace, path: &Path) -> bool {
+    crate::notes::normalise(path)
+        == crate::notes::normalise(
+            ws.guard_note_path()
+                .strip_prefix(&ws.root)
+                .unwrap_or(Path::new("")),
+        )
+}
+
 /// Checks `draft` from pass `pass` against `notes`, the notes that went
 /// into its prompt. `outside` is `None` for a `core` pass; for a pass
 /// outside `core` it holds the ids of the prompt's sessions, and after the
@@ -86,6 +100,9 @@ pub fn check(
     let path = Path::new(&draft.note);
     if let Err(err) = notes::validate_proposal_path(&ws.root, &ws.notes_dir, path) {
         return invalid(err.to_string());
+    }
+    if is_guard_note(ws, path) {
+        return invalid(GUARD_NOTE.to_owned());
     }
     let Some(note) = notes.iter().find(|note| note.path == path) else {
         return invalid("not a note this pass read".to_owned());
@@ -476,6 +493,8 @@ mod tests {
         assert!(
             replace(".hippo/hippo.toml", "a", TURN_1, &[1]).contains("not a note inside notes_dir")
         );
+        s.add_note("notes/Guard.md", "# Guard\n");
+        assert_eq!(replace("notes/Guard.md", "a", TURN_1, &[1]), GUARD_NOTE);
         s.add_note("notes/Other.md", "# Other\n");
         assert_eq!(
             replace("notes/Other.md", "a", TURN_1, &[1]),

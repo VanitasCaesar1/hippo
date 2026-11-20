@@ -432,7 +432,7 @@ pub fn pending(cfg: &Config, ws: Option<&Workspace>) -> Result<Pending> {
     load(&cfg.home, &key(ws))?;
     Ok(Pending {
         settings: ws.map(|w| w.waiting.clone()).unwrap_or_default(),
-        guard: Vec::new(),
+        guard: crate::guard::waiting(cfg, ws)?,
     })
 }
 
@@ -442,6 +442,12 @@ pub fn accept_all(cfg: &Config, ws: Option<&Workspace>) -> Result<()> {
     if let Some(ws) = ws {
         accept_settings(&cfg.home, ws)?;
     }
+    // The guard compiles with the settings just accepted in force.
+    let reloaded = match ws {
+        Some(_) => Workspace::load_optional(cfg)?,
+        None => None,
+    };
+    crate::guard::accept(cfg, reloaded.as_ref())?;
     Ok(())
 }
 

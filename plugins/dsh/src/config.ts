@@ -11,9 +11,11 @@ export interface Config {
   timeoutMs: number
   /** Register the hippo_ask and hippo_day tools; their results reach the session's model. */
   tools: boolean
+  /** Run `hippo guard check` before every tool call (warn-only in hippo 0.6). */
+  guard: boolean
 }
 
-export const defaults: Config = { command: 'hippo', timeoutMs: 10_000, tools: true }
+export const defaults: Config = { command: 'hippo', timeoutMs: 10_000, tools: true, guard: false }
 
 interface Issue {
   message: string
@@ -40,6 +42,9 @@ export function validate(input: unknown): Result {
       else issue('must be a positive whole number')
     } else if (key === 'tools') {
       if (typeof raw === 'boolean') value.tools = raw
+      else issue('must be true or false')
+    } else if (key === 'guard') {
+      if (typeof raw === 'boolean') value.guard = raw
       else issue('must be true or false')
     } else {
       issue('is not a setting this plugin has')

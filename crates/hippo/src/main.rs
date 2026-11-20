@@ -47,7 +47,8 @@ const GROUPS: [(&str, &[&str]); 6] = [
     (
         "Setup and checks",
         &[
-            "init", "ingest", "config", "accept", "runners", "doctor", "schedule", "hooks", "mcp",
+            "init", "ingest", "config", "accept", "runners", "doctor", "schedule", "hooks",
+            "guard", "mcp",
         ],
     ),
     (
@@ -131,6 +132,9 @@ enum Command {
     /// Show or change one setting in config.toml or hippo.toml; prints the change, writes it with --yes
     #[command(subcommand)]
     Config(cmd::settings::Command),
+    /// The guard in each agent's pre-tool hook: check, test, install, allow, status (warn-only)
+    #[command(subcommand)]
+    Guard(cmd::guard::Command),
     /// Accept, on this machine, a loosened security setting that waits (needs you at a terminal)
     Accept(cmd::accept::Args),
     /// List the runners hippo's own model calls use; add, remove or migrate them
@@ -201,6 +205,7 @@ fn main() -> ExitCode {
         Command::Hooks(command) => cmd::hooks::run(command),
         Command::Config(command) => cmd::settings::run(command),
         Command::Accept(args) => cmd::accept::run(args),
+        Command::Guard(command) => cmd::guard::run(command),
         Command::Runners(args) => cmd::runners::run(args),
         Command::Show(command) => cmd::show::run(command),
         Command::Log(args) => cmd::log::run(args),

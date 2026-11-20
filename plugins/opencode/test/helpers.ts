@@ -17,6 +17,7 @@ export interface FakeContext extends Context {
   tools_: ToolInfo[]
   transforms: number
   gets: number
+  beforeHook?: (event: import('../src/opencode.ts').ToolExecuteBefore) => void | Promise<void>
 }
 
 export function fakeContext(options: Record<string, unknown> = {}, directory = '/nowhere'): FakeContext {
@@ -44,6 +45,11 @@ export function fakeContext(options: Record<string, unknown> = {}, directory = '
       async transform(callback) {
         ctx.transforms += 1
         callback({ add: tool => ctx.tools_.push(tool) })
+      },
+      async hook(name, callback) {
+        if (name !== 'execute.before') throw new Error(`unexpected hook ${name}`)
+        ctx.beforeHook = callback
+        return { dispose() {} }
       },
     },
   }

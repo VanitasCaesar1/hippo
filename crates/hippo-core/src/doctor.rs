@@ -215,6 +215,7 @@ fn security_checks(cfg: &Config, ws: Option<&Workspace>, env: &Env) -> Vec<Check
         Ok(pending) => out.push(security::accept_check(&pending)),
         Err(err) => out.push(row("accept", Status::Problem, err.to_string())),
     }
+    out.push(security::guard_check(cfg, ws, env.user_home.as_deref()));
     out.push(security::permissions_check(&cfg.home));
     out.push(security::hooks_check(
         ws,
@@ -265,6 +266,9 @@ struct Env {
     user_hook_files: Vec<(PathBuf, crate::hooks::Agent)>,
     /// The MCP client files that may run hippo's MCP server.
     mcp_files: Vec<PathBuf>,
+    /// The home folder whose agent settings the guard row reads; `None`
+    /// skips them.
+    user_home: Option<PathBuf>,
 }
 
 impl Env {
@@ -283,6 +287,7 @@ impl Env {
             check_canary: false,
             only_runner: None,
             user_hook_files: user_hook_files(),
+            user_home: crate::config::user_home(),
             mcp_files: crate::config::user_home()
                 .map(|home| security::mcp_files(&home))
                 .unwrap_or_default(),
@@ -1553,6 +1558,7 @@ mod tests {
             check_canary: false,
             only_runner: None,
             user_hook_files: Vec::new(),
+            user_home: None,
             mcp_files: Vec::new(),
         }
     }

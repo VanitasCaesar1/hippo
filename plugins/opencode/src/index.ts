@@ -8,6 +8,7 @@
  */
 
 import { readConfig } from './config.ts'
+import { addGuard } from './guard.ts'
 import type { Context, Plugin } from './opencode.ts'
 import { addStartBlock, type Warn } from './start-block.ts'
 import { hippoTools } from './tools.ts'
@@ -17,6 +18,7 @@ export async function setup(ctx: Context, warn: Warn = message => console.warn(m
   const { config, issues } = readConfig(ctx.options)
   for (const issue of issues) warn(`hippo: option ${issue}`)
   await addStartBlock(ctx, config, warn)
+  if (config.guard) await addGuard(ctx, config, warn)
   if (config.tools) {
     const tools = hippoTools(config)
     await ctx.tool.transform(editor => {

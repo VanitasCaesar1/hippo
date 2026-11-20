@@ -79,6 +79,25 @@ export interface ToolDefinition {
   execute(args: unknown, exec: { readonly signal: AbortSignal; readonly agent?: Agent }): Promise<unknown>
 }
 
+/** A pending tool call, as `tools/pre-execute` and `tools/post-execute` get it (`dsh-tools`). */
+export interface ToolExecution {
+  readonly callId: string
+  readonly name: string
+  /** The parsed arguments. */
+  readonly arguments: unknown
+  readonly agent?: Agent
+  readonly signal: AbortSignal
+}
+
+export type PreToolDecision = { kind: 'allow' } | { kind: 'deny'; reason: string } | { kind: 'ask'; reason?: string }
+
+/** What `tools/post-execute` returns; only `additionalContexts` is read or set here. */
+export interface PostToolDecision {
+  readonly kind: 'accept' | 'block'
+  readonly additionalContexts?: UserMessage[]
+  readonly [field: string]: unknown
+}
+
 export interface Logger {
   warn(message: string): void
 }
@@ -89,6 +108,16 @@ export interface Context {
     event: 'agent/pre-step',
     listener: (payload: PreStepPayload, next: () => Promise<PreStepDecision>) => Promise<PreStepDecision>,
     options?: { prepend?: boolean },
+  ): unknown
+  /** The allow/deny/ask gate before a tool runs; `next()` delegates to allow. */
+  on(
+    event: 'tools/pre-execute',
+    listener: (exec: ToolExecution, next: () => Promise<PreToolDecision>) => Promise<PreToolDecision>,
+  ): unknown
+  /** After a tool ran: may attach context for the next model request. */
+  on(
+    event: 'tools/post-execute',
+    listener: (exec: ToolExecution, result: unknown, next: () => Promise<PostToolDecision>) => Promise<PostToolDecision>,
   ): unknown
   readonly tools: { register(definition: ToolDefinition): unknown }
   readonly sessionProjections: {

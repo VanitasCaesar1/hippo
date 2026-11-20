@@ -128,9 +128,9 @@ test('tools off: none registered, the start block still on', async () => {
 })
 
 test('the config fills defaults and refuses what it does not know', () => {
-  assert.deepEqual(validate(undefined), { value: { command: 'hippo', timeoutMs: 10000, tools: true } })
+  assert.deepEqual(validate(undefined), { value: { command: 'hippo', timeoutMs: 10000, tools: true, guard: false } })
   assert.equal(Config['~standard'].version, 1)
-  assert.deepEqual(Config['~standard'].validate({ timeoutMs: 500 }), { value: { command: 'hippo', timeoutMs: 500, tools: true } })
+  assert.deepEqual(Config['~standard'].validate({ timeoutMs: 500 }), { value: { command: 'hippo', timeoutMs: 500, tools: true, guard: false } })
   const bad = validate({ timeoutMs: -1, command: '', subagents: true })
   assert.deepEqual(bad.issues?.map(issue => issue.path?.[0]), ['timeoutMs', 'command', 'subagents'])
   assert.ok(validate([]).issues)

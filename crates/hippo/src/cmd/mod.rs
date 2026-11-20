@@ -11,6 +11,7 @@ pub mod doctor;
 pub mod dream;
 pub mod eval;
 pub mod fleet;
+pub mod guard;
 pub mod hook;
 pub mod hooks;
 pub mod incidents;

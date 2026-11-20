@@ -56,6 +56,20 @@ export interface ToolEditor {
   add(tool: ToolInfo): void
 }
 
+/**
+ * The `execute.before` event of `ctx.tool.hook`: the tool, its session and
+ * its input, before it runs. Read from the OpenCode 2.3.2 binary's
+ * strings (`trigger("tool","execute.before",{tool,sessionID,agent,messageID,id,input})`);
+ * the plugin contract is not documented, so the guard here is unverified.
+ */
+export interface ToolExecuteBefore {
+  readonly tool: string
+  readonly sessionID: string
+  readonly agent?: string
+  readonly id?: string
+  input: unknown
+}
+
 /** The plugin context, as far as the plugin uses it. */
 export interface Context {
   readonly location: { directory: string }
@@ -67,6 +81,8 @@ export interface Context {
   readonly tool: {
     /** The callback must be synchronous and free of side effects: OpenCode replays it. */
     transform(callback: (editor: ToolEditor) => void): Promise<unknown>
+    /** A hook before a tool runs; an error thrown refuses the call. */
+    hook?(name: 'execute.before', callback: (event: ToolExecuteBefore) => void | Promise<void>): Promise<Registration>
   }
 }
 

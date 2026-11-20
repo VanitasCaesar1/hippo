@@ -103,13 +103,13 @@ fn call_dir(input: &str) -> Option<String> {
 
 /// What a file tool does with its path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum FileOp {
+pub(crate) enum FileOp {
     Read,
     Write,
 }
 
 /// A file tool's operation and the paths its input names.
-fn file_call(name: &str, input: &str) -> Option<(FileOp, Vec<String>, String)> {
+pub(crate) fn file_call(name: &str, input: &str) -> Option<(FileOp, Vec<String>, String)> {
     let lower = name.to_ascii_lowercase();
     let op = match lower.as_str() {
         "read" | "read_file" | "readfile" | "view" | "view_file" | "open_file" | "cat"
@@ -541,7 +541,7 @@ fn origin(url: &str) -> String {
 
 /// What a simple command runs of the code in the folder it runs in, or
 /// in a folder it names: (the folder it names, if any, the words).
-fn executes_repo_code(program: &str, args: &[&str]) -> Option<Option<String>> {
+pub(crate) fn executes_repo_code(program: &str, args: &[&str]) -> Option<Option<String>> {
     let plain: Vec<&str> = args
         .iter()
         .copied()

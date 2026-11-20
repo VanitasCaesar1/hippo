@@ -10,9 +10,11 @@ export interface Config {
   timeoutMs: number
   /** Add the hippo_ask and hippo_day tools; their results reach the session's model. */
   tools: boolean
+  /** Run `hippo guard check` before every tool call (warn-only in hippo 0.6; unverified against OpenCode). */
+  guard: boolean
 }
 
-export const defaults: Config = { command: 'hippo', timeoutMs: 10_000, tools: true }
+export const defaults: Config = { command: 'hippo', timeoutMs: 10_000, tools: true, guard: false }
 
 /**
  * Fill defaults and check each option. A wrong or unknown option is
@@ -37,6 +39,9 @@ export function readConfig(input: unknown): { config: Config; issues: string[] }
     } else if (key === 'tools') {
       if (typeof raw === 'boolean') config.tools = raw
       else issue('must be true or false; using true')
+    } else if (key === 'guard') {
+      if (typeof raw === 'boolean') config.guard = raw
+      else issue('must be true or false; using false')
     } else {
       issue('is not an option this plugin has')
     }

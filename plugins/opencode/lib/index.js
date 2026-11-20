@@ -7,6 +7,7 @@
  * repository.
  */
 import { readConfig } from "./config.js";
+import { addGuard } from "./guard.js";
 import { addStartBlock } from "./start-block.js";
 import { hippoTools } from "./tools.js";
 /** Set up the plugin in `ctx`; `warn` is where problems are reported. */
@@ -15,6 +16,8 @@ export async function setup(ctx, warn = message => console.warn(message)) {
     for (const issue of issues)
         warn(`hippo: option ${issue}`);
     await addStartBlock(ctx, config, warn);
+    if (config.guard)
+        await addGuard(ctx, config, warn);
     if (config.tools) {
         const tools = hippoTools(config);
         await ctx.tool.transform(editor => {

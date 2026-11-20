@@ -2,7 +2,7 @@
  * The plugin's options, from its entry in `opencode.json`:
  * `{ "package": "…", "options": { "tools": false } }`.
  */
-export const defaults = { command: 'hippo', timeoutMs: 10_000, tools: true };
+export const defaults = { command: 'hippo', timeoutMs: 10_000, tools: true, guard: false };
 /**
  * Fill defaults and check each option. A wrong or unknown option is
  * reported and its default used, so a typo never stops OpenCode.
@@ -36,6 +36,12 @@ export function readConfig(input) {
                 config.tools = raw;
             else
                 issue('must be true or false; using true');
+        }
+        else if (key === 'guard') {
+            if (typeof raw === 'boolean')
+                config.guard = raw;
+            else
+                issue('must be true or false; using false');
         }
         else {
             issue('is not an option this plugin has');

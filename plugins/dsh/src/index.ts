@@ -8,6 +8,7 @@
 
 import { Config, validate } from './config.ts'
 import type { Context } from './dsh.ts'
+import { addGuard } from './guard.ts'
 import { addStartBlock, projection } from './start-block.ts'
 import { hippoTools } from './tools.ts'
 
@@ -26,6 +27,7 @@ export async function apply(ctx: Context, input?: Partial<Config>): Promise<void
   if (checked.issues) throw new TypeError(checked.issues.map(issue => issue.message).join('; '))
   const config = checked.value
   if (config.tools) for (const tool of hippoTools(config)) ctx.tools.register(tool)
+  if (config.guard) addGuard(ctx, config)
   const handle = ctx.sessionProjections.register(projection)
   addStartBlock(ctx, config, handle)
   await handle

@@ -3,7 +3,7 @@
  * Schema (`~standard.validate`) as a plugin's `Config`, so this one is
  * written by hand instead of pulling in a schema library.
  */
-export const defaults = { command: 'hippo', timeoutMs: 10_000, tools: true };
+export const defaults = { command: 'hippo', timeoutMs: 10_000, tools: true, guard: false };
 /** Fill defaults and check each field; an unknown field is an error. */
 export function validate(input) {
     if (input !== undefined && input !== null && (typeof input !== 'object' || Array.isArray(input))) {
@@ -30,6 +30,12 @@ export function validate(input) {
         else if (key === 'tools') {
             if (typeof raw === 'boolean')
                 value.tools = raw;
+            else
+                issue('must be true or false');
+        }
+        else if (key === 'guard') {
+            if (typeof raw === 'boolean')
+                value.guard = raw;
             else
                 issue('must be true or false');
         }

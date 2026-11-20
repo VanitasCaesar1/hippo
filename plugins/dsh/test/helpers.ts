@@ -41,6 +41,8 @@ export interface FakeContext extends Context {
   tools_: ToolDefinition[]
   preStep?: (payload: PreStepPayload, next: () => Promise<PreStepDecision>) => Promise<PreStepDecision>
   preStepOptions?: { prepend?: boolean }
+  /** Every listener by event, for the guard's. */
+  listeners: Record<string, (...args: never[]) => unknown>
 }
 
 export function fakeContext(): FakeContext {
@@ -48,11 +50,15 @@ export function fakeContext(): FakeContext {
     warnings: [],
     tools_: [],
     logger: { warn: message => ctx.warnings.push(message) },
-    on(_event, listener, options) {
-      ctx.preStep = listener
-      ctx.preStepOptions = options
+    on(event: string, listener: (...args: never[]) => unknown, options?: { prepend?: boolean }) {
+      ctx.listeners[event] = listener
+      if (event === 'agent/pre-step') {
+        ctx.preStep = listener as FakeContext['preStep']
+        ctx.preStepOptions = options
+      }
       return () => {}
     },
+    listeners: {},
     tools: { register: definition => ctx.tools_.push(definition) },
     sessionProjections: {
       async register<S>(definition: ProjectionDefinition<S>) {

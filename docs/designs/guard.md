@@ -1,6 +1,6 @@
 # Guard: noticing, and sometimes stopping, risky agent actions
 
-Status: accepted; Part A ships in v0.5.0, Part B is planned for v0.6.0 ([rollout](#rollout)). Revised 12 November 2026. Shared rules (version floor, local accept, hardening gate, release plan) are in [common.md](common.md).
+Status: accepted; Part A shipped in v0.5.0, Part B (warn-only) in v0.6.0 ([rollout](#rollout)). Revised 12 November 2026. Shared rules (version floor, local accept, hardening gate, release plan) are in [common.md](common.md).
 
 ## The problem
 
@@ -104,6 +104,21 @@ The plugins call `hippo guard check` as a child process, as they already call `h
 **Defaults.** In v0.6.0 every team and kind rule acts as `warn`, whatever its configured action, and the self-protection rules below block. The shipped actions that take effect once `ask` and `block` are switched on (later): `credential-read` of SSH private keys, keychains and wallet files, and `remote-script` from a host not on the allow list, start at `ask`; everything else at `warn`. Nothing blocks by default. A team raises actions in its rules note.
 
 **When the guard fails.** If `hippo` is missing, crashes or takes longer than its timeout (default 2 s), the call proceeds (fail open), and the failure is logged and shown by `doctor`. Failing closed would stop every agent whenever hippo breaks, and people would uninstall it. A team that prefers failing closed sets `fail = "closed"`. Either way, the guard is not a security boundary.
+
+**What v0.6.0 built, where it differs from the text above.**
+
+- **Agents.** Claude Code (`hippo guard install`, every account folder: `$CLAUDE_CONFIG_DIR`, `~/.claude`, `~/.claude-*`), Gemini CLI (`hippo guard install --agent gemini`, `BeforeTool` in `~/.gemini/settings.json`), dsh and OpenCode (the plugins' `guard: true`). Gemini CLI's `BeforeTool` has no question and no way to give the model context: a warning reaches the person as `systemMessage`, a refusal reaches the agent as `decision: "deny"`. dsh's contract was read from its installed type definitions (`dsh-tools`, `tools/pre-execute` returning `allow`, `deny` or `ask`; a warning goes back to the model with the call's result through `tools/post-execute`'s `additionalContexts`). OpenCode's `execute.before` hook was read from the 2.3.2 binary's strings; a refusal is thrown from it, and the contract stays unverified. **Codex** is left out: its `PreToolUse` contract has not been checked. **Cursor** is left out: its `preToolUse` answer has no neutral value (an empty answer blocks the call, and `permission: "allow"` may skip Cursor's own approval), so a warn-only guard cannot stay out of the way.
+- **Warnings.** Claude Code gets `hookSpecificOutput.additionalContext` (the model reads it beside the tool result) and `systemMessage` (the person), with no `permissionDecision`, so Claude Code's own approval flow is unchanged. No answer at all when nothing matched.
+- **A fresh clone across calls.** Part A follows a clone through one session's transcript. The guard sees one call at a time, so it also reads the disk: code run (`npm install`, `make`, a `.sh`, …) in a git repository outside the workspace whose `.git` folder was created in the last 24 hours, with an origin that is not allowed, counts as `fresh-clone-exec`.
+- **Compiling.** `guard check` reads `compiled.json`, and compiles again only when one of its sources (`config.toml`, `hippo.toml`, the guard note, `machine.toml`, the packs' `Guard.md`, the accepted file, the worktree list) changed size or time. A pack's rules come from `<pack>/Guard.md`. The workspace's worktrees are read from `.git/worktrees/*/gitdir`, without running git.
+- **The accepted set.** The set in force is `compiled.json`'s `in_force`, vouched for by its hash in the accepted file. A `compiled.json` whose rules do not match the hash is set aside: the guard starts again from its built-in rules (stricter, never looser) and `doctor` says so.
+- **Merging.** A change that tightens one part and loosens another gets the tightening at once: rules in either set stay at the stricter action, and only the allow entries in both apply.
+- **`match = '.*'`.** Every kind and `match` rule acts as `warn` in v0.6.0, so a new `block` rule cannot stop calls yet; the 5% check over the last 7 days ships with `ask` and `block`.
+- **`fail`.** The guard answers within `timeout_ms` itself: a watchdog gives the fail answer (nothing, or with `fail = "closed"` a refusal) and logs the failure in `$HIPPO_HOME/guard/failures.jsonl`. For a missing or crashing hippo, Claude Code's hook entry carries `onFailure: "block"` when `fail = "closed"` was in force at install (`doctor` says when the entry and the setting differ); Claude Code's own hook timeout is a second past the guard's. The plugins read `fail` from `compiled.json` when hippo does not answer. Gemini CLI has no such setting, so there a missing hippo fails open.
+- **Logging.** A matched call is a line in `$HIPPO_HOME/guard/log.jsonl` (redacted command, at most 400 characters); every checked call adds one byte to `$HIPPO_HOME/guard/calls/<day>`.
+- **`guard test`** applies every layer to every indexed call, since the index does not keep a session's folder, and counts by the configured action (what each rule will do once `ask` and `block` act).
+- **Part A's allow lists** stay the built-in ones in v0.6.0; the machine and team lists apply to the guard only.
+- **Measured** on a release build, 1,000 calls of mixed shell and file payloads in a scratch home with one team rule: p50 3.4 ms, p95 6.1 ms, p99 6.4 ms. A test keeps the median of a debug build under 100 ms.
 
 ### Self-protection
 
