@@ -202,7 +202,7 @@ pub fn t3_app() -> Option<PathBuf> {
 /// into the system's temporary directory, never into hippo's or an
 /// agent's files; the script deletes both when it runs.
 #[allow(clippy::disallowed_methods)]
-fn write_start_files(
+pub(crate) fn write_start_files(
     agent: briefing::Agent,
     block: &str,
     repo: &Path,
@@ -295,6 +295,15 @@ pub fn repo_of_sessions(home: &Path, b: &Brief) -> Option<PathBuf> {
         .map(|p| p.join(&project))
         .find(|p| p.is_dir())
         .or_else(|| cwds.into_iter().next())
+}
+
+/// The folder session `id` worked in, from its transcript's first record,
+/// when it still exists: where a session that fixes what it did starts.
+pub(crate) fn repo_of_session(home: &Path, id: &str) -> Option<PathBuf> {
+    let rollup = hippo_core::rollup::Rollup::open(home).ok().flatten()?;
+    let f = rollup.session(id).ok().flatten()?;
+    let cwd = hippo_core::session_meta::origin(&f.id, &f.tool, &f.transcript_path).cwd?;
+    (Some(&cwd) != hippo_core::config::user_home().as_ref() && cwd.is_dir()).then_some(cwd)
 }
 
 /// `owner/name` of the repository's GitHub `origin`, if it has one.

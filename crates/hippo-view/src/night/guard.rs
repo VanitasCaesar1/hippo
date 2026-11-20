@@ -62,8 +62,9 @@ pub struct GuardItem {
     pub what_to_do: String,
     /// The brief "Fix with <agent>" starts a session with.
     pub fix_brief: String,
-    /// The agent that would run the fix: the one that ran it, unless it
-    /// cannot be started from a script (Cursor), then Claude Code.
+    /// The agent that would run the fix: Codex for Codex's incidents,
+    /// Claude Code for every other (the agents hippo can start with a
+    /// brief).
     pub fix_agent: Agent,
 }
 
@@ -202,9 +203,11 @@ pub fn item(
         }
         _ => return None,
     };
+    // The app starts Claude Code or Codex with a brief; another agent's
+    // fix runs in Claude Code.
     let fix_agent = match a.code.as_str() {
-        "cu" => agent("claude-code"),
-        _ => a.clone(),
+        "cx" => a.clone(),
+        _ => agent("claude-code"),
     };
     Some(GuardItem {
         id: i.id.clone(),

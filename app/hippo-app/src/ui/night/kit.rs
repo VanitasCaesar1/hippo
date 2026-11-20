@@ -363,17 +363,18 @@ pub fn button(
 /// Your own words on the amber highlight, the whole quote one rounded
 /// block (GPUI's text runs have square, unpadded backgrounds).
 pub fn said(look: &Look, t: &Nt, text: &str, lines: usize) -> gpui::Div {
-    div().flex_1().min_w_0().child(
-        div()
-            .bg(t.you_bg)
-            .text_color(t.you_text)
-            .rounded(look.px(4.))
-            .px(look.px(4.))
-            .text_size(look.text(13.))
-            .line_height(look.text(19.))
-            .line_clamp(lines)
-            .child(text.to_owned()),
-    )
+    div()
+        .flex_1()
+        .min_w_0()
+        .bg(t.you_bg)
+        .rounded(look.px(4.))
+        .pl(look.px(5.))
+        .pr(look.px(12.))
+        .text_color(t.you_text)
+        .text_size(look.text(13.))
+        .line_height(look.text(19.))
+        .line_clamp(lines)
+        .child(text.to_owned())
 }
 
 /// A quote with a 2-point bar at its left.

@@ -508,7 +508,7 @@ impl Shell {
     }
 
     /// Resumes a session in the terminal Resume uses.
-    fn pulse_terminal(&mut self, row: &Row, fleet: &Fleet) {
+    pub(crate) fn pulse_terminal(&mut self, row: &Row, fleet: &Fleet) {
         let _ = fleet;
         let target = hippo_core::resume::Target {
             id: &row.id,

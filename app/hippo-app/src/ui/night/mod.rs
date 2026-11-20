@@ -2,7 +2,9 @@
 //! floating panel and Ask bar, and the views Morning, Brain, Agents and
 //! Guard drawn on a dotted ground.
 
+pub mod agents;
 pub mod brain;
+pub mod guard;
 pub mod kit;
 pub mod morning;
 
@@ -56,6 +58,10 @@ pub struct NightUi {
     pub dev_zoom: Option<f32>,
     /// Brain's map: pan, zoom, the press, frame times.
     pub map: brain::MapView,
+    /// The incident whose Fix with waits for a yes.
+    pub fixing: Option<String>,
+    /// What the last Fix with did.
+    pub fix_said: Option<String>,
 }
 
 impl Default for NightUi {
@@ -72,6 +78,8 @@ impl Default for NightUi {
             dev_select: None,
             dev_zoom: None,
             map: brain::MapView::default(),
+            fixing: None,
+            fix_said: None,
         }
     }
 }
@@ -84,7 +92,7 @@ pub fn is_night(tab: &Tab) -> bool {
 /// Whether a night view is drawn on the night canvas; the others show
 /// the view they replace until they are built.
 pub fn draws(tab: &Tab) -> bool {
-    matches!(tab, Tab::Morning | Tab::Brain)
+    is_night(tab)
 }
 
 impl Shell {
@@ -183,12 +191,7 @@ impl Shell {
             .loaded
             .as_ref()
             .and_then(|l| l.status.as_ref())
-            .map(|s| {
-                (
-                    s.last_ingest.map(super::kit::hm),
-                    !s.errors.is_empty() || s.ingest_stale,
-                )
-            });
+            .map(|s| (s.last_ingest.map(super::kit::hm), !s.errors.is_empty()));
         let left = div()
             .flex()
             .flex_1()
@@ -679,6 +682,8 @@ impl Shell {
         let body = match tab {
             Tab::Morning => self.render_morning(look, &t, left_w, narrow, panel_w, cx),
             Tab::Brain => self.render_brain(look, &t, left_w, view_h, narrow, cx),
+            Tab::Agents => self.render_agents(look, &t, left_w, narrow, cx),
+            Tab::Guard => self.render_guard(look, &t, left_w, narrow, cx),
             _ => div().into_any_element(),
         };
         let panel = if narrow {
@@ -687,6 +692,8 @@ impl Shell {
             match tab {
                 Tab::Morning => Some(self.render_start_panel(look, &t, cx)),
                 Tab::Brain => Some(self.render_note_panel(look, &t, cx)),
+                Tab::Agents => Some(self.render_session_panel(look, &t, cx)),
+                Tab::Guard => Some(self.render_guard_panel(look, &t, cx)),
                 _ => None,
             }
         };
@@ -705,6 +712,8 @@ impl Shell {
                     .left_0()
                     .bottom_0()
                     .w(look.px(left_w))
+                    .flex()
+                    .flex_col()
                     .overflow_y_scroll()
                     .track_scroll(&self.night.scroll)
                     .child(body)
