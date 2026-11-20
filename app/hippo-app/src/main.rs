@@ -277,10 +277,47 @@ fn main() {
                     shell.night.dev_zoom = std::env::var("HIPPO_APP_DEV_ZOOM")
                         .ok()
                         .and_then(|z| z.parse().ok());
+                    shell.night.dev_reset =
+                        std::env::var("HIPPO_APP_DEV_RESET").is_ok_and(|v| v == "0");
+                    shell.night.dev_lift = std::env::var("HIPPO_APP_DEV_LIFT").ok().and_then(|v| {
+                        let (key, at) = v.rsplit_once('@')?;
+                        let (x, y) = at.split_once(',')?;
+                        Some((key.to_owned(), (x.parse().ok()?, y.parse().ok()?)))
+                    });
                     shell
                 })
             })
             .expect("the window opens");
+        // Dev-only, for screenshots of arranging Brain: HIPPO_APP_DEV_DROP
+        // (seconds) drops a block lifted by HIPPO_APP_DEV_LIFT, as a release
+        // of the mouse does (it saves to the preferences, so run it with
+        // HIPPO_APP_PREFS in a scratch folder); HIPPO_APP_DEV_RESET
+        // (seconds; 0: before the first frame) presses Reset layout. A window
+        // in the background may be covered, and macOS does not draw a covered
+        // window again: capture each state on its own launch.
+        for (var, reset) in [("HIPPO_APP_DEV_DROP", false), ("HIPPO_APP_DEV_RESET", true)] {
+            if let Some(secs) = std::env::var(var)
+                .ok()
+                .and_then(|v| v.parse::<f32>().ok())
+                .filter(|s| *s > 0.)
+            {
+                cx.spawn(async move |cx| {
+                    cx.background_executor()
+                        .timer(std::time::Duration::from_secs_f32(secs))
+                        .await;
+                    let _ = handle.update(cx, |shell, window, cx| {
+                        if reset {
+                            shell.brain_reset_layout(cx);
+                        } else {
+                            shell.brain_drop(cx);
+                        }
+                        // A window in the background draws only when asked.
+                        window.refresh();
+                    });
+                })
+                .detach();
+            }
+        }
         // Dev-only: HIPPO_APP_DEV_THEN (`brain:4`) shows that section after
         // that many seconds, as a click on its tab does: for a screenshot of
         // what a change of view closes.

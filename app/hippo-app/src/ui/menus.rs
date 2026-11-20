@@ -51,6 +51,8 @@ mod tests {
             active_file: true,
             revert_ready: true,
             confirm_open: true,
+            brain_note: true,
+            brain_arranged: true,
         });
         assert!(none > more, "{none} vs {more}");
     }

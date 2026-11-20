@@ -804,6 +804,8 @@ impl AppState {
             active_file: false,
             revert_ready: false,
             confirm_open: false,
+            brain_note: false,
+            brain_arranged: false,
         }
     }
 }

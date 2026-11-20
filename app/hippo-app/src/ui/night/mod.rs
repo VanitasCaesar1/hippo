@@ -67,6 +67,11 @@ pub struct NightUi {
     pub dev_select: Option<String>,
     /// Brain's zoom at launch (`HIPPO_APP_DEV_ZOOM`).
     pub dev_zoom: Option<f32>,
+    /// A block lifted at launch, dragged to a map point
+    /// (`HIPPO_APP_DEV_LIFT=folder:Runbooks@900,40`).
+    pub dev_lift: Option<(String, (f32, f32))>,
+    /// Press Reset layout before the first frame (`HIPPO_APP_DEV_RESET=0`).
+    pub dev_reset: bool,
     /// Keep a scrolling view at its end (`HIPPO_APP_DEV_SCROLL=end`), to
     /// check that the Ask bar covers nothing there.
     pub dev_scroll_end: bool,
@@ -93,6 +98,8 @@ impl Default for NightUi {
             dev_dialog: None,
             dev_select: None,
             dev_zoom: None,
+            dev_lift: None,
+            dev_reset: false,
             dev_scroll_end: false,
             map: brain::MapView::default(),
             narrow: false,

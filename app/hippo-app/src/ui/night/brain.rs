@@ -19,7 +19,8 @@ use gpui::{
     canvas, div, point, prelude::*, px, size,
 };
 use hippo_view::night::map::{
-    self, CARD_H, IN_LINE, Item, LEADING, Label, LabelKind, Layout, Level, MapNote, NotesMap,
+    self, Arrangement, Block, CARD_H, COL_W, Drop, IN_LINE, Item, LEADING, Label, LabelKind,
+    Layout, Level, MapNote, NotesMap, Nudge,
 };
 use hippo_view::night::note::NotePanel;
 
@@ -41,6 +42,16 @@ pub struct MapView {
     pub fitted: bool,
     /// The press that may become a drag.
     pub press: Option<Press>,
+    /// The block whose handle the press is on: a drag lifts it.
+    pub press_block: Option<Block>,
+    /// A block being dragged to another column or place.
+    pub lift: Option<Lift>,
+    /// Each workspace's arrangement, as the preferences hold them.
+    pub layouts: std::collections::BTreeMap<String, Arrangement>,
+    /// The line at the map's foot after a reset, with the layout Undo
+    /// puts back: (sequence, words, the layout).
+    pub toast: Option<(u64, String, Option<Arrangement>)>,
+    pub toast_seq: u64,
     /// The view's origin and size in window pixels, from the last paint.
     pub view: Rc<Cell<(f32, f32, f32, f32)>>,
     /// Paint times and frame intervals, for `HIPPO_APP_TIMING`.
@@ -58,6 +69,11 @@ impl Default for MapView {
             pan: (-24., -8.),
             fitted: false,
             press: None,
+            press_block: None,
+            lift: None,
+            layouts: Default::default(),
+            toast: None,
+            toast_seq: 0,
             view: Rc::new(Cell::new((0., 0., 1., 1.))),
             frames: Rc::new(RefCell::new(Frames::default())),
             map: None,
@@ -69,6 +85,19 @@ impl Default for MapView {
 /// A press on the map: where (view points), the pan then, and whether it
 /// has moved far enough to be a drag.
 pub type Press = ((f32, f32), (f32, f32), bool);
+
+/// A block lifted by a drag: which, at what level, where on it the press
+/// was (map units from its top left), the map point under the pointer, and
+/// where it would land.
+#[derive(Debug, Clone)]
+pub struct Lift {
+    pub block: Block,
+    pub key: String,
+    pub level: Level,
+    pub grab: (f32, f32),
+    pub at: (f32, f32),
+    pub drop: Drop,
+}
 
 /// What the frame-time check records.
 #[derive(Default, Debug, Clone)]
@@ -167,6 +196,7 @@ struct Paint {
     family: SharedString,
     view: Rc<Cell<(f32, f32, f32, f32)>>,
     frames: Rc<RefCell<Frames>>,
+    lift: Option<Lift>,
 }
 
 fn font(family: &SharedString, weight: FontWeight) -> Font {
@@ -466,6 +496,56 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
             )),
         }
     }
+    // A lifted block: its place dimmed, its outline under the pointer, and
+    // where it lands (a lime line, or a slot for a new column).
+    if let Some(l) = p.lift.as_ref().filter(|l| l.level == level)
+        && let Some(r) = p.map.block_rect(level, l.block)
+    {
+        let (x, y) = s(r.x, r.y);
+        let (w, h) = (r.w * z * u, r.h * z * u);
+        rrect(
+            window,
+            Bounds::new(point(px(x), px(y)), size(px(w), px(h))),
+            18. * z * u,
+            t.canvas.opacity(0.6),
+            gpui::transparent_black(),
+            0.,
+            false,
+        );
+        let (gx, gy) = s(l.at.0 - l.grab.0, l.at.1 - l.grab.1);
+        rrect(
+            window,
+            Bounds::new(point(px(gx), px(gy)), size(px(w), px(h))),
+            18. * z * u,
+            t.night_bg,
+            t.night,
+            (2. * u).max(1.5),
+            false,
+        );
+        let (dx, dy) = s(l.drop.x, l.drop.y);
+        let dw = COL_W * z * u;
+        if l.drop.new_column {
+            let (_, top) = s(0., 0.);
+            rrect(
+                window,
+                Bounds::new(point(px(dx), px(top)), size(px(dw), px(h))),
+                18. * z * u,
+                t.you_bg,
+                t.you_line,
+                (2. * u).max(1.5),
+                true,
+            );
+        } else {
+            let lw = (3. * u).max(2.);
+            window.paint_quad(
+                gpui::fill(
+                    Bounds::new(point(px(dx), px(dy - lw / 2.)), size(px(dw), px(lw))),
+                    t.you,
+                )
+                .corner_radii(px(lw / 2.)),
+            );
+        }
+    }
     let mut f = p.frames.borrow_mut();
     let now = Instant::now();
     if let Some(last) = f.last {
@@ -755,7 +835,14 @@ impl Shell {
                 && m.notes == loaded.map.notes
         });
         if !same {
-            self.night.map.map = Some(Rc::new(loaded.map.clone()));
+            let saved = self
+                .brain_layout_key()
+                .and_then(|k| self.night.map.layouts.get(&k).cloned());
+            let m = match saved {
+                Some(a) => loaded.map.arranged(&a),
+                None => loaded.map.clone(),
+            };
+            self.night.map.map = Some(Rc::new(m));
             self.night.map.panel = None;
         }
         self.night.map.map.clone()
@@ -763,7 +850,7 @@ impl Shell {
 
     /// The selected note: the chosen one, else the first with a rule
     /// waiting, else the entry note.
-    fn brain_selected(&self, m: &NotesMap) -> Option<usize> {
+    pub(crate) fn brain_selected(&self, m: &NotesMap) -> Option<usize> {
         if let Some(p) = &self.night.brain {
             return m.find(p);
         }
@@ -821,6 +908,28 @@ impl Shell {
                 }
             }
         }
+        // Dev-only: Reset layout pressed before the first frame.
+        if std::mem::take(&mut self.night.dev_reset) {
+            self.brain_reset_layout(cx);
+        }
+        let Some(m) = self.night.map.map.clone() else {
+            return self.render_night_empty(look, t, "Reading hippo's files…");
+        };
+        // Dev-only: a block lifted as a drag lifts it, for a screenshot.
+        let level = self.night.map.level();
+        if let Some((key, at)) = self.night.dev_lift.take()
+            && let Some(b) = m.block(&key)
+            && let Some(r) = m.block_rect(level, b)
+        {
+            self.night.map.lift = Some(Lift {
+                block: b,
+                key,
+                level,
+                grab: (r.w * 0.3, 24.),
+                at,
+                drop: m.drop_at(level, b, at.0, at.1),
+            });
+        }
         let selected = self.brain_selected(&m);
         let neighbours: Vec<usize> = selected
             .map(|i| m.neighbours(i).into_iter().collect())
@@ -840,6 +949,7 @@ impl Shell {
                 .into(),
             view: self.night.map.view.clone(),
             frames: self.night.map.frames.clone(),
+            lift: self.night.map.lift.clone(),
         };
         let canvas_el = canvas(
             |_, _, _| {},
@@ -900,6 +1010,24 @@ impl Shell {
             .border(look.fixed(1.))
             .border_color(t.line)
             .shadow(kit::float_shadow(look, t))
+            // Shown only while the layout is a person's arrangement.
+            .when(m.is_arranged(), |d| {
+                d.child(
+                    kit::button(
+                        look,
+                        t,
+                        "brain-reset",
+                        Some("undo-2"),
+                        "Reset layout",
+                        Btn::Quiet,
+                        true,
+                    )
+                    .tooltip(crate::ui::tooltip::Tooltip::text(
+                        "Back to the layout hippo chooses",
+                    ))
+                    .on_click(cx.listener(|this, _, _, cx| this.brain_reset_layout(cx))),
+                )
+            })
             .child(
                 kit::icon_button(
                     look,
@@ -974,40 +1102,106 @@ impl Shell {
                     if e.click_count >= 2 {
                         this.brain_double_click(at, cx);
                         this.night.map.press = None;
+                        this.night.map.press_block = None;
                         return;
                     }
                     this.night.map.press = Some((at, this.night.map.pan, false));
+                    // A block's handle lifts the block; anything else pans.
+                    let (mx, my) = this.night.map.to_map(at);
+                    let level = this.night.map.level();
+                    this.night.map.press_block = this
+                        .night
+                        .map
+                        .map
+                        .as_ref()
+                        .and_then(|m| m.handle_at(level, mx, my));
                 }),
             )
             .on_mouse_move(cx.listener(move |this, e: &gpui::MouseMoveEvent, _, cx| {
-                let Some((start, pan, _)) = this.night.map.press else {
+                let Some((start, pan, moved)) = this.night.map.press else {
                     return;
                 };
                 if e.pressed_button != Some(gpui::MouseButton::Left) {
                     this.night.map.press = None;
+                    this.night.map.lift = None;
                     return;
                 }
                 let at = this.brain_view_point(e.position, unit);
                 let (dx, dy) = (at.0 - start.0, at.1 - start.1);
-                if dx.abs() + dy.abs() > 3. {
+                if !moved && dx.abs() + dy.abs() <= 4. {
+                    return;
+                }
+                this.night.map.press = Some((start, pan, true));
+                if let Some(b) = this.night.map.press_block {
+                    this.brain_lift_to(b, start, at, unit);
+                } else {
                     let z = this.night.map.zoom;
                     this.night.map.pan = (pan.0 - dx / z, pan.1 - dy / z);
-                    this.night.map.press = Some((start, pan, true));
-                    cx.notify();
                 }
+                cx.notify();
             }))
             .on_mouse_up(
                 gpui::MouseButton::Left,
                 cx.listener(move |this, e: &gpui::MouseUpEvent, _, cx| {
+                    this.night.map.press_block = None;
                     let Some((_, _, moved)) = this.night.map.press.take() else {
                         return;
                     };
-                    if !moved {
+                    if this.night.map.lift.is_some() {
+                        this.brain_drop(cx);
+                    } else if !moved {
                         let at = this.brain_view_point(e.position, unit);
                         this.brain_click(at, cx);
                     }
                 }),
+            )
+            // Released outside the map: a lifted block lands where shown.
+            .on_mouse_up_out(
+                gpui::MouseButton::Left,
+                cx.listener(|this, _: &gpui::MouseUpEvent, _, cx| {
+                    this.night.map.press = None;
+                    this.night.map.press_block = None;
+                    if this.night.map.lift.is_some() {
+                        this.brain_drop(cx);
+                    }
+                }),
             );
+        let toast = self.night.map.toast.clone().map(|(_, words, undo)| {
+            div()
+                .absolute()
+                .left(look.px(20.))
+                .bottom(look.px(96.))
+                .child(
+                    div()
+                        .id("brain-toast")
+                        .flex()
+                        .items_center()
+                        .gap(look.px(10.))
+                        .pl(look.px(14.))
+                        .pr(look.px(6.))
+                        .py(look.px(6.))
+                        .rounded(look.px(12.))
+                        .bg(t.surface)
+                        .border(look.fixed(1.))
+                        .border_color(t.line2)
+                        .shadow(kit::float_shadow(look, t))
+                        .text_size(look.text(13.5))
+                        .text_color(t.text)
+                        .child(words)
+                        .children(undo.map(|_| {
+                            kit::button(
+                                look,
+                                t,
+                                "brain-undo",
+                                Some("undo-2"),
+                                "Undo",
+                                Btn::Second,
+                                true,
+                            )
+                            .on_click(cx.listener(|this, _, _, cx| this.brain_undo_reset(cx)))
+                        })),
+                )
+        });
         div()
             .relative()
             .w(look.px(view_w))
@@ -1015,7 +1209,159 @@ impl Shell {
             .child(head)
             .child(mapdiv)
             .child(controls)
+            .children(toast)
             .into_any_element()
+    }
+
+    /// The preferences' key for this workspace's arrangement: its root.
+    fn brain_layout_key(&self) -> Option<String> {
+        self.workspace_root().map(|r| r.display().to_string())
+    }
+
+    /// Lays Brain out from `arr` (`None`: the default), and saves it as
+    /// this person's for the workspace, or forgets it when it is the
+    /// default.
+    pub(crate) fn brain_set_arrangement(
+        &mut self,
+        arr: Option<Arrangement>,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(m) = self.night.map.map.clone() else {
+            return;
+        };
+        let arr = arr.unwrap_or_else(|| m.default_arrangement.clone());
+        let new = m.arranged(&arr);
+        if let Some(k) = self.brain_layout_key() {
+            if new.is_arranged() {
+                self.night.map.layouts.insert(k, new.arrangement.clone());
+            } else {
+                self.night.map.layouts.remove(&k);
+            }
+            let layouts = self.night.map.layouts.clone();
+            let _ = crate::prefs::update(self.themes.prefs_path(), |p| p.brain_layouts = layouts);
+        }
+        self.night.map.map = Some(Rc::new(new));
+        cx.notify();
+    }
+
+    /// A drag of block `b` from view point `start` to `at`: lifts it and
+    /// finds where it would land; near the map's edge the map scrolls.
+    pub(crate) fn brain_lift_to(&mut self, b: Block, start: (f32, f32), at: (f32, f32), unit: f32) {
+        let Some(m) = self.night.map.map.clone() else {
+            return;
+        };
+        let level = self.night.map.level();
+        let Some(r) = m.block_rect(level, b) else {
+            return;
+        };
+        let (w, h) = self.brain_view_size(unit);
+        let edge = 40.;
+        let sx = if at.0 < edge {
+            -8.
+        } else if at.0 > w - edge {
+            8.
+        } else {
+            0.
+        };
+        let sy = if at.1 < edge {
+            -8.
+        } else if at.1 > h - edge {
+            8.
+        } else {
+            0.
+        };
+        if sx != 0. || sy != 0. {
+            self.night.map.pan_by(-sx, -sy);
+        }
+        let grab = match &self.night.map.lift {
+            Some(l) if l.block == b => l.grab,
+            _ => {
+                let p = self.night.map.to_map(start);
+                (p.0 - r.x, p.1 - r.y)
+            }
+        };
+        let p = self.night.map.to_map(at);
+        self.night.map.lift = Some(Lift {
+            block: b,
+            key: m.key(b),
+            level,
+            grab,
+            at: p,
+            drop: m.drop_at(level, b, p.0, p.1),
+        });
+    }
+
+    /// Drops the lifted block where its line shows.
+    pub(crate) fn brain_drop(&mut self, cx: &mut Context<Self>) {
+        let Some(l) = self.night.map.lift.take() else {
+            return;
+        };
+        let Some(m) = self.night.map.map.clone() else {
+            return;
+        };
+        let arr = m.arrangement.move_to(&l.key, l.drop.col, l.drop.at);
+        self.brain_set_arrangement(Some(arr), cx);
+    }
+
+    /// Escape while a block is lifted puts it back; whether one was.
+    pub(crate) fn brain_cancel_lift(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.night.map.lift.take().is_none() {
+            return false;
+        }
+        self.night.map.press = None;
+        self.night.map.press_block = None;
+        cx.notify();
+        true
+    }
+
+    /// ⌥ and an arrow: the selected note's block a column or a place.
+    pub(crate) fn brain_nudge(&mut self, n: Nudge, cx: &mut Context<Self>) {
+        let Some(m) = self.night.map.map.clone() else {
+            return;
+        };
+        let Some(i) = self.brain_selected(&m) else {
+            return;
+        };
+        let key = m.key(m.block_of(Item::Note(i)));
+        let arr = m.arrangement.nudge(&key, n);
+        if arr != m.arrangement {
+            self.brain_set_arrangement(Some(arr), cx);
+        }
+    }
+
+    /// Undo on the reset's line: the arrangement it replaced.
+    pub(crate) fn brain_undo_reset(&mut self, cx: &mut Context<Self>) {
+        if let Some((_, _, Some(a))) = self.night.map.toast.take() {
+            self.brain_set_arrangement(Some(a), cx);
+        }
+    }
+
+    /// Back to the default layout, with Undo for 6 seconds.
+    pub(crate) fn brain_reset_layout(&mut self, cx: &mut Context<Self>) {
+        let Some(m) = self.night.map.map.clone() else {
+            return;
+        };
+        if !m.is_arranged() {
+            return;
+        }
+        let before = m.arrangement.clone();
+        self.brain_set_arrangement(None, cx);
+        self.night.map.toast_seq += 1;
+        let seq = self.night.map.toast_seq;
+        self.night.map.toast = Some((seq, "Layout reset to the default.".into(), Some(before)));
+        cx.spawn(async move |this, cx| {
+            cx.background_executor()
+                .timer(std::time::Duration::from_secs(6))
+                .await;
+            let _ = this.update(cx, |this, cx| {
+                if this.night.map.toast.as_ref().is_some_and(|t| t.0 == seq) {
+                    this.night.map.toast = None;
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
+        cx.notify();
     }
 
     /// A window position as a point of the map's view, in points.
@@ -1592,11 +1938,16 @@ impl Shell {
                     .text_color(t.muted)
                     .child(m.lead.clone()),
             );
-        let pinned: Vec<usize> = (0..m.notes.len()).filter(|i| m.pinned(*i)).collect();
-        for i in pinned {
-            col = col.child(card(self, i, cx));
-        }
-        for f in &m.folders {
+        // The blocks in the person's order, column by column.
+        let blocks: Vec<Block> = m.arrangement.keys().filter_map(|k| m.block(k)).collect();
+        for b in blocks {
+            let f = match b {
+                Block::Note(i) => {
+                    col = col.child(card(self, i, cx));
+                    continue;
+                }
+                Block::Folder(f) => &m.folders[f],
+            };
             col = col.child(
                 div()
                     .mt(look.px(10.))

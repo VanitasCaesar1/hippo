@@ -88,6 +88,11 @@ pub struct Prefs {
     /// (Unix seconds). Kept 30 days.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub dismissed_incidents: std::collections::BTreeMap<String, i64>,
+    /// Brain arranged by this person, per workspace root: its columns of
+    /// blocks (docs/designs/brain-arrange.md). Only here, never in the
+    /// notes or `.hippo/`.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub brain_layouts: std::collections::BTreeMap<String, hippo_view::night::map::Arrangement>,
 }
 
 /// A hand-made settle or un-settle.
@@ -202,6 +207,7 @@ impl Default for Prefs {
             snoozed_sessions: Default::default(),
             incidents_seen_at: None,
             dismissed_incidents: Default::default(),
+            brain_layouts: Default::default(),
         }
     }
 }

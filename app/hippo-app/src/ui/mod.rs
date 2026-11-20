@@ -243,8 +243,11 @@ impl Shell {
                 && matches!(e.keystroke.key.as_str(), "escape" | "up" | "down" | "enter")
             {
                 let key = e.keystroke.key.clone();
+                // A lifted Brain block first: Escape puts it back.
                 let used = shell
-                    .update(cx, |s, cx| s.pop_key(&key, window, cx))
+                    .update(cx, |s, cx| {
+                        (key == "escape" && s.brain_cancel_lift(cx)) || s.pop_key(&key, window, cx)
+                    })
                     .unwrap_or(false);
                 if used {
                     cx.stop_propagation();
@@ -315,6 +318,7 @@ impl Shell {
         let reach = reach_ui::ReachUi::new(&saved, cx.focus_handle());
         let ask_answers = saved.ask_answers;
         let recent_questions = saved.recent_questions.clone();
+        let brain_layouts = saved.brain_layouts.clone();
         let mut shell = Shell {
             state: AppState::default(),
             installation,
@@ -370,7 +374,13 @@ impl Shell {
             flow: crate::flow::Flow::default(),
             title_drag: false,
             reach,
-            night: Default::default(),
+            night: night::NightUi {
+                map: night::brain::MapView {
+                    layouts: brain_layouts,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
             _theme_poll: None,
             _fleet_poll: None,
             _subscriptions: subscriptions,
@@ -464,6 +474,10 @@ impl Shell {
         ctx.active_file = self.active_file().is_some();
         ctx.revert_ready = self.revert_ready();
         ctx.confirm_open = self.dream_ui.confirm.is_some();
+        if let Some(m) = self.night.map.map.as_ref() {
+            ctx.brain_note = self.brain_shown() && self.brain_selected(m).is_some();
+            ctx.brain_arranged = m.is_arranged();
+        }
         ctx
     }
 
@@ -1036,6 +1050,11 @@ impl Shell {
                 self.look_for_history(cx)
             }
             "Reload" => self.reload(cx),
+            "BrainMoveLeft" => self.brain_nudge(hippo_view::night::map::Nudge::Left, cx),
+            "BrainMoveRight" => self.brain_nudge(hippo_view::night::map::Nudge::Right, cx),
+            "BrainMoveUp" => self.brain_nudge(hippo_view::night::map::Nudge::Up, cx),
+            "BrainMoveDown" => self.brain_nudge(hippo_view::night::map::Nudge::Down, cx),
+            "BrainResetLayout" => self.brain_reset_layout(cx),
             "TextLarger" if self.brain_shown() => self.brain_zoom_step(1.25, cx),
             "TextSmaller" if self.brain_shown() => self.brain_zoom_step(0.8, cx),
             "TextDefault" if self.brain_shown() => self.brain_fit(cx),
@@ -1497,6 +1516,11 @@ impl Render for Shell {
                 Help,
                 Minimize,
                 Zoom,
+                BrainMoveLeft,
+                BrainMoveRight,
+                BrainMoveUp,
+                BrainMoveDown,
+                BrainResetLayout,
             ]
         );
         // The sidebar runs the window's height; the title bar and
@@ -2608,5 +2632,221 @@ mod tests {
             "menus built outside the popover kit:\n{}",
             found.join("\n")
         );
+    }
+
+    /// A ready home whose notes have folders: an entry note, three notes
+    /// at the top level, Runbooks (2) and Decisions (1).
+    fn arranged_home() -> (tempfile::TempDir, std::path::PathBuf) {
+        let (dir, home) = ready_home();
+        let notes = dir.path().join("ws/notes");
+        for (p, body) in [
+            (
+                "index.md",
+                "# Start\n\nThe entry note. See [[Runbooks/Deploy]].\n",
+            ),
+            ("Upload.md", "# Upload\n\nHow uploads work.\n"),
+            ("Auth.md", "# Auth\n\nSessions and tokens.\n"),
+            ("Backups.md", "# Backups\n\nNightly copies.\n"),
+            (
+                "Runbooks/Deploy.md",
+                "# Deploy\n\nSteps. See [[Decisions/Postgres]].\n",
+            ),
+            ("Runbooks/Restore.md", "# Restore\n\nFrom a backup.\n"),
+            ("Decisions/Postgres.md", "# Postgres\n\nWhy Postgres.\n"),
+        ] {
+            let f = notes.join(p);
+            std::fs::create_dir_all(f.parent().unwrap()).unwrap();
+            std::fs::write(f, body).unwrap();
+        }
+        (dir, home)
+    }
+
+    /// Brain shown at `zoom`, its map's top left at the view's, drawn.
+    fn brain_at(vcx: &mut VisualTestContext, root: &Entity<Shell>, zoom: f32) {
+        vcx.update(|w, cx| {
+            root.update(cx, |s, cx| {
+                s.show_section(Section::Brain, w, cx);
+                cx.notify();
+            })
+        });
+        vcx.run_until_parked();
+        root.update(vcx, |s, cx| {
+            s.night.map.fitted = true;
+            s.night.map.zoom = zoom;
+            s.night.map.pan = (-20., -20.);
+            cx.notify();
+        });
+        vcx.run_until_parked();
+    }
+
+    /// A map point of Brain as a window position.
+    fn on_map(
+        vcx: &VisualTestContext,
+        root: &Entity<Shell>,
+        x: f32,
+        y: f32,
+    ) -> gpui::Point<gpui::Pixels> {
+        root.read_with(vcx, |s, _| {
+            let (ox, oy, _, _) = s.night.map.view.get();
+            let z = s.night.map.zoom;
+            gpui::point(
+                px(ox + (x - s.night.map.pan.0) * z),
+                px(oy + (y - s.night.map.pan.1) * z),
+            )
+        })
+    }
+
+    fn drag(
+        vcx: &mut VisualTestContext,
+        from: gpui::Point<gpui::Pixels>,
+        to: gpui::Point<gpui::Pixels>,
+    ) {
+        vcx.simulate_mouse_down(from, gpui::MouseButton::Left, gpui::Modifiers::none());
+        for k in 1..=8 {
+            let f = k as f32 / 8.;
+            let p = gpui::point(from.x + (to.x - from.x) * f, from.y + (to.y - from.y) * f);
+            vcx.simulate_event(gpui::MouseMoveEvent {
+                position: p,
+                pressed_button: Some(gpui::MouseButton::Left),
+                modifiers: gpui::Modifiers::none(),
+            });
+        }
+        vcx.run_until_parked();
+    }
+
+    /// Brain arranged by hand: a folder dragged by its name band lands in
+    /// another column and is saved; a press on a note in a folder pans;
+    /// Escape puts a lifted block back; the keys move a block; Reset
+    /// shows only when the layout differs, resets, and Undo restores it;
+    /// the saved layout comes back in a new window.
+    #[gpui::test]
+    fn brain_is_arranged_by_drag_and_keys_reset_and_saved(cx: &mut TestAppContext) {
+        use hippo_view::night::map::{Block, Item, Level};
+        setup_globals(cx);
+        let (_dir, home) = arranged_home();
+        let prefs = home.with_file_name("preferences.json");
+        let (window, mut vcx) = open(cx, &home);
+        let root = window.root(&mut vcx).unwrap();
+        brain_at(&mut vcx, &root, 1.0);
+        let m = root
+            .read_with(&vcx, |s, _| s.night.map.map.clone())
+            .expect("a map");
+        assert!(!m.is_arranged());
+        let runbooks = m
+            .folders
+            .iter()
+            .position(|f| f.name == "Runbooks")
+            .expect("Runbooks");
+        let key = m.key(Block::Folder(runbooks));
+        let (c0, _) = m.arrangement.find(&key).unwrap();
+        let r = m.block_rect(Level::Mid, Block::Folder(runbooks)).unwrap();
+
+        // Escape during a lift puts it back.
+        let band = on_map(&vcx, &root, r.x + 40., r.y + 12.);
+        let away = on_map(&vcx, &root, r.x + 40. + 440., r.y + 60.);
+        drag(&mut vcx, band, away);
+        assert!(
+            root.read_with(&vcx, |s, _| s.night.map.lift.is_some()),
+            "the band lifts the folder"
+        );
+        vcx.simulate_keystrokes("escape");
+        vcx.simulate_mouse_up(away, gpui::MouseButton::Left, gpui::Modifiers::none());
+        vcx.run_until_parked();
+        assert!(!root.read_with(&vcx, |s, _| s.night.map.map.as_ref().unwrap().is_arranged()));
+
+        // A drop in the next column moves it there and saves it.
+        let to = if c0 + 1 < m.arrangement.columns.len() {
+            c0 + 1
+        } else {
+            c0.saturating_sub(1)
+        };
+        let tx =
+            to as f32 * (hippo_view::night::map::COL_W + hippo_view::night::map::COL_GAP) + 60.;
+        let target = on_map(&vcx, &root, tx, -6.);
+        drag(&mut vcx, band, target);
+        vcx.simulate_mouse_up(target, gpui::MouseButton::Left, gpui::Modifiers::none());
+        vcx.run_until_parked();
+        let m2 = root
+            .read_with(&vcx, |s, _| s.night.map.map.clone())
+            .unwrap();
+        assert!(m2.is_arranged());
+        assert_eq!(
+            m2.arrangement.find(&key).map(|p| p.0),
+            Some(to),
+            "{:?}",
+            m2.arrangement
+        );
+        assert_eq!(m2.arrangement.find(&key).map(|p| p.1), Some(0));
+        let saved = crate::prefs::load(&prefs).brain_layouts;
+        assert_eq!(
+            saved.values().next(),
+            Some(&m2.arrangement),
+            "saved per workspace"
+        );
+
+        // A press on a note in a folder pans and moves nothing.
+        let note = m2.folders[runbooks].notes[0];
+        let nr = m2.mid.card(Item::Note(note)).unwrap().rect;
+        let pan0 = root.read_with(&vcx, |s, _| s.night.map.pan);
+        let a = on_map(&vcx, &root, nr.x + 30., nr.y + 50.);
+        let b = gpui::point(a.x + px(60.), a.y + px(30.));
+        drag(&mut vcx, a, b);
+        vcx.simulate_mouse_up(b, gpui::MouseButton::Left, gpui::Modifiers::none());
+        vcx.run_until_parked();
+        root.read_with(&vcx, |s, _| {
+            assert_ne!(s.night.map.pan, pan0, "it panned");
+            assert_eq!(
+                s.night.map.map.as_ref().unwrap().arrangement,
+                m2.arrangement
+            );
+        });
+
+        // ⌥→ moves the selected note's block.
+        root.update(&mut vcx, |s, cx| {
+            s.night.brain = Some(m2.notes[note].path.clone());
+            cx.notify();
+        });
+        vcx.run_until_parked();
+        let before = root.read_with(&vcx, |s, _| {
+            s.night.map.map.as_ref().unwrap().arrangement.clone()
+        });
+        dispatch(&mut vcx, window, &crate::actions::BrainMoveLeft);
+        dispatch(&mut vcx, window, &crate::actions::BrainMoveRight);
+        dispatch(&mut vcx, window, &crate::actions::BrainMoveDown);
+        let after = root.read_with(&vcx, |s, _| {
+            s.night.map.map.as_ref().unwrap().arrangement.clone()
+        });
+        assert_ne!(before, after, "the keys moved it");
+
+        // Reset: the default, a line with Undo, and Undo restores.
+        dispatch(&mut vcx, window, &crate::actions::BrainResetLayout);
+        root.read_with(&vcx, |s, _| {
+            assert!(!s.night.map.map.as_ref().unwrap().is_arranged());
+            assert!(s.night.map.toast.is_some());
+        });
+        assert!(
+            crate::prefs::load(&prefs).brain_layouts.is_empty(),
+            "forgotten"
+        );
+        let ctx = root.read_with(&vcx, |s, cx| s.ctx(cx));
+        assert!(
+            !ctx.brain_arranged,
+            "Reset is offered only for an arrangement"
+        );
+        root.update(&mut vcx, |s, cx| s.brain_undo_reset(cx));
+        vcx.run_until_parked();
+        root.read_with(&vcx, |s, _| {
+            assert_eq!(s.night.map.map.as_ref().unwrap().arrangement, after);
+        });
+
+        // A new window brings the saved arrangement back.
+        let (window2, mut vcx2) = open(cx, &home);
+        let root2 = window2.root(&mut vcx2).unwrap();
+        brain_at(&mut vcx2, &root2, 1.0);
+        root2.read_with(&vcx2, |s, _| {
+            let m = s.night.map.map.as_ref().unwrap();
+            assert!(m.is_arranged());
+            assert_eq!(m.arrangement, after);
+        });
     }
 }

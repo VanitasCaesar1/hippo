@@ -71,6 +71,11 @@ actions!(
         Help,
         Minimize,
         Zoom,
+        BrainMoveLeft,
+        BrainMoveRight,
+        BrainMoveUp,
+        BrainMoveDown,
+        BrainResetLayout,
     ]
 );
 
@@ -129,6 +134,10 @@ pub struct Ctx {
     pub revert_ready: bool,
     /// The revert confirmation is open.
     pub confirm_open: bool,
+    /// Brain is shown with a note selected: its block can move.
+    pub brain_note: bool,
+    /// Brain's layout is a person's arrangement, not the default.
+    pub brain_arranged: bool,
 }
 
 /// When an action can run.
@@ -144,6 +153,8 @@ pub enum Can {
     ActiveFile,
     RevertReady,
     ConfirmOpen,
+    BrainNote,
+    BrainArranged,
 }
 
 impl Can {
@@ -162,6 +173,8 @@ impl Can {
                 "the view is not a change that can be reverted",
             ),
             Can::ConfirmOpen => (ctx.confirm_open, "no confirmation is open"),
+            Can::BrainNote => (ctx.brain_note, "Brain shows no selected note"),
+            Can::BrainArranged => (ctx.brain_arranged, "Brain already has the default layout"),
         };
         if ok { Ok(()) } else { Err(why.to_string()) }
     }
@@ -662,6 +675,48 @@ pub static TABLE: &[Def] = &[
         Always
     ),
     def!(Zoom, Some("Window: Zoom"), Some(M::Window), &[], WS, Always),
+    // Brain: move the selected note's block (its folder, or the note when it
+    // is in every session) a column or a place; reset the arrangement.
+    def!(
+        BrainMoveLeft,
+        Some("Brain: Move Left"),
+        None,
+        &["alt-left"],
+        WS,
+        BrainNote
+    ),
+    def!(
+        BrainMoveRight,
+        Some("Brain: Move Right"),
+        None,
+        &["alt-right"],
+        WS,
+        BrainNote
+    ),
+    def!(
+        BrainMoveUp,
+        Some("Brain: Move Up"),
+        None,
+        &["alt-up"],
+        WS,
+        BrainNote
+    ),
+    def!(
+        BrainMoveDown,
+        Some("Brain: Move Down"),
+        None,
+        &["alt-down"],
+        WS,
+        BrainNote
+    ),
+    def!(
+        BrainResetLayout,
+        Some("Brain: Reset Layout"),
+        Some(M::View),
+        &[],
+        WS,
+        BrainArranged
+    ),
 ];
 
 /// Every key binding of the table.
