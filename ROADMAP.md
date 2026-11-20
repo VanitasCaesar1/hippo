@@ -1,6 +1,6 @@
 # Roadmap
 
-This is version 0.8.1. hippo is one person's project, so there are no dates here. "Planned" means I intend to do it and know roughly how. "Idea" means it is not designed yet and may not happen.
+This is version 0.8.2. hippo is one person's project, so there are no dates here. "Planned" means I intend to do it and know roughly how. "Idea" means it is not designed yet and may not happen.
 
 The text lives in `ROADMAP.md` at the root of the repository, and the docs site shows the same file. How the built parts work is in [Architecture](https://vanitascaesar1.github.io/hippo/docs/architecture.html); what is missing or rough today is in [Limits and known gaps](https://vanitascaesar1.github.io/hippo/docs/limits.html).
 
@@ -24,6 +24,7 @@ The text lives in `ROADMAP.md` at the root of the repository, and the docs site 
 - A private `$HIPPO_HOME` (0700 folders, 0600 files), a version floor for shared workspaces, and an install script that records the checksum it checked ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/common.md)).
 - Dreaming with a fresh-context reviewer, receipts, snapshots and revert, and its schedule: launchd on macOS, printed cron and systemd lines elsewhere.
 - Rules that are learned once and given everywhere: corrections grouped by meaning across the whole history, rules from agent memories you turn on, reversals that retire the older rule, kept rules in every start block (machine-wide ones outside the workspace too) and again when a long session changes topic, an in-session question for pending rules, and `hippo stats repeats` ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/remember.md)).
+- Brain arranged by hand: folders dragged between columns or moved with ⌥-arrows, saved per person, Reset layout with Undo, and links routed around cards at every zoom ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/brain-arrange.md)).
 - `hippo eval` with a synthetic question set.
 - Packs: `hippo add` and `hippo packs`, the registry tool and its static site, and 26 first-party packs (23 pass packs and 3 theme packs), all reviewed and listed in the registry.
 - A Claude Code plugin and a Codex plugin that set hippo up with no terminal (`hippo setup`, [design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/setup.md)), an install script, release binaries for macOS and Linux, and a Homebrew formula attached to the release.

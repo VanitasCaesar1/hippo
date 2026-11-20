@@ -4,6 +4,25 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-20
+
+Arrange Brain your way; links go around cards at every zoom.
+
+**Upgrading.** Nothing to run or migrate. Hippo.app's `preferences.json` gains `brain_layouts` once you arrange Brain; 0.8.1 ignores it. `hippo view map --json` gains `arrangement` and `default_arrangement`, and zoomed out (Out) a folder now sits in the same column it has at Mid, where 0.8.1 packed the zoomed-out cards on their own. Design: [brain-arrange.md](docs/designs/brain-arrange.md).
+
+### Added
+
+- **Arrange Brain.** Drag a folder, or a note read in every session, to another column or place: zoomed out, press anywhere on its card; closer in, press on a folder's name band. Its place dims, its outline follows the pointer, and a lime line shows where it will land (a slot, for a new column at the right). Release to drop it, Escape to put it back; near the map's edge the map scrolls. A press on a note inside a folder still pans. Notes stay in their folder: arranging never moves a file. Every zoom is laid out from the one arrangement, so a block keeps its column zoomed in and out.
+- **Keys.** With a note selected, ⌥← and ⌥→ move its folder (or the note, when it is read in every session) one column, ⌥↑ and ⌥↓ one place: `Brain: Move Left`, `Right`, `Up`, `Down` in the command palette.
+- **Reset layout.** A button in the zoom bar while your layout differs from hippo's, and `Brain: Reset Layout` in the View menu and the palette. It leaves "Layout reset to the default." with Undo for 6 seconds.
+- **Your layout is yours.** It is kept in Hippo.app's preferences per workspace and comes back next launch; it is never written to the notes or `.hippo/`, and agents never see it. A renamed or deleted folder drops out; a new folder takes its default column. The narrow board lists blocks in your order.
+- **The live demo arranges too**, with the same drag, keys and Reset, in the page only.
+- `hippo view map --arrangement <file>` lays the map out in a saved arrangement, as Hippo.app does.
+
+### Fixed
+
+- **Links go around cards at every zoom**, on any map: 0.8.1's known limit (on a 300-note, 1000-link map about half the links ran under a card at the Mid and In zooms) is gone. A link that would cross a card takes the nearest free space between cards, or the band below them; on such a dense map that band is tall.
+
 ## [0.8.1] - 2026-11-20
 
 Brain reads when zoomed out; menus close when you click away.
