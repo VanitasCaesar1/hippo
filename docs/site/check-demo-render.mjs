@@ -173,6 +173,20 @@ for (const view of ['morning', 'brain']) {
     }
     const da = diff(got.arrangement, D.arranged.arrangement, 'arrangement');
     if (da) errors.push(`arrange: ${da}`);
+    // Hippo's layout for one view: the same columns, laid out the same.
+    if (!D.fitted) {
+      errors.push('fit: data.js has no fitted map');
+    } else {
+      const [w, h] = D.fitted.view;
+      const arr = A.viewArrangement(D.map, w, h);
+      const df = diff(arr, D.fitted.arrangement, 'fitted.arrangement');
+      if (df) errors.push(`fit: the demo chooses other columns than hippo: ${df}`);
+      const lay = A.layout(D.map, arr);
+      for (const L of ['out', 'mid', 'in']) {
+        const d = diff(lay[L], D.fitted[L], `fitted.${L}`);
+        if (d) errors.push(`fit: the demo lays the fitted map out differently from hippo: ${d}`);
+      }
+    }
   }
 }
 
@@ -180,4 +194,4 @@ if (errors.length) {
   for (const e of [...new Set(errors)]) console.error(`error: ${e}`);
   process.exit(1);
 }
-console.log(`demo render: Morning and Brain, dark and light, ${drawn} agent marks drawn, each its own (brand/agents/), no letters; the arranged map laid out as hippo does`);
+console.log(`demo render: Morning and Brain, dark and light, ${drawn} agent marks drawn, each its own (brand/agents/), no letters; the arranged and fitted maps laid out as hippo does`);

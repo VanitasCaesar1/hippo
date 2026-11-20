@@ -1,6 +1,6 @@
 # Brain: arrange the map
 
-Status: accepted 21 Nov 2026, to build in 0.8.2. Amends [app-night-map.md](app-night-map.md) › Brain. Decided before writing: blocks snap to columns (no free placement), and the arrangement is saved per person in Hippo.app's preferences per workspace, never in the notes or in `.hippo/`.
+Status: accepted 21 Nov 2026, built in 0.8.2; the drag, the links and the overview amended in 0.8.3 by [brain-links.md](brain-links.md). Amends [app-night-map.md](app-night-map.md) › Brain. Decided before writing: blocks snap to columns (no free placement), and the arrangement is saved per person in Hippo.app's preferences per workspace, never in the notes or in `.hippo/`.
 
 ## Background
 
@@ -11,11 +11,11 @@ Free placement would break all three promises. The map has three zoom levels who
 ## What changes for a user
 
 - **A block** is a folder, or one of the notes in every session (the entry note and the required notes). Notes stay in their folder, most-read first: moving a note to another folder would move its file, which arranging never does.
-- **Drag a block to another column or place.** At Out (zoomed out below 55 %) press anywhere on a card; at Mid and In press on a folder's name band (the strip with its name and count) or on a note that is in every session. A press on a note in a folder, or on the ground, still pans. Past 4 points of movement the block lifts: its place dims, a copy of its outline follows the pointer, and a lime line shows where it will land: between two blocks of a column, at a column's top or foot, or in a new column at the right. Release drops it and lays out all three zooms again; Escape cancels. Near the map's edge the map scrolls while you drag.
+- **Drag a block to another column or place.** At Out (zoomed out below 55 %) press anywhere on a card; at Mid and In press on a folder's name band (the strip with its name and count) or on a note that is in every session. A press on a note in a folder, or on the ground, still pans. Past 4 points of movement the block lifts: the real block, raised under the pointer, while the others slide aside to open a slot where it will land: between two blocks of a column, at a column's top or foot, or in a new column at the right. Release settles it there and lays out all three zooms again; Escape flies it back (0.8.3, [brain-links.md](brain-links.md) › Dragging a block). Near the map's edge the map scrolls while you drag.
 - **Keys.** With a note selected, ⌥← and ⌥→ move its block one column, ⌥↑ and ⌥↓ one place up or down. They are in the command palette as `Brain: Move Left`, `Right`, `Up`, `Down`.
 - **Reset layout.** A `Reset layout` button (Lucide `undo-2`) sits in the zoom bar while your layout differs from the default, and `Brain: Reset Layout` is in the View menu and the palette. Reset shows `Layout reset to the default. Undo` at the foot of the map for 6 seconds; Undo puts your layout back.
 - **Saved per person.** The arrangement is kept in Hippo.app's `preferences.json`, under the workspace's root, and comes back next launch. A renamed or deleted folder drops out of it; a new folder takes its default column, at the foot. The notes, `.hippo/` and anything an agent reads never see it; `hippo view map --json` and the site show the default layout.
-- **Links go around cards at every zoom**, on any arrangement and any map size: a link that would cross a card turns into the nearest free channel between cards, or the band below them.
+- **Links go around cards at every zoom**, on any arrangement and any map size. Since 0.8.3 a level shows at most 12 lines at once and a long link climbs between cards column by column ([brain-links.md](brain-links.md)).
 - **The live demo** arranges the same way (drag, keys, Reset), in the page only.
 - **Below 900 points** the board lists blocks in your order; it cannot be dragged.
 
@@ -38,13 +38,13 @@ Moves are methods of an arrangement, tested on their own: `move_to(key, column, 
 
 ### Links at every zoom
 
-0.8.1 sent a link into a free channel only when one was within four card heights of its ends at Mid and In, so on a 300-note map with 1000 links about half ran under a card. Now every link whose straight run crosses a card takes the nearest free channel; when none lies between the cards, it uses the band below every card. Channels share a height only where their spans do not overlap, 4 points apart, so the band stays as thin as the crossings need.
+0.8.1 sent a link into a free channel only when one was within four card heights of its ends at Mid and In, so on a 300-note map with 1000 links about half ran under a card. Now every link whose straight run crosses a card takes the nearest free channel; when none lies between the cards, it uses the band below every card. Channels share a height only where their spans do not overlap, 4 points apart, so the band stays as thin as the crossings need. (0.8.3 replaced the band: a link that would cross a card steps to a clear height before each column it crosses; see [brain-links.md](brain-links.md) › Routing.)
 
 ### The app
 
 - `Prefs` gains `brain_layouts: {workspace root: Arrangement}`, written through `prefs::update` on every drop, key move, reset and undo.
 - `MapView` gains the drag (`Lift`: the block, where it was pressed, the pointer, the target) beside the press. A press decides what it is when it moves 4 points: a block's handle at the press lifts the block, anything else pans. A release outside the map drops the block where its line shows.
-- The drop line, the dimmed place and the floating outline are painted by `paint_map` from the lift; the layout is laid out again only on the drop.
+- The lifted block, its slot and the sliding blocks are painted by `paint_map` from the lift and a slide ([brain-links.md](brain-links.md)); the full layout is made again only on the drop.
 - Escape goes to a lift first (the window's key interceptor), before an open menu.
 - Actions `BrainMoveLeft`, `BrainMoveRight`, `BrainMoveUp`, `BrainMoveDown` (⌥-arrows, Brain shown and a note selected) and `BrainResetLayout` (View menu and palette, enabled while the layout differs) are rows of the action table.
 

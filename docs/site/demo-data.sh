@@ -54,6 +54,14 @@ arranged=$(run view map --json --arrangement "$tmp/arrangement.json" | /usr/bin/
 import json, sys
 m = json.load(sys.stdin)
 print(json.dumps({k: m[k] for k in ("arrangement", "out", "mid", "in")}, separators=(",", ":")))')
+# Hippo's layout made for one view, for the check that the port chooses
+# the same columns and lays them out the same (demo/arrange.js).
+fitted=$(run view map --json --view 860x600 | /usr/bin/python3 -I -c '
+import json, sys
+m = json.load(sys.stdin)
+d = {k: m[k] for k in ("arrangement", "out", "mid", "in")}
+d["view"] = [860, 600]
+print(json.dumps(d, separators=(",", ":")))')
 # The demo home answers with a stub model (fixtures/stub-model), so its
 # Ask bar names the stub; the page shows what a default install's says.
 counts=$(run view counts --json | /usr/bin/python3 -I -c '
@@ -85,6 +93,7 @@ out=$root/docs/site/demo/data.js
   printf '"strip": %s,\n' "$strip"
   printf '"map": %s,\n' "$map"
   printf '"arranged": %s,\n' "$arranged"
+  printf '"fitted": %s,\n' "$fitted"
   printf '"counts": %s,\n' "$counts"
   printf '"brief": %s,\n' "$brief"
   printf '"notes": {\n'

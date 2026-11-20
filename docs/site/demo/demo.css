@@ -143,7 +143,7 @@ h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
 .group-label { color: var(--muted); font-size: 13px; margin: 18px 0 8px; }
 
 /* Brain. */
-.mapwrap { position: relative; height: calc(100vh - 56px - 190px); min-height: 420px; overflow: hidden; border-radius: 14px; touch-action: none; cursor: grab; }
+.mapwrap { position: relative; height: calc(100vh - 56px - 190px); min-height: 420px; overflow: hidden; border-radius: 14px; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
 .mapwrap.drag { cursor: grabbing; }
 .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .world .frame { position: absolute; border: 1.2px dashed var(--line2); border-radius: 16px; }
@@ -171,9 +171,16 @@ h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
 .world .mk.t-faint { background: var(--faint); border: 0; }
 .world .mk.t-night { background: var(--night); border: 0; }
 .world svg.links { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
-.world svg.links polyline { fill: none; stroke: var(--line2); stroke-width: 1.4; }
-.world svg.links polyline.on { stroke: var(--night); stroke-width: 2; }
-.world svg.links.dim polyline:not(.on) { opacity: .5; }
+.world svg.links polyline { fill: none; stroke: var(--line2); }
+.world svg.links polyline.on { stroke: var(--night); }
+:root[data-theme="light"] .world svg.links .on { opacity: .7; }
+.world svg.links polyline.hot { stroke: var(--you-mark); }
+.world svg.links .dim { opacity: .4; }
+.world svg.links circle.end { fill: var(--canvas); stroke: var(--line2); stroke-width: 1.5px; }
+.world svg.links circle.end.on { stroke: var(--night); }
+.world svg.links circle.end.hot { stroke: var(--you-mark); }
+.world .note.hover, .world .ocard.hover, .world .folder.hover { border-color: var(--line2); }
+.world .folder.sel { border: 2px solid var(--night); }
 .zoombar { position: absolute; right: 16px; top: 16px; display: flex; gap: 2px; padding: 4px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
 .zoombar button { height: 26px; min-width: 30px; padding: 0 8px; border-radius: 8px; font-weight: 600; }
 .zoombar button:hover { background: var(--hover); }
@@ -218,10 +225,17 @@ h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
   .strip-labels { height: auto; display: flex; flex-direction: column; gap: 2px; }
   .strip-labels > span { position: static; }
 }
-/* Arranging Brain: the lifted block's place, its outline at the pointer, where it lands. */
-.world .lift-place { position: absolute; border-radius: 18px; background: var(--canvas); opacity: .6; pointer-events: none; }
-.world .lift-ghost { position: absolute; border-radius: 18px; border: 2px solid var(--night); background: var(--night-bg); pointer-events: none; }
-.world .drop-line { position: absolute; border-radius: 2px; background: var(--you); pointer-events: none; }
-.world .drop-line.slot { background: var(--you-bg); border: 2px dashed var(--you-line); border-radius: 18px; }
+/* Arranging Brain: each block in a box of its own; the lifted one raised
+   under the pointer, the others sliding aside; where it lands, a sunk slot. */
+.world .blk { position: absolute; left: 0; top: 0; }
+.world .blk.lifted { z-index: 5; filter: drop-shadow(0 14px 20px rgba(0, 0, 0, .5)) drop-shadow(0 2px 4px rgba(0, 0, 0, .35)); }
+:root[data-theme="light"] .world .blk.lifted { filter: drop-shadow(0 14px 20px rgba(0, 0, 0, .16)) drop-shadow(0 2px 4px rgba(0, 0, 0, .1)); }
+.world .blk.lifted .frame { background: var(--canvas); border-style: solid; }
+.world .blk.lifted .note, .world .blk.lifted .ocard, .world .blk.lifted .folder { border-color: var(--line2); }
+.world .slot { position: absolute; border: 1.5px dashed var(--you-line); background: var(--you-bg); border-radius: 14px; pointer-events: none; }
+.world .slot.round { border-radius: 18px; }
+.mapwrap.lifting svg.links { opacity: 0; }
+.linktip { position: absolute; z-index: 10; pointer-events: none; padding: 5px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line2); box-shadow: var(--shadow); font-size: 12.5px; font-weight: 500; color: var(--text); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .world .blk, .world .slot { transition: none !important; } }
 .zoombar .reset { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; font-weight: 500; }
 .toast .btn { margin-left: 10px; }

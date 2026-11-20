@@ -39,6 +39,11 @@ pub enum Command {
         /// person who arranged it: a JSON file `{"columns": [["folder:Runbooks", "note:notes/index.md"], ...]}`
         #[arg(long, value_name = "FILE")]
         arrangement: Option<PathBuf>,
+        /// Lay hippo's layout out for a view this many points wide and high
+        /// (`1220x690`), as Hippo.app does: the number of columns that shows
+        /// the whole map largest there
+        #[arg(long, value_name = "WxH", value_parser = parse_view)]
+        view: Option<(f32, f32)>,
     },
     /// One note's rules, pending rules with their evidence, readers, links and receipts
     Note {
@@ -142,6 +147,21 @@ fn map_of(l: &Loaded) -> map::NotesMap {
     })
 }
 
+/// `1220x690`: a view's width and height in points.
+fn parse_view(s: &str) -> Result<(f32, f32), String> {
+    let (w, h) = s
+        .split_once('x')
+        .ok_or_else(|| format!("{s:?} is not WxH, as in 1220x690"))?;
+    let n = |v: &str| {
+        v.trim()
+            .parse::<f32>()
+            .ok()
+            .filter(|n| *n >= 100. && *n <= 20000.)
+            .ok_or_else(|| format!("{v:?} is not a size from 100 to 20000 points"))
+    };
+    Ok((n(w)?, n(h)?))
+}
+
 fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
     let mut out = std::io::stdout().lock();
     serde_json::to_writer(&mut out, value)?;
@@ -174,9 +194,16 @@ pub fn run(command: Command) -> Result<ExitCode> {
                 println!("{}", sparkline(&s.beats, &s.corrections));
             }
         }
-        Command::Map { json, arrangement } => {
+        Command::Map {
+            json,
+            arrangement,
+            view,
+        } => {
             let l = load()?;
             let mut m = map_of(&l);
+            if let Some((w, h)) = view {
+                m = m.fitted(w, h);
+            }
             if let Some(path) = arrangement {
                 let text = std::fs::read_to_string(&path)
                     .with_context(|| format!("reading {}", path.display()))?;

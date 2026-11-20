@@ -200,16 +200,22 @@
 
   /* ---- Brain ---- */
   var M = D.map, A = window.HippoArrange;
-  // The layouts drawn: hippo's, or the person's arrangement of them
-  // (demo/arrange.js; kept in this page only).
+  // Motion: blocks slide aside, a dropped block settles, a block put back
+  // flies home; none under Reduce Motion.
+  var still = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  var SLIDE = still ? 0 : 150, SETTLE = still ? 0 : 180, BACK = still ? 0 : 220;
+  // The layouts drawn: hippo's layout for this view (S.def, from
+  // demo/arrange.js), or the person's arrangement (kept in this page only).
   function LY() {
-    if (!S.arr || !A) return M;
-    if (!S.lay) S.lay = A.layout(M, S.arr);
+    var arr = S.arr || S.def;
+    if (!arr || !A) return M;
+    if (!S.lay) S.lay = A.layout(M, arr);
     return S.lay;
   }
   function setArr(a) {
+    var def = S.def || M.default_arrangement;
     a = a && A ? A.settle(M, a) : null;
-    S.arr = a && !A.same(a, M.default_arrangement) ? a : null;
+    S.arr = a && !A.same(a, def) ? a : null;
     S.lay = null;
   }
   function level(z) { return z < OUT_BELOW ? 'out' : z > IN_ABOVE ? 'in' : 'mid'; }
@@ -247,28 +253,63 @@
     M.edges.forEach(function (e) { if (e[0] === i) n[e[1]] = 1; if (e[1] === i) n[e[0]] = 1; });
     return n;
   }
+  // The card whose lines show: the hovered one, else the selected note's.
+  function focusOf(L) {
+    if (S.hover) return S.hover;
+    var sel = selIndex();
+    return sel >= 0 ? sameItem({ note: sel }, L) : null;
+  }
+  // The lines drawn with that focus (Rust: Layout::shown): the focus's own,
+  // bundled; on a level with at most LINE_BUDGET lines, the rest too.
+  function shown(lay, f) {
+    var fk = f ? key(f) : null, own = [];
+    (lay.focus || []).forEach(function (x) { if (key(x[0]) === fk) own = x[1].map(function (l) { return [l, true]; }); });
+    return lay.lines.filter(function (l) { return !own.length || (key(l.from) !== fk && key(l.to) !== fk); })
+      .map(function (l) { return [l, false]; }).concat(own);
+  }
+  function lineWidth(L, l, lit) { return L === 'out' ? Math.min(3.5, 1.25 + 0.55 * Math.log2(Math.max(1, l.links))) : lit ? 2 : 1.4; }
+  function linesSvg(L) {
+    var lay = LY()[L], f = focusOf(L), list = shown(lay, f).slice();
+    var dim = list.some(function (x) { return x[1]; });
+    list.sort(function (a, b) { return a[1] - b[1]; });
+    var hot = S.hoverLine ? S.hoverLine.ends : [];
+    return list.map(function (x) {
+      var l = x[0], on = x[1], h = hot.some(function (e) { return e[0] === key(l.from) && e[1] === key(l.to); });
+      var pts = l.points.map(function (p) { return p[0] + ',' + p[1]; }).join(' ');
+      var cls = h ? 'hot' : on ? 'on' : dim ? 'dim' : '';
+      var a = l.points[0], b = l.points[l.points.length - 1], w = lineWidth(L, l, on || h);
+      var r = Math.max(3 * Math.min(1.4, Math.max(0.6, S.zoom)), w * 0.9) / S.zoom;
+      // Widths in screen pixels at any zoom; the end rings sized to match.
+      return '<polyline class="' + cls + '" vector-effect="non-scaling-stroke" style="stroke-width:' + w + 'px" points="' + pts + '"/>' +
+        '<circle class="end ' + cls + '" vector-effect="non-scaling-stroke" cx="' + a[0] + '" cy="' + a[1] + '" r="' + r + '"/>' +
+        '<circle class="end ' + cls + '" vector-effect="non-scaling-stroke" cx="' + b[0] + '" cy="' + b[1] + '" r="' + r + '"/>';
+    }).join('');
+  }
   function worldHtml(L) {
-    var lay = LY()[L], sel = selIndex(), near = sel >= 0 ? neighbours(sel) : {};
-    var h = '<svg class="links' + (sel >= 0 ? ' dim' : '') + '" width="' + lay.width + '" height="' + lay.height + '">' + lay.lines.map(function (l) {
-      var on = sel >= 0 && ((l.from.note === sel) || (l.to.note === sel));
-      return '<polyline class="' + (on ? 'on' : '') + '" points="' + l.points.map(function (p) { return p[0] + ',' + p[1]; }).join(' ') + '"/>';
-    }).join('') + '</svg>';
+    var lay = LY()[L], sel = selIndex(), near = sel >= 0 ? neighbours(sel) : {}, f = focusOf(L);
+    var blk = {}, order = [];
+    function into(item, html) {
+      var k = A ? A.blockKey(M, item) : 'all';
+      if (!blk[k]) { blk[k] = []; order.push(k); }
+      blk[k].push(html);
+    }
     // Every word on the map is one of the layout's labels, fitted to its
     // box by hippo; a note card's title is its card's own label.
     var titles = {};
     (lay.labels || []).forEach(function (l) { if (L !== 'out' && l.kind === 'title' && l.item.note != null) titles[l.item.note] = l; });
     lay.frames.forEach(function (fr) {
       var r = fr[1];
-      h += '<div class="frame" style="left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;height:' + r.h + 'px"></div>';
+      into({ folder: fr[0] }, '<div class="frame" style="left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;height:' + r.h + 'px"></div>');
     });
     lay.cards.forEach(function (c) {
       var r = c.rect, st = 'left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;height:' + r.h + 'px';
       if (c.item.folder != null) {
-        h += '<div class="folder" data-folder="' + c.item.folder + '" style="' + st + '"></div>';
+        var fsel = f && f.folder === c.item.folder && !S.hover;
+        into(c.item, '<div class="folder' + (fsel ? ' sel' : '') + '" data-folder="' + c.item.folder + '" style="' + st + '"></div>');
         return;
       }
       if (L === 'out') {
-        h += '<div class="ocard' + (c.item.note === sel ? ' sel' : near[c.item.note] ? ' near' : '') + '" data-note="' + c.item.note + '" style="' + st + '"></div>';
+        into(c.item, '<div class="ocard' + (c.item.note === sel ? ' sel' : near[c.item.note] ? ' near' : '') + '" data-note="' + c.item.note + '" style="' + st + '"></div>');
         return;
       }
       var i = c.item.note, n = M.notes[i], fl = n.flags, tl = titles[i];
@@ -279,18 +320,40 @@
           n.evidence.map(function (e) { return '<p><span class="said">' + esc(e) + '</span></p>'; }).join('') +
           n.rules.map(function (p) { return '<p class="bullet">' + esc(p) + '</p>'; }).join('') + '</div>';
       }
-      h += '<div class="note' + (i === sel ? ' sel' : near[i] ? ' near' : '') + '" data-note="' + i + '" style="' + st + '"><div class="row">' + ic(fl.entry ? 'start' : 'note') + '<span class="t"' + (tl ? ' style="font-size:' + tl.size + 'px"' : '') + '>' + esc(tl ? tl.lines[0] : n.title) + '</span></div>' +
-        '<p class="s clamp1">' + esc(n.summary) + '</p><div class="row">' + ch + chip(n.reads_week ? 'read ' + n.reads_week + '× this week' : 'not read this week') + '</div>' + inner + '</div>';
+      into(c.item, '<div class="note' + (i === sel ? ' sel' : near[i] ? ' near' : '') + '" data-note="' + i + '" style="' + st + '"><div class="row">' + ic(fl.entry ? 'start' : 'note') + '<span class="t"' + (tl ? ' style="font-size:' + tl.size + 'px"' : '') + '>' + esc(tl ? tl.lines[0] : n.title) + '</span></div>' +
+        '<p class="s clamp1">' + esc(n.summary) + '</p><div class="row">' + ch + chip(n.reads_week ? 'read ' + n.reads_week + '× this week' : 'not read this week') + '</div>' + inner + '</div>');
     });
     (lay.labels || []).forEach(function (l) {
       if (L !== 'out' && l.kind === 'title') return;
       var r = l.rect;
-      h += '<div class="lab k-' + l.kind + '" style="left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;font-size:' + l.size + 'px">' + l.lines.map(esc).join('<br>') + '</div>';
+      into(l.item, '<div class="lab k-' + l.kind + '" style="left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;font-size:' + l.size + 'px">' + l.lines.map(esc).join('<br>') + '</div>');
     });
     (lay.marks || []).forEach(function (m) {
-      h += '<span class="mk t-' + m.tone + '" style="left:' + (m.x - m.d / 2) + 'px;top:' + (m.y - m.d / 2) + 'px;width:' + m.d + 'px;height:' + m.d + 'px"></span>';
+      into(m.item, '<span class="mk t-' + m.tone + '" style="left:' + (m.x - m.d / 2) + 'px;top:' + (m.y - m.d / 2) + 'px;width:' + m.d + 'px;height:' + m.d + 'px"></span>');
     });
+    var h = '<svg class="links" width="' + lay.width + '" height="' + lay.height + '">' + linesSvg(L) + '</svg>';
+    // Each block in a box of its own, so it can slide and be lifted whole.
+    order.forEach(function (k) { h += '<div class="blk" data-key="' + esc(k) + '">' + blk[k].join('') + '</div>'; });
     return h;
+  }
+  function redrawLines() {
+    var wrap = app.querySelector('.mapwrap'), svg = wrap && wrap.querySelector('svg.links');
+    if (svg) svg.innerHTML = linesSvg(level(S.zoom));
+    if (!wrap) return;
+    var hov = S.hover ? key(S.hover) : null;
+    wrap.querySelectorAll('.hover').forEach(function (x) { x.classList.remove('hover'); });
+    if (hov) {
+      var el = wrap.querySelector(S.hover.note != null ? '[data-note="' + S.hover.note + '"]' : '[data-folder="' + S.hover.folder + '"]');
+      if (el) el.classList.add('hover');
+    }
+    var tip = wrap.querySelector('.linktip');
+    if (S.hoverLine) {
+      if (!tip) { tip = document.createElement('div'); tip.className = 'linktip'; wrap.appendChild(tip); }
+      tip.textContent = S.hoverLine.words;
+      var x = S.hoverLine.at[0] + 14, y = S.hoverLine.at[1] + 16;
+      if (x + 260 > wrap.clientWidth) x = S.hoverLine.at[0] - 14 - Math.min(260, tip.offsetWidth || 200);
+      tip.style.left = x + 'px'; tip.style.top = y + 'px';
+    } else if (tip) tip.remove();
   }
   var drawnLevel = null;
   function placeWorld(force) {
@@ -302,6 +365,9 @@
       world.style.width = LY()[L].width + 'px';
       world.style.height = LY()[L].height + 'px';
       drawnLevel = L;
+    } else {
+      // End rings keep their size on screen.
+      redrawLines();
     }
     world.style.transform = 'translate(' + (-S.pan[0] * S.zoom) + 'px,' + (-S.pan[1] * S.zoom) + 'px) scale(' + S.zoom + ')';
     var pct = wrap.querySelector('[data-act="fit"]');
@@ -310,12 +376,20 @@
   function fit() {
     var wrap = app.querySelector('.mapwrap');
     if (!wrap) return;
-    var w = wrap.clientWidth, h = wrap.clientHeight, pad = 28;
-    var mid = LY().mid;
-    var z = Math.max(MIN_ZOOM, Math.min(1, (w - 2 * pad) / mid.width, (h - 2 * pad) / mid.height));
-    if (M.notes.length <= 80 && z < OUT_BELOW + 0.05) z = OUT_BELOW + 0.1;
-    S.zoom = z;
-    S.pan = [-Math.max(pad / z, (w / z - mid.width) / 2), -pad / z];
+    var w = wrap.clientWidth, h = wrap.clientHeight;
+    // Hippo's layout for this view, unless the person arranged it.
+    // Clear of the zoom bar at the top and the Ask bar floating over the foot.
+    var top = 52, foot = 0, ask = app.querySelector('.ask');
+    if (ask && ask.getBoundingClientRect) {
+      var wr = wrap.getBoundingClientRect(), ar = ask.getBoundingClientRect();
+      if (ar.height) foot = Math.max(0, wr.bottom - ar.top + 8);
+    }
+    var hh = Math.max(200, h - top - foot);
+    if (A) S.def = A.viewArrangement(M, w, hh);
+    S.lay = null;
+    var f = A ? A.fit(LY(), w, hh) : [1, [0, 0]];
+    S.zoom = f[0];
+    S.pan = [f[1][0], f[1][1] - top / f[0]];
     S.fitted = true;
     placeWorld(true);
   }
@@ -400,10 +474,13 @@
       else { S.pan = [S.pan[0] + e.deltaX / S.zoom, S.pan[1] + e.deltaY / S.zoom]; placeWorld(false); }
     }, { passive: false });
     var toMap = function (p) { return [S.pan[0] + p[0] / S.zoom, S.pan[1] + p[1] / S.zoom]; };
-    // Escape while a block is lifted puts it back where it was.
+    // Escape while a block is lifted: every block flies back.
     wrap.__cancel = function () {
       if (!drag || !drag.key || !drag.moved) return false;
+      var d = drag;
       drag = null;
+      wrap.classList.remove('drag');
+      putBack(wrap, d);
       return true;
     };
     wrap.addEventListener('pointerdown', function (e) {
@@ -415,7 +492,7 @@
       drag = { p: p, pan: S.pan.slice(), moved: false, id: e.pointerId, key: key, L: L };
     });
     wrap.addEventListener('pointermove', function (e) {
-      if (!drag) return;
+      if (!drag) { hoverAt(pt(e)); return; }
       var p = pt(e), dx = p[0] - drag.p[0], dy = p[1] - drag.p[1];
       if (!drag.moved && Math.abs(dx) + Math.abs(dy) <= 4) return;
       if (!drag.moved) { wrap.setPointerCapture(drag.id); wrap.classList.add('drag'); }
@@ -430,17 +507,15 @@
       if (sx || sy) { S.pan = [S.pan[0] + sx / S.zoom, S.pan[1] + sy / S.zoom]; placeWorld(false); }
       drawLift(wrap, drag, p);
     });
+    wrap.addEventListener('pointerleave', function () {
+      if (drag || (!S.hover && !S.hoverLine)) return;
+      S.hover = null; S.hoverLine = null; redrawLines();
+    });
     wrap.addEventListener('pointerup', function (e) {
       var d = drag;
       drag = null;
       wrap.classList.remove('drag');
-      if (d && d.moved && d.key && d.target) {
-        var from = S.arr || M.default_arrangement;
-        setArr(A.moveTo(from, d.key, d.target[0], d.target[1]));
-        render();
-        return;
-      }
-      clearLift(wrap);
+      if (d && d.moved && d.key && d.target) { settle(wrap, d); return; }
       if (!d || d.moved) return;
       var note = e.target.closest('[data-note]'), folder = e.target.closest('[data-folder]');
       if (note) { S.sel = M.notes[+note.getAttribute('data-note')].path; render(); }
@@ -451,30 +526,114 @@
       if (note) zoomInto({ note: +note.getAttribute('data-note') });
     });
   }
-  /* The lifted block: its place dimmed, its outline at the pointer, and a
-     lime line where it will land. */
+  /* The pointer at view point p, no button down: the card under it, and
+     at Out the lines under it with what they stand for. Over a line of the
+     hovered card, that card stays hovered. */
+  function hoverAt(p) {
+    var L = level(S.zoom), lay = LY()[L], m = [S.pan[0] + p[0] / S.zoom, S.pan[1] + p[1] / S.zoom];
+    var c = cardAt(lay, m[0], m[1]), hits = [];
+    if (!c) {
+      var tol = 6 / S.zoom;
+      shown(lay, focusOf(L)).forEach(function (x) {
+        var l = x[0], d = Infinity;
+        for (var i = 1; i < l.points.length; i++) {
+          var a = l.points[i - 1], b = l.points[i];
+          var qx = Math.min(Math.max(m[0], Math.min(a[0], b[0])), Math.max(a[0], b[0]));
+          var qy = Math.min(Math.max(m[1], Math.min(a[1], b[1])), Math.max(a[1], b[1]));
+          d = Math.min(d, Math.hypot(qx - m[0], qy - m[1]));
+        }
+        if (d <= tol) hits.push([d, l]);
+      });
+      var best = Math.min.apply(null, hits.map(function (h) { return h[0]; }).concat([Infinity]));
+      hits = hits.filter(function (h) { return h[0] <= best + 0.5; }).map(function (h) { return h[1]; });
+    }
+    var hover = c ? c.item : hits.length ? S.hover : null;
+    var line = null;
+    if (L === 'out' && hits.length) {
+      var name = function (it) {
+        var k = A.blockKey(M, it);
+        return k.indexOf('folder:') === 0 ? (k.slice(7) || 'Notes') : M.notes[it.note].title;
+      };
+      var names = function (v) { return v.length === 1 ? v[0] : v.length <= 3 ? v.slice(0, -1).join(', ') + ' and ' + v[v.length - 1] : v.length + ' others'; };
+      var n = hits.reduce(function (s, l) { return s + l.links; }, 0), plural = function (k, a, b) { return k + ' ' + (k === 1 ? a : b); };
+      line = {
+        ends: hits.map(function (l) { return [key(l.from), key(l.to)]; }), at: p,
+        words: name(hits[0].from) + ' and ' + names(hits.map(function (l) { return name(l.to); })) + ' · ' + plural(n, 'link', 'links')
+      };
+    }
+    var same = (hover ? key(hover) : '') === (S.hover ? key(S.hover) : '') && !line === !S.hoverLine && (!line || line.words === S.hoverLine.words);
+    S.hover = hover; S.hoverLine = line;
+    if (!same || line) redrawLines();
+  }
+  /* The lifted block: the real card under the pointer, raised; the others
+     sliding aside to open where it lands, shown as a sunk slot. */
   function drawLift(wrap, d, p) {
     var world = wrap.querySelector('.world'), lay = LY()[d.L], r = A.blockRect(M, lay, d.key);
     if (!r) return;
     var m = [S.pan[0] + p[0] / S.zoom, S.pan[1] + p[1] / S.zoom];
-    if (!d.grab) d.grab = [m[0] - r.x, m[1] - r.y];
-    var arr = S.arr || M.default_arrangement;
-    d.target = A.dropAt(M, lay, A.settle(M, arr), d.key, m[0], m[1]);
-    var el = function (cls) {
-      var x = world.querySelector('.' + cls);
-      if (!x) { x = document.createElement('div'); x.className = cls; world.appendChild(x); }
-      return x;
-    };
-    var st = function (x, a, b, w, h) { x.style.left = a + 'px'; x.style.top = b + 'px'; x.style.width = w + 'px'; x.style.height = h + 'px'; };
-    st(el('lift-place'), r.x, r.y, r.w, r.h);
-    st(el('lift-ghost'), m[0] - d.grab[0], m[1] - d.grab[1], r.w, r.h);
-    var t = d.target, line = el('drop-line');
-    // A new column shows where the block will stand; elsewhere, a line.
-    if (t[4]) { line.classList.add('slot'); st(line, t[3][0], 0, t[3][1] - t[3][0], r.h); }
-    else { line.classList.remove('slot'); st(line, t[3][0], t[2] - 1.5, t[3][1] - t[3][0], 3); }
+    if (!d.grab) {
+      d.grab = [m[0] - r.x, m[1] - r.y];
+      S.hover = null; S.hoverLine = null;
+      wrap.classList.add('lifting');
+      redrawLines();
+    }
+    var arr = A.settle(M, S.arr || S.def || M.default_arrangement);
+    var t = A.dropAt(M, lay, arr, d.key, m[0], m[1]);
+    var blocks = world.querySelectorAll('.blk');
+    if (!d.target || d.target[0] !== t[0] || d.target[1] !== t[1]) {
+      d.target = t;
+      // Where every block goes with the lifted one dropped there.
+      var pv = A.preview(M, A.moveTo(arr, d.key, t[0], t[1]), d.L);
+      blocks.forEach(function (b) {
+        var k = b.getAttribute('data-key');
+        if (k === d.key) return;
+        var a = A.blockRect(M, lay, k), z = A.blockRect(M, pv, k);
+        if (!a || !z) return;
+        b.style.transition = 'transform ' + SLIDE + 'ms cubic-bezier(.2,.8,.2,1)';
+        b.style.transform = 'translate(' + (z.x - a.x) + 'px,' + (z.y - a.y) + 'px)';
+      });
+      var s2 = A.blockRect(M, pv, d.key), slot = world.querySelector('.slot');
+      if (!slot) { slot = document.createElement('div'); slot.className = 'slot'; world.insertBefore(slot, world.firstChild.nextSibling); }
+      slot.style.transition = slot.style.left ? 'left ' + SLIDE + 'ms cubic-bezier(.2,.8,.2,1), top ' + SLIDE + 'ms cubic-bezier(.2,.8,.2,1)' : 'none';
+      slot.style.left = s2.x + 'px'; slot.style.top = s2.y + 'px'; slot.style.width = s2.w + 'px'; slot.style.height = s2.h + 'px';
+      slot.classList.toggle('round', d.L === 'out' || d.key.indexOf('folder:') === 0);
+      d.slot = s2;
+    }
+    var me = world.querySelector('.blk[data-key="' + cssq(d.key) + '"]');
+    if (me) {
+      me.classList.add('lifted');
+      me.style.transition = 'none';
+      me.style.transformOrigin = (r.x + d.grab[0]) + 'px ' + (r.y + d.grab[1]) + 'px';
+      me.style.transform = 'translate(' + (m[0] - r.x - d.grab[0]) + 'px,' + (m[1] - r.y - d.grab[1]) + 'px) scale(1.03)';
+      d.lay = lay; d.r = r;
+    }
+  }
+  function cssq(s) { return String(s).replace(/["\\]/g, '\\$&'); }
+  /* Dropped: the card settles into its slot, then the map is laid out. */
+  function settle(wrap, d) {
+    var world = wrap.querySelector('.world'), me = world.querySelector('.blk[data-key="' + cssq(d.key) + '"]');
+    var from = S.arr || S.def || M.default_arrangement, next = A.moveTo(A.settle(M, from), d.key, d.target[0], d.target[1]);
+    if (me && d.slot && d.r) {
+      me.style.transition = 'transform ' + SETTLE + 'ms cubic-bezier(.2,.8,.2,1)';
+      me.style.transform = 'translate(' + (d.slot.x - d.r.x) + 'px,' + (d.slot.y - d.r.y) + 'px) scale(1)';
+    }
+    setTimeout(function () { setArr(next); wrap.classList.remove('lifting'); render(); }, SETTLE);
+  }
+  /* Put back: every block flies home, the lifted one too. */
+  function putBack(wrap, d) {
+    var world = wrap.querySelector('.world');
+    world.querySelectorAll('.blk').forEach(function (b) {
+      b.style.transition = 'transform ' + BACK + 'ms cubic-bezier(.2,.8,.2,1)';
+      b.style.transform = '';
+    });
+    var slot = world.querySelector('.slot');
+    if (slot) slot.remove();
+    setTimeout(function () { clearLift(wrap); }, BACK);
   }
   function clearLift(wrap) {
-    ['lift-place', 'lift-ghost', 'drop-line'].forEach(function (c) { var x = wrap.querySelector('.' + c); if (x) x.remove(); });
+    wrap.classList.remove('lifting');
+    wrap.querySelectorAll('.slot').forEach(function (x) { x.remove(); });
+    wrap.querySelectorAll('.blk').forEach(function (b) { b.classList.remove('lifted'); b.style.transition = ''; b.style.transform = ''; });
   }
   // Escape puts a lifted block back; ⌥ and an arrow move the selected
   // note's block a column or a place.
@@ -482,7 +641,6 @@
     if (S.view !== 'brain' || !A) return;
     if (e.key === 'Escape') {
       var wrap = app.querySelector('.mapwrap');
-      if (wrap) { clearLift(wrap); wrap.classList.remove('drag'); }
       if (wrap && wrap.__cancel) wrap.__cancel();
       return;
     }
@@ -492,7 +650,7 @@
     if (!dir || i < 0) return;
     e.preventDefault();
     var key = A.blockKey(M, { note: i });
-    setArr(A.nudge(A.settle(M, S.arr || M.default_arrangement), key, dir));
+    setArr(A.nudge(A.settle(M, S.arr || S.def || M.default_arrangement), key, dir));
     render();
   });
   function zoomInto(item) {
