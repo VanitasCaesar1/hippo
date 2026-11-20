@@ -155,9 +155,21 @@ h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
 .world .note .t { font-weight: 600; font-size: 16px; }
 .world .note .s { color: var(--muted); font-size: 13.5px; margin: 8px 0 10px; }
 .world .note .in { margin-top: 10px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
-.world .folder { position: absolute; padding: 32px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); cursor: zoom-in; overflow: hidden; }
-.world .folder .t { font-weight: 700; font-size: 64px; line-height: 1.1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.world .folder .s { color: var(--muted); font-size: 40px; margin-top: 10px; }
+.world .folder, .world .ocard { position: absolute; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); cursor: zoom-in; }
+.world .ocard { cursor: pointer; }
+.world .ocard.sel { border: 2px solid var(--night); }
+.world .ocard.near { border-color: var(--night-line); }
+.world .lab { position: absolute; line-height: 1.25; white-space: nowrap; pointer-events: none; color: var(--text); }
+.world .lab.k-title { font-weight: 600; }
+.world .lab.k-meta { color: var(--muted); }
+.world .lab.k-frame { color: var(--muted); font-weight: 600; }
+.world .lab.k-count, .world .lab.k-more { color: var(--faint); }
+.world .mk { position: absolute; border-radius: 50%; pointer-events: none; border: 1.5px solid var(--line2); box-sizing: border-box; }
+.world .mk.t-ok { background: var(--ok); border: 0; }
+.world .mk.t-bad { background: var(--bad); border: 0; }
+.world .mk.t-you { background: var(--you-mark); border: 0; }
+.world .mk.t-faint { background: var(--faint); border: 0; }
+.world .mk.t-night { background: var(--night); border: 0; }
 .world svg.links { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .world svg.links polyline { fill: none; stroke: var(--line2); stroke-width: 1.4; }
 .world svg.links polyline.on { stroke: var(--night); stroke-width: 2; }

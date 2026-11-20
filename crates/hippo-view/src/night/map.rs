@@ -9,15 +9,24 @@
 //! - [`Level::Mid`], the base: pinned notes (the entry note and required
 //!   notes) in the first column, then folders packed into columns of
 //!   fixed width, each a frame of note cards of fixed height.
-//! - [`Level::Out`]: the same frames, each drawn as one folder card.
-//! - [`Level::In`]: the same columns and order, with taller cards that
-//!   carry each note's rules and evidence.
+//! - [`Level::Out`]: an overview. Each pinned note and each folder is one
+//!   card a column wide: its name set large enough to read when zoomed
+//!   out (wrapped, then shrunk to fit, never cut), a legend of what its
+//!   notes carry, and its most-read notes as labelled rows with a small
+//!   mark each. The cards stack in columns with nothing spanning two.
+//! - [`Level::In`]: the same columns and order as Mid, with taller cards
+//!   that carry each note's rules and evidence.
+//!
+//! Every word a level draws on the map is a [`Label`] here, already fitted
+//! to its box ([`super::fit`]), so the app and the web replica only draw.
 //!
 //! Links are polylines: out of one card's right edge, one turn in the gap,
 //! into the other card's left edge; two cards in one column are joined by
-//! a bracket at their right. Each line has its own port on each card and
-//! its own lane in the gap it turns in ([`route`]), so a note with many
-//! links shows each one rather than a bundle.
+//! a bracket at their right. A line whose straight run would cross a card
+//! on the way turns twice more, into a free channel between cards. Each
+//! line has its own port on each card and its own lane in each gap it turns
+//! in ([`route`]), so a note with many links shows each one rather than a
+//! bundle, and no line runs through a card.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
@@ -62,6 +71,25 @@ pub const IN_LINES: usize = 6;
 /// Days a note can go unchanged before it counts as stale, when nothing
 /// overdue says so first.
 pub const STALE_DAYS: i64 = 60;
+
+/// An Out card's padding.
+pub const OUT_PAD: f32 = 28.;
+/// An Out card's name: its largest and smallest size, on at most 2 lines.
+pub const OUT_TITLE: f32 = 48.;
+pub const OUT_TITLE_MIN: f32 = 22.;
+/// The legend's size.
+pub const OUT_META: f32 = 24.;
+/// A note row in a folder card: its text size and its height.
+pub const OUT_ROW: f32 = 26.;
+pub const OUT_ROW_H: f32 = 44.;
+/// At most this many note rows in a folder card; more show as `+ n more`.
+pub const OUT_ROWS: usize = 6;
+/// A mark's diameter.
+pub const OUT_DOT: f32 = 12.;
+/// Between Out cards in a column.
+pub const OUT_GAP: f32 = 40.;
+/// A line of text is this many times its size high.
+pub const LEADING: f32 = 1.25;
 
 /// The zoom level a factor shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
@@ -242,6 +270,56 @@ pub struct Line {
     pub links: usize,
 }
 
+/// What a label is, which sets its weight and colour.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LabelKind {
+    /// A card's name: an Out card's, or a note card's title (bold).
+    Title,
+    /// An Out card's legend: counts and what a pinned note carries.
+    Meta,
+    /// A note's title in a folder card at Out.
+    Row,
+    /// `+ 8 more notes`.
+    More,
+    /// A folder frame's name at Mid and In (bold).
+    Frame,
+    /// A folder frame's count.
+    Count,
+}
+
+impl LabelKind {
+    pub fn bold(self) -> bool {
+        matches!(self, LabelKind::Title | LabelKind::Frame)
+    }
+}
+
+/// Text a level draws: its lines from `rect`'s top left, `size` high
+/// (in map units), each line [`LEADING`] × `size` below the last. Every
+/// line fits `rect.w` by [`super::fit::width`].
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Label {
+    /// The card or frame it belongs to.
+    pub item: Item,
+    pub kind: LabelKind,
+    pub rect: Rect,
+    pub lines: Vec<String>,
+    pub size: f32,
+}
+
+/// A small round mark: a note's state on an Out card, or a legend's key.
+/// `tone` is `ok` (fixed), `bad` (rejected), `you` (a rule waiting),
+/// `faint` (stale), `night` (in every session) or `plain`.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Mark {
+    pub item: Item,
+    /// The centre and the diameter.
+    pub x: f32,
+    pub y: f32,
+    pub d: f32,
+    pub tone: &'static str,
+}
+
 /// One level's drawing.
 #[derive(Debug, Clone, PartialEq, Serialize, Default)]
 pub struct Layout {
@@ -251,6 +329,9 @@ pub struct Layout {
     pub frames: Vec<(usize, Rect)>,
     pub cards: Vec<Card>,
     pub lines: Vec<Line>,
+    /// Every word drawn on the map at this level, on top of the cards.
+    pub labels: Vec<Label>,
+    pub marks: Vec<Mark>,
 }
 
 impl Layout {
@@ -272,6 +353,11 @@ impl Layout {
     /// The lines whose bounds meet `view`.
     pub fn lines_in<'a>(&'a self, view: &'a Rect) -> impl Iterator<Item = &'a Line> + 'a {
         self.lines.iter().filter(move |l| l.bounds.meets(view))
+    }
+
+    /// The labels that meet `view`.
+    pub fn labels_in<'a>(&'a self, view: &'a Rect) -> impl Iterator<Item = &'a Label> + 'a {
+        self.labels.iter().filter(move |l| l.rect.meets(view))
     }
 
     /// The zoom and the map point at the view's top left that fit the whole
@@ -723,16 +809,11 @@ pub fn lay_out(
             per,
         });
     }
-    let mid = place(folders, &pinned, &placed, edges, &mid_h, false);
-    let inner = place(
-        folders,
-        &pinned,
-        &placed,
-        edges,
-        &|i| in_height(&notes[i]),
-        false,
-    );
-    let out = place(folders, &pinned, &placed, edges, &mid_h, true);
+    let mid = place(notes, folders, &pinned, &placed, edges, &mid_h);
+    let inner = place(notes, folders, &pinned, &placed, edges, &|i| {
+        in_height(&notes[i])
+    });
+    let out = place_out(notes, folders, &pinned, cols, edges);
     (out, mid, inner)
 }
 
@@ -740,18 +821,51 @@ fn col_x(c: usize) -> f32 {
     c as f32 * (COL_W + COL_GAP)
 }
 
-/// Places cards and frames from the column plan, with `height` per note;
-/// `folded` draws each folder as one card (Out).
+/// A label for `item` fitted into `w` from `(x, y)`.
+#[allow(clippy::too_many_arguments)]
+fn label(
+    item: Item,
+    kind: LabelKind,
+    s: &str,
+    x: f32,
+    y: f32,
+    w: f32,
+    max: f32,
+    min: f32,
+    lines: usize,
+) -> Label {
+    let f = super::fit::fit(s, w, max, min, lines, kind.bold());
+    Label {
+        item,
+        kind,
+        rect: Rect::new(x, y, w, f.lines.len() as f32 * f.size * LEADING),
+        lines: f.lines,
+        size: f.size,
+    }
+}
+
+/// A note's mark: its chip's tone, stale as `faint`.
+pub fn tone_of(flags: &Flags) -> &'static str {
+    match flags.chip().map(|c| c.1) {
+        Some("plain") => "faint",
+        Some(t) => t,
+        None => "plain",
+    }
+}
+
+/// Places cards and frames from the column plan, with `height` per note
+/// (Mid and In).
 fn place(
+    notes: &[MapNote],
     folders: &[Folder],
     pinned: &[usize],
     placed: &[Placed],
     edges: &[(usize, usize)],
     height: &dyn Fn(usize) -> f32,
-    folded: bool,
 ) -> Layout {
     let mut cards = Vec::new();
     let mut frames = Vec::new();
+    let mut labels = Vec::new();
     let cols = placed
         .iter()
         .map(|p| p.col + p.span)
@@ -784,42 +898,334 @@ fn place(
             let mut cy = top + FRAME_HEAD;
             for &i in chunk {
                 let h = height(i);
-                if !folded {
-                    cards.push(Card {
-                        item: Item::Note(i),
-                        rect: Rect::new(col_x(p.col + k) + FRAME_PAD, cy, CARD_W, h),
-                    });
-                }
+                cards.push(Card {
+                    item: Item::Note(i),
+                    rect: Rect::new(col_x(p.col + k) + FRAME_PAD, cy, CARD_W, h),
+                });
                 cy += h + GAP;
             }
             sub_bottom = sub_bottom.max(cy - GAP);
         }
         let frame = Rect::new(x, top, w, sub_bottom + FRAME_PAD - top);
-        if folded {
-            cards.push(Card {
-                item: Item::Folder(p.folder),
-                rect: frame,
-            });
-        } else {
-            frames.push((p.folder, frame));
-        }
+        frames.push((p.folder, frame));
+        // The frame's name on the left, its count on the right.
+        let item = Item::Folder(p.folder);
+        let count = count(f.notes.len(), "note", "notes");
+        let cw = super::fit::width(&count, 13., false);
+        let name = if f.name.is_empty() { "Notes" } else { &f.name };
+        let name_w = w - 2. * FRAME_PAD - cw - 16.;
+        labels.push(label(
+            item,
+            LabelKind::Frame,
+            name,
+            x + FRAME_PAD,
+            top + 11.,
+            name_w,
+            14.5,
+            11.,
+            1,
+        ));
+        labels.push(label(
+            item,
+            LabelKind::Count,
+            &count,
+            x + w - FRAME_PAD - cw,
+            top + 13.,
+            cw,
+            13.,
+            13.,
+            1,
+        ));
         for b in &mut bottom[p.col..p.col + p.span] {
             *b = frame.bottom() + FRAME_GAP;
         }
     }
-    let rect_of: HashMap<Item, Rect> = cards.iter().map(|c| (c.item, c.rect)).collect();
-    let folder_of: HashMap<usize, usize> = placed
-        .iter()
-        .flat_map(|p| folders[p.folder].notes.iter().map(move |&i| (i, p.folder)))
-        .collect();
-    let lift = |i: usize| -> Item {
-        if folded {
-            folder_of
-                .get(&i)
-                .map_or(Item::Note(i), |&f| Item::Folder(f))
-        } else {
-            Item::Note(i)
+    // Each note card's title, beside its icon.
+    for c in &cards {
+        if let Item::Note(i) = c.item {
+            let x = c.rect.x + 16. + 18. + 10.;
+            labels.push(label(
+                c.item,
+                LabelKind::Title,
+                &notes[i].title,
+                x,
+                c.rect.y + 16.,
+                c.rect.right() - 16. - x,
+                16.,
+                12.,
+                1,
+            ));
         }
+    }
+    let rect_of: HashMap<Item, Rect> = cards.iter().map(|c| (c.item, c.rect)).collect();
+    let mut pairs: BTreeMap<(Item, Item), usize> = BTreeMap::new();
+    for &(a, b) in edges {
+        let (ia, ib) = (Item::Note(a), Item::Note(b));
+        let key = if pairs.contains_key(&(ib, ia)) {
+            (ib, ia)
+        } else {
+            (ia, ib)
+        };
+        *pairs.entry(key).or_default() += 1;
+    }
+    let lines = route(&pairs, &rect_of, Some(4. * CARD_H));
+    finish(frames, cards, lines, labels, Vec::new())
+}
+
+/// The layout's size around what it holds.
+fn finish(
+    frames: Vec<(usize, Rect)>,
+    cards: Vec<Card>,
+    lines: Vec<Line>,
+    labels: Vec<Label>,
+    marks: Vec<Mark>,
+) -> Layout {
+    let width = cards
+        .iter()
+        .map(|c| c.rect.right())
+        .chain(frames.iter().map(|f| f.1.right()))
+        .chain(lines.iter().map(|l| l.bounds.right()))
+        .fold(0., f32::max)
+        + FRAME_PAD;
+    let height = cards
+        .iter()
+        .map(|c| c.rect.bottom())
+        .chain(frames.iter().map(|f| f.1.bottom()))
+        .chain(lines.iter().map(|l| l.bounds.bottom()))
+        .fold(0., f32::max);
+    Layout {
+        width,
+        height,
+        frames,
+        cards,
+        lines,
+        labels,
+        marks,
+    }
+}
+
+/// One Out card's words and marks, from its top left; returns its height.
+#[allow(clippy::too_many_arguments)]
+fn out_card(
+    item: Item,
+    title: &str,
+    legend: &[(String, Option<&'static str>)],
+    rows: &[(String, &'static str)],
+    more: usize,
+    x: f32,
+    y: f32,
+    labels: &mut Vec<Label>,
+    marks: &mut Vec<Mark>,
+) -> f32 {
+    let iw = COL_W - 2. * OUT_PAD;
+    let x0 = x + OUT_PAD;
+    let mut cy = y + OUT_PAD;
+    let mut t = label(
+        item,
+        LabelKind::Title,
+        title,
+        x0,
+        cy,
+        iw,
+        OUT_TITLE,
+        OUT_TITLE_MIN,
+        3,
+    );
+    // A word too long for the card at the floor: smaller still, not cut.
+    if t.lines.last().is_some_and(|l| l.ends_with('…')) {
+        t = label(
+            item,
+            LabelKind::Title,
+            title,
+            x0,
+            cy,
+            iw,
+            OUT_TITLE_MIN,
+            8.,
+            3,
+        );
+    }
+    cy = t.rect.bottom() + 12.;
+    labels.push(t);
+    // The legend flows in lines: a mark and its words per entry.
+    let line_h = OUT_META * LEADING;
+    let mut lx = x0;
+    let mut first = true;
+    for (words, tone) in legend {
+        let lead = if tone.is_some() { OUT_DOT + 8. } else { 0. };
+        let w = super::fit::width(words, OUT_META, false);
+        if !first && lx + lead + w > x0 + iw {
+            lx = x0;
+            cy += line_h + 4.;
+        }
+        if let Some(tone) = tone {
+            marks.push(Mark {
+                item,
+                x: lx + OUT_DOT / 2.,
+                y: cy + line_h / 2.,
+                d: OUT_DOT,
+                tone,
+            });
+        }
+        let l = label(
+            item,
+            LabelKind::Meta,
+            words,
+            lx + lead,
+            cy,
+            (x0 + iw - lx - lead).min(w),
+            OUT_META,
+            14.,
+            1,
+        );
+        lx = l.rect.right() + 18.;
+        labels.push(l);
+        first = false;
+    }
+    cy += line_h;
+    if !rows.is_empty() {
+        cy += 14.;
+    }
+    for (title, tone) in rows {
+        marks.push(Mark {
+            item,
+            x: x0 + OUT_DOT / 2.,
+            y: cy + OUT_ROW_H / 2.,
+            d: OUT_DOT,
+            tone,
+        });
+        let rx = x0 + OUT_DOT + 12.;
+        let mut l = label(
+            item,
+            LabelKind::Row,
+            title,
+            rx,
+            cy,
+            x0 + iw - rx,
+            OUT_ROW,
+            18.,
+            1,
+        );
+        l.rect.y = cy + (OUT_ROW_H - l.rect.h) / 2.;
+        labels.push(l);
+        cy += OUT_ROW_H;
+    }
+    if more > 0 {
+        let mut l = label(
+            item,
+            LabelKind::More,
+            &format!("+ {}", count(more, "more note", "more notes")),
+            x0 + OUT_DOT + 12.,
+            cy,
+            iw - OUT_DOT - 12.,
+            OUT_ROW,
+            18.,
+            1,
+        );
+        l.rect.y = cy + (OUT_ROW_H - l.rect.h) / 2.;
+        labels.push(l);
+        cy += OUT_ROW_H;
+    }
+    cy + OUT_PAD - y
+}
+
+/// Out: a card per pinned note in the first column, then a card per
+/// folder in whichever of `cols` columns is shortest, none spanning two.
+fn place_out(
+    notes: &[MapNote],
+    folders: &[Folder],
+    pinned: &[usize],
+    cols: usize,
+    edges: &[(usize, usize)],
+) -> Layout {
+    let mut cards = Vec::new();
+    let mut labels = Vec::new();
+    let mut marks = Vec::new();
+    let mut heights = vec![0f32; cols.max(1)];
+    for &i in pinned {
+        let n = &notes[i];
+        let mut legend: Vec<(String, Option<&'static str>)> = Vec::new();
+        if let Some((words, _)) = n.flags.chip() {
+            legend.push((words, Some(tone_of(&n.flags))));
+        }
+        legend.push((n.reads_label(), None));
+        let item = Item::Note(i);
+        let y = heights[0];
+        let h = out_card(
+            item,
+            &n.title,
+            &legend,
+            &[],
+            0,
+            col_x(0),
+            y,
+            &mut labels,
+            &mut marks,
+        );
+        cards.push(Card {
+            item,
+            rect: Rect::new(col_x(0), y, COL_W, h),
+        });
+        heights[0] = y + h + OUT_GAP;
+    }
+    for (fi, f) in folders.iter().enumerate() {
+        let col = (0..heights.len())
+            .min_by(|a, b| heights[*a].total_cmp(&heights[*b]).then(a.cmp(b)))
+            .unwrap_or(0);
+        let mut legend: Vec<(String, Option<&'static str>)> =
+            vec![(count(f.notes.len(), "note", "notes"), None)];
+        for (n, words, tone) in [
+            (f.fixed, ("fixed", "fixed"), "ok"),
+            (f.waiting, ("rule waiting", "rules waiting"), "you"),
+            (f.rejected, ("rejected", "rejected"), "bad"),
+            (f.stale, ("stale", "stale"), "faint"),
+        ] {
+            if n > 0 {
+                legend.push((
+                    format!("{n} {}", if n == 1 { words.0 } else { words.1 }),
+                    Some(tone),
+                ));
+            }
+        }
+        let shown = if f.notes.len() > OUT_ROWS {
+            OUT_ROWS - 1
+        } else {
+            f.notes.len()
+        };
+        let rows: Vec<(String, &'static str)> = f.notes[..shown]
+            .iter()
+            .map(|&i| (notes[i].title.clone(), tone_of(&notes[i].flags)))
+            .collect();
+        let item = Item::Folder(fi);
+        let name = if f.name.is_empty() { "Notes" } else { &f.name };
+        let (x, y) = (col_x(col), heights[col]);
+        let h = out_card(
+            item,
+            name,
+            &legend,
+            &rows,
+            f.notes.len() - shown,
+            x,
+            y,
+            &mut labels,
+            &mut marks,
+        );
+        cards.push(Card {
+            item,
+            rect: Rect::new(x, y, COL_W, h),
+        });
+        heights[col] = y + h + OUT_GAP;
+    }
+    let rect_of: HashMap<Item, Rect> = cards.iter().map(|c| (c.item, c.rect)).collect();
+    let folder_of: HashMap<usize, usize> = folders
+        .iter()
+        .enumerate()
+        .flat_map(|(fi, f)| f.notes.iter().map(move |&i| (i, fi)))
+        .collect();
+    let lift = |i: usize| {
+        folder_of
+            .get(&i)
+            .map_or(Item::Note(i), |&f| Item::Folder(f))
     };
     // One line per pair of cards, counting the links it stands for.
     let mut pairs: BTreeMap<(Item, Item), usize> = BTreeMap::new();
@@ -835,26 +1241,8 @@ fn place(
         };
         *pairs.entry(key).or_default() += 1;
     }
-    let lines = route(&pairs, &rect_of);
-    let width = cards
-        .iter()
-        .map(|c| c.rect.right())
-        .chain(frames.iter().map(|f| f.1.right()))
-        .chain(lines.iter().map(|l| l.bounds.right()))
-        .fold(0., f32::max)
-        + FRAME_PAD;
-    let height = cards
-        .iter()
-        .map(|c| c.rect.bottom())
-        .chain(frames.iter().map(|f| f.1.bottom()))
-        .fold(0., f32::max);
-    Layout {
-        width,
-        height,
-        frames,
-        cards,
-        lines,
-    }
+    let lines = route(&pairs, &rect_of, None);
+    finish(Vec::new(), cards, lines, labels, marks)
 }
 
 /// The gap left of column `g`: where its lanes may go, frame to frame
@@ -874,16 +1262,25 @@ fn gap_before(x: f32) -> usize {
     (x / (COL_W + COL_GAP)).round().max(0.) as usize
 }
 
-/// Routes one line per pair of cards so no two share a stretch.
+/// Routes one line per pair of cards so no two share a stretch and none
+/// runs through a card.
 ///
 /// Each card spreads its lines evenly along the edge they leave from,
 /// ordered by where the other end sits, so lines leaving one card do not
-/// cross at the card. Each line turns in a gap between columns, and every
-/// line in a gap gets a lane of its own: brackets (two cards in one
-/// column) nearest the column they join, shortest innermost; then the lines
-/// that enter the next column, longest first, so a line's horizontal run
-/// does not cross the lanes of lines that turn after it.
-fn route(pairs: &BTreeMap<(Item, Item), usize>, rect_of: &HashMap<Item, Rect>) -> Vec<Line> {
+/// cross at the card. A line turns in the gap next to one of its cards;
+/// when its straight run across the columns between would cross a card,
+/// it turns in the gaps next to both and crosses in a free channel between
+/// cards (below them when no gap between them lines up; at Mid and In
+/// only a channel within `reach` of its ends, else the run stays). Every
+/// vertical run in a gap gets a lane of its own: brackets (two cards in
+/// one column) nearest the column they join, shortest innermost; then the
+/// rest, longest first, so a line's horizontal run does not cross the
+/// lanes of lines that turn after it.
+fn route(
+    pairs: &BTreeMap<(Item, Item), usize>,
+    rect_of: &HashMap<Item, Rect>,
+    reach: Option<f32>,
+) -> Vec<Line> {
     #[derive(Clone, Copy, PartialEq)]
     enum Kind {
         /// Both ends on their cards' right edges.
@@ -902,8 +1299,12 @@ fn route(pairs: &BTreeMap<(Item, Item), usize>, rect_of: &HashMap<Item, Rect>) -
         kind: Kind,
         ya: f32,
         yb: f32,
+        /// The gap of the one turn; with a channel, the gap next to `a`.
         gap: usize,
         lane: f32,
+        /// A channel: the gap next to `b`, the channel's y, and that
+        /// gap's lane.
+        via: Option<(usize, f32, f32)>,
     }
     let centre = |r: &Rect| r.y + r.h.min(CARD_H) / 2.;
     let mut plans: Vec<Plan> = Vec::new();
@@ -930,6 +1331,7 @@ fn route(pairs: &BTreeMap<(Item, Item), usize>, rect_of: &HashMap<Item, Rect>) -
             yb: centre(&rb),
             gap,
             lane: 0.,
+            via: None,
         });
     }
     // Ports: each (card, edge) spreads its lines, ordered by the other end.
@@ -972,27 +1374,112 @@ fn route(pairs: &BTreeMap<(Item, Item), usize>, rect_of: &HashMap<Item, Rect>) -
             }
         }
     }
-    // Lanes: one per line in each gap.
-    let mut by_gap: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+    // Channels: a line whose straight run would cross a card turns into
+    // the nearest free stretch between the cards it passes.
+    let rects: Vec<Rect> = rect_of.values().copied().collect();
+    let crosses = |x0: f32, x1: f32, y: f32| {
+        rects
+            .iter()
+            .any(|r| r.x < x1 - 0.5 && x0 + 0.5 < r.right() && r.y - 4. < y && y < r.bottom() + 4.)
+    };
+    // Channels already taken: (x0, x1, y).
+    let mut taken: Vec<(f32, f32, f32)> = Vec::new();
+    for p in &mut plans {
+        let (near_b, x0, x1, y) = match p.kind {
+            Kind::Bracket => continue,
+            Kind::Right => (gap_after(p.ra.right()), p.ra.right(), p.rb.x, p.ya),
+            Kind::Left => (gap_after(p.rb.right()), p.rb.right(), p.ra.x, p.yb),
+        };
+        if near_b == p.gap || !crosses(x0, x1, y) {
+            continue;
+        }
+        // The gap next to `a` and the one next to `b`.
+        let (ga, gb) = match p.kind {
+            Kind::Right => (near_b, p.gap),
+            _ => (p.gap, near_b),
+        };
+        let (cx0, cx1) = (gap_span(ga.min(gb)).0, gap_span(ga.max(gb)).1);
+        // Forbidden stretches of y over the channel's width.
+        let mut no: Vec<(f32, f32)> = rects
+            .iter()
+            .filter(|r| r.x < cx1 && cx0 < r.right())
+            .map(|r| (r.y - 4., r.bottom() + 4.))
+            .collect();
+        no.extend(
+            taken
+                .iter()
+                .filter(|t| t.0 < cx1 && cx0 < t.1)
+                .map(|t| (t.2 - 4., t.2 + 4.)),
+        );
+        let want = (p.ya + p.yb) / 2.;
+        // The free stretches, top to bottom, never above the map's top;
+        // the one below every card is open-ended.
+        no.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let mut free: Vec<(f32, f32)> = Vec::new();
+        let mut from = 0f32;
+        for (lo, hi) in &no {
+            if *lo > from {
+                free.push((from, *lo));
+            }
+            from = from.max(*hi);
+        }
+        free.push((from, f32::MAX));
+        // In each stretch, the point nearest the line's middle that keeps
+        // clear of both sides when there is room; the nearest of those.
+        let yc = free
+            .iter()
+            .map(|(lo, hi)| {
+                let pad = (14f32).min((hi - lo) / 2.);
+                want.clamp(lo + pad, (hi - pad).max(lo + pad))
+            })
+            .min_by(|a, b| (a - want).abs().total_cmp(&(b - want).abs()))
+            .unwrap_or(want);
+        // At Mid and In a channel far from both ends would draw a long
+        // detour across the map: the straight run stays, under the cards.
+        if let Some(reach) = reach {
+            if yc < p.ya.min(p.yb) - reach || yc > p.ya.max(p.yb) + reach {
+                continue;
+            }
+        }
+        taken.push((cx0, cx1, yc));
+        p.gap = ga;
+        p.via = Some((gb, yc, 0.));
+    }
+    // Lanes: one per vertical run in each gap. (plan, second run, span).
+    let mut by_gap: BTreeMap<usize, Vec<(usize, bool, f32)>> = BTreeMap::new();
     for (k, p) in plans.iter().enumerate() {
-        by_gap.entry(p.gap).or_default().push(k);
+        match p.via {
+            None => by_gap
+                .entry(p.gap)
+                .or_default()
+                .push((k, false, (p.ya - p.yb).abs())),
+            Some((gb, yc, _)) => {
+                by_gap
+                    .entry(p.gap)
+                    .or_default()
+                    .push((k, false, (p.ya - yc).abs()));
+                by_gap
+                    .entry(gb)
+                    .or_default()
+                    .push((k, true, (yc - p.yb).abs()));
+            }
+        }
     }
     for (gap, mut members) in by_gap {
-        let span = |k: &usize| (plans[*k].ya - plans[*k].yb).abs();
         members.sort_by(|x, y| {
             let (bx, by) = (
-                plans[*x].kind == Kind::Bracket,
-                plans[*y].kind == Kind::Bracket,
+                plans[x.0].kind == Kind::Bracket,
+                plans[y.0].kind == Kind::Bracket,
             );
             by.cmp(&bx)
                 .then_with(|| {
                     if bx {
-                        span(x).total_cmp(&span(y))
+                        x.2.total_cmp(&y.2)
                     } else {
-                        span(y).total_cmp(&span(x))
+                        y.2.total_cmp(&x.2)
                     }
                 })
-                .then(x.cmp(y))
+                .then((x.0, x.1).cmp(&(y.0, y.1)))
         });
         let (lo, hi) = gap_span(gap);
         let n = members.len();
@@ -1002,23 +1489,47 @@ fn route(pairs: &BTreeMap<(Item, Item), usize>, rect_of: &HashMap<Item, Rect>) -
             (8f32).min((hi - lo) / (n - 1) as f32)
         };
         let start = (lo + hi) / 2. - step * (n.saturating_sub(1)) as f32 / 2.;
-        for (k, m) in members.into_iter().enumerate() {
-            plans[m].lane = start + k as f32 * step;
+        for (k, (m, second, _)) in members.into_iter().enumerate() {
+            let x = start + k as f32 * step;
+            match (&mut plans[m].via, second) {
+                (Some(v), true) => v.2 = x,
+                _ => plans[m].lane = x,
+            }
         }
     }
     plans
         .into_iter()
         .map(|p| {
             let x = p.lane;
-            let points = match p.kind {
-                Kind::Bracket => vec![
+            let points = match (p.kind, p.via) {
+                (Kind::Bracket, _) => vec![
                     (p.ra.right(), p.ya),
                     (x, p.ya),
                     (x, p.yb),
                     (p.rb.right(), p.yb),
                 ],
-                Kind::Right => vec![(p.ra.right(), p.ya), (x, p.ya), (x, p.yb), (p.rb.x, p.yb)],
-                Kind::Left => vec![(p.ra.x, p.ya), (x, p.ya), (x, p.yb), (p.rb.right(), p.yb)],
+                (Kind::Right, None) => {
+                    vec![(p.ra.right(), p.ya), (x, p.ya), (x, p.yb), (p.rb.x, p.yb)]
+                }
+                (Kind::Left, None) => {
+                    vec![(p.ra.x, p.ya), (x, p.ya), (x, p.yb), (p.rb.right(), p.yb)]
+                }
+                (Kind::Right, Some((_, yc, x2))) => vec![
+                    (p.ra.right(), p.ya),
+                    (x, p.ya),
+                    (x, yc),
+                    (x2, yc),
+                    (x2, p.yb),
+                    (p.rb.x, p.yb),
+                ],
+                (Kind::Left, Some((_, yc, x2))) => vec![
+                    (p.ra.x, p.ya),
+                    (x, p.ya),
+                    (x, yc),
+                    (x2, yc),
+                    (x2, p.yb),
+                    (p.rb.right(), p.yb),
+                ],
             };
             let (mut x0, mut y0, mut x1, mut y1) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
             for &(x, y) in &points {
@@ -1126,13 +1637,16 @@ mod tests {
         assert_eq!(m.out.cards.len(), 1 + m.folders.len());
     }
 
-    /// Each line's vertical run: its x and its y range.
+    /// Every line's vertical runs: each one's x and y range.
     fn runs(lay: &Layout) -> Vec<(f32, f32, f32)> {
         lay.lines
             .iter()
-            .map(|l| {
-                let (x, ya, yb) = (l.points[1].0, l.points[1].1, l.points[2].1);
-                (x, ya.min(yb), ya.max(yb))
+            .flat_map(|l| {
+                l.points
+                    .windows(2)
+                    .filter(|w| w[0].0 == w[1].0)
+                    .map(|w| (w[0].0, w[0].1.min(w[1].1), w[0].1.max(w[1].1)))
+                    .collect::<Vec<_>>()
             })
             .collect()
     }
@@ -1196,7 +1710,7 @@ mod tests {
         let m = synthetic(40, 4, 60);
         assert_eq!(m.mid.lines.len(), 60);
         for l in &m.mid.lines {
-            assert_eq!(l.points.len(), 4);
+            assert!(l.points.len() == 4 || l.points.len() == 6, "{l:?}");
             for w in l.points.windows(2) {
                 let (a, b) = (w[0], w[1]);
                 assert!(a.0 == b.0 || a.1 == b.1, "{a:?} {b:?}");
@@ -1208,11 +1722,225 @@ mod tests {
     }
 
     #[test]
-    fn out_folds_folders_into_their_frames() {
-        let m = synthetic(40, 4, 10);
-        for (f, frame) in &m.mid.frames {
-            let card = m.out.card(Item::Folder(*f)).expect("folder card");
-            assert_eq!(card.rect, *frame);
+    fn out_has_one_card_per_folder_and_per_pinned_note_none_spanning() {
+        let m = synthetic(300, 12, 1000);
+        for f in 0..m.folders.len() {
+            let c = m.out.card(Item::Folder(f)).expect("folder card");
+            assert_eq!(c.rect.w, COL_W);
+            assert_eq!(c.rect.x % (COL_W + COL_GAP), 0., "{c:?} is in a column");
+        }
+        let pinned = (0..m.notes.len()).filter(|i| m.pinned(*i));
+        for i in pinned {
+            assert_eq!(m.out.card(Item::Note(i)).unwrap().rect.x, 0.);
+        }
+        assert!(m.out.frames.is_empty());
+    }
+
+    /// Maps to check every level of: small and large, short and long
+    /// folder names, the demo home's shape (three pinned notes, one big
+    /// folder of top-level notes, three small ones).
+    fn maps() -> Vec<NotesMap> {
+        let mut long = synthetic(40, 5, 60);
+        for (k, f) in long.folders.iter_mut().enumerate() {
+            f.name = [
+                "Architecture decision records and their reviews",
+                "Runbooks",
+                "Incidents",
+                "Supercalifragilisticexpialidocious-integrations",
+                "",
+            ][k % 5]
+                .into();
+        }
+        for n in long.notes.iter_mut().step_by(3) {
+            n.title = "A note whose title runs on for quite a while longer than a card".into();
+        }
+        let (out, mid, inner) = lay_out(&long.notes, &long.folders, &long.edges);
+        long.out = out;
+        long.mid = mid;
+        long.inner = inner;
+        vec![
+            synthetic(300, 12, 1000),
+            synthetic(20, 4, 24),
+            synthetic(3, 2, 2),
+            demo_shaped(),
+            long,
+        ]
+    }
+
+    /// Three pinned notes, 14 top-level notes, Runbooks 3, Decisions 1,
+    /// Incidents 1, linked as the demo home is: the pinned ones to many.
+    fn demo_shaped() -> NotesMap {
+        let mut m = synthetic(22, 4, 0);
+        for (i, n) in m.notes.iter_mut().enumerate() {
+            n.folder = match i {
+                0..=2 => String::new(),
+                3..=16 => String::new(),
+                17..=19 => "Runbooks".into(),
+                20 => "Decisions".into(),
+                _ => "Incidents".into(),
+            };
+            n.flags.entry = i == 0;
+            n.flags.required = i == 1 || i == 2;
+            n.flags.waiting = usize::from(i == 0) * 3;
+        }
+        m.edges = (3..22)
+            .map(|i| (i % 3, i))
+            .chain([(17, 21), (20, 5), (21, 9)])
+            .collect();
+        m.folders = folders(&m.notes);
+        let (out, mid, inner) = lay_out(&m.notes, &m.folders, &m.edges);
+        m.out = out;
+        m.mid = mid;
+        m.inner = inner;
+        m
+    }
+
+    #[test]
+    fn no_two_cards_or_frames_overlap_at_any_level() {
+        for m in maps() {
+            for l in [&m.out, &m.mid, &m.inner] {
+                for (i, a) in l.cards.iter().enumerate() {
+                    for b in &l.cards[i + 1..] {
+                        assert!(!a.rect.meets(&b.rect), "{a:?} meets {b:?}");
+                    }
+                }
+                for (i, a) in l.frames.iter().enumerate() {
+                    for b in &l.frames[i + 1..] {
+                        assert!(!a.1.meets(&b.1), "frames {a:?} and {b:?} meet");
+                    }
+                }
+            }
+        }
+    }
+
+    /// The card or frame a label or mark belongs to.
+    fn owner(l: &Layout, item: Item) -> Rect {
+        l.card(item)
+            .map(|c| c.rect)
+            .or_else(|| match item {
+                Item::Folder(f) => l.frames.iter().find(|x| x.0 == f).map(|x| x.1),
+                _ => None,
+            })
+            .expect("a label belongs to something drawn")
+    }
+
+    fn inside(inner: &Rect, outer: &Rect) -> bool {
+        inner.x >= outer.x - 0.01
+            && inner.y >= outer.y - 0.01
+            && inner.right() <= outer.right() + 0.01
+            && inner.bottom() <= outer.bottom() + 0.01
+    }
+
+    #[test]
+    fn every_label_fits_its_box_at_every_level() {
+        for m in maps() {
+            for (lv, l) in [("out", &m.out), ("mid", &m.mid), ("in", &m.inner)] {
+                for lab in &l.labels {
+                    for line in &lab.lines {
+                        let w = super::super::fit::width(line, lab.size, lab.kind.bold());
+                        assert!(w <= lab.rect.w + 0.01, "{lv}: {line:?} is {w} in {lab:?}");
+                    }
+                    let own = owner(l, lab.item);
+                    assert!(inside(&lab.rect, &own), "{lv}: {lab:?} leaves {own:?}");
+                }
+                // Within one card, labels do not overlap one another.
+                for (i, a) in l.labels.iter().enumerate() {
+                    for b in &l.labels[i + 1..] {
+                        if a.item == b.item {
+                            assert!(!a.rect.meets(&b.rect), "{lv}: {a:?} meets {b:?}");
+                        }
+                    }
+                }
+                for mk in &l.marks {
+                    let r = Rect::new(mk.x - mk.d / 2., mk.y - mk.d / 2., mk.d, mk.d);
+                    assert!(inside(&r, &owner(l, mk.item)), "{lv}: {mk:?}");
+                    for lab in l.labels.iter().filter(|x| x.item == mk.item) {
+                        assert!(!r.meets(&lab.rect), "{lv}: {mk:?} meets {lab:?}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn out_titles_are_set_large_and_never_cut() {
+        for m in maps() {
+            for lab in m.out.labels.iter().filter(|l| l.kind == LabelKind::Title) {
+                // Below the floor only for a word that cannot break.
+                let long_word = lab.lines.iter().any(|l| !l.contains(' '))
+                    && super::super::fit::width(&lab.lines[0], OUT_TITLE_MIN, true)
+                        > COL_W - 2. * OUT_PAD;
+                assert!(lab.size >= OUT_TITLE_MIN || long_word, "{lab:?}");
+                assert!(lab.lines.len() <= 3);
+                assert!(
+                    !lab.lines.iter().any(|l| l.ends_with('…')),
+                    "{lab:?} is cut"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn out_cards_list_notes_with_marks_not_tiles() {
+        let m = demo_shaped();
+        let top = m.folders.iter().position(|f| f.name.is_empty()).unwrap();
+        let item = Item::Folder(top);
+        let rows = m
+            .out
+            .labels
+            .iter()
+            .filter(|l| l.item == item && l.kind == LabelKind::Row)
+            .count();
+        assert_eq!(rows, OUT_ROWS - 1);
+        let more = m
+            .out
+            .labels
+            .iter()
+            .find(|l| l.item == item && l.kind == LabelKind::More)
+            .expect("+ n more");
+        assert_eq!(more.lines, ["+ 9 more notes"]);
+        // A mark per row and per legend entry with a tone, all small.
+        assert!(m.out.marks.iter().all(|k| k.d <= OUT_DOT));
+        assert!(m.out.marks.iter().filter(|k| k.item == item).count() >= rows);
+    }
+
+    /// Whether the segment from `a` to `b` (level or plumb) enters `r`.
+    fn enters(a: (f32, f32), b: (f32, f32), r: &Rect) -> bool {
+        let (x0, x1) = (a.0.min(b.0), a.0.max(b.0));
+        let (y0, y1) = (a.1.min(b.1), a.1.max(b.1));
+        x0 < r.right() - 1.
+            && r.x + 1. < x1.max(x0 + 0.01)
+            && y0 < r.bottom() - 1.
+            && r.y + 1. < y1.max(y0 + 0.01)
+    }
+
+    #[test]
+    fn no_line_runs_through_a_card_at_any_level() {
+        for m in maps() {
+            // A 300-note map with 1000 random links has more long lines at
+            // Mid and In than channels near them (about half run under a
+            // card there, as every one did before): there it is Out only.
+            let levels: Vec<(&str, &Layout)> = if m.notes.len() > 100 {
+                vec![("out", &m.out)]
+            } else {
+                vec![("out", &m.out), ("mid", &m.mid), ("in", &m.inner)]
+            };
+            for (lv, l) in levels {
+                for line in &l.lines {
+                    for w in line.points.windows(2) {
+                        assert!(w[0].0 == w[1].0 || w[0].1 == w[1].1, "{lv}: {w:?}");
+                        for c in &l.cards {
+                            assert!(
+                                !enters(w[0], w[1], &c.rect),
+                                "{lv}: {:?}→{:?} runs through {:?}: {w:?}",
+                                line.from,
+                                line.to,
+                                c.item
+                            );
+                        }
+                    }
+                }
+            }
         }
     }
 

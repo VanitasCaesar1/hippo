@@ -10,6 +10,7 @@
 //! the top bar's badges. Nothing here writes.
 
 pub mod counts;
+pub mod fit;
 pub mod guard;
 pub mod map;
 pub mod morning;

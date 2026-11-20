@@ -5,8 +5,9 @@
 //! corner and text size is the layout's number times the zoom. Three levels
 //! (folders, note cards, cards with their rules) each have their own
 //! layout; crossing a level keeps the card under the pointer under the
-//! pointer. Only what meets the view is drawn. Below 900 points the map
-//! becomes a board of cards.
+//! pointer. Every word on the map is one of the layout's labels, already
+//! fitted to its box; this file only draws. Only what meets the view is
+//! drawn. Below 900 points the map becomes a board of cards.
 
 use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
@@ -18,7 +19,7 @@ use gpui::{
     canvas, div, point, prelude::*, px, size,
 };
 use hippo_view::night::map::{
-    self, CARD_H, FRAME_HEAD, FRAME_PAD, IN_LINE, Item, Layout, Level, MapNote, NotesMap,
+    self, CARD_H, IN_LINE, Item, LEADING, Label, LabelKind, Layout, Level, MapNote, NotesMap,
 };
 use hippo_view::night::note::NotePanel;
 
@@ -349,8 +350,8 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
         y += step;
     }
 
-    // Folder frames.
-    for (fi, r) in &lay.frames {
+    // Folder frames: their outline; their words are labels.
+    for (_, r) in &lay.frames {
         if !r.meets(&view) {
             continue;
         }
@@ -364,33 +365,6 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
             t.line2,
             (1.2 * u).max(1.),
             true,
-        );
-        let f = &p.map.folders[*fi];
-        let name = if f.name.is_empty() { "Notes" } else { &f.name };
-        let size_px = 14.5 * z * u;
-        text(
-            window,
-            cx,
-            name,
-            x + FRAME_PAD * z * u,
-            y + 13. * z * u,
-            size_px,
-            t.muted,
-            &font(&p.family, FontWeight::SEMIBOLD),
-            w * 0.6,
-        );
-        let count = hippo_view::night::count(f.notes.len(), "note", "notes");
-        let cw = count.chars().count() as f32 * 13. * z * u * 0.55;
-        text(
-            window,
-            cx,
-            &count,
-            x + w - FRAME_PAD * z * u - cw,
-            y + 14. * z * u,
-            13. * z * u,
-            t.faint,
-            &font(&p.family, FontWeight::NORMAL),
-            cw + 8.,
         );
     }
 
@@ -445,14 +419,51 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
         let (w, h) = (c.rect.w * z * u, c.rect.h * z * u);
         let bounds = Bounds::new(point(px(x), px(y)), size(px(w), px(h)));
         drawn += 1;
+        let (sel, near) = match c.item {
+            Item::Note(i) => (p.selected == Some(i), p.neighbours.contains(&i)),
+            Item::Folder(_) => (false, false),
+        };
         match c.item {
-            Item::Folder(fi) => paint_folder(p, fi, bounds, window, cx),
-            Item::Note(i) => {
+            Item::Note(i) if level != Level::Out => {
                 let n = &p.map.notes[i];
-                let sel = p.selected == Some(i);
-                let near = p.neighbours.contains(&i);
                 paint_note(p, n, sel, near, level == Level::In, bounds, window, cx);
             }
+            // At Out a card is its ground; its words and marks follow.
+            _ => paint_out_card(p, sel, near, bounds, window),
+        }
+    }
+
+    // Every word on the map, then the marks.
+    for l in lay.labels_in(&view) {
+        let (x, y) = s(l.rect.x, l.rect.y);
+        paint_label(p, l, x, y, l.rect.w * z * u, window, cx);
+    }
+    for m in &lay.marks {
+        if !view.contains(m.x, m.y) {
+            continue;
+        }
+        let (x, y) = s(m.x, m.y);
+        let d = (m.d * z * u).max(3.);
+        let b = Bounds::new(point(px(x - d / 2.), px(y - d / 2.)), size(px(d), px(d)));
+        let fill = match m.tone {
+            "ok" => Some(t.ok),
+            "bad" => Some(t.bad),
+            "you" => Some(t.you_mark()),
+            "faint" => Some(t.faint),
+            "night" => Some(t.night),
+            _ => None,
+        };
+        match fill {
+            Some(c) => window.paint_quad(gpui::fill(b, c).corner_radii(px(d / 2.))),
+            // No flag: a ring, so the row still reads as a note.
+            None => window.paint_quad(gpui::quad(
+                b,
+                px(d / 2.),
+                gpui::transparent_black(),
+                px((1.5 * u).max(1.)),
+                t.line2,
+                gpui::BorderStyle::Solid,
+            )),
         }
     }
     let mut f = p.frames.borrow_mut();
@@ -476,105 +487,110 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
     }
 }
 
-fn paint_folder(p: &Paint, fi: usize, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::App) {
-    let f = &p.map.folders[fi];
+/// An Out card's ground: a pinned note's or a folder's.
+fn paint_out_card(p: &Paint, sel: bool, near: bool, b: Bounds<Pixels>, window: &mut Window) {
     let t = &p.t;
-    let z = p.zoom;
-    let u = p.unit * z;
-    rrect(
-        window,
-        b,
-        18. * u,
-        t.surface,
-        t.line,
-        (1. * p.unit).max(1.),
-        false,
-    );
-    let (x, y, w) = (
-        f32::from(b.origin.x),
-        f32::from(b.origin.y),
-        f32::from(b.size.width),
-    );
-    // Its notes in miniature, where they sit at Mid, tinted by their flag.
-    let frame = p
-        .map
-        .mid
-        .frames
-        .iter()
-        .find(|(i, _)| *i == fi)
-        .map(|(_, r)| *r);
-    if let Some(frame) = frame {
-        for &i in &f.notes {
-            let Some(c) = p.map.mid.card(Item::Note(i)) else {
-                continue;
-            };
-            let (nx, ny) = (
-                x + (c.rect.x - frame.x) * z * p.unit,
-                y + (c.rect.y - frame.y) * z * p.unit,
-            );
-            let color = match p.map.notes[i].flags.chip().map(|c| c.1) {
-                Some("ok") => t.ok.opacity(0.45),
-                Some("you") => t.you.opacity(0.5),
-                Some("bad") => t.bad.opacity(0.5),
-                _ => t.line2.opacity(0.6),
-            };
-            window.paint_quad(
-                gpui::fill(
-                    Bounds::new(
-                        point(px(nx), px(ny)),
-                        size(px(c.rect.w * z * p.unit), px(c.rect.h * z * p.unit)),
-                    ),
-                    color,
-                )
-                .corner_radii(px(8. * u)),
-            );
-        }
+    let u = p.unit * p.zoom;
+    let border = if sel {
+        t.night
+    } else if near {
+        t.night_line
+    } else {
+        t.line
+    };
+    let bw = if sel {
+        (2. * u).max(1.)
+    } else {
+        (1. * p.unit).max(1.)
+    };
+    rrect(window, b, 18. * u, t.surface, border, bw, false);
+}
+
+/// One label: each of its lines at its size, from `(x, y)` (pixels), in
+/// its kind's weight and colour. Should the font run wider than the
+/// layout's estimate, the line is drawn smaller to fit, never cut.
+fn paint_label(
+    p: &Paint,
+    l: &Label,
+    x: f32,
+    y: f32,
+    max: f32,
+    window: &mut Window,
+    cx: &mut gpui::App,
+) {
+    let t = &p.t;
+    let size_px = l.size * p.zoom * p.unit;
+    if size_px < 4. {
+        return;
     }
-    let pad = 28. * u;
-    let name = if f.name.is_empty() { "Notes" } else { &f.name };
-    // The name fits the card: smaller for a long one, never above 72.
-    let fit = (w - 2. * pad) / (name.chars().count().max(1) as f32 * 0.58);
-    let name_px = (72. * u).min(fit);
-    let band = (name_px * 1.25 + 72. * u).max(30.);
-    window.paint_quad(gpui::fill(
-        Bounds::new(
-            point(px(x + 1.), px(y + 1.)),
-            size(px(w - 2.), px(pad + band)),
-        ),
-        t.surface,
-    ));
-    text(
+    let (color, weight) = match l.kind {
+        LabelKind::Title => (t.text, FontWeight::SEMIBOLD),
+        LabelKind::Row => (t.text, FontWeight::NORMAL),
+        LabelKind::Meta => (t.muted, FontWeight::NORMAL),
+        LabelKind::Frame => (t.muted, FontWeight::SEMIBOLD),
+        LabelKind::Count | LabelKind::More => (t.faint, FontWeight::NORMAL),
+    };
+    let f = font(&p.family, weight);
+    for (k, line) in l.lines.iter().enumerate() {
+        fitted_text(
+            window,
+            cx,
+            line,
+            x,
+            y + k as f32 * size_px * LEADING,
+            size_px,
+            color,
+            &f,
+            max,
+        );
+    }
+}
+
+/// One line of text at `(x, y)`, shrunk to `max` wide if it runs over.
+#[allow(clippy::too_many_arguments)]
+fn fitted_text(
+    window: &mut Window,
+    cx: &mut gpui::App,
+    s: &str,
+    x: f32,
+    y: f32,
+    size_px: f32,
+    color: Hsla,
+    f: &Font,
+    max: f32,
+) {
+    let size_px = (size_px * 2.).round() / 2.;
+    let run = TextRun {
+        len: s.len(),
+        font: f.clone(),
+        color,
+        background_color: None,
+        underline: None,
+        strikethrough: None,
+    };
+    let shaped = |sz: f32, window: &mut Window| {
+        window.text_system().shape_line(
+            s.to_owned().into(),
+            px(sz),
+            std::slice::from_ref(&run),
+            None,
+        )
+    };
+    let mut line = shaped(size_px, window);
+    let mut sz = size_px;
+    let w = f32::from(line.width);
+    if w > max + 0.5 && w > 0. {
+        sz = ((size_px * max / w) * 2.).floor() / 2.;
+        line = shaped(sz, window);
+    }
+    // The line box keeps the label's size, so lines below do not move.
+    let _ = line.paint(
+        point(px(x), px(y + (size_px - sz) * 0.6)),
+        px(size_px * LEADING),
+        gpui::TextAlign::Left,
+        None,
         window,
         cx,
-        name,
-        x + pad,
-        y + pad,
-        name_px,
-        t.text,
-        &font(&p.family, FontWeight::BOLD),
-        w - 2. * pad,
-    );
-    let mut words = hippo_view::night::count(f.notes.len(), "note", "notes");
-    for (n, one, many) in [
-        (f.fixed, "fixed", "fixed"),
-        (f.waiting, "rule waiting", "rules waiting"),
-        (f.rejected, "rejected", "rejected"),
-        (f.stale, "stale", "stale"),
-    ] {
-        if n > 0 {
-            words.push_str(&format!(" · {n} {}", if n == 1 { one } else { many }));
-        }
-    }
-    text(
-        window,
-        cx,
-        &words,
-        x + pad,
-        y + pad + name_px * 1.25 + 8. * u,
-        (40. * u).min(name_px * 0.75),
-        t.muted,
-        &font(&p.family, FontWeight::NORMAL),
-        w - 2. * pad,
     );
 }
 
@@ -607,17 +623,6 @@ fn paint_note(
         f32::from(b.size.width),
     );
     let pad = 16. * u;
-    // Too small to read: the title as a bar.
-    if 15. * u < 4. {
-        window.paint_quad(gpui::fill(
-            Bounds::new(
-                point(px(x + pad), px(y + pad)),
-                size(px((w - 2. * pad) * 0.6), px((6. * u).max(1.))),
-            ),
-            t.faint.opacity(0.6),
-        ));
-        return;
-    }
     let icon = 18. * u;
     let _ = window.paint_svg(
         Bounds::new(
@@ -639,17 +644,7 @@ fn paint_note(
         },
         cx,
     );
-    text(
-        window,
-        cx,
-        &n.title,
-        x + pad + icon + 10. * u,
-        y + pad,
-        16. * u,
-        t.text,
-        &font(&p.family, FontWeight::SEMIBOLD),
-        w - 2. * pad - icon - 10. * u,
-    );
+    // The title is a label, drawn after the cards.
     text(
         window,
         cx,
@@ -736,7 +731,6 @@ fn paint_note(
             ly += IN_LINE * u;
         }
     }
-    let _ = FRAME_HEAD;
 }
 
 impl Shell {

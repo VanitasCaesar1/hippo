@@ -241,23 +241,25 @@
       var on = sel >= 0 && ((l.from.note === sel) || (l.to.note === sel));
       return '<polyline class="' + (on ? 'on' : '') + '" points="' + l.points.map(function (p) { return p[0] + ',' + p[1]; }).join(' ') + '"/>';
     }).join('') + '</svg>';
+    // Every word on the map is one of the layout's labels, fitted to its
+    // box by hippo; a note card's title is its card's own label.
+    var titles = {};
+    (lay.labels || []).forEach(function (l) { if (L !== 'out' && l.kind === 'title' && l.item.note != null) titles[l.item.note] = l; });
     lay.frames.forEach(function (fr) {
-      var f = M.folders[fr[0]], r = fr[1];
-      h += '<div class="frame" style="left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;height:' + r.h + 'px"><div class="fh">' + esc(f.name || 'Notes') + '<span>' + f.notes.length + (f.notes.length === 1 ? ' note' : ' notes') + '</span></div></div>';
+      var r = fr[1];
+      h += '<div class="frame" style="left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;height:' + r.h + 'px"></div>';
     });
     lay.cards.forEach(function (c) {
       var r = c.rect, st = 'left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;height:' + r.h + 'px';
       if (c.item.folder != null) {
-        var f = M.folders[c.item.folder];
-        var bits = [f.notes.length + (f.notes.length === 1 ? ' note' : ' notes')];
-        if (f.fixed) bits.push(f.fixed + ' fixed');
-        if (f.waiting) bits.push(f.waiting + ' waiting');
-        if (f.rejected) bits.push(f.rejected + ' rejected');
-        if (f.stale) bits.push(f.stale + ' stale');
-        h += '<div class="folder" data-folder="' + c.item.folder + '" style="' + st + '"><div class="t">' + esc(f.name || 'Notes') + '</div><div class="s">' + bits.join(' · ') + '</div></div>';
+        h += '<div class="folder" data-folder="' + c.item.folder + '" style="' + st + '"></div>';
         return;
       }
-      var i = c.item.note, n = M.notes[i], fl = n.flags;
+      if (L === 'out') {
+        h += '<div class="ocard' + (c.item.note === sel ? ' sel' : near[c.item.note] ? ' near' : '') + '" data-note="' + c.item.note + '" style="' + st + '"></div>';
+        return;
+      }
+      var i = c.item.note, n = M.notes[i], fl = n.flags, tl = titles[i];
       var ch = fl.rejected ? chip('fix rejected', 'bad') : fl.waiting ? chip(fl.waiting === 1 ? 'rule waiting' : fl.waiting + ' rules waiting', 'you') : fl.fixed ? chip('fixed last night', 'ok') : fl.stale_days != null ? chip('stale, ' + fl.stale_days + ' days') : (fl.required || fl.entry) ? chip('every session', 'night') : '';
       var inner = '';
       if (L === 'in') {
@@ -265,8 +267,16 @@
           n.evidence.map(function (e) { return '<p><span class="said">' + esc(e) + '</span></p>'; }).join('') +
           n.rules.map(function (p) { return '<p class="bullet">' + esc(p) + '</p>'; }).join('') + '</div>';
       }
-      h += '<div class="note' + (i === sel ? ' sel' : near[i] ? ' near' : '') + '" data-note="' + i + '" style="' + st + '"><div class="row">' + ic(fl.entry ? 'start' : 'note') + '<span class="t clamp1">' + esc(n.title) + '</span></div>' +
+      h += '<div class="note' + (i === sel ? ' sel' : near[i] ? ' near' : '') + '" data-note="' + i + '" style="' + st + '"><div class="row">' + ic(fl.entry ? 'start' : 'note') + '<span class="t"' + (tl ? ' style="font-size:' + tl.size + 'px"' : '') + '>' + esc(tl ? tl.lines[0] : n.title) + '</span></div>' +
         '<p class="s clamp1">' + esc(n.summary) + '</p><div class="row">' + ch + chip(n.reads_week ? 'read ' + n.reads_week + '× this week' : 'not read this week') + '</div>' + inner + '</div>';
+    });
+    (lay.labels || []).forEach(function (l) {
+      if (L !== 'out' && l.kind === 'title') return;
+      var r = l.rect;
+      h += '<div class="lab k-' + l.kind + '" style="left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;font-size:' + l.size + 'px">' + l.lines.map(esc).join('<br>') + '</div>';
+    });
+    (lay.marks || []).forEach(function (m) {
+      h += '<span class="mk t-' + m.tone + '" style="left:' + (m.x - m.d / 2) + 'px;top:' + (m.y - m.d / 2) + 'px;width:' + m.d + 'px;height:' + m.d + 'px"></span>';
     });
     return h;
   }
