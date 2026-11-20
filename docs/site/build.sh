@@ -13,16 +13,22 @@
 #
 #   CARGO_TARGET_DIR=<dir> docs/site/build.sh
 #
-# Needs cargo and mdbook. Every link is relative, so the site works under the
-# /hippo/ prefix and from a folder on disk. Builds nothing that runs
-# JavaScript (but the live demo, demo.html, which runs only its own files
-# under script-src 'self'), loads a font or calls another host, and fails if
-# any page says otherwise or links a file of the site that does not exist.
+# Needs cargo, mdbook, python3 and node (the agent mark checks). Every
+# link is relative, so the site works under the /hippo/ prefix and from a
+# folder on disk. Builds nothing that runs JavaScript (but the live demo,
+# demo.html, which runs only its own files under script-src 'self'), loads
+# a font or calls another host, and fails if any page says otherwise or
+# links a file of the site that does not exist.
 set -eu
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
 out="$root/docs/site/out"
 cd "$root"
+
+# Every agent hippo knows is drawn with its own mark (brand/agents/) in the
+# app, the live demo and the landing page, never as letters or a terminal.
+python3 -I "$root/docs/site/check-agent-marks.py" "$root"
+node "$root/docs/site/check-demo-render.mjs" "$root"
 
 rm -rf "$out"
 cargo run -p hippo-registry --locked -j 4 -- build --out "$out" --offline \

@@ -287,3 +287,37 @@ fn main() {
         }
     });
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hippo_view::night::{KNOWN, agent};
+
+    /// Every agent hippo knows is drawn with its own mark, the same file as
+    /// brand/agents/; the terminal icon is only for an agent it does not know.
+    #[test]
+    fn every_known_agent_draws_its_own_mark() {
+        let brand = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../brand/agents");
+        for (code, tool, name, stem) in KNOWN {
+            let a = agent(tool);
+            assert_eq!(a.code, code);
+            let path = ui::night::kit::mark_path(&a);
+            assert_eq!(path, format!("icons/agent-{stem}.svg"), "{name}");
+            let drawn = Assets
+                .load(path)
+                .unwrap()
+                .unwrap_or_else(|| panic!("{name}: no asset"));
+            let file = std::fs::read(brand.join(format!("{stem}.svg"))).unwrap();
+            assert_eq!(
+                drawn.as_ref(),
+                file.as_slice(),
+                "{name}: not brand/agents/{stem}.svg"
+            );
+        }
+        assert_eq!(
+            ui::night::kit::mark_path(&agent("zed")),
+            "icons/terminal.svg"
+        );
+        assert!(Assets.load("icons/terminal.svg").unwrap().is_some());
+    }
+}

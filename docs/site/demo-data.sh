@@ -46,7 +46,7 @@ map=$(run view map --json)
 counts=$(run view counts --json | /usr/bin/python3 -I -c '
 import json, sys
 c = json.load(sys.stdin)
-c["ask"] = {"runner": "claude", "agent": {"code": "cc", "short": "CC", "name": "Claude Code"},
+c["ask"] = {"runner": "claude", "agent": {"code": "cc", "name": "Claude Code"},
             "account": None, "label": "Claude Code answers", "known": True}
 print(json.dumps(c, separators=(",", ":")))')
 brief=$(run brief --task "Run a preview of the album page" --json)

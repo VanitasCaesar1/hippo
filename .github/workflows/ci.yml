@@ -96,6 +96,19 @@ jobs:
       - run: npm test
       - run: npm run check-lib
 
+  # Every agent hippo knows is drawn with its own mark on the site and in
+  # the live demo (the files, and what the demo actually draws).
+  site-marks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: python3 -I docs/site/check-agent-marks.py .
+      - run: node docs/site/check-demo-render.mjs .
+
   # The guard end to end in real agent CLIs (scripts/agent-e2e). The
   # runners have none of the agents, so this checks the stub model and
   # that the script skips each missing agent with a message; run it where

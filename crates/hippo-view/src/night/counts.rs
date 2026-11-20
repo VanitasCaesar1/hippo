@@ -69,7 +69,7 @@ fn asker_for(r: &hippo_core::runners::Runner) -> Asker {
         })
     });
     let account = account.filter(|a| !a.is_empty());
-    let known = ["cc", "cx", "cu", "gm", "oc", "ds", "mu", "co"].contains(&a.code.as_str());
+    let known = a.known();
     Asker {
         runner: r.name.clone(),
         label: format!("{} answers", a.name),

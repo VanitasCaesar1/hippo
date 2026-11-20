@@ -6,7 +6,7 @@ All eight come from `@lobehub/icons-static-svg` 1.104.0 (LobeHub's icon set, MIT
 
 | File | Agent | Source file |
 |---|---|---|
-| `claude-code.svg` | Claude Code | `icons/claudecode.svg` |
+| `claude-code.svg` | Claude Code | `icons/claude.svg` (Claude's own mark) |
 | `codex.svg` | Codex | `icons/codex.svg` |
 | `cursor.svg` | Cursor | `icons/cursor.svg` |
 | `gemini-cli.svg` | Gemini CLI | `icons/geminicli.svg` |

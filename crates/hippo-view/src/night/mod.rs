@@ -21,51 +21,57 @@ pub mod strip;
 use serde::Serialize;
 use time::{OffsetDateTime, UtcOffset};
 
-/// An agent, as a badge draws it: its code (`cc`), its two letters (`CC`)
-/// and its name (`Claude Code`).
+/// An agent, as a badge draws it: its code (`cc`) and its name
+/// (`Claude Code`). A known agent is drawn with its own mark; the code
+/// `other` (an agent hippo does not know) with a terminal icon. There is
+/// no letter form: nothing draws an agent as two letters.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Agent {
     pub code: String,
-    pub short: String,
     pub name: String,
+}
+
+/// The agents hippo knows: code, the tool name hippo records, the name
+/// shown, and the file of its mark in `brand/agents/` (without `.svg`).
+/// Every surface (Hippo.app, the live demo, the landing page) draws each
+/// of these with that mark; tests in the app and the site build check it.
+pub const KNOWN: [(&str, &str, &str, &str); 8] = [
+    ("cc", "claude-code", "Claude Code", "claude-code"),
+    ("cx", "codex", "Codex", "codex"),
+    ("cu", "cursor", "Cursor", "cursor"),
+    ("gm", "gemini-cli", "Gemini CLI", "gemini-cli"),
+    ("oc", "opencode", "OpenCode", "opencode"),
+    ("ds", "dsh", "DeepSeek Harness", "deepseek"),
+    ("mu", "muse", "Muse", "muse"),
+    ("co", "command-code", "Command Code", "command-code"),
+];
+
+/// The code of an agent hippo does not know.
+pub const OTHER: &str = "other";
+
+impl Agent {
+    /// hippo knows this agent and has its mark.
+    pub fn known(&self) -> bool {
+        KNOWN.iter().any(|(code, ..)| *code == self.code)
+    }
 }
 
 /// The agent behind a session's tool name (`claude-code`, `codex`, …).
 pub fn agent(tool: &str) -> Agent {
-    let (code, short, name) = match tool {
-        "claude-code" | "claude" => ("cc", "CC", "Claude Code"),
-        "codex" => ("cx", "Cx", "Codex"),
-        "cursor" => ("cu", "Cu", "Cursor"),
-        "gemini" | "gemini-cli" => ("gm", "Gm", "Gemini CLI"),
-        "opencode" => ("oc", "OC", "OpenCode"),
-        "dsh" => ("ds", "DS", "DeepSeek Harness"),
-        "muse" => ("mu", "Mu", "Muse"),
-        "command-code" => ("co", "Co", "Command Code"),
-        other => {
-            let short: String = other
-                .chars()
-                .filter(|c| c.is_alphanumeric())
-                .take(2)
-                .collect();
-            return Agent {
-                code: short.to_lowercase(),
-                short: capital(&short),
-                name: other.to_owned(),
-            };
-        }
+    let tool = match tool {
+        "claude" => "claude-code",
+        "gemini" => "gemini-cli",
+        other => other,
     };
-    Agent {
-        code: code.into(),
-        short: short.into(),
-        name: name.into(),
-    }
-}
-
-fn capital(s: &str) -> String {
-    let mut c = s.chars();
-    match c.next() {
-        Some(f) => f.to_uppercase().chain(c).collect(),
-        None => String::new(),
+    match KNOWN.iter().find(|(_, t, ..)| *t == tool) {
+        Some((code, _, name, _)) => Agent {
+            code: (*code).into(),
+            name: (*name).into(),
+        },
+        None => Agent {
+            code: OTHER.into(),
+            name: tool.to_owned(),
+        },
     }
 }
 
@@ -183,10 +189,23 @@ mod tests {
 
     #[test]
     fn agents_have_badges() {
-        assert_eq!(agent("claude-code").short, "CC");
+        assert_eq!(agent("claude-code").code, "cc");
+        assert_eq!(agent("claude").name, "Claude Code");
         assert_eq!(agent("codex").code, "cx");
         assert_eq!(agent("gemini").name, "Gemini CLI");
-        assert_eq!(agent("zed").short, "Ze");
+        // An unknown agent never borrows a known one's mark by its letters
+        // (`copilot` once became `co`, Command Code's code).
+        for tool in ["zed", "copilot", "cuda-agent", "dsx"] {
+            let a = agent(tool);
+            assert_eq!(a.code, OTHER, "{tool}");
+            assert!(!a.known());
+            assert_eq!(a.name, tool);
+        }
+        for (code, tool, name, _) in KNOWN {
+            let a = agent(tool);
+            assert_eq!((a.code.as_str(), a.name.as_str()), (code, name));
+            assert!(a.known());
+        }
     }
 
     #[test]
