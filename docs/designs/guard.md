@@ -199,7 +199,7 @@ The first is `warn` exactly. The third is `ask`, not `warn`: it is what hippo wi
 
 Built-in rules that no note, pack or machine rule can lower, and that block from the first release of the guard:
 
-- an agent's call to `hippo accept`, `hippo guard accept`, `hippo guard allow`, `hippo guard uninstall`, `hippo hooks uninstall`, `hippo lessons share`, or `hippo config set` of a key in [the loosening table](common.md#which-direction-is-loosening) or `share_lessons`;
+- an agent's call to `hippo accept`, `hippo guard accept`, `hippo guard allow`, `hippo guard uninstall`, `hippo hooks uninstall`, `hippo lessons share`, `hippo lessons sources --on`, or `hippo config set` of a key in [the loosening table](common.md#which-direction-is-loosening) or `share_lessons`, `memory_sources` or `auto_keep` (the last three from 0.8.0, [remember.md](remember.md#keeping-in-one-keystroke));
 - an agent's write, by a file tool or by a shell redirect or `cp`/`mv`/`tee`/`sed -i` the parser recognises, under `$HIPPO_HOME/guard/`, `$HIPPO_HOME/accepted/` or to `$HIPPO_HOME/config.toml`.
 
 Their false positives are zero by design: an agent never needs to accept a loosening for the person. They make the injected-by-text case fail visibly. They do not stop an agent that writes a script to a file and runs it, or edits these files through a language runtime; such attempts show up as `guard-bypass` incidents where the transcript records them. This is the limit [common.md](common.md#rule-3-tightening-takes-effect-at-once-loosening-needs-a-local-accept-on-each-machine) states.
