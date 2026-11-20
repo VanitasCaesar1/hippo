@@ -15,10 +15,12 @@ use crate::ui::theme::Look;
 pub const EV_H: f32 = 86.;
 /// A rule card's height.
 pub const RULE_H: f32 = 154.;
-/// An applied change's card height.
-pub const FIX_H: f32 = 160.;
-/// A rejected change's card height.
-pub const REJ_H: f32 = 210.;
+/// An applied change's card height: padding, the title row, `was` and
+/// `now` at two lines each, and the receipt row.
+pub const FIX_H: f32 = 214.;
+/// A rejected change's card height: the title row, the diff and the
+/// reviewer's reason at four lines.
+pub const REJ_H: f32 = 262.;
 /// Between cards in a stack, and between a rule's groups.
 pub const GAP: f32 = 12.;
 pub const GROUP_GAP: f32 = 26.;
@@ -822,6 +824,7 @@ impl Shell {
         let mut card = kit::select_card(look, t, selected)
             .id((if rejected { "rejected" } else { "fix" }, i))
             .size_full()
+            .overflow_hidden()
             .p(look.px(16.))
             .flex()
             .flex_col()

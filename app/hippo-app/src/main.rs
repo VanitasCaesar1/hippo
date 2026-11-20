@@ -227,6 +227,8 @@ fn main() {
                 // dialog drawn as a view, and Brain's zoom.
                 shell.night.dev_select = std::env::var("HIPPO_APP_DEV_SELECT").ok();
                 shell.night.dev_dialog = std::env::var("HIPPO_APP_DEV_DIALOG").ok();
+                shell.night.dev_scroll_end =
+                    std::env::var("HIPPO_APP_DEV_SCROLL").is_ok_and(|v| v == "end");
                 shell.night.dev_zoom = std::env::var("HIPPO_APP_DEV_ZOOM")
                     .ok()
                     .and_then(|z| z.parse().ok());

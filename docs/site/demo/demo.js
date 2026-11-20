@@ -77,7 +77,7 @@
   function ask() {
     var a = D.counts.ask;
     return '<div class="ask" aria-hidden="true"><span style="flex:1">Ask about Tern\'s memory…</span>' +
-      (a ? '<span class="who">' + (a.label === 'Your model command answers' ? '' : badge(a.agent)) + esc(a.label) + '</span>' : '') +
+      (a ? '<span class="who">' + (a.known === false ? '' : badge(a.agent)) + esc(a.label) + '</span>' : '') +
       '<span class="send">' + ic('up', 18) + '</span></div>';
   }
 

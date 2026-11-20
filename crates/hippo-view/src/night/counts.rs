@@ -30,8 +30,11 @@ pub struct Asker {
     pub agent: Agent,
     /// The account, for a `claude` runner with one.
     pub account: Option<String>,
-    /// `Claude Code answers`.
+    /// `Claude Code answers`; a command hippo has no badge for is named by
+    /// its program (`my-model answers`).
     pub label: String,
+    /// The agent is one hippo has a badge for.
+    pub known: bool,
 }
 
 /// The runner `ask` resolves to.
@@ -58,16 +61,39 @@ pub fn asker(plan: &Plan) -> Option<Asker> {
         })
     });
     let account = account.filter(|a| !a.is_empty());
-    // A command hippo has no badge for is named by what it is.
     let known = ["cc", "cx", "cu", "gm", "oc", "ds", "mu", "co"].contains(&a.code.as_str());
     Some(Asker {
         runner: r.name.clone(),
-        label: if known {
-            format!("{} answers", a.name)
-        } else {
-            "Your model command answers".to_owned()
-        },
+        label: format!("{} answers", a.name),
+        known,
         agent: a,
         account,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hippo_core::config::Config;
+
+    #[test]
+    fn the_default_runner_is_named() {
+        let cfg = Config::defaults_in(std::path::Path::new("/nonexistent/hippo"));
+        let plan = hippo_core::runners::plan(&cfg).unwrap();
+        let a = asker(&plan).unwrap();
+        assert_eq!(a.label, "Claude Code answers");
+        assert!(a.known);
+    }
+
+    #[test]
+    fn a_command_is_named_by_its_program() {
+        let cfg = Config {
+            model_command: vec!["/opt/models/my-model".into(), "{system_prompt}".into()],
+            ..Config::defaults_in(std::path::Path::new("/nonexistent/hippo"))
+        };
+        let plan = hippo_core::runners::plan(&cfg).unwrap();
+        let a = asker(&plan).unwrap();
+        assert_eq!(a.label, "my-model answers");
+        assert!(!a.known);
+    }
 }

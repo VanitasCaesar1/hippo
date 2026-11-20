@@ -41,7 +41,14 @@ run() {
 morning=$(run view morning --json)
 strip=$(run view strip --json)
 map=$(run view map --json)
-counts=$(run view counts --json)
+# The demo home answers with a stub model (fixtures/stub-model), so its
+# Ask bar names the stub; the page shows what a default install's says.
+counts=$(run view counts --json | /usr/bin/python3 -I -c '
+import json, sys
+c = json.load(sys.stdin)
+c["ask"] = {"runner": "claude", "agent": {"code": "cc", "short": "CC", "name": "Claude Code"},
+            "account": None, "label": "Claude Code answers", "known": True}
+print(json.dumps(c, separators=(",", ":")))')
 brief=$(run brief --task "Run a preview of the album page" --json)
 # The note the replica opens on: the first with a rule waiting.
 note=$(printf '%s' "$map" | /usr/bin/python3 -I -c '

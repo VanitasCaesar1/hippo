@@ -27,6 +27,11 @@ pub const PANEL_W: f32 = 360.;
 pub const PANEL_W_SMALL: f32 = 332.;
 /// The gap around floating things.
 pub const EDGE: f32 = 18.;
+/// The floating Ask bar's height.
+pub const ASK_H: f32 = 56.;
+/// Below a scrolling view's last card: the Ask bar, its gap to the window's
+/// edge and a gap above it, so the bar never covers the end of a view.
+pub const ASK_CLEAR: f32 = ASK_H + EDGE + 28.;
 
 /// What is selected in a view.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,6 +61,9 @@ pub struct NightUi {
     pub dev_select: Option<String>,
     /// Brain's zoom at launch (`HIPPO_APP_DEV_ZOOM`).
     pub dev_zoom: Option<f32>,
+    /// Keep a scrolling view at its end (`HIPPO_APP_DEV_SCROLL=end`), to
+    /// check that the Ask bar covers nothing there.
+    pub dev_scroll_end: bool,
     /// Brain's map: pan, zoom, the press, frame times.
     pub map: brain::MapView,
     /// The last draw was below [`NARROW`]: the feed and the board.
@@ -79,6 +87,7 @@ impl Default for NightUi {
             dev_dialog: None,
             dev_select: None,
             dev_zoom: None,
+            dev_scroll_end: false,
             map: brain::MapView::default(),
             narrow: false,
             fixing: None,
@@ -505,7 +514,7 @@ impl Shell {
             .children(answer)
             .child(
                 div()
-                    .h(look.px(56.))
+                    .h(look.px(ASK_H))
                     .w_full()
                     .flex()
                     .items_center()
@@ -519,6 +528,20 @@ impl Shell {
                     .shadow(kit::float_shadow(look, &t))
                     .text_size(look.text(15.))
                     .child(div().flex_1().min_w_0().child(self.ask_field.clone()))
+                    .when(asker.is_none(), |d| {
+                        d.child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .h(look.px(34.))
+                                .px(look.px(10.))
+                                .rounded(look.px(10.))
+                                .bg(t.inset)
+                                .text_size(look.text(13.5))
+                                .text_color(t.muted)
+                                .child("No model set: hippo runners"),
+                        )
+                    })
                     .when_some(asker, |d, a| {
                         d.child(
                             div()
@@ -531,9 +554,7 @@ impl Shell {
                                 .bg(t.inset)
                                 .text_size(look.text(13.5))
                                 .text_color(t.text)
-                                .when(a.label != "Your model command answers", |d| {
-                                    d.child(kit::badge(look, &a.agent))
-                                })
+                                .when(a.known, |d| d.child(kit::badge(look, &a.agent)))
                                 .child(a.label),
                         )
                     })
@@ -673,6 +694,9 @@ impl Shell {
     ) -> AnyElement {
         let t = Nt::of(look);
         self.apply_dev_select();
+        if self.night.dev_scroll_end {
+            self.night.scroll.scroll_to_bottom();
+        }
         let unit = f32::from(look.px(1.));
         let vw = f32::from(window.viewport_size().width) / unit;
         let vh = f32::from(window.viewport_size().height) / unit;
@@ -721,7 +745,7 @@ impl Shell {
                     .overflow_y_scroll()
                     .track_scroll(&self.night.scroll)
                     .child(body)
-                    .child(div().h(look.px(120.)))
+                    .child(div().flex_shrink_0().h(look.px(ASK_CLEAR)))
                     .into_any_element()
             } else {
                 div()

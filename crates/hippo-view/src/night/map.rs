@@ -15,7 +15,9 @@
 //!
 //! Links are polylines: out of one card's right edge, one turn in the gap,
 //! into the other card's left edge; two cards in one column are joined by
-//! a bracket at their right.
+//! a bracket at their right. Each line has its own port on each card and
+//! its own lane in the gap it turns in ([`route`]), so a note with many
+//! links shows each one rather than a bundle.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
@@ -769,10 +771,6 @@ fn place(
     if !pinned.is_empty() {
         bottom[0] = y - GAP + FRAME_GAP;
     }
-    let mut col_of: HashMap<Item, usize> = HashMap::new();
-    for &i in pinned {
-        col_of.insert(Item::Note(i), 0);
-    }
     for p in placed {
         let f = &folders[p.folder];
         let top = bottom[p.col..p.col + p.span]
@@ -792,7 +790,6 @@ fn place(
                         rect: Rect::new(col_x(p.col + k) + FRAME_PAD, cy, CARD_W, h),
                     });
                 }
-                col_of.insert(Item::Note(i), p.col + k);
                 cy += h + GAP;
             }
             sub_bottom = sub_bottom.max(cy - GAP);
@@ -806,7 +803,6 @@ fn place(
         } else {
             frames.push((p.folder, frame));
         }
-        col_of.insert(Item::Folder(p.folder), p.col);
         for b in &mut bottom[p.col..p.col + p.span] {
             *b = frame.bottom() + FRAME_GAP;
         }
@@ -839,61 +835,12 @@ fn place(
         };
         *pairs.entry(key).or_default() += 1;
     }
-    // Ports: spread each card's lines along its edge.
-    let mut used: HashMap<(Item, bool), usize> = HashMap::new();
-    let mut port = |item: Item, right: bool, r: &Rect| -> f32 {
-        let k = used.entry((item, right)).or_default();
-        let slot = *k;
-        *k += 1;
-        let mid = r.y + r.h.min(CARD_H) / 2.;
-        let step = 7.;
-        // 0, -1, +1, -2, +2, … steps from the middle.
-        let k = (slot % 9) as f32;
-        let off = if slot.is_multiple_of(2) { k } else { -(k + 1.) } * step / 2.;
-        (mid + off).clamp(r.y + 10., r.bottom() - 10.)
-    };
-    let mut lines = Vec::new();
-    for (lane, ((a, b), n)) in pairs.into_iter().enumerate() {
-        let (Some(ra), Some(rb)) = (rect_of.get(&a), rect_of.get(&b)) else {
-            continue;
-        };
-        let (ca, cb) = (
-            col_of.get(&a).copied().unwrap_or(0),
-            col_of.get(&b).copied().unwrap_or(0),
-        );
-        let jitter = (lane % 7) as f32 * 4. - 12.;
-        let points = if ca == cb || (ra.x - rb.x).abs() < 1. {
-            let x = ra.right().max(rb.right()) + 8. + (lane % 4) as f32 * 3.;
-            let (ya, yb) = (port(a, true, ra), port(b, true, rb));
-            vec![(ra.right(), ya), (x, ya), (x, yb), (rb.right(), yb)]
-        } else if ra.x < rb.x {
-            let (ya, yb) = (port(a, true, ra), port(b, false, rb));
-            let x = rb.x - COL_GAP / 2. - FRAME_PAD + jitter;
-            vec![(ra.right(), ya), (x, ya), (x, yb), (rb.x, yb)]
-        } else {
-            let (ya, yb) = (port(a, false, ra), port(b, true, rb));
-            let x = ra.x - COL_GAP / 2. - FRAME_PAD + jitter;
-            vec![(ra.x, ya), (x, ya), (x, yb), (rb.right(), yb)]
-        };
-        let (mut x0, mut y0, mut x1, mut y1) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
-        for &(x, y) in &points {
-            x0 = x0.min(x);
-            y0 = y0.min(y);
-            x1 = x1.max(x);
-            y1 = y1.max(y);
-        }
-        lines.push(Line {
-            from: a,
-            to: b,
-            points,
-            bounds: Rect::new(x0 - 6., y0 - 6., x1 - x0 + 12., y1 - y0 + 12.),
-            links: n,
-        });
-    }
+    let lines = route(&pairs, &rect_of);
     let width = cards
         .iter()
         .map(|c| c.rect.right())
         .chain(frames.iter().map(|f| f.1.right()))
+        .chain(lines.iter().map(|l| l.bounds.right()))
         .fold(0., f32::max)
         + FRAME_PAD;
     let height = cards
@@ -908,6 +855,187 @@ fn place(
         cards,
         lines,
     }
+}
+
+/// The gap left of column `g`: where its lanes may go, frame to frame
+/// with a margin.
+fn gap_span(g: usize) -> (f32, f32) {
+    let right = col_x(g) - 6.;
+    (right - (COL_GAP - 12.), right)
+}
+
+/// The gap a card's right edge `x` faces (the one left of the next column).
+fn gap_after(x: f32) -> usize {
+    (x / (COL_W + COL_GAP)).floor().max(0.) as usize + 1
+}
+
+/// The gap a card's left edge `x` faces.
+fn gap_before(x: f32) -> usize {
+    (x / (COL_W + COL_GAP)).round().max(0.) as usize
+}
+
+/// Routes one line per pair of cards so no two share a stretch.
+///
+/// Each card spreads its lines evenly along the edge they leave from,
+/// ordered by where the other end sits, so lines leaving one card do not
+/// cross at the card. Each line turns in a gap between columns, and every
+/// line in a gap gets a lane of its own: brackets (two cards in one
+/// column) nearest the column they join, shortest innermost; then the lines
+/// that enter the next column, longest first, so a line's horizontal run
+/// does not cross the lanes of lines that turn after it.
+fn route(pairs: &BTreeMap<(Item, Item), usize>, rect_of: &HashMap<Item, Rect>) -> Vec<Line> {
+    #[derive(Clone, Copy, PartialEq)]
+    enum Kind {
+        /// Both ends on their cards' right edges.
+        Bracket,
+        /// `a` is left of `b`: out of `a`'s right edge into `b`'s left.
+        Right,
+        /// `a` is right of `b`: out of `a`'s left edge into `b`'s right.
+        Left,
+    }
+    struct Plan {
+        a: Item,
+        b: Item,
+        n: usize,
+        ra: Rect,
+        rb: Rect,
+        kind: Kind,
+        ya: f32,
+        yb: f32,
+        gap: usize,
+        lane: f32,
+    }
+    let centre = |r: &Rect| r.y + r.h.min(CARD_H) / 2.;
+    let mut plans: Vec<Plan> = Vec::new();
+    for (&(a, b), &n) in pairs {
+        let (Some(&ra), Some(&rb)) = (rect_of.get(&a), rect_of.get(&b)) else {
+            continue;
+        };
+        let overlap = ra.x < rb.right() && rb.x < ra.right();
+        let (kind, gap) = if overlap {
+            (Kind::Bracket, gap_after(ra.right().max(rb.right())))
+        } else if ra.x < rb.x {
+            (Kind::Right, gap_before(rb.x))
+        } else {
+            (Kind::Left, gap_before(ra.x))
+        };
+        plans.push(Plan {
+            a,
+            b,
+            n,
+            ra,
+            rb,
+            kind,
+            ya: centre(&ra),
+            yb: centre(&rb),
+            gap,
+            lane: 0.,
+        });
+    }
+    // Ports: each (card, edge) spreads its lines, ordered by the other end.
+    // (card, right edge) → (the other end's y, plan, this is the plan's `a`).
+    type Ends = HashMap<(Item, bool), Vec<(f32, usize, bool)>>;
+    let mut ends: Ends = HashMap::new();
+    for (k, p) in plans.iter().enumerate() {
+        let (a_right, b_right) = match p.kind {
+            Kind::Bracket => (true, true),
+            Kind::Right => (true, false),
+            Kind::Left => (false, true),
+        };
+        ends.entry((p.a, a_right))
+            .or_default()
+            .push((centre(&p.rb), k, true));
+        ends.entry((p.b, b_right))
+            .or_default()
+            .push((centre(&p.ra), k, false));
+    }
+    for ((item, _), mut list) in ends {
+        let Some(r) = rect_of.get(&item) else {
+            continue;
+        };
+        list.sort_by(|x, y| x.0.total_cmp(&y.0).then(x.1.cmp(&y.1)));
+        let n = list.len();
+        let (lo, hi) = (r.y + 10., r.bottom() - 10.);
+        let step = if n <= 1 {
+            0.
+        } else {
+            (7f32).min((hi - lo) / (n - 1) as f32)
+        };
+        let half = step * (n.saturating_sub(1)) as f32 / 2.;
+        let mid = centre(r).clamp(lo + half, (hi - half).max(lo + half));
+        for (k, (_, plan, is_a)) in list.into_iter().enumerate() {
+            let y = mid - half + k as f32 * step;
+            if is_a {
+                plans[plan].ya = y;
+            } else {
+                plans[plan].yb = y;
+            }
+        }
+    }
+    // Lanes: one per line in each gap.
+    let mut by_gap: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+    for (k, p) in plans.iter().enumerate() {
+        by_gap.entry(p.gap).or_default().push(k);
+    }
+    for (gap, mut members) in by_gap {
+        let span = |k: &usize| (plans[*k].ya - plans[*k].yb).abs();
+        members.sort_by(|x, y| {
+            let (bx, by) = (
+                plans[*x].kind == Kind::Bracket,
+                plans[*y].kind == Kind::Bracket,
+            );
+            by.cmp(&bx)
+                .then_with(|| {
+                    if bx {
+                        span(x).total_cmp(&span(y))
+                    } else {
+                        span(y).total_cmp(&span(x))
+                    }
+                })
+                .then(x.cmp(y))
+        });
+        let (lo, hi) = gap_span(gap);
+        let n = members.len();
+        let step = if n <= 1 {
+            0.
+        } else {
+            (8f32).min((hi - lo) / (n - 1) as f32)
+        };
+        let start = (lo + hi) / 2. - step * (n.saturating_sub(1)) as f32 / 2.;
+        for (k, m) in members.into_iter().enumerate() {
+            plans[m].lane = start + k as f32 * step;
+        }
+    }
+    plans
+        .into_iter()
+        .map(|p| {
+            let x = p.lane;
+            let points = match p.kind {
+                Kind::Bracket => vec![
+                    (p.ra.right(), p.ya),
+                    (x, p.ya),
+                    (x, p.yb),
+                    (p.rb.right(), p.yb),
+                ],
+                Kind::Right => vec![(p.ra.right(), p.ya), (x, p.ya), (x, p.yb), (p.rb.x, p.yb)],
+                Kind::Left => vec![(p.ra.x, p.ya), (x, p.ya), (x, p.yb), (p.rb.right(), p.yb)],
+            };
+            let (mut x0, mut y0, mut x1, mut y1) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
+            for &(x, y) in &points {
+                x0 = x0.min(x);
+                y0 = y0.min(y);
+                x1 = x1.max(x);
+                y1 = y1.max(y);
+            }
+            Line {
+                from: p.a,
+                to: p.b,
+                points,
+                bounds: Rect::new(x0 - 6., y0 - 6., x1 - x0 + 12., y1 - y0 + 12.),
+                links: p.n,
+            }
+        })
+        .collect()
 }
 
 /// A synthetic map of `n` notes in `folders` folders with `links` links,
@@ -996,6 +1124,71 @@ mod tests {
         assert_eq!(m.mid.cards.len(), 300);
         assert_eq!(m.inner.cards.len(), 300);
         assert_eq!(m.out.cards.len(), 1 + m.folders.len());
+    }
+
+    /// Each line's vertical run: its x and its y range.
+    fn runs(lay: &Layout) -> Vec<(f32, f32, f32)> {
+        lay.lines
+            .iter()
+            .map(|l| {
+                let (x, ya, yb) = (l.points[1].0, l.points[1].1, l.points[2].1);
+                (x, ya.min(yb), ya.max(yb))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn no_two_links_share_a_lane() {
+        // One hub note linked from many, as START HERE is.
+        let mut m = synthetic(60, 5, 0);
+        m.edges = (1..40).map(|i| (0, i)).collect();
+        let (_, mid, inner) = lay_out(&m.notes, &m.folders, &m.edges);
+        for lay in [&mid, &inner] {
+            let r = runs(lay);
+            for (i, a) in r.iter().enumerate() {
+                for b in &r[i + 1..] {
+                    let meets = a.1 < b.2 && b.1 < a.2;
+                    assert!(
+                        !meets || (a.0 - b.0).abs() >= 1.,
+                        "two vertical runs share x {}: {a:?} {b:?}",
+                        a.0
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn no_two_links_share_a_port() {
+        let mut m = synthetic(60, 5, 0);
+        m.edges = (1..40).map(|i| (0, i)).collect();
+        let (_, mid, _) = lay_out(&m.notes, &m.folders, &m.edges);
+        let mut seen: Vec<(f32, f32)> = Vec::new();
+        for l in &mid.lines {
+            for end in [l.points[0], l.points[3]] {
+                if l.from == Item::Note(0) && end == l.points[0] {
+                    assert!(
+                        seen.iter()
+                            .all(|s| (s.0 - end.0).abs() > 0.5 || (s.1 - end.1).abs() >= 1.),
+                        "two lines leave the hub at {end:?}"
+                    );
+                    seen.push(end);
+                }
+            }
+        }
+        assert_eq!(seen.len(), 39);
+    }
+
+    #[test]
+    fn lanes_stay_in_their_gap() {
+        let m = synthetic(300, 12, 1000);
+        for l in &m.mid.lines {
+            let x = l.points[1].0;
+            // Never inside a column of cards.
+            let c = (x / (COL_W + COL_GAP)).floor();
+            let inside = x - c * (COL_W + COL_GAP);
+            assert!(inside > COL_W, "lane at {x} is inside column {c}");
+        }
     }
 
     #[test]
