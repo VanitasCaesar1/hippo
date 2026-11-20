@@ -145,6 +145,7 @@ fn hook(command: Command) -> Result<()> {
                 PartSelection::Required,
             )?;
             let rules = add_rules(&cfg, &workspace, &mut compiled);
+            add_ask(&cfg, &workspace, &mut compiled);
             let text = compiled.text();
             print!("{text}");
             sessions::set_context_start(&workspace, id, compiled.bytes, Some(&text))?;
@@ -293,6 +294,9 @@ fn codex_hook(command: Command, agent: Hooked) -> Result<()> {
                 PartSelection::Required,
             )?;
             let rules = add_rules(&config, &workspace, &mut compiled);
+            if input.get("agent_id").is_none_or(Value::is_null) {
+                add_ask(&config, &workspace, &mut compiled);
+            }
             let text = compiled.text();
             print_codex_context("SessionStart", &text);
             sessions::set_context_start(&workspace, &id, compiled.bytes, Some(&text))?;
@@ -605,6 +609,17 @@ fn rules_only_session_start() -> Result<()> {
 fn add_rules(cfg: &Config, ws: &Workspace, compiled: &mut Compiled) -> Vec<ulid::Ulid> {
     let rules = lessons::kept_rules(&cfg.home, Some(ws));
     compiled.add_rules(&rules, true, cfg.remember.rules_budget(), ws.budget_bytes)
+}
+
+/// Adds the ask about pending rules to a top-level session's start block,
+/// when there are rules to ask about and it fits.
+fn add_ask(cfg: &Config, ws: &Workspace, compiled: &mut Compiled) {
+    let now = time::OffsetDateTime::now_utc();
+    if let Some((text, ids)) = lessons::ask(&cfg.home, now) {
+        if compiled.add_ask(&text, ws.budget_bytes) {
+            lessons::mark_asked(&cfg.home, &ids, now);
+        }
+    }
 }
 
 /// The machine rules alone, as a block, and their ids; empty when there

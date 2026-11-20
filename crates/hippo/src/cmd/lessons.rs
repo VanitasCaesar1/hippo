@@ -71,6 +71,8 @@ pub enum Command {
         #[arg(long)]
         note: bool,
     },
+    /// Take back a kept rule: a rule in a note is reverted out of it, a machine rule stops being given
+    Undo { id: String },
     /// The agent memories hippo can read rules from, and whether each is on
     Sources {
         /// Turn a source on: hippo reads its rule lines at each scan and sends them to your lessons runner
@@ -117,6 +119,21 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
+}
+
+/// An agent may keep or dismiss only a rule hippo asked the person about
+/// in the last 24 hours: it records their answer, never its own choice.
+fn agent_may_decide(cfg: &hippo_core::config::Config, id: &str) -> Result<()> {
+    if lessons::keeper() != lessons::Keeper::Agent {
+        return Ok(());
+    }
+    let id = parse_id(id)?;
+    if lessons::was_asked(&cfg.home, id, OffsetDateTime::now_utc()) {
+        return Ok(());
+    }
+    anyhow::bail!(
+        "{id}: hippo did not ask the person about this rule in the last 24 hours, and an agent may only record their answer. Keep or dismiss it yourself in a terminal or in Hippo.app."
+    )
 }
 
 fn parse_id(text: &str) -> Result<Ulid> {
@@ -172,6 +189,7 @@ pub fn run(args: Args) -> Result<ExitCode> {
                 Some(_) => Some(load_for_write()?.1),
                 None => None,
             };
+            agent_may_decide(&cfg, &id)?;
             let kept = lessons::keep_rule(
                 &cfg,
                 ws.as_ref(),
@@ -199,6 +217,16 @@ pub fn run(args: Args) -> Result<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }
         Some(Command::Sources { on, off, json }) => sources(on, off, json),
+        Some(Command::Undo { id }) => {
+            let cfg = hippo_core::config::Config::load()?;
+            let ws = match cfg.workspace {
+                Some(_) => Some(load_for_write()?.1),
+                None => None,
+            };
+            let line = lessons::undo(&cfg, ws.as_ref(), parse_id(&id)?, OffsetDateTime::now_utc())?;
+            println!("{line}");
+            Ok(ExitCode::SUCCESS)
+        }
         Some(Command::Dismiss { id, reason, of }) if id.starts_with("L-") => {
             let (cfg, ws) = load_for_write()?;
             lessons::dismiss_shared(
@@ -219,11 +247,13 @@ pub fn run(args: Args) -> Result<ExitCode> {
         Some(Command::Markers { yes }) => markers(yes),
         Some(Command::Dismiss { id, .. }) => {
             let (cfg, _) = load_for_write()?;
+            agent_may_decide(&cfg, &id)?;
             let id = parse_id(&id)?;
-            let l = lessons::dismiss(&cfg, id, OffsetDateTime::now_utc())?;
+            lessons::dismiss(&cfg, id, OffsetDateTime::now_utc())?;
             println!(
-                "{id}: dismissed; proposed again only if seen in {} sessions",
-                l.seen.sessions + lessons::REOPEN_AFTER
+                "{id}: dismissed; proposed again only if it comes back in {} more sessions, after {} days",
+                lessons::DISMISSED_SESSIONS,
+                lessons::DISMISSED_DAYS
             );
             Ok(ExitCode::SUCCESS)
         }

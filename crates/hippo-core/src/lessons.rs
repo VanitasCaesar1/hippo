@@ -369,10 +369,23 @@ pub fn keep(
 pub fn keep_lesson(
     cfg: &Config,
     ws: &Workspace,
+    lesson: Lesson,
+    title: Option<&str>,
+    text: Option<&str>,
+    now: OffsetDateTime,
+) -> Result<Kept> {
+    keep_lesson_by(cfg, ws, lesson, title, text, now, keeper())
+}
+
+/// [`keep_lesson`], kept by `by`.
+fn keep_lesson_by(
+    cfg: &Config,
+    ws: &Workspace,
     mut lesson: Lesson,
     title: Option<&str>,
     text: Option<&str>,
     now: OffsetDateTime,
+    by: Keeper,
 ) -> Result<Kept> {
     let id = lesson.id;
     let dir = team::dir_name(id);
@@ -502,7 +515,7 @@ pub fn keep_lesson(
         receipt: receipt.id,
         at: now,
         edited,
-        by: Some(keeper()),
+        by: Some(by),
     });
     // A shared lesson: the person's decision travels with the repository.
     if team::inbox_dir(ws).join(&dir).is_dir() {
@@ -630,6 +643,21 @@ pub fn keep_rule(
     into_note: bool,
     now: OffsetDateTime,
 ) -> Result<KeptRule> {
+    keep_rule_by(cfg, ws, id, title, text, into_note, now, keeper())
+}
+
+/// [`keep_rule`], kept by `by`.
+#[allow(clippy::too_many_arguments)]
+fn keep_rule_by(
+    cfg: &Config,
+    ws: Option<&Workspace>,
+    id: Ulid,
+    title: Option<&str>,
+    text: Option<&str>,
+    into_note: bool,
+    now: OffsetDateTime,
+    by: Keeper,
+) -> Result<KeptRule> {
     let mut lesson = get(&cfg.home, id)?;
     let machine =
         lesson.target.is_none() || (lesson.links.scope == Some(Scope::Machine) && !into_note);
@@ -638,7 +666,7 @@ pub fn keep_rule(
         if into_note {
             lesson.links.scope = Some(Scope::Workspace);
         }
-        let kept = keep_lesson(cfg, ws, lesson, title, text, now)?;
+        let kept = keep_lesson_by(cfg, ws, lesson, title, text, now, by)?;
         return Ok(KeptRule {
             note: Some(kept.proposal.note.clone()),
             receipt: kept.receipt.id,
@@ -665,7 +693,6 @@ pub fn keep_rule(
         ));
     }
     let receipt = Ulid::generate();
-    let by = keeper();
     lesson.status = Status::Kept;
     lesson.links.scope = Some(Scope::Machine);
     lesson.updated = now;
@@ -690,6 +717,200 @@ pub fn keep_rule(
         receipt,
         replaced,
     })
+}
+
+/// Takes back kept rule `id`: a rule in a note through the revert of its
+/// receipt (as `hippo revert` does), a machine rule by a line in
+/// [`kept_log`]. Either way the lesson is dismissed. Returns one line.
+pub fn undo(cfg: &Config, ws: Option<&Workspace>, id: Ulid, now: OffsetDateTime) -> Result<String> {
+    let mut lesson = get(&cfg.home, id)?;
+    let Some(kept) = lesson
+        .kept
+        .clone()
+        .filter(|_| lesson.status == Status::Kept)
+    else {
+        return Err(Error::InvalidProposal(format!("lesson {id} is not kept")));
+    };
+    let in_note = lesson.target.is_some() && lesson.links.scope != Some(Scope::Machine);
+    let line = if in_note {
+        // The bullet goes out through its own proposal and receipt, so a
+        // later change to the same note does not stand in the way.
+        let ws = ws.ok_or(Error::NoWorkspace)?;
+        let note = lesson
+            .target
+            .as_ref()
+            .map(|t| t.note.clone())
+            .unwrap_or_default();
+        let text = fs::read_to_string(ws.root.join(&note)).unwrap_or_default();
+        let marker = team::marker(&team::dir_name(id));
+        let Some(bullet) = text
+            .lines()
+            .find(|l| l.contains(&marker))
+            .map(|l| format!("{l}\n"))
+        else {
+            return Err(Error::InvalidProposal(format!(
+                "lesson {id}'s bullet is no longer in {}",
+                note.display()
+            )));
+        };
+        let reason = format!("lesson {id} taken back by the person");
+        let receipt = remove_line(
+            ws,
+            &note,
+            &text,
+            &bullet,
+            &reason,
+            &format!("hippo lessons undo {id}"),
+            now,
+        )?;
+        format!(
+            "{id}: taken back; its bullet is out of {} (receipt {receipt}; hippo revert {receipt} puts it back)",
+            note.display()
+        )
+    } else {
+        log_kept(&cfg.home, kept.receipt, &lesson, "undo", now)?;
+        format!("{id}: taken back; no session gets it now")
+    };
+    lesson.status = Status::Dismissed;
+    lesson.closed_sessions = Some(lesson.seen.sessions);
+    lesson.updated = now;
+    lesson.save(&cfg.home)?;
+    Ok(line)
+}
+
+/// Rules offered per ask, at most.
+pub const ASK_MAX: usize = 3;
+/// A rule is offered in an ask at most once per this many hours.
+pub const ASK_EVERY_HOURS: i64 = 24;
+
+/// `$HIPPO_HOME/lessons-asked.json`: when each pending rule was last
+/// offered in an ask, by id.
+pub fn asked_path(home: &Path) -> PathBuf {
+    home.join("lessons-asked.json")
+}
+
+fn load_asked(home: &Path) -> BTreeMap<String, String> {
+    fs::read(asked_path(home))
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default()
+}
+
+fn asked_at(asked: &BTreeMap<String, String>, id: Ulid) -> Option<OffsetDateTime> {
+    asked
+        .get(&id.to_string())
+        .and_then(|t| OffsetDateTime::parse(t, &time::format_description::well_known::Rfc3339).ok())
+}
+
+/// Whether rule `id` was offered in an ask in the last
+/// [`ASK_EVERY_HOURS`] hours: the only rules an agent may keep or dismiss
+/// for the person.
+pub fn was_asked(home: &Path, id: Ulid, now: OffsetDateTime) -> bool {
+    asked_at(&load_asked(home), id)
+        .is_some_and(|t| now - t <= time::Duration::hours(ASK_EVERY_HOURS))
+}
+
+/// The ask for a start block: up to [`ASK_MAX`] pending rules drafted from
+/// the person's corrections and not offered in the last
+/// [`ASK_EVERY_HOURS`] hours, with how to record each answer; `None` when
+/// there is none, with the ids it offers ([`mark_asked`] records them once
+/// shown). Memory lessons and rules that replace a team rule are never in
+/// it.
+pub fn ask(home: &Path, now: OffsetDateTime) -> Option<(String, Vec<Ulid>)> {
+    let all = list(home).ok()?;
+    let asked = load_asked(home);
+    let shared = |id: &Ulid| all.iter().any(|l| l.id == *id && l.shared.is_some());
+    let mut offer: Vec<&Lesson> = all
+        .iter()
+        .filter(|l| l.status == Status::Pending && l.links.source.is_none())
+        .filter(|l| !l.rule.trim().is_empty())
+        .filter(|l| !l.links.supersedes.iter().any(&shared))
+        .filter(|l| {
+            asked_at(&asked, l.id).is_none_or(|t| now - t > time::Duration::hours(ASK_EVERY_HOURS))
+        })
+        .collect();
+    if offer.is_empty() {
+        return None;
+    }
+    offer.sort_by(|a, b| {
+        b.seen
+            .sessions
+            .cmp(&a.seen.sessions)
+            .then_with(|| b.seen.last.cmp(&a.seen.last))
+    });
+    offer.truncate(ASK_MAX);
+    let n = offer.len();
+    let mut text = format!(
+        "hippo drafted {n} rule{} from the person's corrections. At a natural pause, ask the person once, in one message, and do not ask again in this session:",
+        if n == 1 { "" } else { "s" }
+    );
+    for (k, l) in offer.iter().enumerate() {
+        let replaces = l
+            .links
+            .supersedes
+            .iter()
+            .filter_map(|id| all.iter().find(|o| o.id == *id))
+            .map(|o| format!("; replaces: \"{}\"", o.title))
+            .collect::<String>();
+        text.push_str(&format!(
+            "\n  {}. {}   (seen in {} sessions{replaces})",
+            k + 1,
+            detect::one_line(&l.rule, 400),
+            l.seen.sessions
+        ));
+    }
+    text.push_str("\n  Keep? y / n / edit\nRecord each answer: `hippo lessons keep <id>`, `hippo lessons dismiss <id>`, or `hippo lessons keep <id> --text \"…\"`.\nids:");
+    for (k, l) in offer.iter().enumerate() {
+        text.push_str(&format!(" {} = {}", k + 1, l.id));
+        if k + 1 < n {
+            text.push(',');
+        }
+    }
+    Some((text, offer.iter().map(|l| l.id).collect()))
+}
+
+/// Records that rules `ids` were offered in an ask now.
+pub fn mark_asked(home: &Path, ids: &[Ulid], now: OffsetDateTime) {
+    let mut asked = load_asked(home);
+    let stamp = now
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_default();
+    for id in ids {
+        asked.insert(id.to_string(), stamp.clone());
+    }
+    if let Ok(bytes) = serde_json::to_vec(&asked) {
+        let _ = write_atomic(&asked_path(home), &bytes);
+    }
+}
+
+/// The rules `auto_keep` keeps after a scan: pending, drafted from
+/// corrections in 3 or more sessions, replacing nothing.
+pub const AUTO_KEEP_SESSIONS: usize = 3;
+
+/// Keeps every pending rule that qualifies for `auto_keep`, as
+/// [`Keeper::Auto`]; one line for each, for the report.
+pub fn auto_keep(cfg: &Config, ws: &Workspace, now: OffsetDateTime) -> Vec<String> {
+    let mut out = Vec::new();
+    let Ok(all) = list(&cfg.home) else {
+        return out;
+    };
+    for l in all {
+        if l.status != Status::Pending
+            || l.links.source.is_some()
+            || !l.links.supersedes.is_empty()
+            || l.seen.sessions < AUTO_KEEP_SESSIONS
+        {
+            continue;
+        }
+        match keep_rule_by(cfg, Some(ws), l.id, None, None, false, now, Keeper::Auto) {
+            Ok(_) => out.push(format!(
+                "auto_keep kept: {} (seen in {} sessions; hippo lessons undo {} takes it back)",
+                l.title, l.seen.sessions, l.id
+            )),
+            Err(err) => out.push(format!("auto_keep could not keep {}: {err}", l.id)),
+        }
+    }
+    out
 }
 
 /// Appends one line to [`kept_log`].
@@ -769,7 +990,17 @@ pub fn supersede(
                     .map(|l| format!("{l}\n"));
                 match bullet {
                     Some(bullet) => {
-                        match remove_line(ws, &target.note, &text, &bullet, old, by, now) {
+                        let reason =
+                            format!("lesson {old} replaced by lesson {by}, kept by the person");
+                        match remove_line(
+                            ws,
+                            &target.note,
+                            &text,
+                            &bullet,
+                            &reason,
+                            &format!("hippo lessons keep {by}"),
+                            now,
+                        ) {
                             Ok(receipt) => {
                                 line = format!(
                                     "replaced: {title} (its bullet in {} removed, receipt {receipt})",
@@ -810,8 +1041,8 @@ fn remove_line(
     note: &Path,
     text: &str,
     bullet: &str,
-    old: Ulid,
-    by: Ulid,
+    reason: &str,
+    invocation: &str,
     now: OffsetDateTime,
 ) -> Result<Ulid> {
     notes::validate_proposal_path(&ws.root, &ws.notes_dir, note)?;
@@ -827,14 +1058,14 @@ fn remove_line(
         old: bullet.to_owned(),
         new: String::new(),
         evidence: Vec::new(),
-        reason: format!("lesson {old} replaced by lesson {by}, kept by the person"),
+        reason: reason.to_owned(),
     };
     validate::write(ws, &proposal)?;
     let review = Review {
         verdict: Verdict::Confirm,
-        notes: format!("lesson {by} replaces lesson {old}"),
+        notes: reason.to_owned(),
         reviewer: "human".to_owned(),
-        invocation: format!("hippo lessons keep {by}"),
+        invocation: invocation.to_owned(),
         at: now,
         runner: None,
     };
@@ -1512,6 +1743,10 @@ pub fn scan_with(cfg: &Config, ws: &Workspace, opts: &ScanOptions) -> Result<Sca
     }
     if !dry_run {
         store.save(&cfg.home)?;
+        if cfg.remember.auto_keep {
+            let kept = auto_keep(cfg, ws, now);
+            out.notes.extend(kept);
+        }
         out.state.save(&cfg.home)?;
     }
     Ok(out)

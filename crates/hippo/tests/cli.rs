@@ -71,7 +71,17 @@ impl Hippo {
 
     /// Runs `hippo` with `args`, writing `stdin` to it.
     fn run(&self, args: &[&str], stdin: Option<&str>) -> Output {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_hippo"))
+        self.run_env(args, stdin, &[])
+    }
+
+    /// [`Hippo::run`] with no agent marker but those in `env`.
+    fn run_env(&self, args: &[&str], stdin: Option<&str>, env: &[(&str, &str)]) -> Output {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_hippo"));
+        for (marker, _) in hippo_core::accept::AGENT_MARKERS {
+            cmd.env_remove(marker);
+        }
+        cmd.envs(env.iter().copied());
+        let mut child = cmd
             .args(args)
             .env("HIPPO_HOME", self.home.path())
             .env("HOME", self.user_home.path())
@@ -1363,4 +1373,117 @@ fn kept_rules_reach_every_start_block_outside_the_workspace_and_on_a_new_topic()
     let log = fs::read_to_string(hippo.home.path().join("logs/injections.jsonl")).unwrap();
     assert!(log.contains("\"event\":\"topic\"") && log.contains("01JE0000000000000000000002"));
     assert!(!log.contains("signing"));
+}
+
+/// A pending lesson's record, kept into `notes/Agent rules.md`.
+fn pending_rule(hippo: &Hippo, id: &str, rule: &str, sessions: usize) {
+    let record = serde_json::json!({
+        "protocol": "HIPPO_V1",
+        "id": id,
+        "kind": "correction",
+        "key": "k",
+        "terms": ["k"],
+        "title": rule,
+        "rule": rule,
+        "target": {"note": "notes/Agent rules.md", "section": null, "new": false},
+        "evidence": [],
+        "seen": {"sessions": sessions, "profiles": [], "first": "2026-11-01T00:00:00Z", "last": "2026-11-02T00:00:00Z"},
+        "status": "pending",
+        "created": "2026-11-01T00:00:00Z",
+        "updated": "2026-11-02T00:00:00Z",
+        "scope": "workspace",
+    });
+    let dir = hippo.home.path().join("lessons");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join(format!("{id}.json")), record.to_string()).unwrap();
+}
+
+#[test]
+fn the_start_block_asks_once_and_an_agent_records_only_that_answer() {
+    let hippo = Hippo::init();
+    fs::write(
+        hippo.workspace.join("notes/Agent rules.md"),
+        format!(
+            "# Agent rules\n\n{}",
+            "Agents read this note first.\n".repeat(8)
+        ),
+    )
+    .unwrap();
+    let (a, b, c, d) = (
+        "01JF0000000000000000000001",
+        "01JF0000000000000000000002",
+        "01JF0000000000000000000003",
+        "01JF0000000000000000000004",
+    );
+    pending_rule(&hippo, a, "Run the linter before every commit.", 4);
+    pending_rule(&hippo, b, "Use pnpm, never npm.", 3);
+    pending_rule(&hippo, c, "Write commit messages in the imperative.", 2);
+    pending_rule(&hippo, d, "Keep pull requests under 400 lines.", 1);
+    let start = |id: &str| {
+        let input =
+            serde_json::json!({"session_id": id, "hook_event_name": "SessionStart"}).to_string();
+        stdout(&hippo.run(&["hook", "session-start"], Some(&input)))
+    };
+    let first = start("k1");
+    assert!(
+        first.contains("hippo drafted 3 rules from the person's corrections."),
+        "{first}"
+    );
+    assert!(
+        first.contains("1. Run the linter before every commit.   (seen in 4 sessions)"),
+        "{first}"
+    );
+    assert!(
+        first.contains(&format!("ids: 1 = {a}, 2 = {b}, 3 = {c}")),
+        "{first}"
+    );
+    assert!(!first.contains("400 lines"));
+    // The next session the same day asks only about the rule left.
+    let second = start("k2");
+    assert!(
+        second.contains("hippo drafted 1 rule from") && second.contains(d),
+        "{second}"
+    );
+    assert!(!start("k3").contains("hippo drafted"));
+
+    let claude = [("CLAUDECODE", "1")];
+    let out = hippo.run_env(&["lessons", "keep", a], None, &claude);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let record: Value = serde_json::from_str(
+        &fs::read_to_string(hippo.home.path().join(format!("lessons/{a}.json"))).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(record["status"], "kept");
+    assert_eq!(record["kept"]["by"], "agent");
+    let note = || fs::read_to_string(hippo.workspace.join("notes/Agent rules.md")).unwrap();
+    assert!(note().contains("Run the linter before every commit."));
+    let out = hippo.run_env(&["lessons", "dismiss", b], None, &claude);
+    assert!(out.status.success(), "{}", stderr(&out));
+
+    // A rule hippo did not ask about: refused for an agent, fine for the
+    // person.
+    pending_rule(&hippo, "01JF0000000000000000000005", "Never force-push.", 2);
+    let out = hippo.run_env(
+        &["lessons", "keep", "01JF0000000000000000000005"],
+        None,
+        &claude,
+    );
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("an agent may only record their answer"),
+        "{}",
+        stderr(&out)
+    );
+    let out = hippo.run(&["lessons", "keep", "01JF0000000000000000000005"], None);
+    assert!(out.status.success(), "{}", stderr(&out));
+
+    // Undo takes a kept rule back out of its note.
+    let out = hippo.run(&["lessons", "undo", a], None);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(!note().contains("Run the linter before every commit."));
+    let record: Value = serde_json::from_str(
+        &fs::read_to_string(hippo.home.path().join(format!("lessons/{a}.json"))).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(record["status"], "dismissed");
 }

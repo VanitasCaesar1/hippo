@@ -38,6 +38,8 @@ pub enum Part {
     Session,
     /// The kept rules: never fails a compile, shrinks to fit.
     Rules,
+    /// Pending rules to ask the person about, in a hook's start block.
+    Ask,
     Relevant,
     Linter,
 }
@@ -51,6 +53,7 @@ impl Part {
             Part::Required => "required",
             Part::Session => "session",
             Part::Rules => "rules",
+            Part::Ask => "ask",
             Part::Relevant => "relevant",
             Part::Linter => "linter",
         }
@@ -158,6 +161,25 @@ impl Compiled {
         self.parts.insert(at, (Part::Rules, text));
         self.bytes = self.text().len();
         ids
+    }
+}
+
+impl Compiled {
+    /// Adds the ask (pending rules for the person, [`crate::lessons::ask`])
+    /// after the rules, when it fits in what `budget` leaves; whether it
+    /// did.
+    pub fn add_ask(&mut self, text: &str, budget: usize) -> bool {
+        if text.is_empty() || self.bytes + 2 + text.len() + 1 > budget {
+            return false;
+        }
+        let at = self
+            .parts
+            .iter()
+            .position(|(p, _)| *p > Part::Ask)
+            .unwrap_or(self.parts.len());
+        self.parts.insert(at, (Part::Ask, text.to_owned()));
+        self.bytes = self.text().len();
+        true
     }
 }
 

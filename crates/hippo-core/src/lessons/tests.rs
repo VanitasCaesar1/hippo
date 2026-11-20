@@ -1257,3 +1257,46 @@ fn a_rule_in_an_agent_memory_that_is_on_is_reviewed_and_kept_machine_wide() {
     // A memory lesson is never shared with a team.
     assert!(shareable(&s.cfg, &s.ws).unwrap().is_empty());
 }
+
+#[test]
+fn auto_keep_keeps_a_rule_seen_in_three_sessions_with_who_kept_it() {
+    let mut s = grouped();
+    s.cfg.remember.auto_keep = true;
+    let now = OffsetDateTime::now_utc();
+    for (k, id) in ["a1", "a2", "a3"].iter().enumerate() {
+        corrected(
+            &s,
+            id,
+            "npm install",
+            "no, never run npm install here, pnpm only",
+            now - Duration::hours(10 - k as i64),
+        );
+    }
+    let index = s.index();
+    crate::rollup::refresh(&s.cfg.home, Some(&s.ws), &index).unwrap();
+    says(&s, "match", "[]");
+    says(
+        &s,
+        "dreamer",
+        &draft_reply(
+            "Use pnpm, never npm",
+            "Use pnpm in this repository; never run npm.",
+        ),
+    );
+    says(&s, "reviewer", r#"{"verdict": "confirm", "notes": "ok"}"#);
+    let out = scan(&s.cfg, &s.ws, 7, false).unwrap();
+    assert!(
+        out.notes
+            .iter()
+            .any(|n| n.starts_with("auto_keep kept: Use pnpm, never npm")),
+        "{:?}",
+        out.notes
+    );
+    let l = get(&s.cfg.home, out.confirmed[0].id).unwrap();
+    assert_eq!(l.status, Status::Kept);
+    assert_eq!(l.kept.unwrap().by, Some(Keeper::Auto));
+    // And it is in force.
+    let rules = kept_rules(&s.cfg.home, Some(&s.ws));
+    assert_eq!(rules.len(), 1);
+    assert!(!rules[0].machine);
+}
