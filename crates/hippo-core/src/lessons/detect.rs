@@ -147,7 +147,12 @@ pub const REPLAY_TURNS: usize = 3;
 /// not type there.
 pub fn replayed_turns(turns: &[SessionTurn]) -> BTreeSet<(&str, &str)> {
     let mut counts: BTreeMap<(&str, &str), usize> = BTreeMap::new();
-    for t in turns {
+    // A turn whose time did not parse is never a replay: an adapter
+    // without per-turn times would otherwise lose every correction.
+    for t in turns
+        .iter()
+        .filter(|t| !t.ts.is_empty() && !t.ts.starts_with("1970-"))
+    {
         *counts
             .entry((t.session.as_str(), t.ts.as_str()))
             .or_default() += 1;
