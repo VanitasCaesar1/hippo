@@ -240,7 +240,7 @@ impl Shell {
                 // The note in the accent colour, what changed (the removed
                 // words struck, the new ones in the text colour) with a
                 // little shared text around it, and a note edited since in
-                // amber. A click opens the note; the old and new text are
+                // lime. A click opens the note; the old and new text are
                 // in the tooltip.
                 let mut text = format!("{head}{change}");
                 let mut highlights = vec![(

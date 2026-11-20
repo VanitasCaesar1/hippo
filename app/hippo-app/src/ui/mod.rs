@@ -1488,7 +1488,7 @@ impl Render for Shell {
         // It comes in as T3 Code's sheet does, 200 ms ease-in-out,
         // sliding 32 points from the left as it fades in, the scrim fading
         // with it.
-        let scrim = if look.c.dark { 0.45 } else { 0.25 };
+        let scrim = look.c.scrim;
         let sheet_in = || {
             gpui::Animation::new(std::time::Duration::from_millis(200))
                 .with_easing(gpui::ease_in_out)
@@ -1523,7 +1523,7 @@ impl Render for Shell {
                         }),
                 )
                 .with_animation("sidebar-overlay-in", sheet_in(), move |d, t| {
-                    d.bg(gpui::black().opacity(scrim * t))
+                    d.bg(scrim.opacity(t))
                 })
                 .into_any_element()
         });

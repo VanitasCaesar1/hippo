@@ -450,20 +450,19 @@ pub fn profile_letter(profile: Option<&str>) -> String {
     profile.map_or_else(|| "?".to_owned(), |p| identity(p).0)
 }
 
-/// The six profile hues: blue, violet, magenta, teal, orange, lime. None
-/// is the accent amber, the error red or the working green.
-const HUES: [f32; 6] = [212., 268., 322., 178., 24., 88.];
-
-/// A profile's fixed hue, on its avatar, card dot and Fleet chip.
-pub fn profile_hue(profile: &str) -> Hsla {
-    let (_, i) = identity(profile);
-    gpui::hsla(HUES[i % HUES.len()] / 360., 0.62, 0.64, 1.)
+/// An account's colour on its avatar, card dot, meter and Fleet chip:
+/// the muted text colour for every account. Accounts are told apart by
+/// their names; colour keeps its four meanings (lime is you, green is
+/// confirmed, red is wrong, the night colour is what hippo did), and no
+/// account takes a hue of its own.
+pub fn profile_tone(look: &Look) -> Hsla {
+    look.c.text_muted
 }
 
 /// A profile's avatar: its mark in a rounded square tinted with its hue,
 /// ringed in `ring` when given (live is the working colour).
 pub fn avatar(look: &Look, profile: Option<&str>, ring: Option<Hsla>) -> gpui::Div {
-    let hue = profile.map(profile_hue).unwrap_or(look.c.text_muted);
+    let hue = profile_tone(look);
     mark_sized(look, profile, 24., ring).border_color(ring.unwrap_or(hue.opacity(0.3)))
 }
 
@@ -475,7 +474,7 @@ pub fn mark(look: &Look, profile: Option<&str>, size: f32) -> gpui::Div {
 }
 
 fn mark_sized(look: &Look, profile: Option<&str>, size: f32, ring: Option<Hsla>) -> gpui::Div {
-    let hue = profile.map(profile_hue).unwrap_or(look.c.text_muted);
+    let hue = profile_tone(look);
     let radius = if size >= 22. {
         6.
     } else if size >= 17. {
@@ -570,7 +569,6 @@ mod tests {
         assert_eq!(profile_letter(Some("Andy")), "Ad");
         assert_eq!(profile_letter(Some("default")), "De");
         assert_eq!(profile_letter(None), "?");
-        assert_ne!(profile_hue("Ana"), profile_hue("Andy"));
     }
 
     #[test]
@@ -662,7 +660,7 @@ pub enum Status {
 
 impl Status {
     /// The glyph and its colour: T3 Code's (`ThreadStatusIndicators`,
-    /// MIT), in Hippo's state colours (Input stays amber; T3 Code
+    /// MIT), in Hippo's state colours (Input stays lime; T3 Code
     /// draws it indigo).
     pub fn glyph(self, look: &Look) -> (&'static str, Hsla) {
         match self {
@@ -1260,7 +1258,7 @@ pub fn segment(
 /// under 10 %.
 pub fn left_color(look: &Look, left: f64) -> Hsla {
     // Colour is state: healthy headroom is not a
-    // state, so its bar and ring are a muted fill; amber under 25 %, red
+    // state, so its bar and ring are a muted fill; lime under 25 %, red
     // under 10 %.
     if left < 0.10 {
         look.c.err
@@ -1598,7 +1596,7 @@ pub fn spec(look: &Look) -> gpui::Div {
 /// A state's mark.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mark {
-    /// Waiting on the person: filled amber.
+    /// Waiting on the person: filled lime.
     Wait,
     /// Harm: filled red.
     Harm,
@@ -1708,7 +1706,7 @@ pub fn account_bar(look: &Look, profile: Option<&str>, h: f32) -> gpui::Div {
         .flex_shrink_0()
         .w(look.fixed(2.))
         .h(look.px(h))
-        .bg(profile.map_or(look.c.border_strong, profile_hue))
+        .bg(profile.map_or(look.c.border_strong, |_| profile_tone(look)))
 }
 
 /// The scope band: one bar per beat, the newest lit, over a baseline,

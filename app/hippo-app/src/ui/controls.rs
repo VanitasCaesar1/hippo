@@ -13,7 +13,7 @@ use super::theme::Look;
 /// What a control does when used: a click, Space or Return.
 pub type Act = Rc<dyn Fn(&mut Window, &mut App)>;
 
-/// A switch, 36 by 20, the working green when on (amber is for
+/// A switch, 36 by 20, the working green when on (lime is for
 /// the primary action and selection only). A click, Space or Return runs
 /// `act`; `enabled` false dims it and drops both.
 pub fn switch(

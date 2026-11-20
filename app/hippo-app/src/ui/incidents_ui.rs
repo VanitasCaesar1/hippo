@@ -891,9 +891,9 @@ impl Shell {
             .into_any_element()
     }
 
-    /// A cause as a label: amber when it is the person's to act on.
+    /// A cause as a label: lime when it is the person's to act on.
     fn cause_chip(&self, cause: Cause, quiet: bool, look: &Look) -> gpui::Div {
-        // A quiet incident's cause is never amber.
+        // A quiet incident's cause is never lime.
         let color = if cause.needs_person() && !quiet {
             look.c.warn
         } else {
@@ -1032,7 +1032,7 @@ impl Shell {
                     .bg(chain
                         .profile
                         .as_deref()
-                        .map_or(look.c.border_strong, kit::profile_hue)),
+                        .map_or(look.c.border_strong, |_| kit::profile_tone(look))),
             )
             .child(
                 div()
@@ -1666,7 +1666,7 @@ impl Shell {
                 .justify_center()
                 .items_center()
                 .px(look.px(16.))
-                .bg(gpui::black().opacity(0.5))
+                .bg(look.c.scrim)
                 .occlude()
                 .child(
                     div()

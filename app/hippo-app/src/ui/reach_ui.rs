@@ -432,7 +432,7 @@ impl Shell {
                 .items_start()
                 .pt(look.px(80.))
                 .px(look.px(16.))
-                .bg(gpui::black().opacity(0.4))
+                .bg(look.c.scrim)
                 .occlude()
                 .child(
                     div()

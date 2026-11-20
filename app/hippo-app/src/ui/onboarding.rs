@@ -1879,7 +1879,11 @@ impl Shell {
                             look.c.border
                         })
                         .when(on, |d| d.justify_end())
-                        .child(div().size(look.px(14.)).rounded_full().bg(gpui::white())),
+                        .child(div().size(look.px(14.)).rounded_full().bg(if on {
+                            look.c.knob_on
+                        } else {
+                            look.c.knob_off
+                        })),
                 )
                 .child(
                     div()
@@ -2225,7 +2229,7 @@ impl Shell {
                 .justify_center()
                 .items_center()
                 .p(look.px(16.))
-                .bg(gpui::black().opacity(0.45))
+                .bg(look.c.scrim)
                 .occlude()
                 .child(panel)
                 .into_any_element(),

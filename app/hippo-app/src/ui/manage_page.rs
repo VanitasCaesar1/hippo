@@ -2530,7 +2530,7 @@ impl Shell {
                 .justify_center()
                 .items_center()
                 .px(look.px(16.))
-                .bg(gpui::black().opacity(0.5))
+                .bg(look.c.scrim)
                 .occlude()
                 .child(
                     div()

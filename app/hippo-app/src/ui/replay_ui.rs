@@ -403,7 +403,7 @@ pub fn day_bounds(day: &Day, now: OffsetDateTime) -> (Option<f64>, Option<f64>) 
 /// A mark's shape: the vector marks of `fleet-pulse.md`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Shape {
-    /// Filled: a question (amber), harm (red).
+    /// Filled: a question (lime), harm (red).
     Square,
     /// Hollow: a usage limit (red).
     Hollow,
@@ -426,7 +426,7 @@ pub fn mark_shape(k: MarkKind) -> Shape {
     }
 }
 
-/// A mark kind's colour: amber for a question, red for harm and a limit,
+/// A mark kind's colour: lime for a question, red for harm and a limit,
 /// the text colour for a correction and a merge, faint otherwise.
 fn mark_color(look: &Look, k: MarkKind) -> Hsla {
     match k {
@@ -1137,7 +1137,7 @@ impl Shell {
                 )
         });
         // What the stretches and marks mean (the first reader could not
-        // tell that amber is waiting).
+        // tell that lime is waiting).
         let swatch = |look: &Look, color: Hsla, dashed: bool| {
             div()
                 .w(look.px(12.))

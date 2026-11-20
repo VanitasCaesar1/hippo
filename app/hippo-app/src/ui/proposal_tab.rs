@@ -671,7 +671,7 @@ impl Shell {
                 .justify_center()
                 .items_start()
                 .pt(look.px(96.))
-                .bg(gpui::black().opacity(0.35))
+                .bg(look.c.scrim)
                 .occlude()
                 .child(
                     div()

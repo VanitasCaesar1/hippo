@@ -60,64 +60,66 @@ impl Nt {
     /// surfaces and text, with the four meanings kept.
     pub fn of(look: &Look) -> Nt {
         let dark = look.c.dark;
+        // docs/designs/app-night-map.md: graphite and lime (0.7.2).
         let mut t = if dark {
             Nt {
-                canvas: c(0x0B0D14),
-                dot: ca(0xA0AFE1, 0.15),
-                surface: c(0x12151F),
-                raised: c(0x191D2B),
-                inset: c(0x0D1018),
-                hover: c(0x1C2131),
-                selected: c(0x20263C),
-                line: ca(0xA0AFE1, 0.13),
-                line2: ca(0xA0AFE1, 0.26),
-                text: c(0xECEEF6),
-                muted: c(0xA7AEC6),
-                faint: c(0x7F87A3),
-                you: c(0xFFC53D),
-                you_ink: c(0x1C1400),
-                you_text: c(0xFFD778),
-                you_bg: ca(0xFFC53D, 0.13),
-                you_line: ca(0xFFC53D, 0.5),
-                night: c(0x96A1FF),
-                night_bg: ca(0x96A1FF, 0.13),
-                night_line: ca(0x96A1FF, 0.55),
-                ok: c(0x45D992),
-                ok_bg: ca(0x45D992, 0.12),
-                bad: c(0xFF7A6B),
-                bad_ink: c(0x2A0600),
-                bad_bg: ca(0xFF7A6B, 0.12),
+                canvas: c(0x0A0A0A),
+                dot: ca(0xFFFFFF, 0.09),
+                surface: c(0x121212),
+                raised: c(0x181818),
+                inset: c(0x0E0E0E),
+                hover: c(0x1E1E1E),
+                selected: c(0x242424),
+                line: ca(0xFFFFFF, 0.09),
+                line2: ca(0xFFFFFF, 0.2),
+                text: c(0xEDEDED),
+                muted: c(0xA1A1A1),
+                // 0x7A7A7A in the palette, lifted to 4.5 to 1 on cards.
+                faint: c(0x828282),
+                you: c(0xC8F031),
+                you_ink: c(0x0F1400),
+                you_text: c(0xD9F77A),
+                you_bg: ca(0xC8F031, 0.11),
+                you_line: ca(0xC8F031, 0.5),
+                night: c(0xE5E5E5),
+                night_bg: ca(0xFFFFFF, 0.08),
+                night_line: ca(0xFFFFFF, 0.45),
+                ok: c(0x4ADE80),
+                ok_bg: ca(0x4ADE80, 0.1),
+                bad: c(0xF87171),
+                bad_ink: c(0x1A0505),
+                bad_bg: ca(0xF87171, 0.1),
                 shadow: ca(0x000000, 0.42),
                 dark,
             }
         } else {
             Nt {
-                canvas: c(0xF3F4F8),
-                dot: ca(0x1B2440, 0.15),
+                canvas: c(0xFAFAFA),
+                dot: ca(0x000000, 0.08),
                 surface: c(0xFFFFFF),
                 raised: c(0xFFFFFF),
-                inset: c(0xEDEFF5),
-                hover: c(0xF0F2F8),
-                selected: c(0xE7EAF8),
-                line: ca(0x1B2440, 0.11),
-                line2: ca(0x1B2440, 0.24),
-                text: c(0x161D33),
-                muted: c(0x4A5370),
-                faint: c(0x5D6684),
-                you: c(0xF7BC1C),
-                you_ink: c(0x1C1400),
-                you_text: c(0x7A5200),
-                you_bg: c(0xFFEDB3),
-                you_line: c(0xD9A514),
-                night: c(0x4352C7),
-                night_bg: ca(0x4352C7, 0.09),
-                night_line: ca(0x4352C7, 0.5),
-                ok: c(0x0E6B40),
-                ok_bg: ca(0x0E6B40, 0.1),
-                bad: c(0xB3261E),
+                inset: c(0xF4F4F5),
+                hover: c(0xF4F4F5),
+                selected: c(0xEDEDEE),
+                line: ca(0x000000, 0.08),
+                line2: ca(0x000000, 0.18),
+                text: c(0x0A0A0A),
+                muted: c(0x52525B),
+                faint: c(0x6B6B73),
+                you: c(0xC8F031),
+                you_ink: c(0x0F1400),
+                you_text: c(0x3F5A00),
+                you_bg: c(0xEEF9C8),
+                you_line: c(0x8DB31A),
+                night: c(0x18181B),
+                night_bg: ca(0x000000, 0.05),
+                night_line: ca(0x000000, 0.42),
+                ok: c(0x15803D),
+                ok_bg: ca(0x15803D, 0.08),
+                bad: c(0xDC2626),
                 bad_ink: c(0xFFFFFF),
-                bad_bg: ca(0xB3261E, 0.08),
-                shadow: ca(0x1B2440, 0.13),
+                bad_bg: ca(0xDC2626, 0.07),
+                shadow: ca(0x000000, 0.1),
                 dark,
             }
         };
@@ -165,7 +167,7 @@ pub fn card(look: &Look, t: &Nt) -> gpui::Div {
         }])
 }
 
-/// A selectable card: its 2-point border is always there, indigo when
+/// A selectable card: its 2-point border is always there, the night colour when
 /// selected, so nothing moves.
 pub fn select_card(look: &Look, t: &Nt, selected: bool) -> gpui::Div {
     card(look, t)
@@ -255,7 +257,7 @@ pub fn chip(look: &Look, t: &Nt, text: impl Into<String>, tone: Tone) -> gpui::D
         .child(text.into())
 }
 
-/// A round count: amber waits on you, red is guard, grey is plain.
+/// A round count: lime waits on you, red is guard, grey is plain.
 pub fn count(look: &Look, t: &Nt, n: usize, tone: Tone) -> gpui::Div {
     let (bg, fg) = match tone {
         Tone::You => (t.you, t.you_ink),
@@ -314,7 +316,7 @@ pub fn badge(look: &Look, t: &Nt, a: &Agent) -> gpui::Svg {
 /// What a button is.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Btn {
-    /// Amber: at most one per card.
+    /// Lime: at most one per card.
     Go,
     /// Bordered.
     Second,
@@ -597,7 +599,7 @@ pub fn menu(look: &Look, t: &Nt) -> gpui::Div {
         .shadow(float_shadow(look, t))
 }
 
-/// Your own words on the amber highlight, the whole quote one rounded
+/// Your own words on the lime highlight, the whole quote one rounded
 /// block (GPUI's text runs have square, unpadded backgrounds).
 pub fn said(look: &Look, t: &Nt, text: &str, lines: usize) -> gpui::Div {
     div()
@@ -769,8 +771,8 @@ pub fn wires(wires: Vec<Wire>, ring_fill: Hsla) -> AnyElement {
     .into_any_element()
 }
 
-/// The strip: the day as bars (amber where you corrected an agent), the
-/// night as an indigo zone with the pass's bars, the morning to a now line.
+/// The strip: the day as bars (lime where you corrected an agent), the
+/// night as a grey zone with the pass's bars, the morning to a now line.
 pub fn strip(look: &Look, t: &Nt, s: &hippo_view::night::strip::Strip, h: f32) -> AnyElement {
     let beats = s.beats.clone();
     let corrections = s.corrections.clone();
@@ -865,4 +867,79 @@ pub fn strip(look: &Look, t: &Nt, s: &hippo_view::night::strip::Strip, h: f32) -
             .size_full(),
         )
         .into_any_element()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ui::theme::ActiveTheme;
+    use gpui::WindowAppearance;
+
+    fn rgb(c: Hsla, under: gpui::Rgba) -> gpui::Rgba {
+        let c: gpui::Rgba = c.into();
+        let a = c.a;
+        gpui::Rgba {
+            r: c.r * a + under.r * (1. - a),
+            g: c.g * a + under.g * (1. - a),
+            b: c.b * a + under.b * (1. - a),
+            a: 1.,
+        }
+    }
+
+    fn lum(c: gpui::Rgba) -> f32 {
+        let ch = |v: f32| {
+            if v <= 0.03928 {
+                v / 12.92
+            } else {
+                ((v + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * ch(c.r) + 0.7152 * ch(c.g) + 0.0722 * ch(c.b)
+    }
+
+    fn ratio(a: gpui::Rgba, b: gpui::Rgba) -> f32 {
+        let (x, y) = (lum(a), lum(b));
+        (x.max(y) + 0.05) / (x.min(y) + 0.05)
+    }
+
+    /// Hippo's two themes: body text 7 to 1 on every surface, muted text
+    /// and faint text 4.5 on the canvas and cards, your words (lime text on
+    /// the lime ground) 4.5.
+    #[test]
+    fn the_tokens_are_readable_in_both_themes() {
+        for appearance in [WindowAppearance::Dark, WindowAppearance::Light] {
+            let look = Look::new(&ActiveTheme::system(appearance), 1.0);
+            let t = Nt::of(&look);
+            let canvas = rgb(
+                t.canvas,
+                gpui::Rgba {
+                    r: 0.,
+                    g: 0.,
+                    b: 0.,
+                    a: 1.,
+                },
+            );
+            let on = |c: Hsla| rgb(c, canvas);
+            let surfaces = [t.canvas, t.surface, t.raised, t.inset, t.hover, t.selected];
+            for s in surfaces {
+                let s = on(s);
+                assert!(ratio(on(t.text), s) >= 7.0, "{appearance:?}: text");
+                assert!(ratio(on(t.muted), s) >= 4.5, "{appearance:?}: muted");
+            }
+            for s in [t.canvas, t.surface, t.raised] {
+                assert!(ratio(on(t.faint), on(s)) >= 4.5, "{appearance:?}: faint");
+            }
+            for s in [t.canvas, t.surface] {
+                let ground = rgb(t.you_bg, on(s));
+                assert!(
+                    ratio(on(t.you_text), ground) >= 4.5,
+                    "{appearance:?}: lime text on the lime ground"
+                );
+            }
+            assert!(
+                ratio(on(t.you_ink), on(t.you)) >= 4.5,
+                "{appearance:?}: lime fill"
+            );
+        }
+    }
 }

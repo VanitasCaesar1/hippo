@@ -136,6 +136,12 @@ pub struct Palette {
     /// The count badge's text and fill.
     pub accent_text: Hsla,
     pub accent_surface: Hsla,
+    /// Behind a dialog or a sliding sheet: black, half as strong in a light
+    /// window.
+    pub scrim: Hsla,
+    /// A switch's knob: on its track when on, and when off.
+    pub knob_on: Hsla,
+    pub knob_off: Hsla,
     /// The one primary button: inverted.
     pub primary: Hsla,
     pub primary_text: Hsla,
@@ -190,9 +196,16 @@ impl Palette {
             border_strong: color(c.border_variant),
             faint: color(c.text_placeholder),
             accent: color(c.focus),
-            accent_on: if dark { color(c.window) } else { gpui::white() },
+            accent_on: if dark {
+                color(c.window)
+            } else {
+                color(c.elevated)
+            },
             accent_text: color(c.selected_outline),
             accent_surface: color(c.focus).opacity(if dark { 0.12 } else { 0.09 }),
+            scrim: color(Rgba(0x000000FF)).opacity(if dark { 0.5 } else { 0.3 }),
+            knob_on: color(c.window),
+            knob_off: color(c.text_muted),
             primary: color(c.text),
             primary_text: color(c.window),
             ok: color(c.success),

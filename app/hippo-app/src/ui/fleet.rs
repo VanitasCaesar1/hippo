@@ -881,7 +881,7 @@ impl Shell {
                     .bg(r
                         .profile
                         .as_deref()
-                        .map_or(look.c.border_strong, kit::profile_hue)),
+                        .map_or(look.c.border_strong, |_| kit::profile_tone(look))),
             )
             .child(main)
             .children(trail)
@@ -1264,7 +1264,7 @@ pub fn branch_foot(r: &Row, now: time::OffsetDateTime, narrow: bool, look: &Look
 /// How a state reads in the State column: its colour.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tone {
-    /// Waiting on the person: amber.
+    /// Waiting on the person: lime.
     Wait,
     /// Working now: the text colour.
     Work,

@@ -42,8 +42,9 @@ fn builtin_themes_have_every_key_and_no_warnings() {
         assert_eq!(t.font_size, 13.0);
         assert!(t.background.is_none() && t.font_family.is_none());
     }
-    assert_eq!(light.colors.window, Rgba(0xF3F4F8FF));
-    assert_eq!(dark.colors.focus, Rgba(0xECEEF6FF));
+    assert_eq!(light.colors.window, Rgba(0xFAFAFAFF));
+    assert_eq!(dark.colors.window, Rgba(0x0A0A0AFF));
+    assert_eq!(dark.colors.focus, Rgba(0xEDEDEDFF));
     assert_eq!(dark.colors.success, dark.colors.created);
 }
 

@@ -821,7 +821,7 @@ impl Shell {
             let color = if dry.is_some() {
                 look.c.err
             } else {
-                kit::profile_hue(&p)
+                kit::profile_tone(look)
             };
             Some(
                 div()
@@ -1448,7 +1448,7 @@ impl Shell {
         };
         let at = |s: i64| OffsetDateTime::from_unix_timestamp(s).unwrap_or(now);
         let d = fleet.drain(profile);
-        let hue = kit::profile_hue(profile);
+        let hue = kit::profile_tone(look);
         let name = kit::profile_name(profile);
         let top = focus_top(
             look,
@@ -1875,7 +1875,7 @@ impl Shell {
             let hue = r
                 .profile
                 .as_deref()
-                .map_or(look.c.text_muted, kit::profile_hue);
+                .map_or(look.c.text_muted, |_| kit::profile_tone(look));
             let lk = look.clone();
             let bars = canvas(
                 |_, _, _| {},

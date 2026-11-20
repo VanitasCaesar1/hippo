@@ -739,7 +739,7 @@ impl Shell {
                 .child(div().flex_1().child(kit::segments(
                     look,
                     f64::from(*n) / f64::from(max),
-                    kit::profile_hue(p),
+                    kit::profile_tone(look),
                 )))
                 .child(kit::figure(look, format!("{n:02}"), 12., look.c.text))
         });
@@ -1621,7 +1621,7 @@ impl Shell {
                             .border(look.fixed(1.))
                             .border_color(look.c.border)
                             .text_size(look.text(11.5))
-                            .child(kit::dot(look, kit::profile_hue(p)))
+                            .child(kit::dot(look, kit::profile_tone(look)))
                             // The mark, so three fit; the name is
                             // in the side panel.
                             .child(
