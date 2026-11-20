@@ -700,10 +700,8 @@ fn first_prompt(
     }
 }
 
-/// A later prompt: when its topic is new, the kept rules that share its
-/// words and were not given yet, and the relevant notes not given yet,
-/// within the workspace budget. `None` when the topic is the same, the
-/// session has no state, or there is nothing new.
+/// A later prompt: the notes and rules of a new topic
+/// ([`topic::next`]), logged when there are any.
 fn new_topic(
     cfg: &Config,
     ws: &Workspace,
@@ -711,68 +709,11 @@ fn new_topic(
     agent: &str,
     prompt: &str,
 ) -> Result<Option<String>> {
-    let Some(mut state) = Topic::load(&cfg.home, session) else {
+    let Some(t) = topic::next(cfg, ws, session, prompt)? else {
         return Ok(None);
     };
-    let terms = lessons::detect::key_terms(prompt);
-    if !state.changed(&terms, cfg.remember.reinject_every()) {
-        state.save(&cfg.home, session)?;
-        return Ok(None);
-    }
-    let compiled = context::compile(
-        ws,
-        None,
-        Some(prompt),
-        None,
-        None,
-        ws.budget_bytes,
-        PartSelection::Optional,
-    )?;
-    let notes = context::new_relevant_lines(&compiled, &state.notes);
-    let rules: Vec<lessons::Rule> = lessons::kept_rules(&cfg.home, Some(ws))
-        .into_iter()
-        .filter(|r| !state.rules.contains(&r.id))
-        .filter(|r| r.terms.iter().any(|t| terms.contains(t)))
-        .take(3)
-        .collect();
-    if notes.is_empty() && rules.is_empty() {
-        state.save(&cfg.home, session)?;
-        return Ok(None);
-    }
-    let mut text = String::from("For the new topic:");
-    let mut given_rules = Vec::new();
-    for r in &rules {
-        let line = format!("\n- {}", r.text);
-        if text.len() + line.len() < ws.budget_bytes {
-            text.push_str(&line);
-            given_rules.push(r.id);
-        }
-    }
-    let mut given_notes = Vec::new();
-    if !notes.is_empty() && text.len() + 10 < ws.budget_bytes {
-        text.push_str("\nrelevant:");
-        for (path, line) in notes {
-            if text.len() + line.len() + 1 < ws.budget_bytes {
-                text.push('\n');
-                text.push_str(&line);
-                given_notes.push(path);
-            }
-        }
-    }
-    text.push('\n');
-    state.rules.extend(given_rules.iter().copied());
-    state.notes.extend(given_notes.iter().cloned());
-    state.save(&cfg.home, session)?;
-    log_injection(
-        cfg,
-        session,
-        agent,
-        "topic",
-        given_rules,
-        given_notes,
-        text.len(),
-    );
-    Ok(Some(text))
+    log_injection(cfg, session, agent, "topic", t.rules, t.notes, t.text.len());
+    Ok(Some(t.text))
 }
 
 /// The user's Claude Code `settings.json` (`$CLAUDE_CONFIG_DIR`, else

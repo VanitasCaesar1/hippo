@@ -1582,6 +1582,8 @@ pub fn scan_with(cfg: &Config, ws: &Workspace, opts: &ScanOptions) -> Result<Sca
     let writes_shared =
         team_on && !dry_run && member.is_some() && team::Share::of(cfg) == team::Share::Rules;
 
+    // A group a newer group reverses is outdated: it is not drafted.
+    let outdated_groups: BTreeSet<Ulid> = store.groups.iter().filter_map(|g| g.reverses).collect();
     // Clusters that match a record update it; the rest are drafted.
     let mut to_draft: Vec<(Option<Ulid>, detect::Cluster)> = Vec::new();
     for (gid, cluster) in clusters {
@@ -1632,6 +1634,7 @@ pub fn scan_with(cfg: &Config, ws: &Workspace, opts: &ScanOptions) -> Result<Sca
             }
         };
         let group = gid.and_then(|id| store.get(id));
+        let outdated = gid.is_some_and(|id| outdated_groups.contains(&id));
         match records.iter_mut().find(|l| record_of(l, gid, &cluster)) {
             Some(l) => {
                 let grew = cluster.sessions.len() > l.seen.sessions;
@@ -1643,7 +1646,7 @@ pub fn scan_with(cfg: &Config, ws: &Workspace, opts: &ScanOptions) -> Result<Sca
                             && l.seen.sessions >= l.closed_sessions.unwrap_or(0) + REOPEN_AFTER
                     }
                 };
-                if again && !team_has {
+                if again && !team_has && !outdated {
                     to_draft.push((gid, cluster));
                 } else if grew && !dry_run {
                     l.save(&cfg.home)?;
@@ -1652,7 +1655,7 @@ pub fn scan_with(cfg: &Config, ws: &Workspace, opts: &ScanOptions) -> Result<Sca
             None if team_has => {}
             None => {
                 let draft = match group {
-                    Some(g) => wants_draft(g, None, now),
+                    Some(g) => !outdated && wants_draft(g, None, now),
                     None => true,
                 };
                 if draft {

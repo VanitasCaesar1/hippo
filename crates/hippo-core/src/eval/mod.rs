@@ -10,6 +10,7 @@ pub mod context;
 pub mod dreaming;
 pub mod recall;
 pub mod relevant;
+pub mod remember;
 pub mod report;
 pub mod set;
 

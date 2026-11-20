@@ -17,6 +17,14 @@ const RECALL_LINE: &str = "recall: hit@1 16/20, hit@5 16/20, hit@20 16/20, mrr 0
 /// One confirmed correction of the planted error in Backups, nothing damaged.
 const DREAMING_STUB_LINE: &str = "dreaming: corrected 1/7, damaged 0/8, lines lost 0, clean notes changed 0/2; proposals 1, validation failures 0, confirmed 1, rejected 0, applied 1";
 const DREAMING_LINE: &str = "dreaming: skipped: needs --with-model";
+/// The remember suite, offline with its oracle: 0.7.2 reproduced, then
+/// this release.
+const REMEMBER_LINES: [&str; 4] = [
+    "| capture | 2/4 (50 %) | 4/4 (100 %) |",
+    "| delivery | 1/6 (17 %) | 6/6 (100 %) |",
+    "| stale rules given | 1 | 0 |",
+    "Model calls of this release's backfill on the set: 6.",
+];
 
 #[test]
 fn eval_without_a_model_prints_the_pinned_summary_and_writes_nothing() {
@@ -40,6 +48,12 @@ fn eval_without_a_model_prints_the_pinned_summary_and_writes_nothing() {
     assert_eq!(line("context:"), CONTEXT_LINE);
     assert_eq!(line("recall:"), RECALL_LINE);
     assert_eq!(line("dreaming:"), DREAMING_LINE);
+    for want in REMEMBER_LINES {
+        assert!(
+            stdout.lines().any(|l| l == want),
+            "no {want:?} in:\n{stdout}"
+        );
+    }
 
     // Eval built its own home and workspace; the given one is untouched.
     assert_eq!(fs::read_dir(home.path()).unwrap().count(), 0);

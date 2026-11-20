@@ -869,6 +869,12 @@ pub fn same_terms(a: &BTreeSet<String>, b: &BTreeSet<String>) -> bool {
 /// A cluster being built: its terms and its members with their terms.
 type Group = (BTreeSet<String>, Vec<(Evidence, Vec<String>)>);
 
+/// Corrections clustered as the lessons pass did before groups (0.7):
+/// by shared key terms. The eval's reproduction of that release uses it.
+pub fn cluster_by_terms(items: Vec<Item>, offset: UtcOffset) -> Vec<Cluster> {
+    cluster_corrections(items, offset)
+}
+
 fn cluster_corrections(mut items: Vec<(Evidence, Vec<String>)>, offset: UtcOffset) -> Vec<Cluster> {
     items.sort_by_key(|i| i.0.at);
     let mut groups: Vec<Group> = Vec::new();

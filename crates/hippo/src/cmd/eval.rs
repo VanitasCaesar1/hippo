@@ -37,6 +37,14 @@ pub struct Args {
 enum Sub {
     /// Score the relevant notes against what recent sessions used
     Relevant(RelevantArgs),
+    /// The remember suite's oracle model: reads a prompt on stdin, answers from the set's answer key
+    #[command(hide = true)]
+    Oracle {
+        #[arg(long)]
+        key: PathBuf,
+        /// The system prompt
+        system: String,
+    },
 }
 
 #[derive(clap::Args)]
@@ -59,8 +67,17 @@ struct RelevantArgs {
 }
 
 pub fn run(args: Args) -> Result<ExitCode> {
-    if let Some(Sub::Relevant(r)) = args.command {
-        return run_relevant(r);
+    match args.command {
+        Some(Sub::Relevant(r)) => return run_relevant(r),
+        Some(Sub::Oracle { key, system }) => {
+            use std::io::Read as _;
+            let mut prompt = String::new();
+            std::io::stdin().read_to_string(&mut prompt)?;
+            let key = eval::remember::Key::load(&key)?;
+            println!("{}", eval::remember::oracle(&key, &system, &prompt));
+            return Ok(ExitCode::SUCCESS);
+        }
+        None => {}
     }
     let set = args
         .set
@@ -76,6 +93,28 @@ pub fn run(args: Args) -> Result<ExitCode> {
     };
     let report = eval::run(&set, models.as_ref())?;
     print!("{}", report.render());
+    // The remember suite, when the set has one: offline, with its oracle.
+    let key = set.join("remember.toml");
+    if key.is_file() {
+        let key = std::fs::canonicalize(&key)?;
+        let exe = std::env::current_exe()?.display().to_string();
+        let oracle = vec![
+            exe,
+            "eval".to_owned(),
+            "oracle".to_owned(),
+            "--key".to_owned(),
+            key.display().to_string(),
+            "{system_prompt}".to_owned(),
+        ];
+        let loaded = eval::Set::load(&set)?;
+        let result = eval::remember::run(
+            &key,
+            &set.join("notes"),
+            &loaded.entry_note.to_string_lossy(),
+            oracle,
+        )?;
+        print!("\n## Remember\n\n{}", result.summary());
+    }
     Ok(if report.failed() {
         ExitCode::FAILURE
     } else {

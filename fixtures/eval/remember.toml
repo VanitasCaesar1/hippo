@@ -1,0 +1,222 @@
+# The remember suite's synthetic history and answer key
+# (docs/designs/remember.md, "Eval"). Everything here is invented.
+#
+# Five planted rules: one said in other words 48 days apart (pnpm), one
+# taken back weeks later (ask-migrations, reversed by run-migrations), one
+# found only in an account memory and then said once (no-dist), and one
+# said twice in two days (backup-drill). Noise: a correction an agent
+# relays, and a replayed transcript. Sessions with `needs` are where a
+# rule should be given: a long session that changes topic (n3) and a
+# session outside the workspace (o1) among them.
+
+[[rules]]
+id = "pnpm"
+rule = "Use pnpm in every repository; never run npm."
+scope = "machine"
+quotes = [
+  "no, this repo uses pnpm, not npm",
+  "stop running npm install, use pnpm",
+]
+
+[[rules]]
+id = "ask-migrations"
+rule = "Ask the person before running a database migration."
+scope = "workspace"
+quotes = [
+  "never run the migration before asking me",
+  "dont run the migration before asking me",
+]
+
+[[rules]]
+id = "run-migrations"
+rule = "Run database migrations yourself; do not ask first."
+scope = "workspace"
+reverses = "ask-migrations"
+quotes = [
+  "why do you keep asking about the migration, just run it",
+  "why are you asking about the migration again, just run it",
+]
+
+[[rules]]
+id = "no-dist"
+rule = "Never commit generated files under dist/."
+scope = "machine"
+quotes = [
+  "Never commit generated files under dist/.",
+  "dont commit the dist folder, it is generated",
+]
+
+[[rules]]
+id = "backup-drill"
+rule = "Run the restore drill before you change backup retention."
+scope = "workspace"
+quotes = [
+  "no, run the restore drill before you change backup retention",
+  "no, do the restore drill first before changing the backup retention",
+]
+
+[[memory]]
+path = ".claude-work/CLAUDE.md"
+source = "claude-code:work/CLAUDE.md"
+text = """
+# How I work
+
+- Never commit generated files under dist/.
+- ok
+"""
+
+# --- corrections -----------------------------------------------------------
+
+[[sessions]]
+id = "a1"
+days_ago = 60
+turns = [
+  { role = "user", text = "set the upload service up" },
+  { role = "bash", text = "npm install" },
+  { role = "user", text = "no, this repo uses pnpm, not npm" },
+]
+
+[[sessions]]
+id = "m1"
+days_ago = 50
+turns = [
+  { role = "user", text = "add the index to the uploads table" },
+  { role = "bash", text = "rails db:migrate" },
+  { role = "user", text = "never run the migration before asking me" },
+]
+
+[[sessions]]
+id = "m2"
+days_ago = 49
+turns = [
+  { role = "user", text = "rename the owner column" },
+  { role = "bash", text = "rails db:migrate" },
+  { role = "user", text = "dont run the migration before asking me" },
+]
+
+[[sessions]]
+id = "b1"
+days_ago = 30
+turns = [
+  { role = "user", text = "keep backups for 45 days" },
+  { role = "bash", text = "sed -i s/30/45/ backup.conf" },
+  { role = "user", text = "no, run the restore drill before you change backup retention" },
+]
+
+[[sessions]]
+id = "b2"
+days_ago = 29
+turns = [
+  { role = "user", text = "shorten backup retention to 20 days" },
+  { role = "bash", text = "sed -i s/30/20/ backup.conf" },
+  { role = "user", text = "no, do the restore drill first before changing the backup retention" },
+]
+
+[[sessions]]
+id = "a2"
+days_ago = 12
+turns = [
+  { role = "user", text = "set the thumbnail worker up" },
+  { role = "bash", text = "npm install" },
+  { role = "user", text = "stop running npm install, use pnpm" },
+]
+
+# A replayed copy of a2: every turn at one time. Not a new correction.
+[[sessions]]
+id = "x1"
+days_ago = 11
+replayed = true
+turns = [
+  { role = "user", text = "set the thumbnail worker up" },
+  { role = "bash", text = "npm install" },
+  { role = "user", text = "stop running npm install, use pnpm" },
+  { role = "user", text = "continue" },
+]
+
+[[sessions]]
+id = "m3"
+days_ago = 10
+turns = [
+  { role = "user", text = "add the checksum column" },
+  { role = "bash", text = "rails db:migrate:status" },
+  { role = "user", text = "why do you keep asking about the migration, just run it" },
+]
+
+[[sessions]]
+id = "m4"
+days_ago = 9
+turns = [
+  { role = "user", text = "drop the legacy flag column" },
+  { role = "bash", text = "rails db:migrate:status" },
+  { role = "user", text = "why are you asking about the migration again, just run it" },
+]
+
+# An agent relaying a correction: not the person.
+[[sessions]]
+id = "r1"
+days_ago = 8
+turns = [
+  { role = "user", text = "install what the search service needs" },
+  { role = "bash", text = "npm install" },
+  { role = "user", text = "Advisor: stop running npm install, use pnpm" },
+]
+
+[[sessions]]
+id = "d1"
+days_ago = 5
+turns = [
+  { role = "user", text = "build the site and push it" },
+  { role = "bash", text = "git add dist && git commit -m build" },
+  { role = "user", text = "dont commit the dist folder, it is generated" },
+]
+
+# --- sessions that should be given rules -------------------------------------
+
+[[sessions]]
+id = "n1"
+days_ago = 3
+needs = ["pnpm"]
+turns = [
+  { role = "user", text = "install the dependencies for the upload api" },
+]
+
+[[sessions]]
+id = "n2"
+days_ago = 2
+needs = ["run-migrations"]
+turns = [
+  { role = "user", text = "add a column to the uploads table with a database migration" },
+]
+
+# A long session that changes topic: thumbnails first, backups later.
+[[sessions]]
+id = "n3"
+days_ago = 1
+needs = ["backup-drill"]
+turns = [
+  { role = "user", text = "the thumbnail sizes look blurry on retina screens" },
+  { role = "user", text = "try the larger thumbnail size for retina" },
+  { role = "user", text = "the thumbnails are still blurry on retina" },
+  { role = "user", text = "regenerate the thumbnail cache" },
+  { role = "user", text = "check the thumbnail pipeline queue" },
+  { role = "user", text = "good, the thumbnails look sharp now" },
+  { role = "user", text = "now change the backup retention to 60 days for nightly backups" },
+]
+
+[[sessions]]
+id = "n4"
+days_ago = 1
+needs = ["no-dist"]
+turns = [
+  { role = "user", text = "build the frontend bundle and commit the output" },
+]
+
+# Outside the workspace: a side project.
+[[sessions]]
+id = "o1"
+days_ago = 1
+outside = true
+needs = ["pnpm", "no-dist"]
+turns = [
+  { role = "user", text = "start a new side project with a package manager and a build step" },
+]

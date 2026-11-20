@@ -119,6 +119,85 @@ pub fn sweep(home: &Path, now: std::time::SystemTime) {
     }
 }
 
+/// What a later prompt on a new topic gets.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Topical {
+    pub text: String,
+    pub rules: Vec<Ulid>,
+    pub notes: Vec<PathBuf>,
+}
+
+/// A later prompt of `session`: when its topic is new ([`Topic::changed`]),
+/// the kept rules that share its words and were not given yet (at most 3)
+/// and the relevant notes not given yet, within the workspace budget.
+/// `None` when the topic is the same, the session has no state, or there is
+/// nothing new. The state is saved either way.
+pub fn next(
+    cfg: &crate::config::Config,
+    ws: &crate::config::Workspace,
+    session: &str,
+    prompt: &str,
+) -> Result<Option<Topical>> {
+    let Some(mut state) = Topic::load(&cfg.home, session) else {
+        return Ok(None);
+    };
+    let terms = crate::lessons::detect::key_terms(prompt);
+    if !state.changed(&terms, cfg.remember.reinject_every()) {
+        state.save(&cfg.home, session)?;
+        return Ok(None);
+    }
+    let compiled = super::compile(
+        ws,
+        None,
+        Some(prompt),
+        None,
+        None,
+        ws.budget_bytes,
+        super::PartSelection::Optional,
+    )?;
+    let notes = super::new_relevant_lines(&compiled, &state.notes);
+    let rules: Vec<crate::lessons::Rule> = crate::lessons::kept_rules(&cfg.home, Some(ws))
+        .into_iter()
+        .filter(|r| !state.rules.contains(&r.id))
+        .filter(|r| r.terms.iter().any(|t| terms.contains(t)))
+        .take(3)
+        .collect();
+    if notes.is_empty() && rules.is_empty() {
+        state.save(&cfg.home, session)?;
+        return Ok(None);
+    }
+    let budget = ws.budget_bytes;
+    let mut text = String::from("For the new topic:");
+    let mut given_rules = Vec::new();
+    for r in &rules {
+        let line = format!("\n- {}", r.text);
+        if text.len() + line.len() < budget {
+            text.push_str(&line);
+            given_rules.push(r.id);
+        }
+    }
+    let mut given_notes = Vec::new();
+    if !notes.is_empty() && text.len() + 10 < budget {
+        text.push_str("\nrelevant:");
+        for (path, line) in notes {
+            if text.len() + line.len() + 1 < budget {
+                text.push('\n');
+                text.push_str(&line);
+                given_notes.push(path);
+            }
+        }
+    }
+    text.push('\n');
+    state.rules.extend(given_rules.iter().copied());
+    state.notes.extend(given_notes.iter().cloned());
+    state.save(&cfg.home, session)?;
+    Ok(Some(Topical {
+        text,
+        rules: given_rules,
+        notes: given_notes,
+    }))
+}
+
 /// One hook output, as `injections.jsonl` records it: never the prompt.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Injection {

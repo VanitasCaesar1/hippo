@@ -18,6 +18,7 @@ Everything here is synthetic: invented for these tests, and copied from no real 
 | `cursor/` | Cursor agent transcripts under `projects/work-example/agent-transcripts/`: a session, its sub-agent and an older flat transcript, and an `agent-tools` sidecar that is never read | adapter and ingest tests |
 | `opencode/` | SQL that builds OpenCode databases: the schema, seven sessions, and one database of a future schema | adapter, ingest, detect, doctor, Fleet and first-run tests |
 | `eval/` | A synthetic eval set: notes, transcripts and the questions and answers of `set.toml` | `hippo eval`, `crates/hippo/tests/eval.rs` |
+| `eval/remember.toml` | The remember suite's synthetic history and answer key: planted rules, the sessions that say and need them, an account memory ([remember.md](../docs/designs/remember.md#eval)) | `hippo eval`, `crates/hippo/tests/eval.rs` |
 | `feed/` | The feed's registry fixtures: two index files and the raw `theme.css` files (see below) | `hippo-feed`'s `registry.rs` tests and, later, `tests/registry.rs` |
 | `feed/api/` | Golden files of the read-only API: `posts.json` (the front list) and `post.json` (the post of `glossary-terms`), written from the actual output with `HIPPO_UPDATE_GOLDEN=1` and checked by hand; the server's address is written `https://feed.example` | `hippo-feed`'s `tests/api.rs` |
 | `stub-model/` | `model.sh`, a stand-in model and reviewer that print canned replies | `crates/hippo/tests/dream_stub_model.rs` |
