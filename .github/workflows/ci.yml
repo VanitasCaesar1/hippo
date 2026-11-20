@@ -113,3 +113,6 @@ jobs:
       - run: node scripts/agent-e2e/stub-test.mjs
       - run: cargo build -p hippo --locked
       - run: sh scripts/agent-e2e/run.sh target/debug/hippo
+      # The guard's precision on a labelled synthetic history; fails on
+      # any false alarm or miss.
+      - run: node scripts/guard-precision/run.mjs target/debug/hippo 2000

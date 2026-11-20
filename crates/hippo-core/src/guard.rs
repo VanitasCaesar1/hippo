@@ -141,11 +141,12 @@ impl Rule {
 }
 
 /// One allow entry: a host (with an optional path prefix) for
-/// `remote-script`, or a clone origin for `fresh-clone-exec`.
+/// `remote-script`, a clone origin for `fresh-clone-exec`, or a keychain
+/// service or credential path glob for `credential-read`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Allow {
     pub layer: String,
-    /// `host` or `origin`.
+    /// `host`, `origin`, `keychain` or `path`.
     pub what: String,
     pub value: String,
 }
@@ -244,6 +245,13 @@ struct AllowSpec {
     hosts: Vec<String>,
     #[serde(default)]
     clone_origins: Vec<String>,
+    /// Keychain items `credential-read` may read, by service.
+    #[serde(default)]
+    keychain: Vec<String>,
+    /// Credential files `credential-read` may read: globs over the path,
+    /// `~` for the home folder.
+    #[serde(default)]
+    paths: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -313,7 +321,12 @@ fn read_block(text: &str, layer: &str, from: &str, set: &mut RuleSet, problems: 
         }
     };
     let packs = layer.starts_with("pack:");
-    if packs && !(spec.allow.hosts.is_empty() && spec.allow.clone_origins.is_empty()) {
+    if packs
+        && !(spec.allow.hosts.is_empty()
+            && spec.allow.clone_origins.is_empty()
+            && spec.allow.keychain.is_empty()
+            && spec.allow.paths.is_empty())
+    {
         problems.push(format!(
             "{from}: a pack cannot add allow entries; they are ignored"
         ));
@@ -322,6 +335,8 @@ fn read_block(text: &str, layer: &str, from: &str, set: &mut RuleSet, problems: 
         for (what, values) in [
             ("host", &spec.allow.hosts),
             ("origin", &spec.allow.clone_origins),
+            ("keychain", &spec.allow.keychain),
+            ("path", &spec.allow.paths),
         ] {
             for v in values {
                 let v = v

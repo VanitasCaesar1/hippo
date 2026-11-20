@@ -432,7 +432,7 @@ hippo guard check --agent <claude-code|gemini|dsh|opencode>
 hippo guard test [--days <n>] [--json]
 hippo guard install [--agent claude|gemini] [--yes]
 hippo guard uninstall [--agent claude|gemini] [--yes]
-hippo guard allow <host|origin> <value> [--note] [--yes]
+hippo guard allow <host|origin|keychain|path> <value> [--note] [--yes]
 hippo guard status
 hippo guard accept
 ```
@@ -445,7 +445,7 @@ The [guard](security.md#the-guard), warn-only in 0.6.0.
 | `test` | Runs the rules over your indexed calls of the last `--days` (30) and prints, per rule, how many it would warn on, ask about or block once those act, with examples. Acts on nothing and calls no model. |
 | `install` | Lists every Claude Code account's `settings.json` (`$CLAUDE_CONFIG_DIR`, `~/.claude`, `~/.claude-*`), or with `--agent gemini` `~/.gemini/settings.json`, or with `--agent codex` `$CODEX_HOME/hooks.json` (Codex then asks you to trust the hook at its next start, or in `/hooks`), or with `--agent cursor` `~/.cursor/hooks.json`, and the entry it adds; writes with `--yes`. The entry runs this binary by its absolute path. It never writes a workspace's settings. |
 | `uninstall` | Removes the guard's entry, keeping everything else; writes with `--yes`. |
-| `allow` | Adds a host (`remote-script`) or clone origin (`fresh-clone-exec`) to `$HIPPO_HOME/guard/machine.toml`, or with `--note` to the team's guard note. Prints the change; writes with `--yes`. It takes effect after `hippo accept`. |
+| `allow` | Adds a host (`remote-script`), a clone origin (`fresh-clone-exec`), or a keychain service or credential path glob such as `~/.npmrc` (`credential-read`) to `$HIPPO_HOME/guard/machine.toml`, or with `--note` to the team's guard note. Prints the change; writes with `--yes`. It takes effect after `hippo accept`. |
 | `status` | Where the guard is installed, the rules in force, `fail` and the timeout, what waits, and today's counts. |
 
 ```sh

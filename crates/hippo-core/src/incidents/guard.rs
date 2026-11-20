@@ -11,6 +11,7 @@
 //! keys each agent uses (`file_path`, `path`, `absolute_path`, …).
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 use regex::Regex;
@@ -159,8 +160,9 @@ pub(crate) fn file_call(name: &str, input: &str) -> Option<(FileOp, Vec<String>,
     (!paths.is_empty()).then_some((op, paths, text))
 }
 
-/// `path` with the home folder written `~`: `$HOME`, `${HOME}`,
-/// `/Users/<name>`, `/home/<name>` and `/root` all become `~`.
+/// `path` with the home folder written `~`: this machine's home,
+/// `$HOME`, `${HOME}`, `/Users/<name>`, `/home/<name>` and `/root` all
+/// become `~`.
 pub fn home_relative(path: &str) -> String {
     static HOME: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"^(?:\$HOME|\$\{HOME\}|/Users/[^/]+|/home/[^/]+|/root|/var/root)(/|$)")
@@ -172,6 +174,19 @@ pub fn home_relative(path: &str) -> String {
     }
     if p == "~" {
         return "~".into();
+    }
+    // This machine's own home, wherever it is.
+    if let Some(home) = crate::config::user_home() {
+        let home = home.to_string_lossy();
+        let home = home.trim_end_matches('/');
+        if !home.is_empty() {
+            if let Some(rest) = p
+                .strip_prefix(home)
+                .filter(|r| r.is_empty() || r.starts_with('/'))
+            {
+                return format!("~{rest}");
+            }
+        }
     }
     match HOME.captures(p) {
         Some(c) => format!("~{}{}", &c[1], &p[c[0].len()..]),
@@ -270,9 +285,17 @@ const READERS: &[&str] = &[
 
 /// The credential reads in one shell script: (place, the path or the
 /// command, the words).
-fn credential_reads(commands: &[Simple]) -> Vec<(&'static str, String)> {
-    let mut out = Vec::new();
-    for c in commands {
+fn credential_reads(script: &str, commands: &[Simple]) -> Vec<(&'static str, String)> {
+    static SUB: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"\$\(([^()]*)\)").expect("valid regex"));
+    // Command substitutions inside quotes too: a header built from
+    // `"$(security find-generic-password -s … -w)"`.
+    let inner: Vec<Simple> = SUB
+        .captures_iter(script)
+        .flat_map(|c| shell::simple_commands(&c[1]))
+        .collect();
+    let mut out: Vec<(&'static str, String)> = Vec::new();
+    for c in commands.iter().chain(inner.iter()) {
         let Some((program, args)) = c.program() else {
             continue;
         };
@@ -282,7 +305,18 @@ fn credential_reads(commands: &[Simple]) -> Vec<(&'static str, String)> {
                 .is_some_and(|a| a.starts_with("find-") && a.ends_with("-password"))
             && args.contains(&"-w")
         {
-            out.push(("keychain password", format!("security {}", args[0])));
+            // The item, by the service it is stored under (`-s`), else
+            // its account (`-a`): what `hippo guard allow keychain` takes.
+            let item = args
+                .windows(2)
+                .find(|w| w[0] == "-s")
+                .or_else(|| args.windows(2).find(|w| w[0] == "-a"))
+                .map(|w| w[1].trim_matches(|c| c == '"' || c == '\''))
+                .unwrap_or("(no service)");
+            out.push((
+                "keychain password",
+                format!("security {} -s {item}", args[0]),
+            ));
             continue;
         }
         if !READERS.contains(&program.as_str()) {
@@ -330,7 +364,11 @@ static PIPED: LazyLock<Regex> = LazyLock::new(|| {
 /// from standard input: no arguments, `-s`, `-`, or only option flags,
 /// and none of `-c`, `-e`, `-m`, `-E`, `-n`, `-p` or a script file.
 fn reads_script_from_stdin(rest: &str) -> bool {
-    let segment = rest.split(['|', ';', '&', ')', '\n']).next().unwrap_or("");
+    // A closing quote ends the script of `bash -c '…'` too.
+    let segment = rest
+        .split(['|', ';', '&', ')', '\n', '\'', '"', '`'])
+        .next()
+        .unwrap_or("");
     for word in segment.split_whitespace() {
         if word == "--" || word == "-s" || word == "-" {
             return true;
@@ -362,10 +400,20 @@ fn allowed_host(url: &str) -> bool {
 fn remote_scripts(script: &str, commands: &[Simple]) -> Vec<(String, String)> {
     let mut out = Vec::new();
     let (body, _) = shell::heredocs(script);
-    for line in body.lines() {
+    let literal = literal_mask(&body);
+    let mut offset = 0;
+    for line in body.split_inclusive('\n') {
+        let at = offset;
+        offset += line.len();
+        let line = line.trim_end_matches('\n');
         let Some(m) = PIPED.find(line) else {
             continue;
         };
+        // Text inside quotes is an argument, not a command: release notes
+        // that quote an install line (`gh release create --notes "…"`).
+        if literal.get(at + m.start()).copied().unwrap_or(false) {
+            continue;
+        }
         // A pipe into an interpreter that has its own script (`-c`, `-e`,
         // `-m`, a file) gives it data, not code: `| python3 -m json.tool`.
         if m.as_str().contains('|') && !reads_script_from_stdin(&line[m.end()..]) {
@@ -451,8 +499,104 @@ fn remote_scripts(script: &str, commands: &[Simple]) -> Vec<(String, String)> {
     out
 }
 
+/// For each byte of a script, whether it is literal text inside quotes:
+/// single quotes, or double quotes outside a `$(…)` or backticks. The
+/// quoted script of `sh -c '…'`, `bash -c "…"` or `eval "…"` runs, so it
+/// is not literal.
+pub(crate) fn literal_mask(script: &str) -> Vec<bool> {
+    static RUNS: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?:\b(?:sh|bash|zsh|dash|ksh)(?:\s+-[A-Za-z]+)*\s+-[A-Za-z]*c|\beval)\s*$")
+            .expect("valid regex")
+    });
+    #[derive(Clone, Copy, PartialEq)]
+    enum Ctx {
+        Code,
+        Single { runs: bool },
+        Double { runs: bool },
+        Sub,
+        Tick,
+    }
+    let bytes = script.as_bytes();
+    let mut mask = vec![false; bytes.len()];
+    let mut stack = vec![Ctx::Code];
+    let mut i = 0;
+    while i < bytes.len() {
+        let top = *stack.last().unwrap_or(&Ctx::Code);
+        let b = bytes[i];
+        mask[i] = matches!(
+            top,
+            Ctx::Single { runs: false } | Ctx::Double { runs: false }
+        );
+        match top {
+            Ctx::Code | Ctx::Sub | Ctx::Tick => match b {
+                b'\\' => i += 1,
+                b'\'' | b'"' => {
+                    let runs = RUNS.is_match(&script[..i]);
+                    stack.push(if b == b'\'' {
+                        Ctx::Single { runs }
+                    } else {
+                        Ctx::Double { runs }
+                    });
+                }
+                b'$' if bytes.get(i + 1) == Some(&b'(') => {
+                    stack.push(Ctx::Sub);
+                    i += 1;
+                }
+                b'(' if top == Ctx::Sub => stack.push(Ctx::Sub),
+                b')' if top == Ctx::Sub => {
+                    stack.pop();
+                }
+                b'`' if top == Ctx::Tick => {
+                    stack.pop();
+                }
+                b'`' => stack.push(Ctx::Tick),
+                _ => {}
+            },
+            Ctx::Single { .. } => {
+                if b == b'\'' {
+                    stack.pop();
+                }
+            }
+            Ctx::Double { .. } => match b {
+                b'\\' => i += 1,
+                b'"' => {
+                    stack.pop();
+                }
+                b'$' if bytes.get(i + 1) == Some(&b'(') => {
+                    stack.push(Ctx::Sub);
+                    i += 1;
+                }
+                b'`' => stack.push(Ctx::Tick),
+                _ => {}
+            },
+        }
+        i += 1;
+    }
+    mask
+}
+
 // ---------------------------------------------------------------------------
 // fresh-clone-exec
+
+/// Whether a clone's source is another machine: a URL with a host
+/// (`https://`, `ssh://`, `git://`), `user@host:path`, or `owner/repo`
+/// for `gh repo clone`. A local path or `file://` is not a download.
+pub(crate) fn remote_source(url: &str) -> bool {
+    let u = url.trim_matches(|c| c == '"' || c == '\'');
+    if u.starts_with("file://")
+        || u.starts_with('/')
+        || u.starts_with('.')
+        || u.starts_with('~')
+        || u.starts_with('$')
+    {
+        return false;
+    }
+    ["https://", "http://", "ssh://", "git://", "git+"]
+        .iter()
+        .any(|p| u.starts_with(p))
+        || u.split_once('@')
+            .is_some_and(|(_, rest)| rest.contains(':'))
+}
 
 /// `dir` joined to `base` lexically; `dir` as it is when absolute or `~`.
 fn join(base: &str, dir: &str) -> String {
@@ -492,14 +636,14 @@ fn clone_of(program: &str, args: &[&str]) -> Option<(String, String)> {
         .filter(|a| !a.starts_with('-'))
         .collect();
     match (program, plain.as_slice()) {
-        ("git", ["clone", url, rest @ ..]) => {
+        ("git", ["clone", url, rest @ ..]) if remote_source(url) => {
             let dest = rest
                 .first()
                 .map(|d| (*d).to_owned())
                 .unwrap_or_else(|| repo_name(url));
             Some((dest, origin(url)))
         }
-        ("gh", ["repo", "clone", repo, rest @ ..]) => {
+        ("gh", ["repo", "clone", repo, rest @ ..]) if !repo.starts_with(['/', '.', '~', '$']) => {
             let dest = rest
                 .first()
                 .map(|d| (*d).to_owned())
@@ -613,47 +757,126 @@ struct Clone {
 // ---------------------------------------------------------------------------
 // guard-bypass
 
-/// The file a write lands in, if it is one that turns hooks off or holds
-/// hippo's state; and whether only a write that mentions hooks or hippo
-/// counts there (the settings files, which hold much else).
-fn guard_file(path: &str) -> Option<(&'static str, bool)> {
-    let p = home_relative(path);
-    let lower = p.to_ascii_lowercase();
-    let file = lower.rsplit('/').next().unwrap_or("");
-    let parent = lower.rsplit('/').nth(1).unwrap_or("");
-    if parent.starts_with(".claude") && (file == "settings.json" || file == "settings.local.json") {
-        return Some(("Claude Code settings", true));
+/// The homes of this install, as the running process sees them: the
+/// person's and hippo's. Writes count only when they land in these real
+/// places, never because a path merely names `$HIPPO_HOME` or a
+/// `settings.json` (a test's scratch home is not the person's).
+#[derive(Debug, Clone, Default)]
+pub(crate) struct Real {
+    pub home: Option<PathBuf>,
+    pub hippo: Option<PathBuf>,
+}
+
+impl Real {
+    pub(crate) fn now() -> Real {
+        Real {
+            home: crate::config::user_home().map(|h| real_path(&h)),
+            hippo: Some(real_path(&crate::config::home())),
+        }
     }
-    if lower.ends_with("/.codex/hooks.json") || lower == "~/.codex/hooks.json" {
-        return Some(("Codex hooks", false));
+
+    /// `path` as an absolute path on this machine; `None` when it depends
+    /// on a folder the text does not fix: a relative path (its folder is
+    /// not known here), any variable but `$HOME`, or `~` and `$HOME` in a
+    /// script that sets `HOME` itself.
+    pub(crate) fn place(&self, path: &str, home_moved: bool) -> Option<PathBuf> {
+        let p = path.trim_matches(|c| c == '"' || c == '\'');
+        let home_rest = p
+            .strip_prefix("~/")
+            .or_else(|| p.strip_prefix("$HOME/"))
+            .or_else(|| p.strip_prefix("${HOME}/"));
+        let abs = match home_rest {
+            Some(_) if home_moved => return None,
+            Some(rest) => self.home.as_ref()?.join(rest),
+            None if p.starts_with('/') => PathBuf::from(p),
+            None => return None,
+        };
+        Some(real_path(&abs))
     }
-    if lower.ends_with("/.codex/config.toml") || lower == "~/.codex/config.toml" {
-        return Some(("Codex config", true));
+}
+
+/// Whether a script sets `HOME` for itself or a command
+/// (`HOME=/tmp/x cmd`, `export HOME=…`), so its `~` is not the person's.
+pub(crate) fn moves_home(script: &str) -> bool {
+    static SETS: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?:^|[\s;&|(])(?:export\s+)?HOME=").expect("valid regex"));
+    SETS.is_match(script)
+}
+
+/// `path` with `.` and `..` removed and the longest part that exists
+/// resolved through links (`/var` is `/private/var` on macOS).
+pub(crate) fn real_path(path: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for c in path.components() {
+        match c {
+            std::path::Component::ParentDir => {
+                out.pop();
+            }
+            std::path::Component::CurDir => {}
+            c => out.push(c),
+        }
     }
-    if lower.ends_with("/.cursor/hooks.json") {
-        return Some(("Cursor hooks", false));
+    let mut existing = out.as_path();
+    let mut rest = Vec::new();
+    while !existing.exists() {
+        match (existing.parent(), existing.file_name()) {
+            (Some(parent), Some(name)) => {
+                rest.push(name.to_owned());
+                existing = parent;
+            }
+            _ => return out,
+        }
     }
-    if lower.ends_with("/.gemini/settings.json") {
-        return Some(("Gemini CLI settings", true));
+    let mut real = std::fs::canonicalize(existing).unwrap_or_else(|_| existing.to_path_buf());
+    for name in rest.into_iter().rev() {
+        real.push(name);
     }
-    if lower.contains("/.dsh/profiles/") && file == "cordis.patch.yml" {
-        return Some(("dsh profile", true));
-    }
-    if file == "opencode.json" || file == "opencode.jsonc" {
-        return Some(("OpenCode config", true));
-    }
-    if lower.starts_with("~/.hippo/") || lower.starts_with("$hippo_home/") {
-        let rest = lower.split_once('/').map(|(_, r)| r).unwrap_or("");
-        let rest = rest.split_once('/').map(|(_, r)| r).unwrap_or(rest);
-        if rest == "config.toml"
+    real
+}
+
+/// The file a write lands in, if it is one of this install's real files
+/// that turn hooks off or hold hippo's state; and whether only a write
+/// that mentions hooks or hippo counts there (the settings files, which
+/// hold much else).
+fn guard_file(path: &str, real: &Real, home_moved: bool) -> Option<(&'static str, bool)> {
+    let abs = real.place(path, home_moved)?;
+    let state = |rest: &str| {
+        rest == "config.toml"
             || rest == "bin-path"
             || rest.starts_with("guard/")
             || rest.starts_with("accepted/")
-        {
+    };
+    if let Some(rest) = real
+        .hippo
+        .as_ref()
+        .and_then(|h| abs.strip_prefix(h).ok())
+        .map(|r| r.to_string_lossy().into_owned())
+    {
+        if state(&rest) {
             return Some(("hippo's state", false));
         }
     }
-    None
+    let rel = abs
+        .strip_prefix(real.home.as_ref()?)
+        .ok()?
+        .to_string_lossy()
+        .to_ascii_lowercase();
+    let parts: Vec<&str> = rel.split('/').collect();
+    match parts.as_slice() {
+        [account, "settings.json" | "settings.local.json"] if account.starts_with(".claude") => {
+            Some(("Claude Code settings", true))
+        }
+        [".codex", "hooks.json"] => Some(("Codex hooks", false)),
+        [".codex", "config.toml"] => Some(("Codex config", true)),
+        [".cursor", "hooks.json"] => Some(("Cursor hooks", false)),
+        [".gemini", "settings.json"] => Some(("Gemini CLI settings", true)),
+        [".dsh", "profiles", _, "cordis.patch.yml"] => Some(("dsh profile", true)),
+        [".config", "opencode", "opencode.json" | "opencode.jsonc"] => {
+            Some(("OpenCode config", true))
+        }
+        [".hippo", rest @ ..] if state(&rest.join("/")) => Some(("hippo's state", false)),
+        _ => None,
+    }
 }
 
 /// Whether text written into a settings file touches hooks or hippo.
@@ -663,8 +886,9 @@ fn mentions_hooks(text: &str) -> bool {
 }
 
 /// The guard bypasses in one shell script: (what, the words).
-fn shell_bypasses(script: &str, commands: &[Simple]) -> Vec<(&'static str, String)> {
+fn shell_bypasses(script: &str, commands: &[Simple], real: &Real) -> Vec<(&'static str, String)> {
     let mut out = Vec::new();
+    let home_moved = moves_home(script);
     for c in commands {
         let words = || one_line(&c.words.join(" "), SIGNAL_CHARS);
         let Some((program, args)) = c.program() else {
@@ -714,7 +938,7 @@ fn shell_bypasses(script: &str, commands: &[Simple]) -> Vec<(&'static str, Strin
             _ => {}
         }
         for t in targets {
-            let Some((what, needs_mention)) = guard_file(&t) else {
+            let Some((what, needs_mention)) = guard_file(&t, real, home_moved) else {
                 continue;
             };
             let removes = matches!(program.as_str(), "rm" | "unlink" | "truncate" | "mv");
@@ -747,6 +971,7 @@ fn signal(kind: SignalKind, t: &StoredTurn, step: String, text: String, extra: S
 /// The guard's signals in a session's turns.
 pub(crate) fn signals(turns: &[StoredTurn]) -> Vec<Signal> {
     let mut out = Vec::new();
+    let real = Real::now();
     let mut clones: Vec<Clone> = Vec::new();
     // The shell's folder, followed from call to call; `.` until a `cd`.
     let mut cwd = String::from(".");
@@ -782,7 +1007,7 @@ pub(crate) fn signals(turns: &[StoredTurn]) -> Vec<Signal> {
                         }
                     }
                     FileOp::Write => {
-                        if let Some((what, needs_mention)) = guard_file(path) {
+                        if let Some((what, needs_mention)) = guard_file(path, &real, false) {
                             if !needs_mention || mentions_hooks(&text) {
                                 push(
                                     &mut out,
@@ -812,7 +1037,9 @@ pub(crate) fn signals(turns: &[StoredTurn]) -> Vec<Signal> {
                 signal(SignalKind::RemoteScript, t, step.clone(), words, host),
             );
         }
-        for (place, what) in credential_reads(&commands) {
+        let mut reads = credential_reads(&script, &commands);
+        reads.dedup();
+        for (place, what) in reads {
             push(
                 &mut out,
                 signal(
@@ -824,7 +1051,7 @@ pub(crate) fn signals(turns: &[StoredTurn]) -> Vec<Signal> {
                 ),
             );
         }
-        for (what, words) in shell_bypasses(&script, &commands) {
+        for (what, words) in shell_bypasses(&script, &commands, &real) {
             push(
                 &mut out,
                 signal(

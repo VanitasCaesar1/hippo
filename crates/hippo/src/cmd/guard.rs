@@ -78,12 +78,12 @@ pub enum Command {
         #[arg(long)]
         yes: bool,
     },
-    /// Add an allow entry (host or origin) to your machine rules, or the team's note with --note; writes with --yes, and waits for hippo accept
+    /// Add an allow entry (host, origin, keychain service or credential path) to your machine rules, or the team's note with --note; writes with --yes, and waits for hippo accept
     Allow {
-        /// host (for remote-script) or origin (for fresh-clone-exec)
-        #[arg(value_parser = ["host", "origin"])]
+        /// host (for remote-script), origin (for fresh-clone-exec), keychain or path (for credential-read)
+        #[arg(value_parser = ["host", "origin", "keychain", "path"])]
         what: String,
-        /// The host with an optional path prefix, or the clone origin
+        /// The host with an optional path prefix, the clone origin, the keychain service, or a path glob (~ for home)
         value: String,
         /// Write to the workspace's guard note instead of $HIPPO_HOME/guard/machine.toml
         #[arg(long)]
@@ -261,6 +261,10 @@ fn test(days: i64, json: bool) -> Result<ExitCode> {
             "{}: {} warn, {} ask, {} block",
             c.rule, c.warn, c.ask, c.block
         );
+        for r in c.repeats.iter().filter(|r| r.calls > 1) {
+            let shown: String = r.reason.chars().take(140).collect();
+            println!("    {}× {shown}", r.calls);
+        }
         for e in &c.examples {
             let shown: String = e.chars().take(140).collect();
             println!("    {shown}");
@@ -352,12 +356,13 @@ fn allow(what: &str, value: &str, note: bool, yes: bool) -> Result<ExitCode> {
             .chars()
             .any(|c| c.is_whitespace() || c == '"' || c.is_control())
     {
-        bail!("{what}: {value:?} is not a host or origin");
+        bail!("{what}: {value:?} is not a host, origin, keychain service or path");
     }
-    let key = if what == "host" {
-        "hosts"
-    } else {
-        "clone_origins"
+    let key = match what {
+        "host" => "hosts",
+        "keychain" => "keychain",
+        "path" => "paths",
+        _ => "clone_origins",
     };
     let path: PathBuf = if note {
         let Some(ws) = &ws else {

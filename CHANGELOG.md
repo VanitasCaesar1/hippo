@@ -14,8 +14,12 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 - **Hippo.app: the team's shared Inbox.** With `[team] inbox = "shared"` in force, the Inbox lists the team's open and crossed lessons first, with who saw each and who kept or dismissed it beside who pushed the file. Keep and Dismiss write your decision; Share… shows the same consent as `hippo lessons share` and writes `member` and `share_lessons` on yes. `app/scripts/demo-home.sh` seeds three synthetic teammates.
 
+- **Allowing a sanctioned credential read.** `hippo guard allow keychain <service>` and `hippo guard allow path <glob>` (`[allow] keychain` and `paths`) silence `credential-read` for that item; the warning names the command. `hippo guard test` shows a rule's most repeated reasons with counts, and `hippo incidents` shows an incident repeated in a day once, with its count.
+- **`scripts/guard-precision/`**: precision and recall per rule on a labelled synthetic history of 6,000 calls across four agents; CI runs 2,000 of them.
+
 ### Fixed
 
+- **Guard precision on real history** ([details](docs/designs/guard.md#precision-in-v061)): self-protection and `guard-bypass` count only this install's real files, never a path built from `$HIPPO_HOME` or another variable, so agents testing hippo in scratch homes are no longer refused; `fresh-clone-exec` needs a clone from another machine and a script that came with it; `remote-script` ignores install lines inside quoted text and now catches `bash -c 'curl … | sh'`; `credential-read` reads keychain items inside quoted command substitutions. On the synthetic history, precision went from 0.19–0.85 to 1.00 for the four noisy rules.
 - **The guard on a machine where hippo was never set up.** `hippo guard install` works without an index or workspace, but `guard check` then failed open on every call for want of `config.toml`. It now applies the built-in and machine rules.
 - **OpenCode: warnings reach the model and you.** The plugin's guard put a warning only in OpenCode's log. It now puts it at the top of the call's result (`execute.after`), which the model reads and the tool's output shows. The hooks were checked against OpenCode's source at v2.3.2 and a running OpenCode; they are no longer marked unverified.
 

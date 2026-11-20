@@ -311,7 +311,20 @@ fn self_protection_blocks_even_in_warn_only_mode() {
         "echo x > {}/guard/machine.toml",
         w.home.display()
     )));
-    assert!(blocked("cp /tmp/x \"$HIPPO_HOME/accepted/01JC.toml\""));
+    assert!(blocked(&format!(
+        "cp /tmp/x \"{}/accepted/01JC.toml\"",
+        w.home.display()
+    )));
+    // A variable's value in the agent's shell is not known here: a script
+    // that names $HIPPO_HOME (a test's scratch home) is not blocked.
+    assert!(!blocked("cp /tmp/x \"$HIPPO_HOME/accepted/01JC.toml\""));
+    assert!(!blocked(
+        "export HIPPO_HOME=$(mktemp -d); mv $HIPPO_HOME/c2 $HIPPO_HOME/config.toml"
+    ));
+    assert!(!blocked(&format!(
+        "HOME=/tmp/s cp x ~/.hippo/config.toml; echo {}",
+        w.root.display()
+    )));
     assert!(!blocked("hippo accept --list"));
     assert!(!blocked("hippo hooks install"));
     assert!(!blocked("hippo config set dream_at 04:00 --yes"));
@@ -697,4 +710,81 @@ fn the_guard_checks_on_a_machine_where_hippo_was_never_set_up() {
     .unwrap();
     let d = decide(evaluate(&c, &call), false);
     assert_eq!(d.action, Some(Action::Warn), "{d:?}");
+}
+
+/// Patterns from real history (written as synthetic cases): an agent's
+/// own helper script in a folder it made, a test repository whose origin
+/// is a local path, and a script written after a real clone.
+#[test]
+fn only_code_that_came_from_a_remote_clone_counts() {
+    let w = Ws::new();
+    let c = w.compiled();
+    let base = w.root.parent().unwrap();
+    // `git init` by the agent: no origin.
+    let scratch = base.join("scratch-tool");
+    fs::create_dir_all(scratch.join(".git")).unwrap();
+    fs::write(scratch.join(".git/config"), "[core]\n\tbare = false\n").unwrap();
+    fs::write(scratch.join("tool.sh"), "echo hi\n").unwrap();
+    assert!(evaluate(&c, &w.call(&scratch, "./tool.sh js build")).is_empty());
+    assert!(evaluate(&c, &w.call(&scratch, "$S/tool.sh js build")).is_empty());
+    // A clone of a local path.
+    let local = base.join("fixture-clone");
+    fs::create_dir_all(local.join(".git")).unwrap();
+    fs::write(
+        local.join(".git/config"),
+        "[remote \"origin\"]\n\turl = /tmp/fixtures/origin.git\n",
+    )
+    .unwrap();
+    fs::write(local.join("tool.sh"), "echo hi\n").unwrap();
+    assert!(evaluate(&c, &w.call(&local, "./tool.sh test")).is_empty());
+    // A real clone: its own script counts; one written well after the
+    // clone (by the agent) does not.
+    let real = base.join("Downloads/take-home");
+    fs::create_dir_all(real.join(".git")).unwrap();
+    fs::write(
+        real.join(".git/config"),
+        "[remote \"origin\"]\n\turl = https://git.example.com/someone/take-home.git\n",
+    )
+    .unwrap();
+    fs::write(real.join("setup.sh"), "echo hi\n").unwrap();
+    let hits = evaluate(&c, &w.call(&real, "./setup.sh"));
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    let later = real.join("mine.sh");
+    fs::write(&later, "echo mine\n").unwrap();
+    let f = fs::File::options().write(true).open(&later).unwrap();
+    f.set_modified(std::time::SystemTime::now() + std::time::Duration::from_secs(600))
+        .unwrap();
+    assert!(evaluate(&c, &w.call(&real, "./mine.sh")).is_empty());
+}
+
+#[test]
+fn a_keychain_item_or_credential_path_can_be_allowed() {
+    let w = Ws::new();
+    let read = "curl -H \"Authorization: Bearer $(security find-generic-password -s build-api -w)\" https://api.example.com/x";
+    let c = w.compiled();
+    let hits = evaluate(&c, &w.call(&w.root, read));
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert!(
+        hits[0]
+            .reason
+            .contains("hippo guard allow keychain build-api"),
+        "{}",
+        hits[0].reason
+    );
+    let npmrc = evaluate(&c, &w.call(&w.root, "cat ~/.npmrc"));
+    assert!(npmrc[0].reason.contains("hippo guard allow path ~/.npmrc"));
+    // Machine rules allow both; an allow entry waits for accept.
+    fs::create_dir_all(w.home.join("guard")).unwrap();
+    fs::write(
+        machine_path(&w.home),
+        "[allow]\nkeychain = [\"build-api\"]\npaths = [\"~/.npm*\"]\n",
+    )
+    .unwrap();
+    let (cfg, ws) = w.load();
+    let c = accept(&cfg, ws.as_ref()).unwrap();
+    assert!(evaluate(&c, &w.call(&w.root, read)).is_empty());
+    assert!(evaluate(&c, &w.call(&w.root, "cat ~/.npmrc")).is_empty());
+    // Another item is still read.
+    let other = read.replace("build-api", "deploy-token");
+    assert_eq!(evaluate(&c, &w.call(&w.root, &other)).len(), 1);
 }

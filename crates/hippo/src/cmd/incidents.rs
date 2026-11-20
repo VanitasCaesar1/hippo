@@ -136,7 +136,26 @@ fn counted_since(config: &Config) -> Option<String> {
 /// Rows under a heading per local day.
 fn print_days(list: &[Incident], offset: time::UtcOffset, out: &mut dyn Write) -> Result<()> {
     let mut day = None;
+    // The same incident repeated in a day (one keychain item read 151
+    // times) is one row with its count, at its first time.
+    let key = |i: &Incident| {
+        (
+            i.at.to_offset(offset).date(),
+            i.kind.label(),
+            i.cause.label(),
+            i.body.showed.text.clone(),
+        )
+    };
+    let mut repeats: std::collections::HashMap<_, usize> = std::collections::HashMap::new();
     for i in list {
+        *repeats.entry(key(i)).or_default() += 1;
+    }
+    let mut shown = std::collections::HashSet::new();
+    for i in list {
+        if !shown.insert(key(i)) {
+            continue;
+        }
+        let times = repeats.get(&key(i)).copied().unwrap_or(1);
         let d = i.at.to_offset(offset).date();
         if day != Some(d) {
             writeln!(
@@ -157,9 +176,14 @@ fn print_days(list: &[Incident], offset: time::UtcOffset, out: &mut dyn Write) -
             cost.push(format!("{}k tokens", t / 1000));
         }
         let quiet = if i.quiet { " (quiet)" } else { "" };
+        let times = if times > 1 {
+            format!(" · {times}× that day")
+        } else {
+            String::new()
+        };
         writeln!(
             out,
-            "  {}{quiet} · {}",
+            "  {}{quiet} · {}{times}",
             head(i.kind.label(), i.cause.label()),
             i.body.showed.text
         )?;

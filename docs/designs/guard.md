@@ -1,6 +1,6 @@
 # Guard: noticing, and sometimes stopping, risky agent actions
 
-Status: accepted; Part A shipped in v0.5.0, Part B (warn-only) in v0.6.0 ([rollout](#rollout)). Revised 12 November 2026. Shared rules (version floor, local accept, hardening gate, release plan) are in [common.md](common.md).
+Status: accepted; Part A shipped in v0.5.0, Part B (warn-only) in v0.6.0, the guard in Codex and Cursor and its precision fixes in v0.6.1 ([rollout](#rollout)). Revised 20 November 2026. Shared rules (version floor, local accept, hardening gate, release plan) are in [common.md](common.md).
 
 ## The problem
 
@@ -121,7 +121,7 @@ The plugins call `hippo guard check` as a child process, as they already call `h
 - **Part A's allow lists** stay the built-in ones in v0.6.0; the machine and team lists apply to the guard only.
 - **Measured** on a release build, 1,000 calls of mixed shell and file payloads in a scratch home with one team rule: p50 3.4 ms, p95 6.1 ms, p99 6.4 ms. A test keeps the median of a debug build under 100 ms.
 
-**What v0.6.1 changed.**
+#### What v0.6.1 changed
 
 - **End to end in the real agents.** `scripts/agent-e2e/` holds a stub model (`stub-model.mjs`, speaking the Anthropic Messages, OpenAI chat completions, OpenAI Responses and Gemini APIs, and refusing every proxied outside host) and `run.sh`, which installs the guard the way a user does in a scratch home for each agent and runs one headless task. Results on 20 November 2026, with the agents' default settings otherwise:
 
@@ -151,6 +151,27 @@ Read from Codex's source at tag `rust-v0.170.0` (commit `29eb79e`, 17 November 2
 - **Failure.** A hook that times out, crashes or exits non-zero is a failed run, and the call goes on.
 
 So hippo answers Codex as it answers Claude Code, except that nobody can be asked: `guard check --agent codex` treats every Codex call as headless, so an `ask` (once `ask` takes effect) is a `deny` with the reason saying nobody could be asked.
+
+#### Precision in v0.6.1
+
+The first measurement on real history (one person's 30 days, 378,365 calls, run by the maintainer) found four sources of noise. Each is fixed, and each pattern is a synthetic regression case:
+
+- **`credential-read`** was right every time, but a sanctioned keychain item read on every call is alert fatigue. Machine rules and the guard note take `keychain = ["<service>"]` and `paths = ["<glob>"]` in `[allow]` (`hippo guard allow keychain <service>`, `hippo guard allow path '~/.npmrc'`); both are loosenings and wait for `hippo accept`. The reason names the item and the exact allow command. A keychain read inside a quoted command substitution (`-H "Bearer $(security find-generic-password -s x -w)"`) is now read too. `hippo guard test` lists a rule's most repeated reasons with their counts, and `hippo incidents` shows the same incident repeated in a day once, with `N× that day`.
+- **`fresh-clone-exec`** fired on an agent's own helper scripts in folders it made (`git init`, no origin) and on test repositories whose origin is a local path. Now a repository counts only when its origin is another machine (`https://`, `ssh://`, `git://`, `user@host:`), in a transcript's `git clone` and on disk, and a script whose file was written more than two minutes after the clone does not count.
+- **Self-protection and `guard-bypass`** fired on builder agents editing scratch state: `mv $HIPPO_HOME/c2 $HIPPO_HOME/config.toml` with a temporary `HIPPO_HOME`, a fixture `.claude/settings.json` in a test workspace, `sed -i … $E/home/.codex/config.toml`. Ten of those would have been refused. Now only this install's real paths count: the hook's own `$HIPPO_HOME` and `~/.hippo`, and the person's own user-level agent files (`~/.claude*/settings*.json`, `~/.codex/hooks.json` and `config.toml`, `~/.cursor/hooks.json`, `~/.gemini/settings.json`, the dsh profiles, `~/.config/opencode/opencode.json`), compared as real absolute paths. A path built from any variable but `$HOME`, a relative path in a transcript, or `~` in a script that sets `HOME` gives no match. A workspace's committed `.claude/settings*.json` no longer counts as a bypass: hippo's guard is never there.
+- **`remote-script`** fired on an install line inside quoted text (release notes passed to `gh release create --notes "…"`). Text inside quotes is now an argument, not a command, except the quoted script of `sh -c`, `bash -c` and `eval`; and `bash -c 'curl … | sh'`, which v0.6.0 missed because of the closing quote, now counts.
+
+`scripts/guard-precision/` measures it on a labelled synthetic history written to look like real use: 6,000 calls in Claude Code, Codex, Gemini CLI and OpenCode payload shapes (tests, git, deploys, vendor installers on the allow list, look-alikes, scratch-home testing, helper scripts, and 927 calls that should fire). On the same history:
+
+| Rule | Precision before (v0.6.0 rules) | Recall before | Precision now | Recall now |
+|---|---|---|---|---|
+| `remote-script` | 0.846 | 0.853 | 1.000 | 1.000 |
+| `fresh-clone-exec` | 0.195 | 1.000 | 1.000 | 1.000 |
+| `credential-read` | 1.000 | 0.544 | 1.000 | 1.000 |
+| `guard-bypass` | 0.193 | 1.000 | 1.000 | 1.000 |
+| self-protection | 0.481 (55 false refusals) | 1.000 | 1.000 | 1.000 |
+
+The same author wrote the rules and the history, so the "now" column is a floor on parsing mistakes; the maintainer's real history is measured again on the release. CI runs 2,000 calls of it and fails on any false alarm or miss. A check takes p50 3.1 ms and p95 6.3 ms there, process start included.
 
 ### Cursor's preToolUse contract
 

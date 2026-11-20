@@ -3,7 +3,7 @@
 //! cloned in the last day, and the `match` and `path` rules. Then the
 //! answer in each agent's hook format.
 
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -333,13 +333,23 @@ fn kind_hit(compiled: &Compiled, in_ws: bool, kind: &str, detail: &str, text: &s
         "fresh-clone-exec" => format!(
             "this runs the code of a repository cloned recently ({shown}): its install and build scripts run with the person's access. An OS sandbox is the safer place for an unfamiliar repository."
         ),
-        "credential-read" => {
-            let path = text.rsplit(' ').next().unwrap_or("");
-            format!(
-                "this reads a credential file ({detail}: {}).",
-                kinds::shown(&kinds::home_relative(path))
-            )
-        }
+        "credential-read" => match text.split_once(" -s ") {
+            // `security find-generic-password -s <service> -w`.
+            Some((_, service)) => {
+                let service = kinds::shown(service.trim());
+                format!(
+                    "this reads a password from the keychain (service {service}). If the person expects this read, they can run: hippo guard allow keychain {service}"
+                )
+            }
+            None => {
+                let path = kinds::shown(&kinds::home_relative(
+                    text.rsplit(' ').next().unwrap_or(""),
+                ));
+                format!(
+                    "this reads a credential file ({detail}: {path}). If the person expects this read, they can run: hippo guard allow path {path}"
+                )
+            }
+        },
         _ => format!("this changes {detail}, which turns hooks off or changes hippo's state."),
     };
     Hit {
@@ -375,6 +385,16 @@ fn allowed(compiled: &Compiled, in_ws: bool, kind: &str, text: &str, detail: &st
                     .all(|u| entries("host").any(|h| u.starts_with(h)))
         }
         "fresh-clone-exec" => entries("origin").any(|o| detail.starts_with(o)),
+        // A keychain item by its service, a file by a glob over its path
+        // (`~/.npmrc`, `~/.config/gcloud/*`).
+        "credential-read" => match text.split_once(" -s ") {
+            Some((_, service)) => entries("keychain").any(|k| k == service.trim()),
+            None => {
+                let path = kinds::home_relative(text.rsplit(' ').next().unwrap_or(""));
+                entries("path")
+                    .any(|g| glob::Pattern::new(g).is_ok_and(|p| p.matches(&path)) || g == path)
+            }
+        },
         _ => false,
     }
 }
@@ -390,23 +410,37 @@ fn url_re() -> &'static regex::Regex {
 /// the last day, outside the workspace: the coding-assignment case across
 /// calls, read from the disk. Returns the clone's origin.
 fn fresh_clone_run(compiled: &Compiled, in_ws: bool, script: &str, cwd: &Path) -> Option<String> {
-    let mut dir = cwd.to_path_buf();
+    let home_moved = kinds::moves_home(script);
+    let mut dir = Some(cwd.to_path_buf());
     for c in shell::simple_commands(script) {
         let Some((program, args)) = c.program() else {
             continue;
         };
         if program == "cd" || program == "pushd" {
             if let Some(d) = args.first() {
-                dir = resolve(&dir, d, None);
+                dir = resolve(dir.as_deref(), d, home_moved);
             }
             continue;
         }
         let Some(named) = kinds::executes_repo_code(&program, &args) else {
             continue;
         };
+        // The script it runs, when it names one (`./tool.sh`, `sh x.sh`).
+        let program_word = c.words.iter().find(|w| !w.contains('='));
+        let script_file = program_word
+            .filter(|w| w.ends_with(".sh") || w.starts_with("./"))
+            .cloned()
+            .or_else(|| {
+                args.iter()
+                    .find(|a| a.ends_with(".sh"))
+                    .map(|a| (*a).to_owned())
+            });
         let at = match named {
-            Some(d) => resolve(&dir, &d, None),
+            Some(d) => resolve(dir.as_deref(), &d, home_moved),
             None => dir.clone(),
+        };
+        let Some(at) = at else {
+            continue;
         };
         if compiled.in_workspace(&at) {
             continue;
@@ -424,10 +458,30 @@ fn fresh_clone_run(compiled: &Compiled, in_ws: bool, script: &str, cwd: &Path) -
         if !fresh {
             continue;
         }
-        let origin = std::fs::read_to_string(git.join("config"))
+        // Only a repository downloaded from another machine counts: a
+        // folder an agent made with `git init`, or a clone of a local path,
+        // is the agent's own work, not someone else's code.
+        let Some(origin) = std::fs::read_to_string(git.join("config"))
             .ok()
             .and_then(|text| origin_url(&text))
-            .unwrap_or_else(|| "no origin".to_owned());
+        else {
+            continue;
+        };
+        // A script written after the clone came from the agent, not from
+        // the repository.
+        if let Some(f) = script_file
+            .as_deref()
+            .and_then(|f| resolve(dir.as_deref(), f, home_moved))
+        {
+            let after = std::fs::metadata(&f)
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|m| m.duration_since(made).ok())
+                .is_some_and(|d| d > std::time::Duration::from_secs(120));
+            if after {
+                continue;
+            }
+        }
         let allowed_origin = kinds::ALLOWED_ORIGINS
             .iter()
             .copied()
@@ -459,6 +513,9 @@ fn origin_url(config: &str) -> Option<String> {
         if in_origin {
             if let Some(url) = t.strip_prefix("url").map(str::trim_start) {
                 let url = url.strip_prefix('=')?.trim();
+                if !kinds::remote_source(url) {
+                    return None;
+                }
                 let u = url
                     .trim_start_matches("https://")
                     .trim_start_matches("http://")
@@ -492,54 +549,39 @@ fn expand_home(path: &str) -> String {
     path.to_owned()
 }
 
-/// `word` as an absolute path: `~`, `$HOME`, `$HIPPO_HOME` expanded,
-/// relative to `cwd`, `.` and `..` removed, and the part that exists
-/// resolved through links.
-fn resolve(cwd: &Path, word: &str, hippo_home: Option<&Path>) -> PathBuf {
+/// `word` as a real absolute path, from the folder `cwd`: `~` and
+/// `$HOME` are the person's home unless the script moves `HOME`; any other
+/// variable (`$HIPPO_HOME` too: its value in the agent's shell is not
+/// known here) or an unknown folder gives `None`.
+fn resolve(cwd: Option<&Path>, word: &str, home_moved: bool) -> Option<PathBuf> {
     let word = word.trim_matches(|c| c == '"' || c == '\'');
-    let mut text = expand_home(word);
-    if let Some(home) = hippo_home {
-        for var in ["$HIPPO_HOME", "${HIPPO_HOME}"] {
-            if let Some(rest) = text.strip_prefix(var) {
-                text = format!("{}{rest}", home.display());
-                break;
-            }
-        }
+    if word.starts_with('/')
+        || word.starts_with('~')
+        || word.starts_with("$HOME")
+        || word.starts_with("${HOME}")
+    {
+        let text = if word == "~" || word == "$HOME" || word == "${HOME}" {
+            "~/".to_owned()
+        } else {
+            word.to_owned()
+        };
+        return kinds::Real::now().place(&text, home_moved);
     }
-    let joined = cwd.join(&text);
-    let mut out = PathBuf::new();
-    for c in joined.components() {
-        match c {
-            Component::ParentDir => {
-                out.pop();
-            }
-            Component::CurDir => {}
-            c => out.push(c),
-        }
+    if word.contains('$') || word.contains('`') {
+        return None;
     }
-    // Resolve the longest part that exists (`/var` → `/private/var`).
-    let mut existing = out.as_path();
-    let mut rest = Vec::new();
-    while !existing.exists() {
-        match (existing.parent(), existing.file_name()) {
-            (Some(parent), Some(name)) => {
-                rest.push(name.to_owned());
-                existing = parent;
-            }
-            _ => return out,
-        }
-    }
-    let mut real = std::fs::canonicalize(existing).unwrap_or_else(|_| existing.to_path_buf());
-    for name in rest.into_iter().rev() {
-        real.push(name);
-    }
-    real
+    Some(kinds::real_path(&cwd?.join(word)))
 }
 
-/// The places only the person may write: `$HIPPO_HOME/guard/`,
-/// `$HIPPO_HOME/accepted/`, `$HIPPO_HOME/config.toml`.
+/// The places only the person may write, in this install's real
+/// homes: `$HIPPO_HOME/guard/`, `$HIPPO_HOME/accepted/`,
+/// `$HIPPO_HOME/config.toml` (the hook's own `$HIPPO_HOME`, and
+/// `~/.hippo`).
 fn protected(home: &Path, path: &Path) -> Option<&'static str> {
-    let homes = [home.to_path_buf(), PathBuf::from(expand_home("~/.hippo"))];
+    let homes = [
+        kinds::real_path(home),
+        kinds::real_path(Path::new(&expand_home("~/.hippo"))),
+    ];
     for h in homes {
         if path == h.join("config.toml") {
             return Some("$HIPPO_HOME/config.toml");
@@ -564,13 +606,13 @@ fn self_protection(
     script: Option<&str>,
     files: Option<&(kinds::FileOp, Vec<String>, String)>,
 ) -> Vec<Hit> {
-    let cwd = call.cwd.clone().unwrap_or_else(|| PathBuf::from("/"));
+    let cwd = call.cwd.clone();
     let mut found: Vec<String> = Vec::new();
     if let Some((op, paths, _)) = files {
         if *op == kinds::FileOp::Write {
             for p in paths {
                 if let Some(place) =
-                    protected(&compiled.home, &resolve(&cwd, p, Some(&compiled.home)))
+                    resolve(cwd.as_deref(), p, false).and_then(|r| protected(&compiled.home, &r))
                 {
                     found.push(format!("a write to {place}"));
                 }
@@ -578,6 +620,7 @@ fn self_protection(
         }
     }
     if let Some(script) = script {
+        let home_moved = kinds::moves_home(script);
         let mut dir = cwd.clone();
         for c in shell::simple_commands(script) {
             let Some((program, args)) = c.program() else {
@@ -585,7 +628,7 @@ fn self_protection(
             };
             if program == "cd" || program == "pushd" {
                 if let Some(d) = args.first() {
-                    dir = resolve(&dir, d, Some(&compiled.home));
+                    dir = resolve(dir.as_deref(), d, home_moved);
                 }
                 continue;
             }
@@ -635,8 +678,8 @@ fn self_protection(
                 _ => {}
             }
             for t in targets {
-                if let Some(place) =
-                    protected(&compiled.home, &resolve(&dir, &t, Some(&compiled.home)))
+                if let Some(place) = resolve(dir.as_deref(), &t, home_moved)
+                    .and_then(|r| protected(&compiled.home, &r))
                 {
                     found.push(format!("a write to {place}"));
                     break;
@@ -694,6 +737,16 @@ pub struct TestCount {
     pub block: usize,
     /// Up to three of the calls, redacted and cut short.
     pub examples: Vec<String>,
+    /// The same reason repeated, most first (at most five): one keychain
+    /// item read 151 times is one line, not 151.
+    pub repeats: Vec<Repeat>,
+}
+
+/// One reason a rule gave, and how many calls gave it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct Repeat {
+    pub reason: String,
+    pub calls: usize,
 }
 
 /// Runs the compiled rules over the indexed calls of the last `days` days,
@@ -750,8 +803,20 @@ pub fn test_history(
                     let text = kinds::shell_script(name, raw).unwrap_or_else(|| raw.to_owned());
                     c.examples.push(one_line(&text));
                 }
+                match c.repeats.iter_mut().find(|r| r.reason == hit.reason) {
+                    Some(r) => r.calls += 1,
+                    None => c.repeats.push(Repeat {
+                        reason: hit.reason.clone(),
+                        calls: 1,
+                    }),
+                }
             }
         }
+    }
+    for c in &mut counts {
+        c.repeats
+            .sort_by(|a, b| b.calls.cmp(&a.calls).then(a.reason.cmp(&b.reason)));
+        c.repeats.truncate(5);
     }
     counts.sort_by(|a, b| {
         (b.warn + b.ask + b.block)
