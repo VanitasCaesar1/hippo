@@ -106,6 +106,10 @@ Hosts that appear in hippo's code: `github.com` (release downloads and pack and 
 
 `crates/hippo-feed` is a separate web server for a hosted pack feed; it is not part of the `hippo` binary or Hippo.app and is not installed by any of the above.
 
+## Agent memories hippo can read
+
+`hippo lessons sources` lists the rules files and memories of your agents that hippo finds by name: each Claude Code account's `CLAUDE.md` and its auto-memory files, `$CODEX_HOME/AGENTS.md`, `~/.cursor/rules/`, `~/.gemini/GEMINI.md`. Listing them reads folder names only. hippo reads a source's files only after you turn it on (`hippo lessons sources --on <id>`, in a terminal; the guard blocks an agent's attempt), never writes them, and sends their rule lines, redacted, only to your lessons and review runners, as it sends transcript quotes ([remember.md](designs/remember.md#rules-from-where-they-already-live)).
+
 ## Files written outside `~/.hippo` and your project
 
 - The hooks files above, merged with what is there (written atomically; a file that is not a JSON object is refused and left alone). `hippo hooks uninstall` removes only hippo's entries.
@@ -137,6 +141,7 @@ Hippo.app is signed ad hoc and not notarised: the checksum, not Apple, is what s
 - It never changes a file's quarantine attribute or other extended attributes, and never needs `sudo`.
 - It never sends telemetry or checks for updates.
 - No hook calls a model, and no change reaches a note without a second model's confirmation recorded as a receipt.
+- It never writes an agent's memory or rules files (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, Cursor rules, auto-memory).
 - It never writes Codex's `config.toml` or the trust Codex keeps for hooks: trusting hippo's hooks is your decision in Codex.
 
 Found something this page gets wrong? Report it privately: [SECURITY.md](../SECURITY.md).

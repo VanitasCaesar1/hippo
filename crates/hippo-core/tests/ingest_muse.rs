@@ -64,6 +64,7 @@ fn ingest_reads_a_muse_log_into_a_session_without_leaks() {
         reviewer_command_override: None,
         member: None,
         share_lessons: None,
+        remember: Default::default(),
         fallback: Default::default(),
         roles: Default::default(),
         runners: Default::default(),

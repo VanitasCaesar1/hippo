@@ -1126,6 +1126,7 @@ fn a_newer_rule_that_reverses_a_kept_one_replaces_it_when_kept() {
             dry_run: false,
             backfill: true,
             max_calls: 10,
+            places: memory::Places::default(),
         },
     )
     .unwrap();
@@ -1188,4 +1189,71 @@ fn a_newer_rule_that_reverses_a_kept_one_replaces_it_when_kept() {
     let store = groups::Store::load(&s.cfg.home).unwrap();
     let g = store.of_lesson(old.id).unwrap();
     assert!(!wants_draft(g, Some(&old), now + Duration::days(60)));
+}
+
+#[test]
+fn a_rule_in_an_agent_memory_that_is_on_is_reviewed_and_kept_machine_wide() {
+    let mut s = grouped();
+    let home = tempfile::tempdir().unwrap();
+    let put = |p: &str, t: &str| {
+        let p = home.path().join(p);
+        fs::create_dir_all(p.parent().unwrap()).unwrap();
+        fs::write(p, t).unwrap();
+    };
+    put(
+        ".claude-work/CLAUDE.md",
+        "# Me\n\n- Use pnpm in every repository, never npm.\n- ok\n",
+    );
+    put(
+        ".gemini/GEMINI.md",
+        "- Answer in French in every session.\n",
+    );
+    s.cfg.remember.memory_sources = vec!["claude-code:work/CLAUDE.md".to_owned()];
+    let index = s.index();
+    crate::rollup::refresh(&s.cfg.home, Some(&s.ws), &index).unwrap();
+    says(&s, "match", "[]");
+    says(
+        &s,
+        "reviewer",
+        r#"{"verdict": "confirm", "notes": "a lasting tool rule"}"#,
+    );
+    let opts = ScanOptions {
+        days: 7,
+        dry_run: false,
+        backfill: false,
+        max_calls: 10,
+        places: memory::Places {
+            user_home: Some(home.path().to_path_buf()),
+            claude_config_dir: None,
+            codex_home: None,
+        },
+    };
+    let out = scan_with(&s.cfg, &s.ws, &opts).unwrap();
+    assert_eq!(out.confirmed.len(), 1, "{:?}", out.notes);
+    let l = &out.confirmed[0];
+    assert_eq!(l.rule, "Use pnpm in every repository, never npm.");
+    assert_eq!(
+        l.links.source.as_deref(),
+        Some("claude-code:work/CLAUDE.md")
+    );
+    assert_eq!(l.links.scope, Some(Scope::Machine));
+    assert!(l.target.is_none());
+    assert_eq!(l.review.as_ref().unwrap().reviewer, memory::REVIEWER);
+    // The reviewer saw the line as untrusted data, with its source.
+    let asked = fs::read_to_string(s.stubs.path().join("reviewer.stdin")).unwrap();
+    assert!(asked.contains("<<<UNTRUSTED line>>>") && asked.contains("claude-code:work/CLAUDE.md"));
+    // A second scan reads the line again and makes nothing new.
+    let again = scan_with(&s.cfg, &s.ws, &opts).unwrap();
+    assert!(again.confirmed.is_empty());
+
+    let note = s.workspace.path().join("notes/Agent rules.md");
+    let before = fs::read_to_string(&note).unwrap();
+    let kept = keep_rule(&s.cfg, Some(&s.ws), l.id, None, None, false, s.now).unwrap();
+    assert_eq!(kept.note, None);
+    assert_eq!(fs::read_to_string(&note).unwrap(), before);
+    assert_eq!(get(&s.cfg.home, l.id).unwrap().status, Status::Kept);
+    let log = fs::read_to_string(kept_log(&s.cfg.home)).unwrap();
+    assert!(log.contains(&kept.receipt.to_string()) && log.contains("\"keep\""));
+    // A memory lesson is never shared with a team.
+    assert!(shareable(&s.cfg, &s.ws).unwrap().is_empty());
 }

@@ -646,9 +646,12 @@ fn self_protection(
                     }
                     ["hooks", "uninstall", ..] => Some("hippo hooks uninstall".to_owned()),
                     ["lessons", "share", ..] => Some("hippo lessons share".to_owned()),
+                    ["lessons", "sources", ..] if args.contains(&"--on") => {
+                        Some("hippo lessons sources --on".to_owned())
+                    }
                     ["config", op @ ("set" | "unset" | "add" | "remove"), key, ..]
                         if crate::settings::SECURITY_KEYS.contains(key)
-                            || *key == "share_lessons" =>
+                            || crate::settings::PERSON_KEYS.contains(key) =>
                     {
                         Some(format!("hippo config {op} {key}"))
                     }

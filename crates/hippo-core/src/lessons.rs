@@ -12,9 +12,10 @@
 pub mod detect;
 pub mod draft;
 pub mod groups;
+pub mod memory;
 pub mod team;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -536,6 +537,142 @@ pub fn keep_lesson(
     })
 }
 
+/// What keeping a rule did, wherever it went.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeptRule {
+    pub lesson: Lesson,
+    /// The note it was written into; `None` for a machine rule, which
+    /// lives in `$HIPPO_HOME` only.
+    pub note: Option<PathBuf>,
+    /// The receipt: a note change's, or the line in `lessons/kept.jsonl`.
+    pub receipt: Ulid,
+    /// What became of the rules it replaces, one line each.
+    pub replaced: Vec<String>,
+}
+
+/// `$HIPPO_HOME/lessons/kept.jsonl`: one line per keep or undo of a rule
+/// that lives in `$HIPPO_HOME` only.
+pub fn kept_log(home: &Path) -> PathBuf {
+    dir(home).join("kept.jsonl")
+}
+
+/// Keeps pending lesson `id` where it belongs: a machine rule (a memory
+/// lesson, or one the drafter scoped `machine`) in `$HIPPO_HOME` only,
+/// never in a note; any other into its target note, as [`keep`] does.
+/// `into_note` writes a machine rule with a target note into that note
+/// instead, as a workspace rule.
+pub fn keep_rule(
+    cfg: &Config,
+    ws: Option<&Workspace>,
+    id: Ulid,
+    title: Option<&str>,
+    text: Option<&str>,
+    into_note: bool,
+    now: OffsetDateTime,
+) -> Result<KeptRule> {
+    let mut lesson = get(&cfg.home, id)?;
+    let machine =
+        lesson.target.is_none() || (lesson.links.scope == Some(Scope::Machine) && !into_note);
+    if !machine {
+        let ws = ws.ok_or(Error::NoWorkspace)?;
+        if into_note {
+            lesson.links.scope = Some(Scope::Workspace);
+        }
+        let kept = keep_lesson(cfg, ws, lesson, title, text, now)?;
+        return Ok(KeptRule {
+            note: Some(kept.proposal.note.clone()),
+            receipt: kept.receipt.id,
+            replaced: kept.replaced,
+            lesson: kept.lesson,
+        });
+    }
+    if lesson.status != Status::Pending {
+        return Err(Error::InvalidProposal(format!(
+            "lesson {id} is not pending"
+        )));
+    }
+    let edited = title.is_some_and(|t| t.trim() != lesson.title)
+        || text.is_some_and(|t| t.trim() != lesson.rule);
+    if let Some(t) = title {
+        lesson.title = t.trim().to_owned();
+    }
+    if let Some(t) = text {
+        lesson.rule = t.trim().to_owned();
+    }
+    if lesson.title.is_empty() || lesson.rule.is_empty() {
+        return Err(Error::InvalidProposal(
+            "a rule needs a title and a text".to_owned(),
+        ));
+    }
+    let receipt = Ulid::generate();
+    let by = keeper();
+    lesson.status = Status::Kept;
+    lesson.links.scope = Some(Scope::Machine);
+    lesson.updated = now;
+    lesson.kept = Some(KeptBy {
+        receipt,
+        at: now,
+        edited,
+        by: Some(by),
+    });
+    log_kept(&cfg.home, receipt, &lesson, "keep", now)?;
+    lesson.save(&cfg.home)?;
+    let mut replaced = Vec::new();
+    for old in lesson.links.supersedes.clone() {
+        replaced.push(match ws {
+            Some(ws) => supersede(cfg, ws, old, id, now)?,
+            None => supersede_record(cfg, old, id, now)?,
+        });
+    }
+    Ok(KeptRule {
+        lesson,
+        note: None,
+        receipt,
+        replaced,
+    })
+}
+
+/// Appends one line to [`kept_log`].
+fn log_kept(
+    home: &Path,
+    receipt: Ulid,
+    lesson: &Lesson,
+    action: &str,
+    now: OffsetDateTime,
+) -> Result<()> {
+    use std::io::Write as _;
+    let path = kept_log(home);
+    fs::create_dir_all(dir(home)).map_err(|e| Error::io_at(&dir(home), e))?;
+    let line = serde_json::json!({
+        "receipt": receipt.to_string(),
+        "lesson": lesson.id.to_string(),
+        "action": action,
+        "at": now.format(&time::format_description::well_known::Rfc3339).unwrap_or_default(),
+        "by": lesson.kept.as_ref().and_then(|k| k.by),
+        "title": lesson.title,
+        "rule": lesson.rule,
+    });
+    let mut f = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|e| Error::io_at(&path, e))?;
+    writeln!(f, "{line}").map_err(|e| Error::io_at(&path, e))?;
+    Ok(())
+}
+
+/// [`supersede`] with no workspace: the record only.
+fn supersede_record(cfg: &Config, old: Ulid, by: Ulid, now: OffsetDateTime) -> Result<String> {
+    let mut lesson = get(&cfg.home, old)?;
+    let line = format!("replaced: {}", lesson.title);
+    lesson.status = Status::Dismissed;
+    lesson.links.superseded_by = Some(by);
+    lesson.closed_sessions = Some(lesson.seen.sessions);
+    lesson.updated = now;
+    lesson.save(&cfg.home)?;
+    Ok(line)
+}
+
 /// Closes lesson `old`, which kept lesson `by` replaces: status
 /// `dismissed` with `superseded_by`, and, when it was kept into a note, its
 /// bullet removed through a proposal and a confirm receipt whose reviewer
@@ -912,7 +1049,7 @@ pub fn keeper() -> Keeper {
 }
 
 /// How [`scan_with`] runs.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct ScanOptions {
     /// Days of failures to read (1 to 30); corrections are read for
     /// [`CORRECTION_DAYS`], or all of them in a backfill.
@@ -923,6 +1060,9 @@ pub struct ScanOptions {
     pub backfill: bool,
     /// Match calls the run may make.
     pub max_calls: usize,
+    /// Where agent memories are looked for; only sources the person turned
+    /// on are read.
+    pub places: memory::Places,
 }
 
 /// The days of corrections a scan places, when it is not a backfill.
@@ -949,6 +1089,7 @@ pub fn scan(cfg: &Config, ws: &Workspace, days: u32, dry_run: bool) -> Result<Sc
             dry_run,
             backfill: false,
             max_calls: groups::MATCH_CALLS_PER_RUN,
+            places: memory::Places::here(),
         },
     )
 }
@@ -1022,26 +1163,42 @@ pub fn scan_with(cfg: &Config, ws: &Workspace, opts: &ScanOptions) -> Result<Sca
     };
     let (_, items) = detect::corrections(&index, &rollup, corrections_since)?;
     let mut store = groups::Store::load(&cfg.home)?;
-    let placed = {
-        let titles = |g: &groups::Group| {
-            g.lesson
-                .and_then(|id| records.iter().find(|l| l.id == id))
-                .filter(|l| !l.title.is_empty())
-                .map(|l| l.title.clone())
-        };
-        groups::place(
-            &mut store,
-            items,
-            groups::Calls::Model(cfg, opts.max_calls),
-            &titles,
-            now,
-        )
+    let titles = |g: &groups::Group| {
+        g.lesson
+            .and_then(|id| records.iter().find(|l| l.id == id))
+            .filter(|l| !l.title.is_empty())
+            .map(|l| l.title.clone())
     };
-    out.state.model_calls += placed.calls;
-    out.state.match_calls = placed.calls;
-    out.state.placed = placed.local + placed.new + placed.model + placed.unmatched;
-    out.state.left = placed.left;
-    out.notes.extend(placed.notes.iter().cloned());
+    let placed = groups::place(
+        &mut store,
+        items,
+        groups::Calls::Model(cfg, opts.max_calls),
+        &titles,
+        now,
+    );
+    // Rules from the agent memories the person turned on.
+    let mut lines = Vec::new();
+    for source in memory::discover(&opts.places) {
+        if memory::state(cfg, &source.id) == memory::State::On {
+            for line in memory::lines(&source) {
+                lines.push(groups::Member::from_memory(&source.id, &line, now));
+            }
+        }
+    }
+    let from_memory = groups::place_members(
+        &mut store,
+        lines,
+        groups::Calls::Model(cfg, opts.max_calls.saturating_sub(placed.calls)),
+        &titles,
+        now,
+    );
+    for p in [&placed, &from_memory] {
+        out.state.model_calls += p.calls;
+        out.state.match_calls += p.calls;
+        out.state.placed += p.local + p.new + p.model + p.unmatched;
+        out.state.left += p.left;
+        out.notes.extend(p.notes.iter().cloned());
+    }
     if opts.backfill && placed.left == 0 {
         store.backfilled = Some(now);
     }
@@ -1061,6 +1218,50 @@ pub fn scan_with(cfg: &Config, ws: &Workspace, opts: &ScanOptions) -> Result<Sca
                 l.save(&cfg.home)?;
             }
         }
+    }
+    // A rule found only in agent memories becomes a memory lesson once a
+    // reviewer in a fresh context confirms the line: no drafting call, the
+    // line is the rule.
+    let mut made: BTreeMap<String, usize> = BTreeMap::new();
+    let wanted: Vec<(Ulid, String, String)> = store
+        .groups
+        .iter()
+        .filter(|g| g.lesson.is_none() && g.has_memory() && g.sessions().len() < 2)
+        .filter_map(|g| {
+            let m = g
+                .members
+                .iter()
+                .rev()
+                .find(|m| m.source == groups::Source::Memory)?;
+            Some((g.id, m.memory.as_ref()?.source.clone(), m.quote.clone()))
+        })
+        .collect();
+    for (gid, source, text) in wanted {
+        let n = made.entry(source.clone()).or_default();
+        if *n >= memory::PER_SOURCE {
+            continue;
+        }
+        *n += 1;
+        out.state.model_calls += 1;
+        let review = match memory::review(cfg, &source, &text) {
+            Ok(r) => r,
+            Err(err) => {
+                out.notes.push(format!("memory review failed: {err}"));
+                break;
+            }
+        };
+        let lesson = memory_record(gid, &source, &text, review, now);
+        if lesson.status == Status::Pending {
+            out.state.confirmed += 1;
+            out.confirmed.push(lesson.clone());
+        }
+        if !dry_run {
+            lesson.save(&cfg.home)?;
+        }
+        if let Some(g) = store.get_mut(gid) {
+            g.lesson = Some(lesson.id);
+        }
+        records.push(lesson);
     }
     let mut clusters: Vec<(Option<Ulid>, detect::Cluster)> = Vec::new();
     for g in &store.groups {
@@ -1254,6 +1455,54 @@ pub fn scan_with(cfg: &Config, ws: &Workspace, opts: &ScanOptions) -> Result<Sca
         out.state.save(&cfg.home)?;
     }
     Ok(out)
+}
+
+/// A memory lesson for group `gid`: the line is the rule, machine-wide,
+/// with no target note; pending when the reviewer confirmed it.
+fn memory_record(
+    gid: Ulid,
+    source: &str,
+    text: &str,
+    review: LessonReview,
+    now: OffsetDateTime,
+) -> Lesson {
+    let confirmed = review.verdict == Verdict::Confirm;
+    Lesson {
+        id: Ulid::generate(),
+        kind: Kind::Correction,
+        key: format!("memory:{source}"),
+        terms: detect::key_terms(text),
+        title: detect::one_line(text, 80),
+        rule: text.to_owned(),
+        target: None,
+        evidence: Vec::new(),
+        seen: Seen {
+            sessions: 0,
+            profiles: Vec::new(),
+            first: now,
+            last: now,
+            most_in_a_day: 0,
+        },
+        status: if confirmed {
+            Status::Pending
+        } else {
+            Status::Rejected
+        },
+        review: Some(review),
+        created: now,
+        updated: now,
+        closed_sessions: None,
+        kept: None,
+        ask: None,
+        shared: None,
+        links: Links {
+            group: Some(gid),
+            scope: Some(Scope::Machine),
+            source: Some(source.to_owned()),
+            drafts: Some(1),
+            ..Links::default()
+        },
+    }
 }
 
 /// The rule group `g` reverses: its lesson's id and rule, or, with no

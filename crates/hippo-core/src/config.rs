@@ -91,6 +91,49 @@ pub struct Config {
     /// default) or `rules`.
     #[serde(default)]
     pub share_lessons: Option<String>,
+    /// Rules and their delivery (`docs/designs/remember.md`): flat keys in
+    /// the file.
+    #[serde(flatten)]
+    pub remember: Remember,
+}
+
+/// The keys of `docs/designs/remember.md`, all per machine.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+pub struct Remember {
+    /// Keep a confirmed rule whose group spans 3 or more sessions without
+    /// asking. Off by default.
+    #[serde(default)]
+    pub auto_keep: bool,
+    /// The agent-memory sources the person turned on, by id.
+    #[serde(default)]
+    pub memory_sources: Vec<String>,
+    /// The sources the person turned off, by id; one in neither list was
+    /// never asked about.
+    #[serde(default)]
+    pub memory_sources_off: Vec<String>,
+    /// The most bytes the start block's Rules section takes; default
+    /// [`RULES_BUDGET_BYTES`].
+    #[serde(default)]
+    pub rules_budget_bytes: Option<usize>,
+    /// The fewest prompts between two topic-change injections; default
+    /// [`REINJECT_EVERY`].
+    #[serde(default)]
+    pub reinject_every: Option<usize>,
+}
+
+/// The Rules section's default budget, in bytes.
+pub const RULES_BUDGET_BYTES: usize = 2000;
+/// The default fewest prompts between two topic-change injections.
+pub const REINJECT_EVERY: usize = 5;
+
+impl Remember {
+    pub fn rules_budget(&self) -> usize {
+        self.rules_budget_bytes.unwrap_or(RULES_BUDGET_BYTES)
+    }
+
+    pub fn reinject_every(&self) -> usize {
+        self.reinject_every.unwrap_or(REINJECT_EVERY).max(1)
+    }
 }
 
 /// The `transcript_roots` a configuration has when it sets none, and where
@@ -1091,6 +1134,7 @@ mod tests {
             reviewer_command_override: None,
             member: None,
             share_lessons: None,
+            remember: Default::default(),
             fallback: Default::default(),
             roles: Default::default(),
             runners: Default::default(),

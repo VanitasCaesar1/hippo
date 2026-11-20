@@ -306,6 +306,9 @@ fn self_protection_blocks_even_in_warn_only_mode() {
     assert!(blocked("hippo config set share_lessons rules --yes"));
     assert!(blocked("hippo config set guard.fail open --yes"));
     assert!(blocked("hippo lessons share"));
+    assert!(blocked("hippo lessons sources --on codex:AGENTS.md"));
+    assert!(blocked("hippo config set auto_keep on --yes"));
+    assert!(blocked("hippo config add memory_sources gemini:GEMINI.md"));
     assert!(blocked("hippo hooks uninstall"));
     assert!(blocked(&format!(
         "echo x > {}/guard/machine.toml",
@@ -327,6 +330,8 @@ fn self_protection_blocks_even_in_warn_only_mode() {
     )));
     assert!(!blocked("hippo accept --list"));
     assert!(!blocked("hippo hooks install"));
+    assert!(!blocked("hippo lessons sources --off codex:AGENTS.md"));
+    assert!(!blocked("hippo lessons keep 01JC"));
     assert!(!blocked("hippo config set dream_at 04:00 --yes"));
     assert!(!blocked("cat $HIPPO_HOME/guard/log.jsonl"));
     // A file tool's write into $HIPPO_HOME/guard/.

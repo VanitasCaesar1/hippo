@@ -70,6 +70,7 @@ fn setup(home: &Path, workspace: &Path) -> (Config, Workspace) {
         reviewer_command_override: None,
         member: None,
         share_lessons: None,
+        remember: Default::default(),
         fallback: Default::default(),
         roles: Default::default(),
         runners: Default::default(),

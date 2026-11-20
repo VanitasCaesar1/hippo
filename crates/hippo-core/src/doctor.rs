@@ -355,6 +355,7 @@ fn run_with(cfg: &Config, ws: &Workspace, env: &Env) -> Report {
     checks.push(records_check(&records, &unreadable, index.as_ref()));
     checks.push(git_check(ws));
     checks.push(lessons_check(cfg));
+    checks.push(rules_check(cfg, &crate::lessons::memory::Places::here()));
     if let Some(row) = team_check(ws) {
         checks.push(row);
     }
@@ -549,6 +550,41 @@ fn lessons_check(cfg: &Config) -> Check {
             }
         },
     }
+}
+
+/// The agent memories hippo can read rules from and whether each is on
+/// (`docs/designs/remember.md`). Never a problem: a source not asked about
+/// is a warning only while the person has not answered.
+fn rules_check(cfg: &Config, places: &crate::lessons::memory::Places) -> Check {
+    use crate::lessons::memory;
+    let found = memory::discover(places);
+    if found.is_empty() {
+        return row(
+            "rules",
+            Status::Ok,
+            "no agent memories found on this machine",
+        );
+    }
+    let named: Vec<String> = found
+        .iter()
+        .map(|s| format!("{} {}", s.id, memory::state(cfg, &s.id).as_str()))
+        .collect();
+    let asked = found
+        .iter()
+        .all(|s| memory::state(cfg, &s.id) != memory::State::NotAsked);
+    row(
+        "rules",
+        if asked { Status::Ok } else { Status::Warn },
+        format!(
+            "{}{}",
+            named.join(", "),
+            if asked {
+                ""
+            } else {
+                "; hippo lessons sources --on <id> reads one"
+            }
+        ),
+    )
 }
 
 fn row(name: &'static str, status: Status, detail: impl Into<String>) -> Check {
@@ -1596,6 +1632,7 @@ mod tests {
             reviewer_command_override: None,
             member: None,
             share_lessons: None,
+            remember: Default::default(),
             fallback: Default::default(),
             roles: Default::default(),
             runners: Default::default(),

@@ -1075,6 +1075,7 @@ pub(crate) mod tests {
                 reviewer_command_override: Some(stub("reviewer")),
                 member: None,
                 share_lessons: None,
+                remember: Default::default(),
                 fallback: Default::default(),
                 roles: Default::default(),
                 runners: Default::default(),

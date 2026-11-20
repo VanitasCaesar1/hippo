@@ -102,7 +102,8 @@ pub struct Member {
 }
 
 impl Member {
-    fn from_evidence(e: &Evidence, terms: &[String], matched: Matched) -> Member {
+    /// A correction as a member that has not joined a group yet.
+    pub fn from_evidence(e: &Evidence, terms: &[String], matched: Matched) -> Member {
         Member {
             session: Some(e.session.clone()),
             ordinal: Some(e.ordinal),
@@ -115,6 +116,37 @@ impl Member {
             source: Source::Correction,
             memory: None,
             matched,
+        }
+    }
+
+    /// A memory line as a member, first read at `at`.
+    pub fn from_memory(source: &str, line: &super::memory::Line, at: OffsetDateTime) -> Member {
+        Member {
+            session: None,
+            ordinal: None,
+            at,
+            profile: None,
+            project: None,
+            quote: line.text.clone(),
+            action: None,
+            terms: detect::key_terms(&line.text),
+            source: Source::Memory,
+            memory: Some(MemoryRef {
+                source: source.to_owned(),
+                file: line.file.clone(),
+                line: line.line,
+            }),
+            matched: Matched::New,
+        }
+    }
+
+    /// What identifies it once placed: a correction by session and turn,
+    /// a memory line by its source and text (its line number moves).
+    pub fn key(&self) -> String {
+        match (&self.session, self.ordinal, &self.memory) {
+            (Some(s), Some(o), _) => format!("{s}#{o}"),
+            (_, _, Some(m)) => format!("memory:{}:{}", m.source, self.quote),
+            _ => format!("quote:{}", self.quote),
         }
     }
 
@@ -247,12 +279,12 @@ impl Store {
         write_atomic(&Store::path(home), &records::encode(self)?)
     }
 
-    /// The (session, ordinal) of every correction already placed.
-    pub fn placed(&self) -> HashSet<(String, u32)> {
+    /// The [`Member::key`] of everything already placed.
+    pub fn placed(&self) -> HashSet<String> {
         self.groups
             .iter()
             .flat_map(|g| &g.members)
-            .filter_map(|m| Some((m.session.clone()?, m.ordinal?)))
+            .map(Member::key)
             .collect()
     }
 
@@ -522,33 +554,48 @@ pub enum Calls<'a> {
 /// first. `titles` names the rule of a group's lesson, for the prompt.
 pub fn place(
     store: &mut Store,
-    mut items: Vec<Item>,
+    items: Vec<Item>,
+    calls: Calls<'_>,
+    titles: &dyn Fn(&Group) -> Option<String>,
+    now: OffsetDateTime,
+) -> Placed {
+    let members = items
+        .iter()
+        .map(|(e, t)| Member::from_evidence(e, t, Matched::New))
+        .collect();
+    place_members(store, members, calls, titles, now)
+}
+
+/// [`place`] for members: corrections and memory lines alike.
+pub fn place_members(
+    store: &mut Store,
+    mut members: Vec<Member>,
     calls: Calls<'_>,
     titles: &dyn Fn(&Group) -> Option<String>,
     now: OffsetDateTime,
 ) -> Placed {
     let placed = store.placed();
-    items.retain(|(e, _)| !placed.contains(&(e.session.clone(), e.ordinal)));
-    items.sort_by_key(|(e, _)| e.at);
+    members.retain(|m| !placed.contains(&m.key()));
+    members.sort_by_key(|m| m.at);
     let mut out = Placed::default();
-    let mut batch: Vec<(Item, Vec<Ulid>)> = Vec::new();
+    let mut batch: Vec<(Member, Vec<Ulid>)> = Vec::new();
     let mut stopped = false;
-    for item in items {
-        match prefilter(&store.groups, &item.1, &item.0.quote) {
+    for mut m in members {
+        match prefilter(&store.groups, &m.terms, &m.quote) {
             Local::Join(id) => {
-                let m = Member::from_evidence(&item.0, &item.1, Matched::Local);
+                m.matched = Matched::Local;
                 if let Some(g) = store.get_mut(id) {
                     g.members.push(m);
                 }
                 out.local += 1;
             }
             Local::New => {
-                let m = Member::from_evidence(&item.0, &item.1, Matched::New);
+                m.matched = Matched::New;
                 store.groups.push(Group::new(m, None, now));
                 out.new += 1;
             }
             Local::Ask(cands) => {
-                batch.push((item, cands));
+                batch.push((m, cands));
                 if batch.len() == MATCH_BATCH {
                     flush(
                         store,
@@ -577,7 +624,7 @@ pub fn place(
 
 fn flush(
     store: &mut Store,
-    batch: &mut Vec<(Item, Vec<Ulid>)>,
+    batch: &mut Vec<(Member, Vec<Ulid>)>,
     calls: Calls<'_>,
     titles: &dyn Fn(&Group) -> Option<String>,
     stopped: &mut bool,
@@ -614,7 +661,7 @@ fn flush(
                     .zip(rules)
                     .filter_map(|(id, r)| Some((store.get(*id)?, r.as_deref())))
                     .collect();
-                (item.0.quote.as_str(), gs)
+                (item.quote.as_str(), gs)
             })
             .collect();
         let counts: Vec<usize> = items.iter().map(|(_, c)| c.len()).collect();
@@ -671,7 +718,7 @@ fn flush(
         fresh.push(g.id);
         store.groups.push(g);
     };
-    for (k, ((ev, terms), cands)) in taken.into_iter().enumerate() {
+    for (k, (mut m, cands)) in taken.into_iter().enumerate() {
         let answer = answers.as_ref().and_then(|a| a[k].clone());
         let Some(answer) = answer else {
             // Two unreadable replies, or the item left out.
@@ -682,7 +729,8 @@ fn flush(
                 out.model += 1;
                 Matched::New
             };
-            start(store, Member::from_evidence(&ev, &terms, matched), None);
+            m.matched = matched;
+            start(store, m, None);
             continue;
         };
         out.model += 1;
@@ -693,7 +741,7 @@ fn flush(
             .filter_map(|&n| pick(n))
             .filter(|id| store.get(*id).is_some())
             .collect();
-        let m = Member::from_evidence(&ev, &terms, Matched::Model);
+        m.matched = Matched::Model;
         if let Some((&into, rest)) = same.split_first() {
             store.merge(into, rest);
             if let Some(g) = store.get_mut(into) {
@@ -739,7 +787,7 @@ pub fn estimate(
     let placed = copy.placed();
     let corrections = items
         .iter()
-        .filter(|(e, _)| !placed.contains(&(e.session.clone(), e.ordinal)))
+        .filter(|(e, t)| !placed.contains(&Member::from_evidence(e, t, Matched::New).key()))
         .count();
     let p = place(&mut copy, items, Calls::None, &|_| None, now);
     let drafts = draftable(&copy) + p.left;
@@ -884,6 +932,6 @@ mod tests {
         assert!(store.groups[0].lesson.is_some());
         store.save(home.path()).unwrap();
         assert_eq!(Store::load(home.path()).unwrap(), store);
-        assert!(store.placed().contains(&("s9".to_owned(), 3)));
+        assert!(store.placed().contains("s9#3"));
     }
 }

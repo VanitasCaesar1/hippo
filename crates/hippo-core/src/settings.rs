@@ -50,7 +50,7 @@ enum Shape {
 
 /// The keys `hippo config` changes, their file and shape. A key with a
 /// dot lives in a table: `guard.fail` is `fail` under `[guard]`.
-const KEYS: [(&str, File, Shape); 17] = [
+const KEYS: [(&str, File, Shape); 22] = [
     ("transcript_roots", File::Config, Shape::List),
     ("exclude_roots", File::Config, Shape::List),
     ("ingest_interval_minutes", File::Config, Shape::Count),
@@ -80,7 +80,16 @@ const KEYS: [(&str, File, Shape); 17] = [
         File::Config,
         Shape::Choice(&["off", "rules"]),
     ),
+    ("auto_keep", File::Config, Shape::Switch),
+    ("memory_sources", File::Config, Shape::List),
+    ("memory_sources_off", File::Config, Shape::List),
+    ("rules_budget_bytes", File::Config, Shape::Count),
+    ("reinject_every", File::Config, Shape::Count),
 ];
+
+/// Keys an agent may not change for the person, beyond [`SECURITY_KEYS`]:
+/// sharing, reading more of the person's files, keeping rules unasked.
+pub const PERSON_KEYS: [&str; 3] = ["share_lessons", "memory_sources", "auto_keep"];
 
 /// The keys in rule 3's table (`docs/designs/common.md`): writing one
 /// raises `min_hippo_version` to the first release that understands it,

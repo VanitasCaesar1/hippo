@@ -65,6 +65,7 @@ fn ingest_reads_cursor_transcripts_without_leaks() {
         reviewer_command_override: None,
         member: None,
         share_lessons: None,
+        remember: Default::default(),
         fallback: Default::default(),
         roles: Default::default(),
         runners: Default::default(),

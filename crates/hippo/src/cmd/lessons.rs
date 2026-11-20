@@ -58,7 +58,7 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Write a pending lesson into its note (a receipt; hippo revert undoes it)
+    /// Keep a pending rule: a workspace rule goes into its note (a receipt; hippo revert undoes it), a machine rule stays in hippo's home
     Keep {
         id: String,
         /// The rule's text, edited
@@ -67,6 +67,21 @@ pub enum Command {
         /// The rule's title, edited
         #[arg(long)]
         title: Option<String>,
+        /// Write a machine rule into its target note too, as a workspace rule
+        #[arg(long)]
+        note: bool,
+    },
+    /// The agent memories hippo can read rules from, and whether each is on
+    Sources {
+        /// Turn a source on: hippo reads its rule lines at each scan and sends them to your lessons runner
+        #[arg(long, value_name = "ID")]
+        on: Option<String>,
+        /// Turn a source off
+        #[arg(long, value_name = "ID", conflicts_with = "on")]
+        off: Option<String>,
+        /// Print one JSON object
+        #[arg(long)]
+        json: bool,
     },
     /// Dismiss a pending lesson; it returns only if it recurs in 3 more sessions
     Dismiss {
@@ -128,38 +143,62 @@ pub fn run(args: Args) -> Result<ExitCode> {
             yes,
             json,
         }) => backfill(max_calls, yes, json),
-        Some(Command::Keep { id, text, title }) => {
-            let (cfg, ws) = load_for_write()?;
-            let kept = if id.starts_with("L-") {
-                lessons::keep_shared(
+        Some(Command::Keep {
+            id,
+            text,
+            title,
+            note,
+        }) => {
+            if id.starts_with("L-") {
+                let (cfg, ws) = load_for_write()?;
+                let kept = lessons::keep_shared(
                     &cfg,
                     &ws,
                     &id,
                     title.as_deref(),
                     text.as_deref(),
                     OffsetDateTime::now_utc(),
-                )?
-            } else {
-                lessons::keep(
-                    &cfg,
-                    &ws,
-                    parse_id(&id)?,
-                    title.as_deref(),
-                    text.as_deref(),
-                    OffsetDateTime::now_utc(),
-                )?
+                )?;
+                println!(
+                    "{id}: kept in {} (receipt {}; hippo revert {} undoes it)",
+                    kept.proposal.note.display(),
+                    kept.receipt.id,
+                    kept.receipt.id
+                );
+                return Ok(ExitCode::SUCCESS);
+            }
+            let cfg = hippo_core::config::Config::load()?;
+            let ws = match cfg.workspace {
+                Some(_) => Some(load_for_write()?.1),
+                None => None,
             };
-            println!(
-                "{id}: kept in {} (receipt {}; hippo revert {} undoes it)",
-                kept.proposal.note.display(),
-                kept.receipt.id,
-                kept.receipt.id
-            );
+            let kept = lessons::keep_rule(
+                &cfg,
+                ws.as_ref(),
+                parse_id(&id)?,
+                title.as_deref(),
+                text.as_deref(),
+                note,
+                OffsetDateTime::now_utc(),
+            )?;
+            match &kept.note {
+                Some(path) => println!(
+                    "{id}: kept in {} (receipt {}; hippo revert {} undoes it)",
+                    path.display(),
+                    kept.receipt,
+                    kept.receipt
+                ),
+                None => println!(
+                    "{id}: kept as a machine rule: every agent session on this machine gets it (receipt {})",
+                    kept.receipt
+                ),
+            }
             for line in &kept.replaced {
                 println!("  {line}");
             }
             Ok(ExitCode::SUCCESS)
         }
+        Some(Command::Sources { on, off, json }) => sources(on, off, json),
         Some(Command::Dismiss { id, reason, of }) if id.starts_with("L-") => {
             let (cfg, ws) = load_for_write()?;
             lessons::dismiss_shared(
@@ -450,6 +489,97 @@ fn list(as_json: bool, all: bool) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
+fn sources(on: Option<String>, off: Option<String>, as_json: bool) -> Result<ExitCode> {
+    use hippo_core::lessons::memory;
+    use hippo_core::settings::{self, Op};
+    let mut cfg = hippo_core::config::Config::load()?;
+    let found = memory::discover(&memory::Places::here());
+    for (id, turn_on) in on
+        .iter()
+        .map(|i| (i, true))
+        .chain(off.iter().map(|i| (i, false)))
+    {
+        if !found.iter().any(|s| &s.id == id) {
+            anyhow::bail!("no source {id} on this machine; `hippo lessons sources` lists them");
+        }
+        let (add, remove) = if turn_on {
+            ("memory_sources", "memory_sources_off")
+        } else {
+            ("memory_sources_off", "memory_sources")
+        };
+        for (key, op) in [(remove, Op::Remove(id.clone())), (add, Op::Add(id.clone()))] {
+            let listed = match key {
+                "memory_sources" => cfg.remember.memory_sources.contains(id),
+                _ => cfg.remember.memory_sources_off.contains(id),
+            };
+            let wanted = matches!(op, Op::Add(_));
+            if listed != wanted {
+                settings::apply(&settings::plan(&cfg.home, key, &op)?)?;
+            }
+        }
+        cfg = hippo_core::config::Config::load()?;
+        println!(
+            "{id}: {}",
+            if turn_on {
+                "on; the next scan reads its rule lines"
+            } else {
+                "off"
+            }
+        );
+    }
+    if on.is_some() || off.is_some() {
+        return Ok(ExitCode::SUCCESS);
+    }
+    let domain = hippo_core::runners::plan(&cfg).ok().and_then(|p| {
+        p.runner(hippo_core::runners::Role::Lessons)
+            .map(|r| r.data_domain.clone())
+    });
+    if as_json {
+        let rows: Vec<serde_json::Value> = found
+            .iter()
+            .map(|s| {
+                json!({
+                    "id": s.id,
+                    "tool": s.tool,
+                    "account": s.account,
+                    "files": s.files.len(),
+                    "kind": s.kind,
+                    "state": memory::state(&cfg, &s.id),
+                })
+            })
+            .collect();
+        println!(
+            "{}",
+            serde_json::to_string(&json!({"sources": rows, "sent_to": domain}))?
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
+    if found.is_empty() {
+        println!("no agent memories found on this machine");
+        return Ok(ExitCode::SUCCESS);
+    }
+    for s in &found {
+        let what = match s.kind {
+            memory::Kind::Rules => "rules file",
+            memory::Kind::FeedbackMemory => "feedback memories, written by agents",
+        };
+        println!(
+            "{:<10} {}  ({}, {} file{})",
+            memory::state(&cfg, &s.id).as_str(),
+            s.id,
+            what,
+            s.files.len(),
+            if s.files.len() == 1 { "" } else { "s" }
+        );
+    }
+    println!(
+        "A source that is on is read at each scan, read-only; its rule lines go to your lessons runner{} and each is checked by a reviewer before it waits in the Inbox.",
+        domain.map(|d| format!(" ({d})")).unwrap_or_default()
+    );
+    println!("Turn one on with `hippo lessons sources --on <id>`, in a terminal: an agent cannot.");
+    Ok(ExitCode::SUCCESS)
+}
+
 fn backfill(max_calls: usize, yes: bool, as_json: bool) -> Result<ExitCode> {
     let (cfg, ws) = load_for_write()?;
     let estimate = lessons::backfill_estimate(&cfg)?;
@@ -484,6 +614,7 @@ fn backfill(max_calls: usize, yes: bool, as_json: bool) -> Result<ExitCode> {
             dry_run: false,
             backfill: true,
             max_calls,
+            places: lessons::memory::Places::here(),
         },
     )?;
     let s = &scanned.state;
