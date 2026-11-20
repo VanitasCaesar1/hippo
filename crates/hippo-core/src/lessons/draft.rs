@@ -534,6 +534,7 @@ pub fn propose(
         closed_sessions: None,
         kept: None,
         ask: Some(question.to_owned()),
+        shared: None,
     };
     lesson.save(&cfg.home)?;
     Ok(lesson)
@@ -686,6 +687,7 @@ pub fn propose_miss(cfg: &Config, ws: &Workspace, session: &str, ordinal: u32) -
         closed_sessions: None,
         kept: None,
         ask: Some(miss.query.clone()),
+        shared: None,
     };
     lesson.save(&cfg.home)?;
     Ok(lesson)
@@ -776,6 +778,7 @@ pub fn propose_reported(cfg: &Config, ws: &Workspace, reported: &Reported) -> Re
         closed_sessions: None,
         kept: None,
         ask: None,
+        shared: None,
     };
     lesson.save(&cfg.home)?;
     Ok(lesson)

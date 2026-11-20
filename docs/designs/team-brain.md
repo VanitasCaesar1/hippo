@@ -1,6 +1,6 @@
 # One brain for a team
 
-Status: planned for v0.6.0 and later; nothing here ships in v0.5.0 ([rollout](#rollout)). Revised 12 November 2026. Shared rules (version floor, local accept, hardening gate, release plan) are in [common.md](common.md).
+Status: step 1 shipped in v0.6.0; the rest is later ([rollout](#rollout)). Revised 12 November 2026. Shared rules (version floor, local accept, hardening gate, release plan) are in [common.md](common.md).
 
 ## The problem
 
@@ -169,6 +169,16 @@ L-01JC7Q  correction  alice 3, bob 1       Use the staging database for previews
 Names and verdicts written by others are shown as written and marked as such: the `by` field next to the commit author of the file (from `git log`), and the reviewer verdict as "reviewer: confirmed (as written in lesson-alice.json)". When `by` and the commit author differ, both are shown. Hippo.app's Inbox shows the same, with Keep and Dismiss as in the CLI.
 
 Lesson text in the Inbox is data. It is never sent to a model as instructions; matching compares terms in code.
+
+### What v0.6.0 built, where it differs from the text above
+
+- **Directory ids.** A shared lesson's directory is `L-<the id of the lesson record that first shared it>`, not a new ULID: the same ULID, minted when the local record was made, so a bullet kept before sharing already carries the marker its shared directory gets.
+- **Counts need consent too.** With `share_lessons = "off"` a person's scans read the shared Inbox and skip drafting what the team has, but write nothing to it, `seen` files included.
+- **`hippo lessons share`** asks for the handle (suggesting the local part of `git config user.email`), shows the files, and on yes writes `member` and `share_lessons = "rules"` to `config.toml`, then shares every waiting or kept correction whose evidence all ran in the workspace (a kept one with its keep decision). `hippo config set share_lessons rules` works too, with the same terminal and marker checks.
+- **The working folder test** reads each evidence session's folder from its transcript (`cwd`). A session whose folder hippo cannot read counts as outside.
+- **Decisions need a handle.** `keep` and `dismiss` on an `L-…` id refuse until `member` is set. A `duplicate` dismissal links two directories and is no verdict on the rule: a group with only duplicate links stays open.
+- **Hippo.app** does not show the shared entries or the Share dialog yet; the CLI does.
+- **Tests.** `crates/hippo-core/src/lessons/tests.rs` runs two people's homes on one workspace (no git: both write the same folder, which is what a pull gives): one entry seen by both with no second draft, keep with marker and decision, refusal to keep again, crossed decisions, duplicate links, evidence from another repository staying local, `off` sharing nothing, and the marker backfill with revert. `crates/hippo/tests/accept.rs` checks that the Inbox waits for accept and that `lessons share` and `config set share_lessons` refuse without a terminal and with an agent marker.
 
 ### Quotes (later)
 

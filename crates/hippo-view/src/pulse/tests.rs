@@ -180,6 +180,7 @@ fn lesson(status: LessonStatus, note: &str, kept: Option<OffsetDateTime>) -> Les
             edited: false,
         }),
         ask: None,
+        shared: None,
     }
 }
 

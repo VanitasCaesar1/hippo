@@ -199,3 +199,61 @@ fn an_unknown_setting_in_a_known_table_refuses_writes() {
         "{row}"
     );
 }
+
+#[test]
+fn the_shared_inbox_waits_for_accept_and_sharing_needs_the_person() {
+    let s = Setup::new();
+    // By hand, so the floor stays: this test binary may be older than the
+    // release that `config set` would require.
+    let toml = read(&s.hippo_toml());
+    fs::write(
+        s.hippo_toml(),
+        format!("{toml}\n[team]\ninbox = \"shared\"\n"),
+    )
+    .unwrap();
+    // Waiting: not on yet on this machine.
+    let out = s.run(&["lessons", "share"], &[]);
+    assert!(!out.status.success());
+    assert!(
+        text(&out.stderr).contains("not on for this workspace"),
+        "{}",
+        text(&out.stderr)
+    );
+    // As if accepted on this machine.
+    let id = toml
+        .lines()
+        .find_map(|l| l.strip_prefix("workspace_id = \""))
+        .unwrap()
+        .trim_end_matches('"')
+        .to_owned();
+    let accepted = s.base.join("hippo/accepted");
+    fs::create_dir_all(&accepted).unwrap();
+    fs::write(
+        accepted.join(format!("{id}.toml")),
+        "[settings]\nteam_inbox = \"shared\"\n",
+    )
+    .unwrap();
+    let out = s.run(&["lessons", "share"], &[]);
+    assert!(
+        text(&out.stderr).contains("needs a terminal"),
+        "{}",
+        text(&out.stderr)
+    );
+    let out = s.run(&["lessons", "share"], &[("CLAUDECODE", "1")]);
+    assert!(
+        text(&out.stderr).contains("CLAUDECODE"),
+        "{}",
+        text(&out.stderr)
+    );
+    let out = s.run(&["config", "set", "share_lessons", "rules", "--yes"], &[]);
+    assert!(!out.status.success());
+    assert!(text(&out.stderr).contains("needs a terminal"));
+    let out = s.run(&["config", "set", "member", "alice", "--yes"], &[]);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    assert!(!s
+        .run(&["config", "set", "member", "Alice Smith", "--yes"], &[])
+        .status
+        .success());
+    let row = s.doctor_row("team");
+    assert!(row.contains("shared Inbox on: 0 lessons"), "{row}");
+}

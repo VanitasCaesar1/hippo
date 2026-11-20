@@ -776,6 +776,8 @@ mod tests {
                 ingest_interval_minutes: 10,
                 dream_at: "03:30".into(),
                 reviewer_command_override: None,
+                member: None,
+                share_lessons: None,
                 fallback: Default::default(),
                 roles: Default::default(),
                 runners: Default::default(),

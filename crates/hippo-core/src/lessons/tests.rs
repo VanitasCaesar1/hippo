@@ -442,7 +442,405 @@ fn keeping_a_new_note_creates_it_and_revert_removes_it() {
     let path = s.ws.root.join(&target.note);
     let text = fs::read_to_string(&path).unwrap();
     assert!(text.starts_with("---\ntype: policy\n"));
-    assert!(text.contains("# Quote globs in zsh\n\nQuote --include globs in zsh.\n"));
+    assert!(text.contains(&format!(
+        "# Quote globs in zsh\n\nQuote --include globs in zsh. <!-- hippo:lesson L-{} -->\n",
+        lesson.id
+    )));
     crate::dream::apply::revert(&s.ws, kept.receipt.id, false).unwrap();
     assert!(!path.exists());
+}
+
+// ---------------------------------------------------------------------------
+// The shared Inbox (docs/designs/team-brain.md)
+
+/// Session `id` in `home`'s index, whose transcript names `cwd` as its
+/// folder, as Claude Code's does.
+fn put_in(
+    home: &Path,
+    id: &str,
+    turns: &[(Role, Option<&str>, &str)],
+    start: OffsetDateTime,
+    cwd: &Path,
+) {
+    let transcript = home.join("transcripts").join(format!("{id}.jsonl"));
+    fs::create_dir_all(transcript.parent().unwrap()).unwrap();
+    fs::write(
+        &transcript,
+        format!("{}\n", json!({"type": "user", "cwd": cwd, "sessionId": id})),
+    )
+    .unwrap();
+    let turns: Vec<Turn> = turns
+        .iter()
+        .enumerate()
+        .map(|(k, (role, tool, text))| {
+            Turn::from_raw(RawTurn {
+                ordinal: k as u32,
+                role: *role,
+                ts: start + Duration::minutes(k as i64),
+                tool_name: tool.map(str::to_owned),
+                text: (*text).to_owned(),
+            })
+        })
+        .collect();
+    Index::open(home, true)
+        .unwrap()
+        .replace_session(
+            &SessionSource {
+                id,
+                tool: Tool::ClaudeCode,
+                transcript_path: &transcript,
+                file_hash: id,
+            },
+            &turns,
+        )
+        .unwrap();
+}
+
+/// A person's two corrections about indentation, in `cwd`.
+fn corrections(home: &Path, prefix: &str, words: [&str; 2], cwd: &Path) {
+    let now = OffsetDateTime::now_utc() - Duration::hours(2);
+    let shot = r#"Bash {"command":"npx prettier --use-spaces a.html"}"#;
+    for (k, said) in words.iter().enumerate() {
+        put_in(
+            home,
+            &format!("{prefix}{k}"),
+            &[
+                (Role::User, None, "format the page source"),
+                (Role::Tool, Some("Bash"), shot),
+                (Role::User, None, said),
+            ],
+            now + Duration::minutes(30 * k as i64),
+            cwd,
+        );
+    }
+    refresh(home);
+}
+
+fn refresh(home: &Path) {
+    let ws = crate::dream::tests::workspace_at(Path::new("/nonexistent-ws"));
+    crate::rollup::refresh(home, Some(&ws), &Index::open(home, true).unwrap()).unwrap();
+}
+
+/// Alice's and Bob's homes on one workspace with the shared Inbox in
+/// force, the stub model drafting the indentation rule. The workspace is
+/// under `/tmp`: sessions whose folder is in macOS's per-user temporary
+/// folder count as automated and are never read for lessons.
+fn team_scene() -> (
+    Setup,
+    (tempfile::TempDir, tempfile::TempDir),
+    Config,
+    Workspace,
+) {
+    let s = Setup::new();
+    let wsdir = tempfile::Builder::new()
+        .prefix("hippo-team-")
+        .tempdir_in("/tmp")
+        .unwrap();
+    let root = fs::canonicalize(wsdir.path()).unwrap();
+    crate::packs::write_core_pack(&root).unwrap();
+    let rules = root.join("notes/Agent rules.md");
+    fs::create_dir_all(rules.parent().unwrap()).unwrap();
+    fs::write(
+        &rules,
+        format!(
+            "# Agent rules\n\n{}\n## Indentation and tools\n\n- Use rg for search.\n\n## Delegation\n\n- One build at a time.\n",
+            "Agents read this note at the start of every session.\n".repeat(6)
+        ),
+    )
+    .unwrap();
+    says(
+        &s,
+        "dreamer",
+        &json!([{"n": 1, "lesson": true, "title": "Use tabs for indentation", "rule": "Indent with tabs, never spaces.", "note": "notes/Agent rules.md", "section": "Indentation and tools"}]).to_string(),
+    );
+    says(
+        &s,
+        "reviewer",
+        &json!({"verdict": "confirm", "notes": "repeated"}).to_string(),
+    );
+    let mut ws = crate::dream::tests::workspace_at(&root);
+    ws.team.inbox = Some(crate::accept::Inbox::Shared);
+    let bob_home = tempfile::tempdir().unwrap();
+    let mut bob = s.cfg.clone();
+    bob.home = bob_home.path().to_path_buf();
+    bob.member = Some("bob".into());
+    bob.share_lessons = Some("rules".into());
+    (s, (bob_home, wsdir), bob, ws)
+}
+
+#[test]
+fn two_people_get_one_shared_lesson_and_one_decision() {
+    let (mut s, _bob_home, bob, ws) = team_scene();
+    s.cfg.member = Some("alice".into());
+    s.cfg.share_lessons = Some("rules".into());
+    let root = ws.root.clone();
+    corrections(
+        &s.cfg.home,
+        "a",
+        [
+            "no spaces for indentation. tabs only",
+            "dont use spaces for indentation again, tabs only",
+        ],
+        &root,
+    );
+    let scanned = scan(&s.cfg, &ws, 7, false).unwrap();
+    assert_eq!(
+        scanned.state.confirmed, 1,
+        "{:?} {:?}",
+        scanned.notes, scanned.state
+    );
+    let lesson = pending(&s.cfg.home).unwrap().remove(0);
+    let dir = team::dir_name(lesson.id);
+    assert_eq!(
+        get(&s.cfg.home, lesson.id).unwrap().shared.as_deref(),
+        Some(dir.as_str())
+    );
+    let inbox = team::inbox_dir(&ws).join(&dir);
+    assert!(inbox.join("lesson-alice.json").is_file());
+    assert!(inbox.join("seen-alice.json").is_file());
+    let shared_text = fs::read_to_string(inbox.join("lesson-alice.json")).unwrap();
+    assert!(
+        !shared_text.contains("dont use spaces"),
+        "no quotes: {shared_text}"
+    );
+    assert!(!shared_text.contains("a0"), "no session ids: {shared_text}");
+
+    // Bob corrects his agent the same way, in other words: no draft.
+    corrections(
+        &bob.home,
+        "b",
+        [
+            "no spaces when you indent. tabs only for indentation",
+            "dont indent with spaces again, use tabs for indentation",
+        ],
+        &root,
+    );
+    let calls_before = fs::read_to_string(s.stubs.path().join("dreamer.stdin")).unwrap();
+    let scanned = scan(&bob, &ws, 7, false).unwrap();
+    assert_eq!(scanned.state.model_calls, 0, "{:?}", scanned.notes);
+    assert_eq!(scanned.state.shared_matched, 1, "{:?}", scanned.state);
+    assert_eq!(
+        fs::read_to_string(s.stubs.path().join("dreamer.stdin")).unwrap(),
+        calls_before
+    );
+    assert!(inbox.join("seen-bob.json").is_file());
+    let shared = team::read(&ws);
+    assert_eq!(shared.len(), 1);
+    assert_eq!(shared[0].seen.len(), 2);
+
+    // Bob keeps it: the bullet carries the marker, his decision is a file.
+    let kept = keep_shared(&bob, &ws, &dir, None, None, OffsetDateTime::now_utc()).unwrap();
+    assert_eq!(kept.receipt.reviewer, "human");
+    let note = fs::read_to_string(root.join("notes/Agent rules.md")).unwrap();
+    let line = note
+        .lines()
+        .find(|l| l.starts_with("- **Use tabs for indentation.**"))
+        .unwrap();
+    assert!(line.ends_with(&team::marker(&dir)), "{line}");
+    let shared = team::read(&ws);
+    assert_eq!(shared[0].decisions.len(), 1);
+    assert_eq!(shared[0].decisions[0].member, "bob");
+    assert_eq!(team::state(&shared, &[0]), team::State::Kept);
+    // Alice cannot keep it again; her scans no longer draft it.
+    let err = keep(
+        &s.cfg,
+        &ws,
+        lesson.id,
+        None,
+        None,
+        OffsetDateTime::now_utc(),
+    )
+    .unwrap_err();
+    assert!(err.to_string().contains("already kept"), "{err}");
+    let again = scan(&s.cfg, &ws, 7, false).unwrap();
+    assert_eq!(again.state.model_calls, 0);
+
+    // Alice dismisses it: crossed, both listed; the note is not touched.
+    dismiss_shared(
+        &s.cfg,
+        &ws,
+        &dir,
+        Some("wrong"),
+        None,
+        OffsetDateTime::now_utc(),
+    )
+    .unwrap();
+    let shared = team::read(&ws);
+    assert_eq!(team::state(&shared, &[0]), team::State::Crossed);
+    assert!(fs::read_to_string(root.join("notes/Agent rules.md"))
+        .unwrap()
+        .contains(&team::marker(&dir)));
+    let h = team::health(&ws);
+    assert_eq!(h.crossed, [dir]);
+}
+
+#[test]
+fn a_duplicate_is_linked_and_its_group_shares_decisions() {
+    let (_s, _bob_home, bob, ws) = team_scene();
+    let now = OffsetDateTime::now_utc();
+    let lesson = |terms: &[&str], title: &str| team::Wording {
+        kind: Kind::Correction,
+        terms: terms.iter().map(|t| (*t).to_owned()).collect(),
+        title: title.into(),
+        rule: "Indent with tabs.".into(),
+        target: None,
+        verdict: "confirmed".into(),
+        runner: None,
+    };
+    let a = team::dir_name(Ulid::generate());
+    let b = team::dir_name(Ulid::generate());
+    for (dir, member, w) in [
+        (
+            &a,
+            "alice",
+            lesson(&["indent", "spaces", "tabs"], "Use tabs"),
+        ),
+        (
+            &b,
+            "carol",
+            lesson(&["indent", "spaces", "tabs", "only"], "Tabs only"),
+        ),
+    ] {
+        let path = team::inbox_dir(&ws)
+            .join(dir)
+            .join(format!("lesson-{member}.json"));
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, crate::records::encode_shared(&w).unwrap()).unwrap();
+    }
+    let shared = team::read(&ws);
+    assert_eq!(team::groups(&shared).len(), 2);
+    dismiss_shared(&bob, &ws, &b, Some("duplicate"), Some(&a), now).unwrap();
+    let shared = team::read(&ws);
+    let groups = team::groups(&shared);
+    assert_eq!(groups.len(), 1, "linked");
+    assert_eq!(
+        team::state(&shared, &groups[0]),
+        team::State::Open,
+        "a duplicate is no verdict"
+    );
+    let terms: std::collections::BTreeSet<String> = ["tabs", "spaces", "indent"]
+        .iter()
+        .map(|t| (*t).to_owned())
+        .collect();
+    assert_eq!(team::find_group(&shared, &groups, &terms), Some(0));
+    assert!(dismiss_shared(&bob, &ws, &b, Some("maybe"), None, now).is_err());
+}
+
+#[test]
+fn a_lesson_from_another_project_stays_local_and_off_shares_nothing() {
+    let (mut s, _bob_home, mut carol, ws) = team_scene();
+    s.cfg.member = Some("alice".into());
+    s.cfg.share_lessons = Some("rules".into());
+    let elsewhere = tempfile::tempdir().unwrap();
+    // One session in the workspace, one in another repository.
+    corrections(
+        &s.cfg.home,
+        "a",
+        [
+            "no spaces for indentation. tabs only",
+            "dont use spaces for indentation again, tabs only",
+        ],
+        &ws.root,
+    );
+    put_in(
+        &s.cfg.home,
+        "a1",
+        &[
+            (Role::User, None, "format the page source"),
+            (
+                Role::Tool,
+                Some("Bash"),
+                r#"Bash {"command":"npx prettier --use-spaces a.html"}"#,
+            ),
+            (
+                Role::User,
+                None,
+                "dont use spaces for indentation again, tabs only",
+            ),
+        ],
+        OffsetDateTime::now_utc() - Duration::hours(1),
+        elsewhere.path(),
+    );
+    refresh(&s.cfg.home);
+    let scanned = scan(&s.cfg, &ws, 7, false).unwrap();
+    assert_eq!(scanned.state.confirmed, 1);
+    assert!(
+        !team::inbox_dir(&ws).exists(),
+        "evidence from another repository stays local"
+    );
+
+    // Carol, with share_lessons off: her lesson is not written, and she is told.
+    carol.member = Some("carol".into());
+    carol.share_lessons = None;
+    corrections(
+        &carol.home,
+        "c",
+        [
+            "no spaces for indentation. tabs only",
+            "dont use spaces for indentation again, tabs only",
+        ],
+        &ws.root,
+    );
+    let scanned = scan(&carol, &ws, 7, false).unwrap();
+    assert_eq!(scanned.state.confirmed, 1);
+    assert!(!team::inbox_dir(&ws).exists());
+    assert!(
+        scanned
+            .notes
+            .iter()
+            .any(|n| n.contains("hippo lessons share")),
+        "{:?}",
+        scanned.notes
+    );
+    // Sharing it, as `hippo lessons share` does after the person's yes.
+    let ready = shareable(&carol, &ws).unwrap();
+    assert_eq!(ready.len(), 1);
+    let dirs = share_lessons(&carol, &ws, "carol", &ready, OffsetDateTime::now_utc()).unwrap();
+    assert!(team::inbox_dir(&ws)
+        .join(&dirs[0])
+        .join("lesson-carol.json")
+        .is_file());
+}
+
+#[test]
+fn markers_are_added_to_bullets_kept_before_and_revert_removes_them() {
+    let s = scene();
+    says(
+        &s,
+        "dreamer",
+        &json!([{"n": 1, "lesson": true, "title": "Use tabs for indentation", "rule": "Indent with tabs, never spaces.", "note": "notes/Agent rules.md", "section": "Indentation and tools"}]).to_string(),
+    );
+    says(
+        &s,
+        "reviewer",
+        &json!({"verdict": "confirm", "notes": "ok"}).to_string(),
+    );
+    scan(&s.cfg, &s.ws, 7, false).unwrap();
+    let lesson = pending(&s.cfg.home)
+        .unwrap()
+        .into_iter()
+        .find(|l| l.kind == Kind::Correction)
+        .unwrap();
+    keep(
+        &s.cfg,
+        &s.ws,
+        lesson.id,
+        None,
+        None,
+        OffsetDateTime::now_utc(),
+    )
+    .unwrap();
+    // As a 0.5 keep wrote it: no marker.
+    let path = s.ws.root.join("notes/Agent rules.md");
+    let marker = format!(" {}", team::marker(&team::dir_name(lesson.id)));
+    let old = fs::read_to_string(&path).unwrap().replace(&marker, "");
+    fs::write(&path, &old).unwrap();
+    let plans = plan_markers(&s.cfg, &s.ws).unwrap();
+    assert_eq!(plans.len(), 1);
+    assert!(plans[0].new.ends_with(&format!("{marker}\n")));
+    let receipts = write_markers(&s.ws, &plans, OffsetDateTime::now_utc()).unwrap();
+    assert!(fs::read_to_string(&path).unwrap().contains(&marker));
+    assert!(plan_markers(&s.cfg, &s.ws).unwrap().is_empty());
+    crate::dream::apply::revert(&s.ws, receipts[0], false).unwrap();
+    assert_eq!(fs::read_to_string(&path).unwrap(), old);
 }

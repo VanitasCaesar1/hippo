@@ -11,6 +11,7 @@
 
 pub mod detect;
 pub mod draft;
+pub mod team;
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -179,6 +180,9 @@ pub struct Lesson {
     /// For a lesson from Ask: the question.
     #[serde(default)]
     pub ask: Option<String>,
+    /// Its directory in the shared Inbox (`L-<id>`), once shared.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared: Option<String>,
 }
 
 impl Lesson {
@@ -243,6 +247,10 @@ pub struct State {
     pub confirmed: usize,
     pub model_calls: usize,
     pub error: Option<String>,
+    /// Clusters that matched a lesson in the shared Inbox: counted, not
+    /// drafted.
+    #[serde(default)]
+    pub shared_matched: usize,
 }
 
 impl State {
@@ -285,7 +293,38 @@ pub fn keep(
     text: Option<&str>,
     now: OffsetDateTime,
 ) -> Result<Kept> {
-    let mut lesson = get(&cfg.home, id)?;
+    let lesson = get(&cfg.home, id)?;
+    keep_lesson(cfg, ws, lesson, title, text, now)
+}
+
+/// [`keep`] on a lesson record in hand: a local one, or one made from a
+/// shared lesson's wording. Its bullet carries the lesson's marker, and
+/// keeping refuses when a note already holds the marker of its lesson or
+/// of one linked to it. On a shared lesson it also writes the person's
+/// decision.
+pub fn keep_lesson(
+    cfg: &Config,
+    ws: &Workspace,
+    mut lesson: Lesson,
+    title: Option<&str>,
+    text: Option<&str>,
+    now: OffsetDateTime,
+) -> Result<Kept> {
+    let id = lesson.id;
+    let dir = team::dir_name(id);
+    let shared = team::read(ws);
+    let groups = team::groups(&shared);
+    let linked: Vec<String> = match team::group_of(&shared, &groups, &dir) {
+        Some(g) => groups[g].iter().map(|&i| shared[i].dir.clone()).collect(),
+        None => vec![dir.clone()],
+    };
+    let linked_refs: Vec<&str> = linked.iter().map(String::as_str).collect();
+    if let Some((note, _)) = team::markers_in_notes(ws, &linked_refs).into_iter().next() {
+        return Err(Error::InvalidProposal(format!(
+            "lesson {dir} is already kept: its marker is in {}",
+            note.display()
+        )));
+    }
     if lesson.status != Status::Pending {
         return Err(Error::InvalidProposal(format!(
             "lesson {id} is {}, not pending",
@@ -313,8 +352,9 @@ pub fn keep(
     let (kind, old, new, before) = if !exists {
         notes::validate_new_note_path(&ws.root, &ws.notes_dir, &target.note)?;
         let new = format!(
-            "---\ntype: policy\nstatus: current\nupdated: {date}\n---\n\n# {title}\n\n{}\n",
-            rule.trim_end()
+            "---\ntype: policy\nstatus: current\nupdated: {date}\n---\n\n# {title}\n\n{} {}\n",
+            rule.trim_end(),
+            team::marker(&dir)
         );
         (ProposalKind::Create, String::new(), new, Vec::new())
     } else {
@@ -326,7 +366,7 @@ pub fn keep(
         }
         let bytes = fs::read(&note_path).map_err(|e| Error::io_at(&note_path, e))?;
         let text = String::from_utf8_lossy(&bytes).into_owned();
-        let bullet = bullet(&title, &rule, date);
+        let bullet = bullet_marked(&title, &rule, date, &dir);
         let (kind, old, new) = insertion(&text, target.section.as_deref(), &bullet);
         (kind, old, new, bytes)
     };
@@ -399,6 +439,26 @@ pub fn keep(
         at: now,
         edited,
     });
+    // A shared lesson: the person's decision travels with the repository.
+    if team::inbox_dir(ws).join(&dir).is_dir() {
+        if let Some(member) = cfg.member.as_deref() {
+            team::decide(
+                ws,
+                member,
+                &dir,
+                &team::Decision {
+                    verdict: team::Verdict::Keep,
+                    by: member.to_owned(),
+                    at: now,
+                    receipt: Some(receipt.id),
+                    edited,
+                    reason: None,
+                    sessions_at: 0,
+                },
+            )?;
+            lesson.shared = Some(dir.clone());
+        }
+    }
     lesson.save(&cfg.home)?;
     Ok(Kept {
         lesson,
@@ -421,6 +481,13 @@ pub fn dismiss(cfg: &Config, id: Ulid, now: OffsetDateTime) -> Result<Lesson> {
     lesson.updated = now;
     lesson.save(&cfg.home)?;
     Ok(lesson)
+}
+
+/// [`bullet`] with the lesson's marker at the end, which Obsidian and
+/// GitHub hide: `<!-- hippo:lesson L-… -->`.
+pub fn bullet_marked(title: &str, rule: &str, date: time::Date, dir: &str) -> String {
+    let line = bullet(title, rule, date);
+    format!("{} {}\n", line.trim_end(), team::marker(dir))
 }
 
 /// The line a kept rule adds to a note.
@@ -674,21 +741,80 @@ pub fn scan(cfg: &Config, ws: &Workspace, days: u32, dry_run: bool) -> Result<Sc
         ..Scanned::default()
     };
 
+    // The shared Inbox, when it is in force: a correction the team already
+    // has is counted, not drafted.
+    let team_on = team::enabled(ws);
+    let shared = if team_on { team::read(ws) } else { Vec::new() };
+    let groups = team::groups(&shared);
+    let member = cfg
+        .member
+        .clone()
+        .filter(|m| crate::settings::valid_handle(m));
+    let writes_shared =
+        team_on && !dry_run && member.is_some() && team::Share::of(cfg) == team::Share::Rules;
+
     // Clusters that match a record update it; the rest are drafted.
     let mut to_draft: Vec<detect::Cluster> = Vec::new();
     for cluster in found.corrections.into_iter().chain(found.failures) {
+        let team_has = team_on && cluster.kind == Kind::Correction && {
+            match team::find_group(&shared, &groups, &cluster.terms) {
+                None => false,
+                Some(g) => {
+                    let group = &groups[g];
+                    let held = match team::state(&shared, group) {
+                        team::State::Kept | team::State::Crossed => true,
+                        team::State::Open => true,
+                        team::State::Dismissed => {
+                            let at = team::decisions(&shared, group)
+                                .iter()
+                                .map(|d| d.record.sessions_at)
+                                .max()
+                                .unwrap_or(0);
+                            team::sessions(&shared, group) < at + REOPEN_AFTER
+                        }
+                    };
+                    if held {
+                        out.state.shared_matched += 1;
+                        if writes_shared {
+                            let mine = records.iter().find(|l| matches(l, &cluster));
+                            // Counts go to the person's own lesson's
+                            // directory when they shared one, else to the
+                            // group's first.
+                            let dir = mine
+                                .and_then(|l| l.shared.clone())
+                                .filter(|d| group.iter().any(|&i| shared[i].dir == *d))
+                                .unwrap_or_else(|| shared[group[0]].dir.clone());
+                            team::write_seen(
+                                ws,
+                                member.as_deref().unwrap_or_default(),
+                                &dir,
+                                &team::Counts {
+                                    sessions: cluster.sessions.len(),
+                                    first: cluster.first,
+                                    last: cluster.last,
+                                    most_in_a_day: cluster.most_in_a_day,
+                                    agents: cluster.profiles.iter().cloned().collect(),
+                                },
+                            )?;
+                        }
+                    }
+                    held
+                }
+            }
+        };
         match records.iter_mut().find(|l| matches(l, &cluster)) {
             Some(l) => {
                 let grew = cluster.sessions.len() > l.seen.sessions;
                 merge(l, &cluster, now);
                 let reopen = l.status.closed()
                     && l.seen.sessions >= l.closed_sessions.unwrap_or(0) + REOPEN_AFTER;
-                if reopen {
+                if reopen && !team_has {
                     to_draft.push(cluster);
                 } else if grew && !dry_run {
                     l.save(&cfg.home)?;
                 }
             }
+            None if team_has => {}
             None => to_draft.push(cluster),
         }
     }
@@ -753,10 +879,356 @@ pub fn scan(cfg: &Config, ws: &Workspace, days: u32, dry_run: bool) -> Result<Sc
             None => records.push(lesson),
         }
     }
+    if team_on && !dry_run {
+        share_after_scan(cfg, ws, &index, &mut records, member.as_deref(), &mut out)?;
+    }
     if !dry_run {
         out.state.save(&cfg.home)?;
     }
     Ok(out)
+}
+
+/// After a scan with the shared Inbox in force: each confirmed correction
+/// whose evidence all ran in the workspace is shared, when the person said
+/// `share_lessons = "rules"`, or named as shareable when they have not;
+/// lessons already shared get fresh counts.
+fn share_after_scan(
+    cfg: &Config,
+    ws: &Workspace,
+    index: &Index,
+    records: &mut [Lesson],
+    member: Option<&str>,
+    out: &mut Scanned,
+) -> Result<()> {
+    let writes = member.is_some() && team::Share::of(cfg) == team::Share::Rules;
+    let origins = crate::session_meta::origins(index)?;
+    let roots = team::workspace_roots(ws);
+    let confirmed: Vec<Ulid> = out.confirmed.iter().map(|l| l.id).collect();
+    for lesson in records.iter_mut() {
+        if let (Some(dir), true, Some(m)) = (&lesson.shared, writes, member) {
+            team::write_seen(ws, m, dir, &team::counts_of(lesson))?;
+            continue;
+        }
+        if lesson.kind != Kind::Correction || !confirmed.contains(&lesson.id) {
+            continue;
+        }
+        if !team::from_workspace(lesson, &origins, &roots) {
+            continue;
+        }
+        match (writes, member) {
+            (true, Some(m)) => {
+                lesson.shared = Some(team::share(ws, m, lesson)?);
+                lesson.save(&cfg.home)?;
+            }
+            _ => out.notes.push(format!(
+                "lesson {} can be shared with the team; hippo lessons share shows the files it would write",
+                lesson.id
+            )),
+        }
+    }
+    Ok(())
+}
+
+/// The local lessons that can be shared: corrections, waiting or kept,
+/// not shared yet, whose every evidence session ran in the workspace or
+/// one of its worktrees.
+pub fn shareable(cfg: &Config, ws: &Workspace) -> Result<Vec<Lesson>> {
+    let index = Index::open(&cfg.home, false)?;
+    let origins = crate::session_meta::origins(&index)?;
+    let roots = team::workspace_roots(ws);
+    Ok(list(&cfg.home)?
+        .into_iter()
+        .filter(|l| {
+            l.kind == Kind::Correction
+                && matches!(l.status, Status::Pending | Status::Kept)
+                && l.shared.is_none()
+                && team::from_workspace(l, &origins, &roots)
+        })
+        .collect())
+}
+
+/// Shares `lessons` as `member` (`hippo lessons share`, after the person
+/// said yes): each gets its directory, wording and counts; a kept one also
+/// the person's keep decision. Returns the directories.
+pub fn share_lessons(
+    cfg: &Config,
+    ws: &Workspace,
+    member: &str,
+    lessons: &[Lesson],
+    now: OffsetDateTime,
+) -> Result<Vec<String>> {
+    let mut dirs = Vec::new();
+    for lesson in lessons {
+        let mut lesson = lesson.clone();
+        let dir = team::share(ws, member, &lesson)?;
+        if let (Status::Kept, Some(kept)) = (lesson.status, &lesson.kept) {
+            team::decide(
+                ws,
+                member,
+                &dir,
+                &team::Decision {
+                    verdict: team::Verdict::Keep,
+                    by: member.to_owned(),
+                    at: now,
+                    receipt: Some(kept.receipt),
+                    edited: kept.edited,
+                    reason: None,
+                    sessions_at: 0,
+                },
+            )?;
+        }
+        lesson.shared = Some(dir.clone());
+        lesson.save(&cfg.home)?;
+        dirs.push(dir);
+    }
+    Ok(dirs)
+}
+
+/// The local record for shared lesson `dir`, or one made from the
+/// wording a person sees first, waiting to be kept.
+fn record_for_shared(cfg: &Config, ws: &Workspace, dir: &str) -> Result<Lesson> {
+    let id: Ulid = dir
+        .strip_prefix("L-")
+        .and_then(|i| i.parse().ok())
+        .ok_or_else(|| Error::InvalidProposal(format!("not a shared lesson: {dir}")))?;
+    if let Ok(local) = get(&cfg.home, id) {
+        return Ok(local);
+    }
+    let shared = team::read(ws);
+    let lesson = shared.iter().find(|l| l.dir == dir).ok_or_else(|| {
+        Error::InvalidProposal(format!(
+            "no shared lesson {dir} in {}",
+            team::inbox_dir(ws).display()
+        ))
+    })?;
+    let wording = lesson
+        .wordings
+        .first()
+        .ok_or_else(|| Error::InvalidProposal(format!("shared lesson {dir} has no wording")))?;
+    let now = OffsetDateTime::now_utc();
+    let first = lesson
+        .seen
+        .iter()
+        .map(|s| s.record.first)
+        .min()
+        .unwrap_or(now);
+    let last = lesson
+        .seen
+        .iter()
+        .map(|s| s.record.last)
+        .max()
+        .unwrap_or(now);
+    let w = &wording.record;
+    Ok(Lesson {
+        id,
+        kind: w.kind,
+        key: w.terms.join(" "),
+        terms: w.terms.clone(),
+        title: w.title.clone(),
+        rule: w.rule.clone(),
+        target: w.target.clone(),
+        evidence: Vec::new(),
+        seen: Seen {
+            sessions: lesson.seen.iter().map(|s| s.record.sessions).sum(),
+            profiles: Vec::new(),
+            first,
+            last,
+            most_in_a_day: 0,
+        },
+        status: Status::Pending,
+        review: None,
+        created: now,
+        updated: now,
+        closed_sessions: None,
+        kept: None,
+        ask: None,
+        shared: Some(dir.to_owned()),
+    })
+}
+
+/// Keeps shared lesson `dir` (`hippo lessons keep L-…`): its note change as
+/// any keep, and the person's decision in the shared Inbox.
+pub fn keep_shared(
+    cfg: &Config,
+    ws: &Workspace,
+    dir: &str,
+    title: Option<&str>,
+    text: Option<&str>,
+    now: OffsetDateTime,
+) -> Result<Kept> {
+    if cfg.member.is_none() {
+        return Err(Error::InvalidProposal(
+            "a shared lesson's decision is written under your handle: set it first with hippo config set member <handle> --yes".into(),
+        ));
+    }
+    let lesson = record_for_shared(cfg, ws, dir)?;
+    keep_lesson(cfg, ws, lesson, title, text, now)
+}
+
+/// Dismisses shared lesson `dir` as the person: `reason` is `wrong`,
+/// `not-for-us` or `duplicate` (then `of` names the lesson it repeats,
+/// and the two are linked). A dismissal never edits a note.
+pub fn dismiss_shared(
+    cfg: &Config,
+    ws: &Workspace,
+    dir: &str,
+    reason: Option<&str>,
+    of: Option<&str>,
+    now: OffsetDateTime,
+) -> Result<()> {
+    let member = cfg.member.as_deref().ok_or_else(|| {
+        Error::InvalidProposal(
+            "a shared lesson's decision is written under your handle: set it first with hippo config set member <handle> --yes".into(),
+        )
+    })?;
+    if let Some(r) = reason {
+        if !matches!(r, "wrong" | "duplicate" | "not-for-us") {
+            return Err(Error::InvalidProposal(format!(
+                "--reason is wrong, duplicate or not-for-us, found {r:?}"
+            )));
+        }
+    }
+    let shared = team::read(ws);
+    let groups = team::groups(&shared);
+    let g = team::group_of(&shared, &groups, dir)
+        .ok_or_else(|| Error::InvalidProposal(format!("no shared lesson {dir}")))?;
+    if reason == Some("duplicate") {
+        let other = of.ok_or_else(|| {
+            Error::InvalidProposal("a duplicate names the lesson it repeats: --of L-…".into())
+        })?;
+        if team::group_of(&shared, &groups, other).is_none() {
+            return Err(Error::InvalidProposal(format!("no shared lesson {other}")));
+        }
+        team::link(ws, member, dir, other, now)?;
+    }
+    team::decide(
+        ws,
+        member,
+        dir,
+        &team::Decision {
+            verdict: team::Verdict::Dismiss,
+            by: member.to_owned(),
+            at: now,
+            receipt: None,
+            edited: false,
+            reason: reason.map(str::to_owned),
+            sessions_at: team::sessions(&shared, &groups[g]),
+        },
+    )?;
+    if let Some(id) = dir.strip_prefix("L-").and_then(|i| i.parse::<Ulid>().ok()) {
+        if let Ok(mut local) = get(&cfg.home, id) {
+            if local.status == Status::Pending {
+                local.status = Status::Dismissed;
+                local.closed_sessions = Some(local.seen.sessions);
+                local.updated = now;
+                local.save(&cfg.home)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// One marker `hippo lessons markers` adds: a kept bullet, before and
+/// after.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MarkerPlan {
+    pub lesson: Ulid,
+    pub note: PathBuf,
+    pub old: String,
+    pub new: String,
+}
+
+/// Finds each kept local lesson's bullet in its note (by the line keep
+/// inserted: its bold title and `*(lesson kept`) that has no marker yet.
+pub fn plan_markers(cfg: &Config, ws: &Workspace) -> Result<Vec<MarkerPlan>> {
+    let mut out = Vec::new();
+    for lesson in list(&cfg.home)? {
+        if lesson.status != Status::Kept {
+            continue;
+        }
+        let Some(target) = &lesson.target else {
+            continue;
+        };
+        let Ok(text) = fs::read_to_string(ws.root.join(&target.note)) else {
+            continue;
+        };
+        let title = lesson.title.trim().trim_end_matches(['.', ':', ';']);
+        let start = format!("- **{title}.**");
+        let dir = team::dir_name(lesson.id);
+        if text.contains(&team::marker(&dir)) {
+            continue;
+        }
+        let found: Vec<&str> = text
+            .lines()
+            .filter(|l| {
+                l.starts_with(&start) && l.contains("*(lesson kept") && !l.contains("hippo:lesson")
+            })
+            .collect();
+        if let [line] = found.as_slice() {
+            let old = format!("{line}\n");
+            if notes::occurrences(text.as_bytes(), old.as_bytes()).0 != 1 {
+                continue;
+            }
+            out.push(MarkerPlan {
+                lesson: lesson.id,
+                note: target.note.clone(),
+                new: format!("{} {}\n", line.trim_end(), team::marker(&dir)),
+                old,
+            });
+        }
+    }
+    Ok(out)
+}
+
+/// Writes `plans` as human-reviewed changes with snapshots and receipts,
+/// so `hippo revert` removes a marker. Returns the receipts' ids.
+pub fn write_markers(
+    ws: &Workspace,
+    plans: &[MarkerPlan],
+    now: OffsetDateTime,
+) -> Result<Vec<Ulid>> {
+    let mut receipts = Vec::new();
+    for plan in plans {
+        let path = ws.root.join(&plan.note);
+        let before = fs::read(&path).map_err(|e| Error::io_at(&path, e))?;
+        let after = notes::change(
+            &before,
+            ProposalKind::Replace,
+            plan.old.as_bytes(),
+            plan.new.as_bytes(),
+        )?;
+        let proposal = records::Proposal {
+            id: Ulid::generate(),
+            pass: "lessons".to_owned(),
+            note: plan.note.clone(),
+            kind: ProposalKind::Replace,
+            before_hash: hex(&sha256(&before)),
+            after_hash: hex(&sha256(&after)),
+            old: plan.old.clone(),
+            new: plan.new.clone(),
+            evidence: Vec::new(),
+            reason: format!("marker for kept lesson {}", plan.lesson),
+        };
+        validate::write(ws, &proposal)?;
+        let review = Review {
+            verdict: Verdict::Confirm,
+            notes: "the lesson's marker on its kept bullet".to_owned(),
+            reviewer: "human".to_owned(),
+            invocation: "hippo lessons markers --yes".to_owned(),
+            at: now,
+            runner: None,
+        };
+        match apply::confirm(ws, &proposal, &review)? {
+            Applied::Written(r) => receipts.push(r.id),
+            Applied::NoteChanged(_) => {
+                return Err(Error::InvalidProposal(format!(
+                    "{} changed meanwhile; run hippo lessons markers again",
+                    plan.note.display()
+                )))
+            }
+        }
+    }
+    Ok(receipts)
 }
 
 /// Whether record `l` is `cluster`'s lesson.
@@ -797,6 +1269,7 @@ fn new_record(cluster: &detect::Cluster, now: OffsetDateTime) -> Lesson {
         closed_sessions: None,
         kept: None,
         ask: None,
+        shared: None,
     }
 }
 

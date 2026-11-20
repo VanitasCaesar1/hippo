@@ -83,6 +83,14 @@ pub struct Config {
     /// `[fallback]`: the runners each role may move to at a limit.
     #[serde(default)]
     pub fallback: toml::Table,
+    /// The person's handle in a shared workspace's files
+    /// (`docs/designs/team-brain.md`): letters, digits, `-` and `_`.
+    #[serde(default)]
+    pub member: Option<String>,
+    /// What of this person's may be written to a shared Inbox: `off` (the
+    /// default) or `rules`.
+    #[serde(default)]
+    pub share_lessons: Option<String>,
 }
 
 /// The `transcript_roots` a configuration has when it sets none, and where
@@ -1081,6 +1089,8 @@ mod tests {
             ingest_interval_minutes: 10,
             dream_at: "03:30".into(),
             reviewer_command_override: None,
+            member: None,
+            share_lessons: None,
             fallback: Default::default(),
             roles: Default::default(),
             runners: Default::default(),

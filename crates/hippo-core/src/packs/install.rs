@@ -1521,6 +1521,8 @@ mod tests {
                     .chain([format!("HIPPO_STUB_VERDICT={verdict}"), STUB.to_owned()])
                     .collect(),
             ),
+            member: None,
+            share_lessons: None,
             fallback: Default::default(),
             roles: Default::default(),
             runners: Default::default(),

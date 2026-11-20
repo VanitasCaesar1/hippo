@@ -82,6 +82,13 @@ pub fn run(command: Command) -> Result<ExitCode> {
         };
         return super::runners::write(&home, &change, yes);
     }
+    // share_lessons is the person's own consent: never an agent's, never
+    // without a terminal.
+    if key == "share_lessons" && matches!(&op, Op::Set(v) if v.trim() != "off") && yes {
+        if let Some(why) = hippo_core::accept::person_refusal("hippo config set share_lessons") {
+            anyhow::bail!(why);
+        }
+    }
     let plan = settings::plan(&home, &key, &op)?;
     print!("{}", plan.diff());
     if !plan.changed {

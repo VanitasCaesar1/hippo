@@ -57,7 +57,22 @@ pub enum Command {
         title: Option<String>,
     },
     /// Dismiss a pending lesson; it returns only if it recurs in 3 more sessions
-    Dismiss { id: String },
+    Dismiss {
+        id: String,
+        /// For a shared lesson: wrong, duplicate (with --of) or not-for-us
+        #[arg(long)]
+        reason: Option<String>,
+        /// With --reason duplicate: the shared lesson this one repeats (L-…)
+        #[arg(long)]
+        of: Option<String>,
+    },
+    /// Share your lessons with the team's Inbox: shows each file first and asks (you, at a terminal)
+    Share,
+    /// Add the lesson marker to bullets kept before 0.6.0; prints each, writes with --yes (hippo revert undoes it)
+    Markers {
+        #[arg(long)]
+        yes: bool,
+    },
     /// Propose a rule (or with --note, a new note) from an Ask answer
     Propose {
         #[arg(long, required_unless_present = "miss")]
@@ -98,15 +113,25 @@ pub fn run(args: Args) -> Result<ExitCode> {
         }
         Some(Command::Keep { id, text, title }) => {
             let (cfg, ws) = load_for_write()?;
-            let id = parse_id(&id)?;
-            let kept = lessons::keep(
-                &cfg,
-                &ws,
-                id,
-                title.as_deref(),
-                text.as_deref(),
-                OffsetDateTime::now_utc(),
-            )?;
+            let kept = if id.starts_with("L-") {
+                lessons::keep_shared(
+                    &cfg,
+                    &ws,
+                    &id,
+                    title.as_deref(),
+                    text.as_deref(),
+                    OffsetDateTime::now_utc(),
+                )?
+            } else {
+                lessons::keep(
+                    &cfg,
+                    &ws,
+                    parse_id(&id)?,
+                    title.as_deref(),
+                    text.as_deref(),
+                    OffsetDateTime::now_utc(),
+                )?
+            };
             println!(
                 "{id}: kept in {} (receipt {}; hippo revert {} undoes it)",
                 kept.proposal.note.display(),
@@ -115,7 +140,25 @@ pub fn run(args: Args) -> Result<ExitCode> {
             );
             Ok(ExitCode::SUCCESS)
         }
-        Some(Command::Dismiss { id }) => {
+        Some(Command::Dismiss { id, reason, of }) if id.starts_with("L-") => {
+            let (cfg, ws) = load_for_write()?;
+            lessons::dismiss_shared(
+                &cfg,
+                &ws,
+                &id,
+                reason.as_deref(),
+                of.as_deref(),
+                OffsetDateTime::now_utc(),
+            )?;
+            println!(
+                "{id}: dismissed{}; your decision is in .hippo/inbox/{id}/ for the team to pull",
+                reason.map(|r| format!(" as {r}")).unwrap_or_default()
+            );
+            Ok(ExitCode::SUCCESS)
+        }
+        Some(Command::Share) => share(),
+        Some(Command::Markers { yes }) => markers(yes),
+        Some(Command::Dismiss { id, .. }) => {
             let (cfg, _) = load_for_write()?;
             let id = parse_id(&id)?;
             let l = lessons::dismiss(&cfg, id, OffsetDateTime::now_utc())?;
@@ -172,7 +215,205 @@ pub fn run(args: Args) -> Result<ExitCode> {
     }
 }
 
+/// `hippo lessons share`: the person's consent, at a terminal.
+fn share() -> Result<ExitCode> {
+    use hippo_core::lessons::team;
+    let (mut cfg, ws) = load_for_write()?;
+    if !team::enabled(&ws) {
+        anyhow::bail!(
+            "the shared Inbox is not on for this workspace on this machine: [team] inbox = \"shared\" in .hippo/hippo.toml, accepted with hippo accept"
+        );
+    }
+    if let Some(why) = hippo_core::accept::person_refusal("hippo lessons share") {
+        anyhow::bail!(why);
+    }
+    let member = match cfg.member.clone() {
+        Some(m) => m,
+        None => {
+            let suggested = git_email_handle(&ws.root);
+            print!(
+                "Your handle in the team's files (letters, digits, - and _){}: ",
+                suggested
+                    .as_deref()
+                    .map(|s| format!(" [{s}]"))
+                    .unwrap_or_default()
+            );
+            io::stdout().flush()?;
+            let mut line = String::new();
+            io::stdin().read_line(&mut line)?;
+            let line = line.trim();
+            let handle = if line.is_empty() {
+                suggested.unwrap_or_default()
+            } else {
+                line.to_owned()
+            };
+            if !hippo_core::settings::valid_handle(&handle) {
+                anyhow::bail!("{handle:?} is not a handle: letters, digits, - and _, at most 32");
+            }
+            handle
+        }
+    };
+    let lessons = lessons::shareable(&cfg, &ws)?;
+    println!(
+        "Sharing writes your lessons' titles, rules, match terms and counts into the repository (no quotes, no session ids), under the handle {member}. You commit and push them as usual."
+    );
+    if lessons.is_empty() {
+        println!("No lesson of yours can be shared yet; later ones are shared by each scan once you say yes.");
+    }
+    for l in &lessons {
+        for path in team::planned_files(&ws, &member, l) {
+            println!(
+                "  {}",
+                path.strip_prefix(&ws.root).unwrap_or(&path).display()
+            );
+        }
+        println!("      {}: {}", l.title, l.rule);
+    }
+    print!("Share these, and later lessons from this workspace? [y/N] ");
+    io::stdout().flush()?;
+    let mut answer = String::new();
+    io::stdin().read_line(&mut answer)?;
+    if !matches!(answer.trim(), "y" | "Y" | "yes") {
+        println!("nothing shared");
+        return Ok(ExitCode::SUCCESS);
+    }
+    for (key, value) in [("member", member.as_str()), ("share_lessons", "rules")] {
+        let plan = hippo_core::settings::plan(
+            &cfg.home,
+            key,
+            &hippo_core::settings::Op::Set(value.to_owned()),
+        )?;
+        hippo_core::settings::apply(&plan)?;
+    }
+    cfg.member = Some(member.clone());
+    cfg.share_lessons = Some("rules".into());
+    let dirs = lessons::share_lessons(&cfg, &ws, &member, &lessons, OffsetDateTime::now_utc())?;
+    println!(
+        "shared {} lessons; share_lessons = \"rules\" and member = \"{member}\" are in config.toml. Read git status before you commit.",
+        dirs.len()
+    );
+    Ok(ExitCode::SUCCESS)
+}
+
+/// The local part of `git config user.email` in `root`, when it is a
+/// valid handle.
+fn git_email_handle(root: &std::path::Path) -> Option<String> {
+    let out = std::process::Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["config", "user.email"])
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    let email = String::from_utf8_lossy(&out.stdout).trim().to_owned();
+    let local = email.split('@').next()?.to_owned();
+    hippo_core::settings::valid_handle(&local).then_some(local)
+}
+
+fn markers(yes: bool) -> Result<ExitCode> {
+    let (cfg, ws) = load_for_write()?;
+    let plans = lessons::plan_markers(&cfg, &ws)?;
+    if plans.is_empty() {
+        println!("every kept lesson's bullet has its marker");
+        return Ok(ExitCode::SUCCESS);
+    }
+    for p in &plans {
+        println!("{}", p.note.display());
+        println!("- {}", p.old.trim_end());
+        println!("+ {}", p.new.trim_end());
+    }
+    if !yes {
+        println!("nothing written; add --yes to write these (each gets a receipt; hippo revert undoes it)");
+        return Ok(ExitCode::SUCCESS);
+    }
+    let receipts = lessons::write_markers(&ws, &plans, OffsetDateTime::now_utc())?;
+    println!("{} markers written", receipts.len());
+    Ok(ExitCode::SUCCESS)
+}
+
+/// The shared Inbox, as `hippo lessons` lists it: one entry per group,
+/// who saw it, and the decisions as written, beside each file's committer.
+fn list_shared(out: &mut impl Write, ws: &hippo_core::config::Workspace) -> Result<()> {
+    use hippo_core::lessons::team;
+    let shared = team::read(ws);
+    let groups = team::groups(&shared);
+    for g in &groups {
+        let first = &shared[g[0]];
+        let wording = first.wordings.first();
+        let seen: Vec<String> = g
+            .iter()
+            .flat_map(|&i| shared[i].seen.iter())
+            .map(|s| format!("{} {}", s.member, s.record.sessions))
+            .collect();
+        writeln!(
+            out,
+            "{} {:<10} seen by {:<20} {}",
+            first.dir,
+            wording.map_or("correction", |w| w.record.kind.as_str()),
+            if seen.is_empty() {
+                "-".to_owned()
+            } else {
+                seen.join(", ")
+            },
+            wording.map_or("", |w| w.record.title.as_str())
+        )?;
+        if let Some(w) = wording {
+            writeln!(out, "    {}", w.record.rule)?;
+            writeln!(
+                out,
+                "    reviewer: {} (as written in lesson-{}.json{})",
+                w.record.verdict,
+                w.member,
+                team::committer(ws, &w.path)
+                    .map(|c| format!(", pushed by {c}"))
+                    .unwrap_or_default()
+            )?;
+        }
+        for other in g.iter().flat_map(|&i| shared[i].wordings.iter()).skip(1) {
+            writeln!(
+                out,
+                "    also worded by {}: {}",
+                other.member, other.record.title
+            )?;
+        }
+        let state = team::state(&shared, g);
+        for d in team::decisions(&shared, g) {
+            let who = team::committer(ws, &d.path);
+            let verdict = match d.record.verdict {
+                team::Verdict::Keep => "kept".to_owned(),
+                team::Verdict::Dismiss => format!(
+                    "dismissed{}",
+                    d.record
+                        .reason
+                        .as_deref()
+                        .map(|r| format!(" as {r}"))
+                        .unwrap_or_default()
+                ),
+            };
+            let by = match who {
+                Some(c) => format!("{} (pushed by {c})", d.record.by),
+                None => format!("{} (not committed yet)", d.record.by),
+            };
+            writeln!(out, "    {verdict} by {by} {}", d.record.at.date())?;
+        }
+        if state == team::State::Crossed {
+            writeln!(out, "    crossed: kept and dismissed; talk it over")?;
+        }
+    }
+    Ok(())
+}
+
 fn list(as_json: bool, all: bool) -> Result<ExitCode> {
+    if !as_json {
+        if let Ok((_, ws)) = load() {
+            if hippo_core::lessons::team::enabled(&ws) {
+                let mut out = io::stdout().lock();
+                writeln!(out, "Shared Inbox (.hippo/inbox/):")?;
+                list_shared(&mut out, &ws)?;
+                writeln!(out, "Yours:")?;
+            }
+        }
+    }
     let (cfg, _) = load()?;
     let items: Vec<Lesson> = if all {
         lessons::list(&cfg.home)?

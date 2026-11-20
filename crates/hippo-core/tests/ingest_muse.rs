@@ -62,6 +62,8 @@ fn ingest_reads_a_muse_log_into_a_session_without_leaks() {
         ingest_interval_minutes: 10,
         dream_at: "03:30".into(),
         reviewer_command_override: None,
+        member: None,
+        share_lessons: None,
         fallback: Default::default(),
         roles: Default::default(),
         runners: Default::default(),

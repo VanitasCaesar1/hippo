@@ -1827,6 +1827,7 @@ mod tests {
             closed_sessions: None,
             kept: None,
             ask: None,
+            shared: None,
         }
     }
 

@@ -44,11 +44,13 @@ enum Shape {
     Path,
     /// A version, `major.minor.patch`.
     Version,
+    /// A member handle: letters, digits, `-` and `_`, at most 32.
+    Handle,
 }
 
 /// The keys `hippo config` changes, their file and shape. A key with a
 /// dot lives in a table: `guard.fail` is `fail` under `[guard]`.
-const KEYS: [(&str, File, Shape); 15] = [
+const KEYS: [(&str, File, Shape); 17] = [
     ("transcript_roots", File::Config, Shape::List),
     ("exclude_roots", File::Config, Shape::List),
     ("ingest_interval_minutes", File::Config, Shape::Count),
@@ -71,6 +73,12 @@ const KEYS: [(&str, File, Shape); 15] = [
         "team.inbox",
         File::Workspace,
         Shape::Choice(&["local", "shared"]),
+    ),
+    ("member", File::Config, Shape::Handle),
+    (
+        "share_lessons",
+        File::Config,
+        Shape::Choice(&["off", "rules"]),
     ),
 ];
 
@@ -277,6 +285,15 @@ pub fn plan_text(
                 serde_json::to_string(&rel.to_string_lossy()).expect("a string serialises")
             ))
         }
+        (Op::Set(v), Shape::Handle) => {
+            let v = v.trim();
+            if !valid_handle(v) {
+                return Err(bad(format!(
+                    "{key} is letters, digits, - and _, at most 32 characters, found {v:?}"
+                )));
+            }
+            Some(format!("{key} = \"{v}\""))
+        }
         (Op::Set(v), Shape::Version) => {
             let v = v.trim();
             if crate::config::parse_version(v).is_none() {
@@ -387,6 +404,14 @@ pub fn plan_text(
         also: Vec::new(),
         text: new_text,
     })
+}
+
+/// A member handle: letters, digits, `-` and `_`, 1 to 32 characters.
+pub fn valid_handle(text: &str) -> bool {
+    (1..=32).contains(&text.len())
+        && text
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 /// `text` with `line` added under `[table]`: after the table's last key,

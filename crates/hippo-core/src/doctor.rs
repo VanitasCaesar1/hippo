@@ -354,6 +354,9 @@ fn run_with(cfg: &Config, ws: &Workspace, env: &Env) -> Report {
     checks.push(records_check(&records, &unreadable, index.as_ref()));
     checks.push(git_check(ws));
     checks.push(lessons_check(cfg));
+    if let Some(row) = team_check(ws) {
+        checks.push(row);
+    }
     checks.extend(security_checks(cfg, Some(ws), env));
     checks.extend(model_checks(cfg, env));
     Report { checks }
@@ -449,6 +452,76 @@ fn shell_word(word: &str) -> String {
     } else {
         format!("'{}'", word.replace('\'', "'\\''"))
     }
+}
+
+/// `team`: the shared Inbox, when it is on or has files: duplicate
+/// markers, crossed decisions, members below `min_hippo_version`, and an
+/// Inbox git would not share.
+fn team_check(ws: &Workspace) -> Option<Check> {
+    use crate::lessons::team;
+    let on = team::enabled(ws);
+    let dir = team::inbox_dir(ws);
+    if !on && !dir.is_dir() {
+        return None;
+    }
+    let h = team::health(ws);
+    let mut parts = vec![format!(
+        "shared Inbox {}: {} lessons",
+        if on { "on" } else { "off on this machine" },
+        h.lessons
+    )];
+    let mut status = Status::Ok;
+    for (lesson, places) in &h.duplicate_markers {
+        status = Status::Warn;
+        parts.push(format!(
+            "lesson {lesson} was kept twice: its marker is in {}; delete one line",
+            places
+                .iter()
+                .map(|p| p.display().to_string())
+                .collect::<Vec<_>>()
+                .join(" and ")
+        ));
+    }
+    if !h.crossed.is_empty() {
+        status = Status::Warn;
+        parts.push(format!(
+            "kept and dismissed by different people: {}",
+            h.crossed.join(", ")
+        ));
+    }
+    if !h.below_floor.is_empty() {
+        status = Status::Warn;
+        parts.push(format!(
+            "written by a hippo below min_hippo_version: {}",
+            h.below_floor
+                .iter()
+                .map(|(m, v)| format!("{m} ({v})"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    if on {
+        let ignored = Command::new("git")
+            .arg("-C")
+            .arg(&ws.root)
+            .args([
+                "check-ignore",
+                "-q",
+                "--no-index",
+                "--",
+                ".hippo/inbox/L-probe/lesson-x.json",
+            ])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success());
+        if ignored {
+            status = Status::Warn;
+            parts.push("git ignores .hippo/inbox/, so the team never sees it".to_owned());
+        }
+    }
+    Some(row("team", status, parts.join("; ")))
 }
 
 /// The last lessons scan: a warning when it failed,
@@ -1520,6 +1593,8 @@ mod tests {
             ingest_interval_minutes: 10,
             dream_at: "03:30".into(),
             reviewer_command_override: None,
+            member: None,
+            share_lessons: None,
             fallback: Default::default(),
             roles: Default::default(),
             runners: Default::default(),
