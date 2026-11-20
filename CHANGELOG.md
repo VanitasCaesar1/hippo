@@ -4,6 +4,27 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-20
+
+**Upgrading.** Nothing to migrate. Hippo.app opens on Morning, with a top bar of four views in place of the sidebar; the views it replaced (Home, Inbox, Fleet, Incidents, Memory, Manage) are still there, by their keys, the command palette and links from the new views. Hippo Dark and Hippo Light take new colours. New dream reports carry a `started:` line after `status:`; older hippo versions read them as before, and Morning shows no duration for reports written before 0.7.0.
+
+### Added
+
+- **Hippo.app, the night map** ([design](docs/designs/app-night-map.md)). A top bar with Morning, Brain, Agents and Guard and their counts (rules waiting, sessions waiting on you, important guard incidents), the workspace, search, the indexed state and a dark and light toggle; a floating panel and a floating Ask bar that names the agent that answers.
+  - **Morning**: the last night pass (when, how long, sessions read), four figures, a strip of the day, the night and this morning, the words you said joined by lines to the rules drafted from them (Keep, Edit, Dismiss), the changes the pass applied (was and now, receipt, Undo) and the ones its reviewer rejected, with the reason. The panel is what a new session starts with and which agents get it.
+  - **Brain**: the notes by folder on a canvas, with their links as lines, flags (fixed last night, rule waiting, fix rejected, stale) and reads this week. It zooms: pinch, ⌘-scroll, ⌘= / ⌘− / ⌘0 and buttons, about the pointer, through three levels (folders, note cards, cards with their rules and evidence). The panel is the selected note.
+  - **Agents**: each account's 5-hour and 7-day meters, then the sessions waiting on you, working and recent, with Open thread, Terminal and Later.
+  - **Guard**: the guard's incidents of the week in plain words (who, what it ran, what it touched, why it matters, what to do), Show session, Fix with Claude Code or Codex (the brief shown first) and Not a problem.
+  - Below 900 points Morning is a feed, Brain a board, Agents and Guard stacked.
+- **`hippo view morning|strip|map|note|guard|counts [--json]`**: the models behind those views, read-only. `hippo brief --json` gains `parts` (by group, with bytes and the rules still waiting) and `reaches`; `hippo fleet --json` gains `recent`.
+- **The live demo** on the site: Morning and Brain in the browser, generated from the synthetic demo home through `hippo view --json` (`docs/site/demo-data.sh`), with zoom and pan.
+- A new landing page in the night map's look.
+
+### Changed
+
+- Dream reports record when the run started (`started:`).
+- `app/scripts/demo-home.sh` seeds three guard incidents and takes `HIPPO_DEMO_WS` to name its workspace folder.
+
 ## [0.6.1] - 2026-11-20
 
 **Upgrading.** Nothing to migrate. The guard is now checked in real agents, and installs in Codex (`hippo guard install --agent codex`, then trust the hook in Codex) and Cursor (`--agent cursor`). If you set the OpenCode plugin's `guard: true`, its warnings now reach the model and you. Self-protection no longer refuses an agent's writes in scratch homes, so tests of hippo itself run again under the guard. `[allow]` gains `keychain` and `paths`; an older hippo refuses a note or `machine.toml` that uses them (unknown keys), so a team that commits them should be on 0.6.1 first.
@@ -154,7 +175,8 @@ The first release. hippo reads what your coding agents did, keeps your notes tru
 - **Hippo.app**, a macOS window over the same files. Built from source in `app/`; no binary is released. Checked on synthetic data, not in daily use.
 - **Docs** at [vanitascaesar1.github.io/hippo](https://vanitascaesar1.github.io/hippo/), including [Sharing a brain in a team](docs/site/src/sharing.md), tried with two people and one git remote.
 
-[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/VanitasCaesar1/hippo/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.4.2...v0.5.0

@@ -9,7 +9,7 @@
 # compares the binary against, and the path in $HIPPO_HOME/bin-path, which
 # the plugins run (HIPPO_HOME defaults to ~/.hippo; both files are 0600).
 #
-#   HIPPO_VERSION       a version to install instead of the latest (0.6.1)
+#   HIPPO_VERSION       a version to install instead of the latest (0.7.0)
 #   HIPPO_INSTALL_DIR   where the binary goes
 #   HIPPO_BASE_URL      a folder holding the release files, such as
 #                           file:///path/to/dist (then give HIPPO_VERSION)
