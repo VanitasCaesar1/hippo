@@ -11,6 +11,7 @@
 
 pub mod detect;
 pub mod draft;
+pub mod groups;
 pub mod team;
 
 use std::collections::BTreeSet;
@@ -151,6 +152,55 @@ pub struct KeptBy {
     #[serde(with = "time::serde::rfc3339")]
     pub at: OffsetDateTime,
     pub edited: bool,
+    /// Who kept it; absent before 0.8.0, when only the person could.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub by: Option<Keeper>,
+}
+
+/// Who kept a rule.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Keeper {
+    /// The person, with no agent marker in the environment.
+    Person,
+    /// An agent's command, answering hippo's ask.
+    Agent,
+    /// `auto_keep`.
+    Auto,
+}
+
+/// Where a rule applies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Scope {
+    /// How the person wants agents to work anywhere: delivered in every
+    /// session, inside the workspace or not.
+    Machine,
+    /// About the workspace's code, notes or product.
+    Workspace,
+}
+
+/// A lesson's place among the person's rules (`docs/designs/remember.md`):
+/// optional fields, flat in the record, absent before 0.8.0.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Links {
+    /// Its group in `groups.json`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<Ulid>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<Scope>,
+    /// For a rule read from an agent memory: the source's id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    /// The lessons whose rules this one replaces.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub supersedes: Vec<Ulid>,
+    /// The lesson that replaced this one; set with status `dismissed`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub superseded_by: Option<Ulid>,
+    /// How many times its group was drafted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drafts: Option<u32>,
 }
 
 /// `$HIPPO_HOME/lessons/<id>.json`.
@@ -183,6 +233,8 @@ pub struct Lesson {
     /// Its directory in the shared Inbox (`L-<id>`), once shared.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shared: Option<String>,
+    #[serde(flatten)]
+    pub links: Links,
 }
 
 impl Lesson {
@@ -251,6 +303,15 @@ pub struct State {
     /// drafted.
     #[serde(default)]
     pub shared_matched: usize,
+    /// Corrections placed into groups this run.
+    #[serde(default)]
+    pub placed: usize,
+    /// Match calls made (counted in `model_calls` too).
+    #[serde(default)]
+    pub match_calls: usize,
+    /// Corrections left for a later run: the call cap, or a model error.
+    #[serde(default)]
+    pub left: usize,
 }
 
 impl State {
@@ -279,6 +340,8 @@ pub struct Kept {
     pub lesson: Lesson,
     pub receipt: records::Receipt,
     pub proposal: records::Proposal,
+    /// What became of the rules it replaces, one line each.
+    pub replaced: Vec<String>,
 }
 
 /// Keeps pending lesson `id`: one change against its target
@@ -438,6 +501,7 @@ pub fn keep_lesson(
         receipt: receipt.id,
         at: now,
         edited,
+        by: Some(keeper()),
     });
     // A shared lesson: the person's decision travels with the repository.
     if team::inbox_dir(ws).join(&dir).is_dir() {
@@ -460,11 +524,130 @@ pub fn keep_lesson(
         }
     }
     lesson.save(&cfg.home)?;
+    let mut replaced = Vec::new();
+    for old in lesson.links.supersedes.clone() {
+        replaced.push(supersede(cfg, ws, old, id, now)?);
+    }
     Ok(Kept {
         lesson,
         receipt,
         proposal,
+        replaced,
     })
+}
+
+/// Closes lesson `old`, which kept lesson `by` replaces: status
+/// `dismissed` with `superseded_by`, and, when it was kept into a note, its
+/// bullet removed through a proposal and a confirm receipt whose reviewer
+/// is `human`, so `hippo revert` restores it. A shared rule's bullet is
+/// left for the team. Returns one line saying what happened.
+pub fn supersede(
+    cfg: &Config,
+    ws: &Workspace,
+    old: Ulid,
+    by: Ulid,
+    now: OffsetDateTime,
+) -> Result<String> {
+    let mut lesson = get(&cfg.home, old)?;
+    let title = if lesson.title.is_empty() {
+        old.to_string()
+    } else {
+        lesson.title.clone()
+    };
+    let mut line = format!("replaced: {title}");
+    if lesson.status == Status::Kept {
+        let dir = team::dir_name(old);
+        let shared = lesson.shared.is_some() || team::inbox_dir(ws).join(&dir).is_dir();
+        match lesson.target.clone() {
+            _ if shared => {
+                line = format!("{title}: a team rule; change the team note by hand");
+            }
+            Some(target) => {
+                let note_path = ws.root.join(&target.note);
+                let text = fs::read_to_string(&note_path).unwrap_or_default();
+                let marker = team::marker(&dir);
+                let bullet = text
+                    .lines()
+                    .find(|l| l.contains(&marker))
+                    .map(|l| format!("{l}\n"));
+                match bullet {
+                    Some(bullet) => {
+                        match remove_line(ws, &target.note, &text, &bullet, old, by, now) {
+                            Ok(receipt) => {
+                                line = format!(
+                                    "replaced: {title} (its bullet in {} removed, receipt {receipt})",
+                                    target.note.display()
+                                );
+                            }
+                            Err(err) => {
+                                line = format!(
+                                    "replaced: {title}; remove its bullet in {} by hand ({err})",
+                                    target.note.display()
+                                );
+                            }
+                        }
+                    }
+                    None => {
+                        line = format!(
+                            "replaced: {title}; its bullet is no longer in {}",
+                            target.note.display()
+                        );
+                    }
+                }
+            }
+            None => {}
+        }
+    }
+    lesson.status = Status::Dismissed;
+    lesson.links.superseded_by = Some(by);
+    lesson.closed_sessions = Some(lesson.seen.sessions);
+    lesson.updated = now;
+    lesson.save(&cfg.home)?;
+    Ok(line)
+}
+
+/// Removes `bullet` (one whole line) from `note` through a proposal and a
+/// human confirm receipt.
+fn remove_line(
+    ws: &Workspace,
+    note: &Path,
+    text: &str,
+    bullet: &str,
+    old: Ulid,
+    by: Ulid,
+    now: OffsetDateTime,
+) -> Result<Ulid> {
+    notes::validate_proposal_path(&ws.root, &ws.notes_dir, note)?;
+    let before = text.as_bytes();
+    let after = notes::change(before, ProposalKind::Replace, bullet.as_bytes(), b"")?;
+    let proposal = records::Proposal {
+        id: Ulid::generate(),
+        pass: "lessons".to_owned(),
+        note: note.to_path_buf(),
+        kind: ProposalKind::Replace,
+        before_hash: hex(&sha256(before)),
+        after_hash: hex(&sha256(&after)),
+        old: bullet.to_owned(),
+        new: String::new(),
+        evidence: Vec::new(),
+        reason: format!("lesson {old} replaced by lesson {by}, kept by the person"),
+    };
+    validate::write(ws, &proposal)?;
+    let review = Review {
+        verdict: Verdict::Confirm,
+        notes: format!("lesson {by} replaces lesson {old}"),
+        reviewer: "human".to_owned(),
+        invocation: format!("hippo lessons keep {by}"),
+        at: now,
+        runner: None,
+    };
+    match apply::confirm(ws, &proposal, &review)? {
+        Applied::Written(r) => Ok(r.id),
+        Applied::NoteChanged(_) => Err(Error::InvalidProposal(format!(
+            "{} changed meanwhile",
+            note.display()
+        ))),
+    }
 }
 
 /// Dismisses pending lesson `id`: it reopens only after
@@ -718,14 +901,105 @@ pub fn first_scan_days(home: &Path) -> u32 {
     }
 }
 
-/// Runs the lessons pass over the last `days` days: detection, then
-/// drafting and review of new clusters, then the records. With `dry_run`
-/// it drafts and reviews but writes no record or state.
+/// Who is keeping a rule now: an agent when the environment carries an
+/// agent's marker (`accept::AGENT_MARKERS`), else the person.
+pub fn keeper() -> Keeper {
+    if crate::accept::agent_marker(|k| std::env::var(k).ok()).is_some() {
+        Keeper::Agent
+    } else {
+        Keeper::Person
+    }
+}
+
+/// How [`scan_with`] runs.
+#[derive(Debug, Clone, Copy)]
+pub struct ScanOptions {
+    /// Days of failures to read (1 to 30); corrections are read for
+    /// [`CORRECTION_DAYS`], or all of them in a backfill.
+    pub days: u32,
+    /// Draft and review, but write no record, group or state.
+    pub dry_run: bool,
+    /// Place every unplaced correction in the index.
+    pub backfill: bool,
+    /// Match calls the run may make.
+    pub max_calls: usize,
+}
+
+/// The days of corrections a scan places, when it is not a backfill.
+pub const CORRECTION_DAYS: i64 = 30;
+/// The most drafts a group gets when the drafter or the reviewer keeps
+/// closing it.
+pub const MAX_DRAFTS: u32 = 3;
+/// A dismissed rule comes back only after this many new sessions…
+pub const DISMISSED_SESSIONS: usize = 2;
+/// …and this many days.
+pub const DISMISSED_DAYS: i64 = 14;
+
+/// Runs the lessons pass: the person's corrections of the last
+/// [`CORRECTION_DAYS`] days are placed into groups, failures of the last
+/// `days` days are clustered, and groups and failures that call for a rule
+/// are drafted and reviewed. With `dry_run` it drafts and reviews but
+/// writes no record, group or state.
 pub fn scan(cfg: &Config, ws: &Workspace, days: u32, dry_run: bool) -> Result<Scanned> {
+    scan_with(
+        cfg,
+        ws,
+        &ScanOptions {
+            days,
+            dry_run,
+            backfill: false,
+            max_calls: groups::MATCH_CALLS_PER_RUN,
+        },
+    )
+}
+
+/// Whether group `g`, whose lesson is `l`, is drafted (again) now: a group
+/// with corrections in two sessions and no lesson; a declined or rejected
+/// one that recurred in a new session, up to [`MAX_DRAFTS`] drafts; a
+/// dismissed one after [`DISMISSED_SESSIONS`] new sessions and
+/// [`DISMISSED_DAYS`] days. A replaced rule never comes back.
+pub fn wants_draft(g: &groups::Group, l: Option<&Lesson>, now: OffsetDateTime) -> bool {
+    if g.sessions().len() < 2 {
+        return false;
+    }
+    let Some(l) = l else { return true };
+    let since = |t: OffsetDateTime| {
+        let before: BTreeSet<&str> = g
+            .members
+            .iter()
+            .filter(|m| m.at <= t)
+            .filter_map(|m| m.session.as_deref())
+            .collect();
+        g.members
+            .iter()
+            .filter(|m| m.at > t)
+            .filter_map(|m| m.session.as_deref())
+            .filter(|s| !before.contains(s))
+            .collect::<BTreeSet<_>>()
+            .len()
+    };
+    match l.status {
+        Status::Pending | Status::Kept => false,
+        Status::Declined | Status::Rejected => {
+            l.links.drafts.unwrap_or(1) < MAX_DRAFTS && since(l.updated) >= 1
+        }
+        Status::Dismissed => {
+            l.links.superseded_by.is_none()
+                && since(l.updated) >= DISMISSED_SESSIONS
+                && now - l.updated >= time::Duration::days(DISMISSED_DAYS)
+        }
+    }
+}
+
+/// [`scan`] with every option: `hippo lessons backfill` runs it with
+/// `backfill` and its own call cap.
+pub fn scan_with(cfg: &Config, ws: &Workspace, opts: &ScanOptions) -> Result<Scanned> {
     let now = OffsetDateTime::now_utc();
     let offset = crate::usage::local_offset_at(now);
     let index = Index::open(&cfg.home, false)?;
     let rollup = Rollup::open(&cfg.home)?.ok_or(Error::MissingIndex)?;
+    let days = opts.days;
+    let dry_run = opts.dry_run;
     let since = now - time::Duration::days(i64::from(days.clamp(1, 30)));
     let found = detect::find(&index, &rollup, since, offset)?;
     let notes = Notes::scan(&ws.notes_root())?;
@@ -735,17 +1009,75 @@ pub fn scan(cfg: &Config, ws: &Workspace, days: u32, dry_run: bool) -> Result<Sc
             at: Some(now),
             days,
             sessions: found.sessions,
-            candidates: found.corrections.len() + found.failures.len(),
             ..State::default()
         },
         ..Scanned::default()
     };
 
+    // The person's corrections, placed into groups by meaning.
+    let corrections_since = if opts.backfill {
+        OffsetDateTime::UNIX_EPOCH
+    } else {
+        now - time::Duration::days(CORRECTION_DAYS)
+    };
+    let (_, items) = detect::corrections(&index, &rollup, corrections_since)?;
+    let mut store = groups::Store::load(&cfg.home)?;
+    let placed = {
+        let titles = |g: &groups::Group| {
+            g.lesson
+                .and_then(|id| records.iter().find(|l| l.id == id))
+                .filter(|l| !l.title.is_empty())
+                .map(|l| l.title.clone())
+        };
+        groups::place(
+            &mut store,
+            items,
+            groups::Calls::Model(cfg, opts.max_calls),
+            &titles,
+            now,
+        )
+    };
+    out.state.model_calls += placed.calls;
+    out.state.match_calls = placed.calls;
+    out.state.placed = placed.local + placed.new + placed.model + placed.unmatched;
+    out.state.left = placed.left;
+    out.notes.extend(placed.notes.iter().cloned());
+    if opts.backfill && placed.left == 0 {
+        store.backfilled = Some(now);
+    }
+    // Lessons drafted before groups existed find their group by key and
+    // terms, once.
+    for g in store.groups.iter_mut().filter(|g| g.lesson.is_none()) {
+        let Some(cluster) = g.cluster(offset) else {
+            continue;
+        };
+        if let Some(l) = records
+            .iter_mut()
+            .find(|l| l.kind == Kind::Correction && l.links.group.is_none() && matches(l, &cluster))
+        {
+            g.lesson = Some(l.id);
+            l.links.group = Some(g.id);
+            if !dry_run {
+                l.save(&cfg.home)?;
+            }
+        }
+    }
+    let mut clusters: Vec<(Option<Ulid>, detect::Cluster)> = Vec::new();
+    for g in &store.groups {
+        let Some(mut c) = g.cluster(offset) else {
+            continue;
+        };
+        c.reverses = reversed(&store, &records, g).map(|(_, rule)| rule);
+        clusters.push((Some(g.id), c));
+    }
+    out.state.candidates = clusters.len() + found.failures.len();
+    clusters.extend(found.failures.into_iter().map(|c| (None, c)));
+
     // The shared Inbox, when it is in force: a correction the team already
     // has is counted, not drafted.
     let team_on = team::enabled(ws);
     let shared = if team_on { team::read(ws) } else { Vec::new() };
-    let groups = team::groups(&shared);
+    let team_groups = team::groups(&shared);
     let member = cfg
         .member
         .clone()
@@ -754,13 +1086,13 @@ pub fn scan(cfg: &Config, ws: &Workspace, days: u32, dry_run: bool) -> Result<Sc
         team_on && !dry_run && member.is_some() && team::Share::of(cfg) == team::Share::Rules;
 
     // Clusters that match a record update it; the rest are drafted.
-    let mut to_draft: Vec<detect::Cluster> = Vec::new();
-    for cluster in found.corrections.into_iter().chain(found.failures) {
+    let mut to_draft: Vec<(Option<Ulid>, detect::Cluster)> = Vec::new();
+    for (gid, cluster) in clusters {
         let team_has = team_on && cluster.kind == Kind::Correction && {
-            match team::find_group(&shared, &groups, &cluster.terms) {
+            match team::find_group(&shared, &team_groups, &cluster.terms) {
                 None => false,
-                Some(g) => {
-                    let group = &groups[g];
+                Some(tg) => {
+                    let group = &team_groups[tg];
                     let held = match team::state(&shared, group) {
                         team::State::Kept | team::State::Crossed => true,
                         team::State::Open => true,
@@ -776,7 +1108,7 @@ pub fn scan(cfg: &Config, ws: &Workspace, days: u32, dry_run: bool) -> Result<Sc
                     if held {
                         out.state.shared_matched += 1;
                         if writes_shared {
-                            let mine = records.iter().find(|l| matches(l, &cluster));
+                            let mine = records.iter().find(|l| record_of(l, gid, &cluster));
                             // Counts go to the person's own lesson's
                             // directory when they shared one, else to the
                             // group's first.
@@ -802,47 +1134,77 @@ pub fn scan(cfg: &Config, ws: &Workspace, days: u32, dry_run: bool) -> Result<Sc
                 }
             }
         };
-        match records.iter_mut().find(|l| matches(l, &cluster)) {
+        let group = gid.and_then(|id| store.get(id));
+        match records.iter_mut().find(|l| record_of(l, gid, &cluster)) {
             Some(l) => {
                 let grew = cluster.sessions.len() > l.seen.sessions;
                 merge(l, &cluster, now);
-                let reopen = l.status.closed()
-                    && l.seen.sessions >= l.closed_sessions.unwrap_or(0) + REOPEN_AFTER;
-                if reopen && !team_has {
-                    to_draft.push(cluster);
+                let again = match group {
+                    Some(g) => wants_draft(g, Some(l), now),
+                    None => {
+                        l.status.closed()
+                            && l.seen.sessions >= l.closed_sessions.unwrap_or(0) + REOPEN_AFTER
+                    }
+                };
+                if again && !team_has {
+                    to_draft.push((gid, cluster));
                 } else if grew && !dry_run {
                     l.save(&cfg.home)?;
                 }
             }
             None if team_has => {}
-            None => to_draft.push(cluster),
+            None => {
+                let draft = match group {
+                    Some(g) => wants_draft(g, None, now),
+                    None => true,
+                };
+                if draft {
+                    to_draft.push((gid, cluster));
+                }
+            }
         }
     }
     to_draft.sort_by(|a, b| {
-        b.sessions
+        b.1.sessions
             .len()
-            .cmp(&a.sessions.len())
-            .then_with(|| b.last.cmp(&a.last))
+            .cmp(&a.1.sessions.len())
+            .then_with(|| b.1.last.cmp(&a.1.last))
     });
-    let mut chosen: Vec<detect::Cluster> = Vec::new();
+    let mut chosen: Vec<(Option<Ulid>, detect::Cluster)> = Vec::new();
     for kind in [Kind::Correction, Kind::Failure] {
         chosen.extend(
             to_draft
                 .iter()
-                .filter(|c| c.kind == kind)
+                .filter(|c| c.1.kind == kind)
                 .take(draft::PER_RUN)
                 .cloned(),
         );
     }
-    let drafted = draft::draft_clusters(cfg, ws, &notes, &chosen, &mut out)?;
-    for (cluster, outcome) in chosen.iter().zip(drafted) {
+    let only: Vec<detect::Cluster> = chosen.iter().map(|(_, c)| c.clone()).collect();
+    let drafted = draft::draft_clusters(cfg, ws, &notes, &only, &mut out)?;
+    for ((gid, cluster), outcome) in chosen.iter().zip(drafted) {
         let Some(outcome) = outcome else { continue };
-        let existing = records.iter().position(|l| matches(l, cluster));
+        let existing = records.iter().position(|l| record_of(l, *gid, cluster));
         let mut lesson = match existing {
             Some(i) => records[i].clone(),
             None => new_record(cluster, now),
         };
         merge(&mut lesson, cluster, now);
+        if let Some(gid) = gid {
+            lesson.links.group = Some(*gid);
+            lesson.links.drafts = Some(lesson.links.drafts.map_or(1, |d| d + 1));
+            lesson.links.supersedes = store
+                .get(*gid)
+                .and_then(|g| reversed(&store, &records, g))
+                .and_then(|(id, _)| id)
+                .filter(|id| {
+                    records
+                        .iter()
+                        .any(|l| l.id == *id && matches!(l.status, Status::Pending | Status::Kept))
+                })
+                .into_iter()
+                .collect();
+        }
         match outcome {
             draft::Outcome::Declined => {
                 lesson.status = Status::Declined;
@@ -852,11 +1214,13 @@ pub fn scan(cfg: &Config, ws: &Workspace, days: u32, dry_run: bool) -> Result<Sc
                 title,
                 rule,
                 target,
+                scope,
                 review,
             } => {
                 lesson.title = title;
                 lesson.rule = rule;
                 lesson.target = Some(target);
+                lesson.links.scope = scope;
                 let confirmed = review.verdict == Verdict::Confirm;
                 lesson.review = Some(review);
                 if confirmed {
@@ -874,6 +1238,9 @@ pub fn scan(cfg: &Config, ws: &Workspace, days: u32, dry_run: bool) -> Result<Sc
         if !dry_run {
             lesson.save(&cfg.home)?;
         }
+        if let Some(g) = gid.and_then(|id| store.get_mut(id)) {
+            g.lesson = Some(lesson.id);
+        }
         match existing {
             Some(i) => records[i] = lesson,
             None => records.push(lesson),
@@ -883,9 +1250,60 @@ pub fn scan(cfg: &Config, ws: &Workspace, days: u32, dry_run: bool) -> Result<Sc
         share_after_scan(cfg, ws, &index, &mut records, member.as_deref(), &mut out)?;
     }
     if !dry_run {
+        store.save(&cfg.home)?;
         out.state.save(&cfg.home)?;
     }
     Ok(out)
+}
+
+/// The rule group `g` reverses: its lesson's id and rule, or, with no
+/// lesson yet, the reversed group's newest quote.
+fn reversed(
+    store: &groups::Store,
+    records: &[Lesson],
+    g: &groups::Group,
+) -> Option<(Option<Ulid>, String)> {
+    let old = store.get(g.reverses?)?;
+    let lesson = old
+        .lesson
+        .and_then(|id| records.iter().find(|l| l.id == id))
+        .filter(|l| !l.rule.is_empty());
+    Some(match lesson {
+        Some(l) => (Some(l.id), l.rule.clone()),
+        None => (None, old.newest_quote()?.to_owned()),
+    })
+}
+
+/// What `hippo lessons backfill` would do: the corrections in the whole
+/// index not placed yet, how many the pre-filter places, and the model
+/// calls the rest and the drafts after them would need. No model call, no
+/// write.
+pub fn backfill_estimate(cfg: &Config) -> Result<groups::Estimate> {
+    let now = OffsetDateTime::now_utc();
+    let index = Index::open(&cfg.home, false)?;
+    let rollup = Rollup::open(&cfg.home)?.ok_or(Error::MissingIndex)?;
+    let (_, items) = detect::corrections(&index, &rollup, OffsetDateTime::UNIX_EPOCH)?;
+    let store = groups::Store::load(&cfg.home)?;
+    let records = list(&cfg.home)?;
+    let draftable = |st: &groups::Store| {
+        st.groups
+            .iter()
+            .filter(|g| {
+                let l = g.lesson.and_then(|id| records.iter().find(|l| l.id == id));
+                wants_draft(g, l, now)
+            })
+            .count()
+    };
+    Ok(groups::estimate(&store, items, &draftable, now))
+}
+
+/// Whether record `l` is the lesson of the cluster from group `gid` (by
+/// its link), or of a failure cluster (by key).
+fn record_of(l: &Lesson, gid: Option<Ulid>, cluster: &detect::Cluster) -> bool {
+    match gid {
+        Some(g) => l.links.group == Some(g),
+        None => matches(l, cluster),
+    }
 }
 
 /// After a scan with the shared Inbox in force: each confirmed correction
@@ -903,6 +1321,7 @@ fn share_after_scan(
     let writes = member.is_some() && team::Share::of(cfg) == team::Share::Rules;
     let origins = crate::session_meta::origins(index)?;
     let roots = team::workspace_roots(ws);
+    let store = groups::Store::load(&cfg.home)?;
     let confirmed: Vec<Ulid> = out.confirmed.iter().map(|l| l.id).collect();
     for lesson in records.iter_mut() {
         if let (Some(dir), true, Some(m)) = (&lesson.shared, writes, member) {
@@ -912,7 +1331,7 @@ fn share_after_scan(
         if lesson.kind != Kind::Correction || !confirmed.contains(&lesson.id) {
             continue;
         }
-        if !team::from_workspace(lesson, &origins, &roots) {
+        if !may_share(lesson, &store, &origins, &roots) {
             continue;
         }
         match (writes, member) {
@@ -936,15 +1355,49 @@ pub fn shareable(cfg: &Config, ws: &Workspace) -> Result<Vec<Lesson>> {
     let index = Index::open(&cfg.home, false)?;
     let origins = crate::session_meta::origins(&index)?;
     let roots = team::workspace_roots(ws);
+    let store = groups::Store::load(&cfg.home)?;
     Ok(list(&cfg.home)?
         .into_iter()
         .filter(|l| {
             l.kind == Kind::Correction
                 && matches!(l.status, Status::Pending | Status::Kept)
                 && l.shared.is_none()
-                && team::from_workspace(l, &origins, &roots)
+                && may_share(l, &store, &origins, &roots)
         })
         .collect())
+}
+
+/// Whether a correction lesson may go to the shared Inbox: not a machine
+/// rule, no memory line in its group, and every correction of its group
+/// (not only the evidence the lesson keeps) run in the workspace or one of
+/// its worktrees.
+fn may_share(
+    lesson: &Lesson,
+    store: &groups::Store,
+    origins: &std::collections::HashMap<String, crate::session_meta::Origin>,
+    roots: &[PathBuf],
+) -> bool {
+    if lesson.links.scope == Some(Scope::Machine) || lesson.links.source.is_some() {
+        return false;
+    }
+    if !team::from_workspace(lesson, origins, roots) {
+        return false;
+    }
+    let Some(group) = lesson.links.group.and_then(|g| store.get(g)) else {
+        return true;
+    };
+    !group.has_memory()
+        && group.members.iter().all(|m| {
+            m.session.as_ref().is_some_and(|s| {
+                origins
+                    .get(s)
+                    .and_then(|o| o.cwd.as_ref())
+                    .is_some_and(|cwd| {
+                        let cwd = fs::canonicalize(cwd).unwrap_or_else(|_| cwd.clone());
+                        roots.iter().any(|r| cwd.starts_with(r))
+                    })
+            })
+        })
 }
 
 /// Shares `lessons` as `member` (`hippo lessons share`, after the person
@@ -1070,6 +1523,7 @@ fn record_for_shared(cfg: &Config, ws: &Workspace, dir: &str) -> Result<Lesson> 
         kept: None,
         ask: None,
         shared: Some(dir.to_owned()),
+        links: Links::default(),
     })
 }
 
@@ -1297,6 +1751,7 @@ fn new_record(cluster: &detect::Cluster, now: OffsetDateTime) -> Lesson {
         kept: None,
         ask: None,
         shared: None,
+        links: Links::default(),
     }
 }
 

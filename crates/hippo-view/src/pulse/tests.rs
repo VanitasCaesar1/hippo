@@ -178,9 +178,11 @@ fn lesson(status: LessonStatus, note: &str, kept: Option<OffsetDateTime>) -> Les
             receipt: Ulid::generate(),
             at,
             edited: false,
+            by: None,
         }),
         ask: None,
         shared: None,
+        links: Default::default(),
     }
 }
 

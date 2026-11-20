@@ -30,6 +30,9 @@ pub const FAILURE_DAY: usize = 3;
 /// …or this many in the window.
 pub const FAILURE_WINDOW: usize = 4;
 
+/// One correction: its evidence and its key terms.
+pub type Item = (Evidence, Vec<String>);
+
 /// A cluster of evidence: one candidate lesson.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cluster {
@@ -47,6 +50,8 @@ pub struct Cluster {
     pub last: OffsetDateTime,
     /// The most sessions on one local day.
     pub most_in_a_day: usize,
+    /// The rule this cluster's group reverses, when it does.
+    pub reverses: Option<String>,
 }
 
 /// What a detection read and found.
@@ -81,11 +86,45 @@ pub fn find(
     since: OffsetDateTime,
     offset: UtcOffset,
 ) -> Result<Found> {
-    let people = people_sessions(rollup, since)?;
+    let (sessions, corrections) = corrections(index, rollup, since)?;
     let mut found = Found {
-        sessions: people.len(),
+        sessions,
         ..Found::default()
     };
+    found.corrections = cluster_corrections(corrections, offset);
+    let people = people_sessions(rollup, since)?;
+
+    let mut failures: Vec<(Evidence, String)> = Vec::new();
+    for turn in index.failed_results_since(since, 4000)? {
+        let root = root_of(&turn.session);
+        let Some(facts) = people.get(root) else {
+            continue;
+        };
+        let Some(sig) = signature(&turn.text) else {
+            continue;
+        };
+        let before = index.turns_before(&turn.session, turn.ordinal, 1, 600)?;
+        let action = before
+            .first()
+            .filter(|t| kind_of(t) == TurnKind::ToolCall)
+            .map(call_line);
+        let mut ev = evidence(&turn, facts, sig.clone(), action);
+        ev.session = turn.session.clone();
+        failures.push((ev, sig));
+    }
+    found.failures = cluster_failures(failures, offset);
+    Ok(found)
+}
+
+/// The person's corrections since `since`, one per turn, each with its key
+/// terms, and how many person-started top-level sessions have a turn in
+/// that time. Replayed and copied turns are left out.
+pub fn corrections(
+    index: &Index,
+    rollup: &Rollup,
+    since: OffsetDateTime,
+) -> Result<(usize, Vec<Item>)> {
+    let people = people_sessions(rollup, since)?;
     let mut corrections: Vec<(Evidence, Vec<String>)> = Vec::new();
     let turns = index.user_turns_since(since, MAX_PERSON_CHARS * 4)?;
     let replayed = replayed_turns(&turns);
@@ -113,28 +152,7 @@ pub fn find(
         }
         corrections.push((ev, c.terms));
     }
-    found.corrections = cluster_corrections(corrections, offset);
-
-    let mut failures: Vec<(Evidence, String)> = Vec::new();
-    for turn in index.failed_results_since(since, 4000)? {
-        let root = root_of(&turn.session);
-        let Some(facts) = people.get(root) else {
-            continue;
-        };
-        let Some(sig) = signature(&turn.text) else {
-            continue;
-        };
-        let before = index.turns_before(&turn.session, turn.ordinal, 1, 600)?;
-        let action = before
-            .first()
-            .filter(|t| kind_of(t) == TurnKind::ToolCall)
-            .map(call_line);
-        let mut ev = evidence(&turn, facts, sig.clone(), action);
-        ev.session = turn.session.clone();
-        failures.push((ev, sig));
-    }
-    found.failures = cluster_failures(failures, offset);
-    Ok(found)
+    Ok((people.len(), corrections))
 }
 
 /// How many of a session's user turns sharing one timestamp mark a
@@ -931,7 +949,7 @@ fn cluster_failures(items: Vec<(Evidence, String)>, offset: UtcOffset) -> Vec<Cl
         .collect()
 }
 
-fn make_cluster(
+pub(crate) fn make_cluster(
     kind: Kind,
     key: String,
     terms: BTreeSet<String>,
@@ -966,5 +984,6 @@ fn make_cluster(
         first,
         last,
         most_in_a_day,
+        reverses: None,
     }
 }

@@ -976,3 +976,216 @@ fn markers_are_added_to_bullets_kept_before_and_revert_removes_them() {
     crate::dream::apply::revert(&s.ws, receipts[0], false).unwrap();
     assert_eq!(fs::read_to_string(&path).unwrap(), old);
 }
+
+// ---------------------------------------------------------------------------
+// Groups by meaning (docs/designs/remember.md)
+
+/// A Setup whose model prints `match.json` for a match call and
+/// `dreamer.json` for anything else, with one note to keep rules in.
+fn grouped() -> Setup {
+    let mut s = Setup::new();
+    s.add_note(
+        "notes/Agent rules.md",
+        &format!(
+            "# Agent rules\n\n{}\n## Tools, pnpm and migrations\n\n- Use rg for search.\n",
+            "Agents read this note at the start of every session.\n".repeat(6)
+        ),
+    );
+    let at = |name: &str| s.stubs.path().join(name).display().to_string();
+    s.cfg.model_command = [
+        "sh",
+        "-c",
+        r#"p=$(cat); case "$p" in *"candidate groups of earlier corrections"*) printf '%s' "$p" > "$1.stdin"; cat "$1";; *) printf '%s' "$p" > "$2.stdin"; cat "$2";; esac"#,
+        "sh",
+        &at("match.json"),
+        &at("dreamer.json"),
+        crate::model::SYSTEM_PROMPT,
+    ]
+    .map(String::from)
+    .to_vec();
+    s
+}
+
+/// Session `id`: the agent runs `command`, the person answers `said`.
+fn corrected(s: &Setup, id: &str, command: &str, said: &str, at: OffsetDateTime) {
+    let call = format!(r#"Bash {{"command":"{command}"}}"#);
+    add_turns(
+        s,
+        id,
+        &[
+            (Role::User, None, "set the project up"),
+            (Role::Tool, Some("Bash"), &call),
+            (Role::User, None, said),
+        ],
+        at,
+    );
+}
+
+fn draft_reply(title: &str, rule: &str) -> String {
+    json!([{"n": 1, "lesson": true, "title": title, "rule": rule, "scope": "workspace",
+        "note": "notes/Agent rules.md", "section": "Tools, pnpm and migrations"}])
+    .to_string()
+}
+
+#[test]
+fn one_rule_in_other_words_weeks_apart_is_one_group_and_drafted_at_once() {
+    let s = grouped();
+    let now = OffsetDateTime::now_utc();
+    corrected(
+        &s,
+        "w1",
+        "npm install",
+        "no, this repo uses pnpm",
+        now - Duration::days(25),
+    );
+    corrected(
+        &s,
+        "w2",
+        "npm ci",
+        "stop running npm install, use pnpm",
+        now - Duration::hours(2),
+    );
+    let index = s.index();
+    crate::rollup::refresh(&s.cfg.home, Some(&s.ws), &index).unwrap();
+    says(
+        &s,
+        "match",
+        r#"[{"n": 1, "same": ["g1"], "reverses": null}]"#,
+    );
+    says(
+        &s,
+        "dreamer",
+        &draft_reply(
+            "Use pnpm, never npm",
+            "Use pnpm in this repository; never run npm.",
+        ),
+    );
+    says(
+        &s,
+        "reviewer",
+        r#"{"verdict": "confirm", "notes": "repeated"}"#,
+    );
+    let out = scan(&s.cfg, &s.ws, 7, false).unwrap();
+    assert_eq!(out.state.match_calls, 1, "{:?}", out.notes);
+    assert_eq!(out.state.confirmed, 1, "{:?}", out.notes);
+    let store = groups::Store::load(&s.cfg.home).unwrap();
+    let both: Vec<&groups::Group> = store
+        .groups
+        .iter()
+        .filter(|g| g.sessions().len() == 2)
+        .collect();
+    assert_eq!(both.len(), 1);
+    let lesson = &out.confirmed[0];
+    assert_eq!(lesson.links.group, Some(both[0].id));
+    assert_eq!(both[0].lesson, Some(lesson.id));
+    assert_eq!(lesson.links.scope, Some(Scope::Workspace));
+    assert_eq!(lesson.links.drafts, Some(1));
+    // The match call showed the older correction as the candidate.
+    let asked = fs::read_to_string(s.stubs.path().join("match.json.stdin")).unwrap();
+    assert!(asked.contains("no, this repo uses pnpm"), "{asked}");
+    // A second scan places nothing again and drafts nothing.
+    let again = scan(&s.cfg, &s.ws, 7, false).unwrap();
+    assert_eq!((again.state.match_calls, again.state.drafted), (0, 0));
+}
+
+#[test]
+fn a_newer_rule_that_reverses_a_kept_one_replaces_it_when_kept() {
+    let s = grouped();
+    let now = OffsetDateTime::now_utc();
+    corrected(
+        &s,
+        "m1",
+        "rails db:migrate",
+        "never run the migration before asking me",
+        now - Duration::days(40),
+    );
+    corrected(
+        &s,
+        "m2",
+        "rails db:migrate",
+        "dont run the migration before asking me",
+        now - Duration::days(39),
+    );
+    let index = s.index();
+    crate::rollup::refresh(&s.cfg.home, Some(&s.ws), &index).unwrap();
+    says(&s, "match", "[]");
+    says(
+        &s,
+        "dreamer",
+        &draft_reply(
+            "Ask before migrations",
+            "Ask the person before running a migration.",
+        ),
+    );
+    says(&s, "reviewer", r#"{"verdict": "confirm", "notes": "ok"}"#);
+    let first = scan_with(
+        &s.cfg,
+        &s.ws,
+        &ScanOptions {
+            days: 7,
+            dry_run: false,
+            backfill: true,
+            max_calls: 10,
+        },
+    )
+    .unwrap();
+    assert_eq!(first.state.confirmed, 1, "{:?}", first.notes);
+    let old = first.confirmed[0].clone();
+    keep(&s.cfg, &s.ws, old.id, None, None, now).unwrap();
+    let note = s.workspace.path().join(&old.target.as_ref().unwrap().note);
+    assert!(note.ends_with("notes/Agent rules.md"), "{}", note.display());
+    assert!(fs::read_to_string(&note)
+        .unwrap()
+        .contains("Ask the person before running a migration."));
+
+    // Weeks later the person takes it back, twice.
+    corrected(
+        &s,
+        "m3",
+        "rails db:migrate --dry-run",
+        "why do you keep asking about the migration, just run it",
+        now - Duration::hours(3),
+    );
+    corrected(
+        &s,
+        "m4",
+        "rails db:migrate --dry-run",
+        "why are you asking about the migration again, just run it",
+        now - Duration::hours(2),
+    );
+    let index = s.index();
+    crate::rollup::refresh(&s.cfg.home, Some(&s.ws), &index).unwrap();
+    says(
+        &s,
+        "match",
+        r#"[{"n": 1, "same": [], "reverses": "g1"}, {"n": 2, "same": [], "reverses": "g1"}]"#,
+    );
+    says(
+        &s,
+        "dreamer",
+        &draft_reply(
+            "Run migrations without asking",
+            "Run migrations yourself; do not ask first.",
+        ),
+    );
+    let second = scan(&s.cfg, &s.ws, 7, false).unwrap();
+    assert_eq!(second.state.confirmed, 1, "{:?}", second.notes);
+    let new = &second.confirmed[0];
+    assert_eq!(new.links.supersedes, [old.id]);
+    let draft_prompt = fs::read_to_string(s.stubs.path().join("dreamer.json.stdin")).unwrap();
+    assert!(draft_prompt.contains("Ask the person before running a migration."));
+
+    let kept = keep(&s.cfg, &s.ws, new.id, None, None, now).unwrap();
+    assert_eq!(kept.replaced.len(), 1);
+    assert!(kept.replaced[0].contains("removed"), "{}", kept.replaced[0]);
+    let text = fs::read_to_string(&note).unwrap();
+    assert!(!text.contains("Ask the person before running a migration."));
+    assert!(text.contains("Run migrations yourself"));
+    let old = get(&s.cfg.home, old.id).unwrap();
+    assert_eq!(old.status, Status::Dismissed);
+    assert_eq!(old.links.superseded_by, Some(new.id));
+    // A replaced rule never comes back.
+    let store = groups::Store::load(&s.cfg.home).unwrap();
+    let g = store.of_lesson(old.id).unwrap();
+    assert!(!wants_draft(g, Some(&old), now + Duration::days(60)));
+}

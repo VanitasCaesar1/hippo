@@ -46,6 +46,18 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Place every correction in your history into groups once: prints the estimate, runs with --yes
+    Backfill {
+        /// The most match calls this run makes; run it again to go on
+        #[arg(long, default_value_t = 200)]
+        max_calls: usize,
+        /// Run it (without, only the estimate is printed)
+        #[arg(long)]
+        yes: bool,
+        /// Print one JSON object
+        #[arg(long)]
+        json: bool,
+    },
     /// Write a pending lesson into its note (a receipt; hippo revert undoes it)
     Keep {
         id: String,
@@ -111,6 +123,11 @@ pub fn run(args: Args) -> Result<ExitCode> {
             }
             scan(days, dry_run, json)
         }
+        Some(Command::Backfill {
+            max_calls,
+            yes,
+            json,
+        }) => backfill(max_calls, yes, json),
         Some(Command::Keep { id, text, title }) => {
             let (cfg, ws) = load_for_write()?;
             let kept = if id.starts_with("L-") {
@@ -138,6 +155,9 @@ pub fn run(args: Args) -> Result<ExitCode> {
                 kept.receipt.id,
                 kept.receipt.id
             );
+            for line in &kept.replaced {
+                println!("  {line}");
+            }
             Ok(ExitCode::SUCCESS)
         }
         Some(Command::Dismiss { id, reason, of }) if id.starts_with("L-") => {
@@ -426,6 +446,71 @@ fn list(as_json: bool, all: bool) -> Result<ExitCode> {
                 .map(|e| format!(" · failed: {e}"))
                 .unwrap_or_default()
         )?;
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn backfill(max_calls: usize, yes: bool, as_json: bool) -> Result<ExitCode> {
+    let (cfg, ws) = load_for_write()?;
+    let estimate = lessons::backfill_estimate(&cfg)?;
+    if !yes {
+        if as_json {
+            println!(
+                "{}",
+                serde_json::to_string(&json!({ "estimate": estimate }))?
+            );
+        } else {
+            let e = &estimate;
+            println!(
+                "{} corrections in your history are not in a group yet: the pre-filter places {}, {} need the model.",
+                e.corrections, e.local, e.need_model
+            );
+            println!(
+                "That is {} match calls (at most {} this run), then at most {} drafting calls and {} reviews.",
+                e.match_calls,
+                max_calls.min(e.match_calls),
+                e.draft_calls_max,
+                e.reviews_max
+            );
+            println!("Run `hippo lessons backfill --yes` to place them.");
+        }
+        return Ok(ExitCode::SUCCESS);
+    }
+    let scanned = lessons::scan_with(
+        &cfg,
+        &ws,
+        &lessons::ScanOptions {
+            days: 7,
+            dry_run: false,
+            backfill: true,
+            max_calls,
+        },
+    )?;
+    let s = &scanned.state;
+    if as_json {
+        println!(
+            "{}",
+            serde_json::to_string(&json!({
+                "estimate": estimate,
+                "state": s,
+                "confirmed": scanned.confirmed,
+                "notes": scanned.notes,
+            }))?
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
+    println!(
+        "placed {} corrections with {} match calls; {} drafted, {} confirmed into the Inbox; {} model calls in all",
+        s.placed, s.match_calls, s.drafted, s.confirmed, s.model_calls
+    );
+    if s.left > 0 {
+        println!(
+            "{} corrections are left: run `hippo lessons backfill --yes` again to go on",
+            s.left
+        );
+    }
+    for note in &scanned.notes {
+        println!("  {note}");
     }
     Ok(ExitCode::SUCCESS)
 }

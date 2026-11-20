@@ -71,7 +71,6 @@ Both are tested with synthetic turns (`lessons/tests.rs`).
 ```json
 {
   "protocol": "HIPPO_V1",
-  "placed": {"s-0311": 14, "s-0502": 3},
   "backfilled": "2026-11-20T03:30:00Z",
   "groups": [
     {
@@ -93,7 +92,7 @@ Both are tested with synthetic turns (`lessons/tests.rs`).
 }
 ```
 
-A member's `source` is `correction` or `memory`; a memory member names its source instead of a session (`"memory": {"source": "claude-code:work/CLAUDE.md", "line": 12}`) and its `at` is the time hippo first read the line, never the file's time. `matched` says how it joined: `new` (it started the group), `local`, `model` or `unmatched` (the model could not place it). Quotes are redacted index text, at most 160 characters, as lesson evidence is today. `placed` records, per session, the last ordinal already placed, so a session ingested late, with old turns, is still placed; it is pruned of sessions the index no longer has.
+A member's `source` is `correction` or `memory`; a memory member names its source instead of a session (`"memory": {"source": "claude-code:work/CLAUDE.md", "line": 12}`) and its `at` is the time hippo first read the line, never the file's time. `matched` says how it joined: `new` (it started the group), `local`, `model` or `unmatched` (the model could not place it). Quotes are redacted index text, at most 160 characters, as lesson evidence is today. A correction is placed once: its (session, ordinal) is in a group. So a session ingested late, with old turns, is still placed by the next run that reads its time, or by a backfill.
 
 Each nightly pass (and `hippo lessons scan`) reads the person's corrections of the last 30 days that are not placed yet (`hippo lessons backfill` reads the whole index) and places them in time order:
 
@@ -112,7 +111,7 @@ Respond with only a JSON array: {"n": 1, "same": "g2" | null, "reverses": "g4" |
 <<<UNTRUSTED items>>> … <<<END items>>>
 ```
 
-`same` joins that group; `reverses` starts a new group whose `reverses` names the old one; neither starts a new group. An id that was not among the item's candidates is ignored. Quotes are cut so that no `<<<` reaches the prompt, so an item cannot close the untrusted block. A reply that does not parse is tried once more; then each correction of the batch starts its own group, marked `unmatched`, so one bad reply never stalls the store. Corrections of one batch are not offered each other as candidates; two new groups that say the same rule meet when a later correction matches both (the model names one; the pass then merges the two groups).
+`same` joins that group; `reverses` starts a new group whose `reverses` names the old one; neither starts a new group. An id that was not among the item's candidates is ignored. Quotes are cut so that no `<<<` reaches the prompt, so an item cannot close the untrusted block. A reply that does not parse is tried once more; then each correction of the batch starts its own group, marked `unmatched`, so one bad reply never stalls the store. Corrections of one batch are not offered each other as candidates; instead, an item the model leaves without a `same` joins a group an earlier item of the same batch started when the pre-filter would join them (with the same `reverses`). When the model names several groups as `same`, they are merged into the first, which keeps the first lesson among them.
 
 **Drafting** follows the group, not the window. A group gets a draft as soon as it has correction members in two different sessions and no lesson; there is no wait of 3 sessions. A closed lesson comes back as follows:
 
@@ -238,7 +237,7 @@ Each figure is reported twice: for this release, and for 0.7.2's behaviour repro
 ## Migration and what changes for users
 
 - **Records.** `lessons/<id>.json` gains only optional fields: `group`, `scope`, `source` (`correction`, default, or `memory`, with the memory source's id), `supersedes`, `superseded_by`, `drafts`, and `kept.by`. No new status or kind: a superseded lesson is `dismissed` with `superseded_by`, so hippo 0.7.x still reads every record and does not draft it again. The `min_hippo_version` floor is unchanged: none of this is in the shared workspace, and the new keys are in `config.toml`.
-- **First run after upgrading.** The nightly pass builds `groups.json` from the last 30 days and links existing lessons to their groups by their key and terms. It prints, once, that `hippo lessons backfill` can place the whole history, with its estimate.
+- **First run after upgrading.** The nightly pass builds `groups.json` from the last 30 days and links existing lessons to their groups by their key and terms. A correction said in one session only is grouped but no longer drafted: a rule is drafted when it comes back in a second session. It prints, once, that `hippo lessons backfill` can place the whole history, with its estimate.
 - **Prompt hook.** It now acts on later prompts too and stays silent unless the topic changed. The session record is unchanged; the per-session state is new.
 - **Start block.** Gains the Rules section and, while rules are pending, the ask. Both count against the budget; the required parts never shrink for them.
 - **Closed lessons** reopen as [above](#groups-by-meaning-across-the-whole-history): a declined draft on the next recurrence (at most 3 drafts), a dismissed one after 2 more sessions and 14 days.

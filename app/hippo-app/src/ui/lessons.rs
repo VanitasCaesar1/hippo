@@ -2424,6 +2424,7 @@ mod tests {
             kept: None,
             ask: None,
             shared: None,
+            links: Default::default(),
         }
     }
 
