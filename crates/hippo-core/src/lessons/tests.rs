@@ -63,6 +63,31 @@ fn a_persons_text_leaves_out_injected_and_relayed_turns() {
 }
 
 #[test]
+fn words_an_agent_passes_on_under_a_role_are_not_the_person() {
+    for relayed in [
+        "Advisor: stop editing the lockfile",
+        "Orchestrator: dont run the full suite",
+        "[Reviewer]: no, use tabs",
+        "Owner correction: never push to main",
+        "Release Manager feedback: dont tag before the checks pass",
+        "Sub-agent: why did the build fail again?",
+        "  Parent agent: stop using npm",
+    ] {
+        assert!(detect::relayed(relayed), "{relayed}");
+        assert_eq!(person_text(relayed), None, "{relayed}");
+    }
+    for person in [
+        "no, use tabs: the advisor was wrong",
+        "Note: dont use npm here",
+        "never push to main",
+        "No: stop using npm",
+    ] {
+        assert!(!detect::relayed(person), "{person}");
+        assert!(person_text(person).is_some(), "{person}");
+    }
+}
+
+#[test]
 fn a_t3_quote_is_the_persons_comment_on_the_agents_words() {
     let raw = "[Assistant quote](t3-citation://v1/a/b?text=I+will+use+spaces+for+the+indents.&start=1&comment=no+spaces%2C+tabs)";
     let (person, quoted) = t3_quote(raw).unwrap();
@@ -279,6 +304,89 @@ fn detection_finds_the_correction_once_and_the_repeated_failure() {
         found.failures[0].key,
         "(eval):N: no matches found: --include=*.<ext>"
     );
+}
+
+/// Like [`add_turns`], with each turn's own time.
+fn add_turns_at(s: &Setup, id: &str, turns: &[(Role, Option<&str>, &str, OffsetDateTime)]) {
+    let turns: Vec<Turn> = turns
+        .iter()
+        .enumerate()
+        .map(|(k, (role, tool, text, ts))| {
+            Turn::from_raw(RawTurn {
+                ordinal: k as u32,
+                role: *role,
+                ts: *ts,
+                tool_name: tool.map(str::to_owned),
+                text: (*text).to_owned(),
+            })
+        })
+        .collect();
+    let transcript = format!("/t/{id}.jsonl");
+    s.index()
+        .replace_session(
+            &SessionSource {
+                id,
+                tool: Tool::ClaudeCode,
+                transcript_path: Path::new(&transcript),
+                file_hash: id,
+            },
+            &turns,
+        )
+        .unwrap();
+}
+
+#[test]
+fn replayed_and_copied_transcripts_are_not_new_corrections() {
+    let s = scene();
+    let then = OffsetDateTime::now_utc() - Duration::hours(2);
+    let shot = r#"Bash {"command":"npx prettier --use-spaces b.html"}"#;
+    // A transcript replayed into a new session: its user turns share one
+    // time.
+    add_turns_at(
+        &s,
+        "r1",
+        &[
+            (Role::User, None, "format the other page", then),
+            (Role::Tool, Some("Bash"), shot, then),
+            (Role::User, None, "no spaces for indents, tabs please", then),
+            (Role::Tool, Some("Bash"), shot, then),
+            (Role::User, None, "stop using spaces for indentation", then),
+        ],
+    );
+    // A copy of session c1 under another id: the same turns at their
+    // first times.
+    let c1 = OffsetDateTime::now_utc() - Duration::hours(3);
+    add_turns_at(
+        &s,
+        "r2",
+        &[
+            (Role::User, None, "format the page source", c1),
+            (
+                Role::Tool,
+                Some("Bash"),
+                r#"Bash {"command":"npx prettier --use-spaces a.html"}"#,
+                c1 + Duration::minutes(1),
+            ),
+            (
+                Role::User,
+                None,
+                "no spaces for indentation. tabs only",
+                c1 + Duration::minutes(4),
+            ),
+        ],
+    );
+    let index = s.index();
+    crate::rollup::refresh(&s.cfg.home, Some(&s.ws), &index).unwrap();
+    let rollup = Rollup::open(&s.cfg.home).unwrap().unwrap();
+    let since = OffsetDateTime::now_utc() - Duration::days(1);
+    let found = detect::find(&index, &rollup, since, time::UtcOffset::UTC).unwrap();
+    assert_eq!(found.corrections.len(), 1, "{:#?}", found.corrections);
+    let sessions: Vec<&str> = found.corrections[0]
+        .sessions
+        .iter()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(sessions, ["c1", "c2"]);
 }
 
 #[test]

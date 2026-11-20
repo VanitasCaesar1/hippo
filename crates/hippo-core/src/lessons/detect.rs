@@ -86,20 +86,32 @@ pub fn find(
         sessions: people.len(),
         ..Found::default()
     };
-    let mut corrections = Vec::new();
-    for turn in index.user_turns_since(since, MAX_PERSON_CHARS * 4)? {
+    let mut corrections: Vec<(Evidence, Vec<String>)> = Vec::new();
+    let turns = index.user_turns_since(since, MAX_PERSON_CHARS * 4)?;
+    let replayed = replayed_turns(&turns);
+    for turn in &turns {
         let Some(facts) = people.get(&turn.session) else {
             continue;
         };
+        if replayed.contains(&(turn.session.as_str(), turn.ts.as_str())) {
+            continue;
+        }
         // Cheap tests first: most user turns are not corrections.
         if !person_text(&turn.text).is_some_and(|t| is_correction(&t)) {
             continue;
         }
         let before = index.turns_before(&turn.session, turn.ordinal, LOOK_BACK, 2000)?;
-        let Some(c) = correction_at(&turn, &before) else {
+        let Some(c) = correction_at(turn, &before) else {
             continue;
         };
-        corrections.push((evidence(&turn, facts, c.quote, Some(c.action)), c.terms));
+        let ev = evidence(turn, facts, c.quote, Some(c.action));
+        if corrections
+            .iter()
+            .any(|(e, _)| same_correction_copied(e, &ev))
+        {
+            continue;
+        }
+        corrections.push((ev, c.terms));
     }
     found.corrections = cluster_corrections(corrections, offset);
 
@@ -123,6 +135,38 @@ pub fn find(
     }
     found.failures = cluster_failures(failures, offset);
     Ok(found)
+}
+
+/// How many of a session's user turns sharing one timestamp mark a
+/// replayed transcript.
+pub const REPLAY_TURNS: usize = 3;
+
+/// The (session, timestamp) pairs at which [`REPLAY_TURNS`] or more user
+/// turns of one session share one timestamp: a transcript replayed into the
+/// session (a fork, an import, a resumed copy), whose turns the person did
+/// not type there.
+pub fn replayed_turns(turns: &[SessionTurn]) -> BTreeSet<(&str, &str)> {
+    let mut counts: BTreeMap<(&str, &str), usize> = BTreeMap::new();
+    for t in turns {
+        *counts
+            .entry((t.session.as_str(), t.ts.as_str()))
+            .or_default() += 1;
+    }
+    counts
+        .into_iter()
+        .filter(|(_, n)| *n >= REPLAY_TURNS)
+        .map(|(k, _)| k)
+        .collect()
+}
+
+/// Whether `b` is a copy of correction `a`: the same quote, in another
+/// session, within a minute of it. A transcript copied into a new session
+/// keeps its turns' times.
+pub fn same_correction_copied(a: &Evidence, b: &Evidence) -> bool {
+    a.session != b.session
+        && root_of(&a.session) != root_of(&b.session)
+        && a.quote == b.quote
+        && (a.at - b.at).abs() <= time::Duration::minutes(1)
 }
 
 /// A correction the person gave: what the lessons pass and incidents
@@ -205,10 +249,21 @@ const RELAYED: &[&str] = &[
     "Continue where you left off.",
 ];
 
+static ROLE_LABEL: LazyLock<Regex> = LazyLock::new(|| {
+    // An agent passing words on: a role label and a colon at the start
+    // ("Advisor: …", "Owner correction: …"). Roles, not names.
+    Regex::new(
+        r"^\W{0,3}(?:(?i:advisor|orchestrator|reviewer|builder|planner|supervisor|coordinator|lead|manager|parent[ -]agent|sub-?agent|agent|assistant)|[A-Z][\w'-]*(?: [A-Z][\w'-]*)? (?i:correction|feedback|review|note|says))\W{0,2}:",
+    )
+    .expect("valid regex")
+});
+
 /// Whether a person's turn is text an agent or client relays in the
-/// person's place (a delegated task's report, a hook's feedback).
+/// person's place (a delegated task's report, a hook's feedback, a role's
+/// words passed on by an orchestrating agent).
 pub fn relayed(text: &str) -> bool {
-    RELAYED.iter().any(|p| text.starts_with(p))
+    let text = text.trim_start();
+    RELAYED.iter().any(|p| text.starts_with(p)) || ROLE_LABEL.is_match(text)
 }
 
 static THIRD_PERSON: LazyLock<Regex> = LazyLock::new(|| {
@@ -297,7 +352,7 @@ pub fn person_text(raw: &str) -> Option<String> {
     // Markdown code and bold marks: agents write them, a person's quick
     // correction rarely does.
     let marked = text.contains("**") || text.contains('`');
-    if RELAYED.iter().any(|p| text.starts_with(p)) || THIRD_PERSON.is_match(&text) || marked {
+    if relayed(&text) || THIRD_PERSON.is_match(&text) || marked {
         return None;
     }
     Some(text)
