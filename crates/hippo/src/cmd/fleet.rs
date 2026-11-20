@@ -139,6 +139,7 @@ pub fn run(args: Args) -> Result<ExitCode> {
             "usage_cached": fleet.usage_cached,
             "headroom": rooms,
             "sessions": fleet.rows,
+            "recent": hippo_view::night::recent::recent(&fleet, OffsetDateTime::now_utc(), offset),
         });
         writeln!(out, "{v}")?;
         return Ok(ExitCode::SUCCESS);

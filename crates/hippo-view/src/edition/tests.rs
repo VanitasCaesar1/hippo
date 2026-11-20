@@ -523,6 +523,7 @@ fn run(report: &str, written: OffsetDateTime) -> Run {
                     error: None,
                     dry_run: false,
                 },
+                started: None,
                 proposals: Vec::new(),
                 applied: Vec::new(),
             }),

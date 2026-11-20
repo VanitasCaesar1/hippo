@@ -34,6 +34,7 @@ const GROUPS: [(&str, &[&str]); 6] = [
             "incidents",
             "xray",
             "show",
+            "view",
             "resume",
             "brief",
             "card",
@@ -142,6 +143,9 @@ enum Command {
     /// Print a session's turns, a proposal with its evidence, or a note's lint and receipts
     #[command(subcommand)]
     Show(cmd::show::Command),
+    /// What Hippo.app's Morning, Brain and Guard show, as text or JSON (read-only)
+    #[command(subcommand)]
+    View(cmd::view::Command),
     /// Write the session log
     Log(cmd::log::Args),
     /// Check the setup and the last runs; exits 1 on any problem
@@ -208,6 +212,7 @@ fn main() -> ExitCode {
         Command::Guard(command) => cmd::guard::run(command),
         Command::Runners(args) => cmd::runners::run(args),
         Command::Show(command) => cmd::show::run(command),
+        Command::View(command) => cmd::view::run(command),
         Command::Log(args) => cmd::log::run(args),
         Command::Doctor(args) => cmd::doctor::run(args),
         Command::Dream(args) => return cmd::dream::run(args),

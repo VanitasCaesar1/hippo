@@ -1,6 +1,6 @@
 # Commands
 
-`hippo` has 28 commands, in the groups `hippo --help` shows. Run `hippo <command> --help` for the same flags in short form.
+`hippo` has 29 commands, in the groups `hippo --help` shows. Run `hippo <command> --help` for the same flags in short form.
 
 Run `hippo` with no arguments first. With no `config.toml` it prints what `hippo detect` finds and offers to index that history (history only, no notes folder, nothing sent anywhere). On a terminal it asks `Index it now? [Y/n]`; with no terminal it prints `run hippo start --yes to index it` and exits 0. Once hippo is set up, `hippo` on its own runs an incremental ingest when the last one is older than `ingest_interval_minutes`, then shows the last active day: its sessions, merged pull requests, corrections, and four commands to try next.
 
@@ -26,6 +26,7 @@ Unless a command says otherwise, an error prints to stderr and the exit code is 
 | [`incidents`](#hippo-incidents) | What went wrong, which agent did it, at which step |
 | [`xray`](#hippo-xray) | What context a session was given and used |
 | [`show`](#hippo-show) | Print a session, a day, a proposal or a note's receipts |
+| [`view`](#hippo-view) | What Hippo.app's Morning, Brain and Guard show, as text or JSON |
 | [`resume`](#hippo-resume) | Print the command that resumes a session, with a short handoff |
 | [`brief`](#hippo-brief) | The start block for a new agent on a task |
 | [`card`](#hippo-card) | The day as one image to share: numbers and a date, no names |
@@ -116,7 +117,7 @@ Without `--sources-only` it runs your `model_command` ([Security and privacy](se
 hippo fleet [--json]
 ```
 
-Today's sessions: live, stopped at a usage limit, or finished, and the headroom left on each Claude profile. With no session today it says so and names `hippo show day <date>`. `--json` prints one JSON object.
+Today's sessions: live, stopped at a usage limit, or finished, and the headroom left on each Claude profile. With no session today it says so and names `hippo show day <date>`. `--json` prints one JSON object; its `recent` lists the last five finished sessions, each with one line on how it ended (`Merged #212.`, `Done. "Typecheck is clean." has no run behind it.`) and a `mark` (`ok`, `unverified`, `bad` or empty), as Hippo.app's Agents view shows them.
 
 ## hippo incidents
 
@@ -172,7 +173,7 @@ Prints the command that resumes a session, with a short handoff. `<id>` is a ful
 hippo brief --task <text> [--off <id>]... [--json]
 ```
 
-The start block for a new agent on a task: required and relevant notes, past sessions and kept rules. `--off <id>` leaves out the part with that id (repeatable; `--json` lists the ids). `--json` prints the parts and the block as one JSON object.
+The start block for a new agent on a task: required and relevant notes, past sessions and kept rules. `--off <id>` leaves out the part with that id (repeatable; `--json` lists the ids). `--json` prints the parts and the block as one JSON object, with `parts` (the parts that are on, by group: `required`, `picked`, `sessions`, `rules`; the rules still `waiting` in the Inbox; `bytes` per group and in total; the `budget`) and `reaches` (each agent whose hooks file has hippo's session-start hook, and how it gets the block).
 
 ## hippo card
 
@@ -326,6 +327,30 @@ receipt 01M6X6VZSSTVQA135WF8HE5VW3 revert 01M6X6VZNF8X666HVGCVJZD4FE 2026-11-08T
 ```
 
 (That run used the synthetic eval set and a stand-in model.)
+
+## hippo view
+
+```text
+hippo view morning [--json]
+hippo view strip [--json]
+hippo view map [--json]
+hippo view note <path> [--json]
+hippo view guard [--days N] [--json]
+hippo view counts [--json]
+```
+
+Read-only. The models behind Hippo.app's views ([the night map](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/app-night-map.md)): `--json` prints what the app draws, and the site's live demo is generated from it. Text output is a short summary of the same.
+
+| Subcommand | What it holds |
+|---|---|
+| `morning` | The last night pass (when it started and ended, sessions read by agent, notes checked), the rules waiting for you with the words they came from and the note each goes into, the changes the pass applied (a short was and now, the receipt, the `hippo revert` arguments that undo it) and the ones its reviewer rejected, with the reviewer's reason. |
+| `strip` | Activity from yesterday's midnight to now in the rollup's 15-minute buckets, the buckets with a correction, the night and the pass in it. |
+| `map` | Every note with its folder, a one-sentence summary (its `summary:` front-matter field, else its first sentence), sessions that read it this week by agent, its flags (fixed last night, rules waiting, fix rejected, stale for N days, read by every session), the links between notes, and the map's rectangles and lines at each zoom level (`out`, `mid`, `in`), in points at 100 %. |
+| `note <path>` | One note's panel: its summary, kept rules with the day each was kept, pending rules with their evidence, readers by agent, links out and in, and its receipts with undo. `<path>` is relative to the workspace, or to the notes folder. |
+| `guard` | The guard's incidents of the last 7 days (`--days`, 1 to 14) in plain words: a title, a sentence, the command, the target (a host, a path, an origin, the model provider) and why it matters, a severity, what to do, and the brief *Fix with* starts a session with. Never a secret's value. |
+| `counts` | The top bar's badges (rules waiting, sessions waiting on you, important guard incidents), when ingest last finished, and the runner that answers `hippo ask`. |
+
+A night pass's report records when it started from 0.7.0 on (`started:` after `status:`); for older reports `morning` gives no duration.
 
 ## hippo session
 

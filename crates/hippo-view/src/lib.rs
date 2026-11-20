@@ -29,6 +29,7 @@ pub mod home;
 pub mod manage;
 pub mod markdown;
 pub mod memory;
+pub mod night;
 pub mod notepage;
 pub mod onboarding;
 pub mod pulse;

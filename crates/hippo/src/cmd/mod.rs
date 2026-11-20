@@ -30,6 +30,7 @@ pub mod session;
 pub mod settings;
 pub mod show;
 pub mod start;
+pub mod view;
 pub mod xray;
 
 use std::time::Duration;

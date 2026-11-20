@@ -204,7 +204,10 @@ pub(crate) fn run_at(
         cfg,
         ws,
         dry_run,
-        report: Report::default(),
+        report: Report {
+            started: Some(now),
+            ..Report::default()
+        },
         summary: RunSummary::default(),
         log_notes: BTreeSet::new(),
     };

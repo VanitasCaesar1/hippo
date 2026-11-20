@@ -1,7 +1,8 @@
 //! Dreaming step 8: `.hippo/reports/<date>-dream.md`.
 //!
 //! Line 1 is `status: ok` or `status: failed`, line 2 `error: <text>` on
-//! failure, then the sections `## Window`, `## Inputs`, `## Omissions`,
+//! failure, then `started: <RFC 3339 time>` (from 0.7.0; older reports
+//! have none), then the sections `## Window`, `## Inputs`, `## Omissions`,
 //! `## Proposals`, `## Validation failures`, `## Verdicts` and
 //! `## Applied`, with one bullet per item. A run writes the report of its
 //! UTC start date, `<date>-dream.md`. A later run on the same UTC day
@@ -64,6 +65,8 @@ pub struct ReportRun {
     pub proposals: Vec<Ulid>,
     /// The first word of each bullet under `## Applied`: receipt ids.
     pub applied: Vec<Ulid>,
+    /// When the run began (`started:`); `None` in reports before 0.7.0.
+    pub started: Option<time::OffsetDateTime>,
 }
 
 /// What one run reports, section by section; each entry is one bullet.
@@ -71,6 +74,8 @@ pub struct ReportRun {
 pub struct Report {
     /// Set when the run failed.
     pub error: Option<String>,
+    /// When the run began.
+    pub started: Option<time::OffsetDateTime>,
     pub window: Vec<String>,
     pub inputs: Vec<String>,
     pub omissions: Vec<String>,
@@ -92,6 +97,12 @@ impl Report {
                 out.push_str("status: failed\n");
                 out.push_str(&format!("error: {}\n", one_line(error)));
             }
+        }
+        if let Some(t) = self.started.and_then(|t| {
+            t.format(&time::format_description::well_known::Rfc3339)
+                .ok()
+        }) {
+            out.push_str(&format!("started: {t}\n"));
         }
         let sections = [
             ("Window", &self.window),
@@ -255,6 +266,17 @@ pub fn list(ws: &Workspace) -> Result<Vec<Listed<ReportRun>>> {
         .collect())
 }
 
+/// The `started:` line among the lines before the first section.
+fn started_of(text: &str) -> Option<time::OffsetDateTime> {
+    text.lines()
+        .take_while(|l| !l.starts_with("## "))
+        .find_map(|l| l.strip_prefix("started: "))
+        .and_then(|t| {
+            time::OffsetDateTime::parse(t.trim(), &time::format_description::well_known::Rfc3339)
+                .ok()
+        })
+}
+
 fn parse(path: &Path, date: Date, seq: u32, text: &str) -> std::result::Result<ReportRun, String> {
     let mut lines = text.lines();
     let (failed, error) = match lines.next() {
@@ -296,6 +318,7 @@ fn parse(path: &Path, date: Date, seq: u32, text: &str) -> std::result::Result<R
         },
         proposals: ids("Proposals")?,
         applied: ids("Applied")?,
+        started: started_of(text),
     })
 }
 

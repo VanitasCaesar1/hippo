@@ -128,7 +128,7 @@ Proposals, receipts and reviews are meant to be committed by you, so a teammate 
 
 ### The report
 
-Each run writes `.hippo/reports/<date>-dream.md` (the UTC date). A later run on the same day replaces that report only when it was a dry run's; otherwise it writes `<date>-2-dream.md`, `<date>-3-dream.md` and so on, so no real run's report is replaced. Line 1 is `status: ok` or `status: failed`; a failed run adds `error: <text>` on line 2. The sections are `Window`, `Inputs`, `Omissions`, `Proposals`, `Validation failures`, `Verdicts` and `Applied`. `hippo dream --dry-run` writes only this report.
+Each run writes `.hippo/reports/<date>-dream.md` (the UTC date). A later run on the same day replaces that report only when it was a dry run's; otherwise it writes `<date>-2-dream.md`, `<date>-3-dream.md` and so on, so no real run's report is replaced. Line 1 is `status: ok` or `status: failed`; a failed run adds `error: <text>` on line 2. From 0.7.0 the next line is `started: <time>`, when the run began. The sections are `Window`, `Inputs`, `Omissions`, `Proposals`, `Validation failures`, `Verdicts` and `Applied`. `hippo dream --dry-run` writes only this report.
 
 ## Incidents
 
