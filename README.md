@@ -67,23 +67,22 @@ Each of these is worth knowing; they answer different questions.
 
 ## See it in action
 
-Screenshots of these come with the next release, taken from the synthetic demo project in this repository (`app/scripts/demo-home.sh`), not anyone's real work. Until then, the [live demo](https://vanitascaesar1.github.io/hippo/demo.html) shows Morning and Brain.
+Taken from the synthetic demo project in this repository (`app/scripts/demo-home.sh`), not anyone's real work. The app screenshots follow your light or dark setting. The [live demo](https://vanitascaesar1.github.io/hippo/demo.html) runs Morning and Brain in the browser.
 
-<!--
-Two columns, one line under each (docs/assets/readme/, v0.7.2):
-| brief.png: `hippo brief`, what a new session on a task starts with, and the past sessions that already did part of it | app-inbox.jpg: the Inbox, rules drafted from your corrections and repeated failures, and the team's |
-| night-report.png: a night pass's report, proposals, the reviewer's verdicts and reasons | incidents.png: `hippo incidents`, what went wrong, where, and whether a rule covered it |
-| app-fleet.jpg: Fleet in Hippo.app, who waits on you and which account runs dry | app-brain.jpg: Brain in Hippo.app, the notes as a map |
--->
-
-| Screen | What it shows |
-|---|---|
-| `hippo brief` | What a new session on a task starts with, and the past sessions that already did part of it. |
-| The Inbox | Rules drafted from your corrections and repeated failures, and the team's, waiting for you. |
-| A night pass's report | Each proposal, the ones that failed validation, and the reviewer's confirm or reject with its reason. |
-| `hippo incidents` | What went wrong, in which session and at which step, and whether a rule covered it. |
-| Fleet in Hippo.app | Who waits on you, who is working, and which account runs dry before its reset. |
-| Brain in Hippo.app | The notes as a map: what was fixed last night, what waits, what went stale. |
+<table>
+<tr>
+<td width="50%" valign="top"><img src="docs/assets/readme/brief.png" alt="hippo brief in a terminal: the notes and past sessions a new session on the task starts with" width="100%"><br><code>hippo brief</code>: what a new session on a task starts with, and the past sessions that already did part of it.</td>
+<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/app-inbox-light.jpg"><img src="docs/assets/readme/app-inbox-dark.jpg" alt="The Inbox in Hippo.app: rules drafted from corrections and repeated failures, and the team's" width="100%"></picture><br>The Inbox: rules drafted from your corrections and repeated failures, and the team's, waiting for you.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/assets/readme/night-report.png" alt="hippo view morning in a terminal: last night's rules, applied changes and the rejected ones with reasons" width="100%"><br>A night pass's report: the rules it drafted, what it changed (each with an undo) and what the second model rejected, with its reason.</td>
+<td width="50%" valign="top"><img src="docs/assets/readme/incidents.png" alt="hippo incidents in a terminal: what went wrong, in which session and step" width="100%"><br><code>hippo incidents</code>: what went wrong, in which session and at which step, and whether a rule covered it.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/app-agents-light.jpg"><img src="docs/assets/readme/app-agents-dark.jpg" alt="Agents in Hippo.app: accounts with their usage meters, and the sessions waiting on you" width="100%"></picture><br>Agents in Hippo.app: who waits on you, who is working, and which account runs dry before its reset.</td>
+<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: light)" srcset="docs/assets/app-brain-light.jpg"><img src="docs/assets/app-brain-dark.jpg" alt="Brain in Hippo.app: the notes as a map" width="100%"></picture><br>Brain in Hippo.app: the notes as a map, with what was fixed last night, what waits and what went stale.</td>
+</tr>
+</table>
 
 ## Install
 
