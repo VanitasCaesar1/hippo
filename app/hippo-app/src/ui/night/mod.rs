@@ -70,6 +70,12 @@ pub struct NightUi {
     /// A block lifted at launch, dragged to a map point
     /// (`HIPPO_APP_DEV_LIFT=folder:Runbooks@900,40`).
     pub dev_lift: Option<(String, (f32, f32))>,
+    /// The pointer resting on a point of Brain's view at launch, as a
+    /// hover there does (`HIPPO_APP_DEV_HOVER=420,300`).
+    pub dev_hover: Option<(f32, f32)>,
+    /// A lifted block dropped before the first frame
+    /// (`HIPPO_APP_DEV_DROP=0`).
+    pub dev_drop: bool,
     /// Press Reset layout before the first frame (`HIPPO_APP_DEV_RESET=0`).
     pub dev_reset: bool,
     /// Keep a scrolling view at its end (`HIPPO_APP_DEV_SCROLL=end`), to
@@ -99,6 +105,8 @@ impl Default for NightUi {
             dev_select: None,
             dev_zoom: None,
             dev_lift: None,
+            dev_hover: None,
+            dev_drop: false,
             dev_reset: false,
             dev_scroll_end: false,
             map: brain::MapView::default(),

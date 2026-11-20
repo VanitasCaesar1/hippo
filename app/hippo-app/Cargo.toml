@@ -18,7 +18,7 @@ hippo-view = { path = "../../crates/hippo-view" }
 # The menu-bar item: GPUI has no status item, so the
 # app makes one with the same objc2 crates GPUI's macOS platform links.
 objc2 = "0.6.5"
-objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSStatusBar", "NSStatusItem", "NSStatusBarButton", "NSButton", "NSControl", "NSView", "NSResponder", "NSImage", "NSMenu", "NSMenuItem", "NSRunningApplication", "NSApplication", "NSCell"] }
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSStatusBar", "NSStatusItem", "NSStatusBarButton", "NSButton", "NSControl", "NSView", "NSResponder", "NSImage", "NSMenu", "NSMenuItem", "NSRunningApplication", "NSApplication", "NSCell", "NSAccessibility", "NSWorkspace"] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSString", "NSData", "NSGeometry", "NSObject", "NSError", "NSArray"] }
 # T3 Code's state, opened read-only to find a session's thread.
 rusqlite = { version = "0.41.1", features = ["bundled"] }

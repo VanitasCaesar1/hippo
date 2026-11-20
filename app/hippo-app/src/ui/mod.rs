@@ -2074,8 +2074,14 @@ mod tests {
         assert_eq!(root.read_with(&vcx, |s, _| s.state().scale.percent()), 100);
         dispatch(&mut vcx, window, &actions::TextDefault);
         let fitted = root.read_with(&vcx, |s, _| {
+            // The whole map, above the Ask bar, in hippo's layout for the view.
             let m = s.night.map.map.clone().unwrap();
-            m.mid.fit(w / unit, h / unit, 28.).0
+            assert!(!m.is_arranged());
+            m.fit(
+                w / unit,
+                (h / unit - crate::ui::night::brain::FOOT).max(100.),
+            )
+            .0
         });
         assert!((state(&mut vcx).0 - fitted).abs() < 0.001);
     }
@@ -2749,7 +2755,23 @@ mod tests {
             root.read_with(&vcx, |s, _| s.night.map.lift.is_some()),
             "the band lifts the folder"
         );
+        // The others slide aside: the slide shows the block in its slot.
+        root.read_with(&vcx, |s, _| {
+            let l = s.night.map.lift.as_ref().unwrap();
+            let sl = s.night.map.slide.as_ref().expect("a slide opens the slot");
+            assert_eq!(sl.target, Some((l.drop.col, l.drop.at)));
+            let m = s.night.map.map.as_ref().unwrap();
+            let slot = m.block_rect_in(&sl.lay, l.block).unwrap();
+            assert!((slot.x - l.drop.x).abs() < 1., "{slot:?} {:?}", l.drop);
+        });
         vcx.simulate_keystrokes("escape");
+        // Escape: every block flies back, none is waiting to land.
+        root.read_with(&vcx, |s, _| {
+            assert!(s.night.map.lift.is_none());
+            let sl = s.night.map.slide.as_ref().expect("a slide back");
+            assert_eq!(sl.target, None);
+            assert!(sl.from.contains_key(&Block::Folder(runbooks)));
+        });
         vcx.simulate_mouse_up(away, gpui::MouseButton::Left, gpui::Modifiers::none());
         vcx.run_until_parked();
         assert!(!root.read_with(&vcx, |s, _| s.night.map.map.as_ref().unwrap().is_arranged()));
@@ -2793,6 +2815,17 @@ mod tests {
         drag(&mut vcx, a, b);
         vcx.simulate_mouse_up(b, gpui::MouseButton::Left, gpui::Modifiers::none());
         vcx.run_until_parked();
+        // The pointer resting on a card puts it in focus.
+        vcx.simulate_mouse_move(
+            on_map(&vcx, &root, nr.x + 20., nr.y + 20.),
+            None,
+            gpui::Modifiers::none(),
+        );
+        vcx.run_until_parked();
+        assert_eq!(
+            root.read_with(&vcx, |s, _| s.night.map.hover),
+            Some(Item::Note(note))
+        );
         root.read_with(&vcx, |s, _| {
             assert_ne!(s.night.map.pan, pan0, "it panned");
             assert_eq!(

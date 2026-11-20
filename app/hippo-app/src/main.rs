@@ -279,6 +279,13 @@ fn main() {
                         .and_then(|z| z.parse().ok());
                     shell.night.dev_reset =
                         std::env::var("HIPPO_APP_DEV_RESET").is_ok_and(|v| v == "0");
+                    shell.night.dev_drop =
+                        std::env::var("HIPPO_APP_DEV_DROP").is_ok_and(|v| v == "0");
+                    shell.night.dev_hover =
+                        std::env::var("HIPPO_APP_DEV_HOVER").ok().and_then(|v| {
+                            let (x, y) = v.split_once(',')?;
+                            Some((x.parse().ok()?, y.parse().ok()?))
+                        });
                     shell.night.dev_lift = std::env::var("HIPPO_APP_DEV_LIFT").ok().and_then(|v| {
                         let (key, at) = v.rsplit_once('@')?;
                         let (x, y) = at.split_once(',')?;
