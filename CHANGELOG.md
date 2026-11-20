@@ -4,16 +4,16 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-20
+
+**Upgrading.** Nothing to migrate. The guard is now checked in real agents, and installs in Codex (`hippo guard install --agent codex`, then trust the hook in Codex) and Cursor (`--agent cursor`). If you set the OpenCode plugin's `guard: true`, its warnings now reach the model and you. Self-protection no longer refuses an agent's writes in scratch homes, so tests of hippo itself run again under the guard. `[allow]` gains `keychain` and `paths`; an older hippo refuses a note or `machine.toml` that uses them (unknown keys), so a team that commits them should be on 0.6.1 first.
+
 ### Added
 
 - **The guard, end to end in real agents.** `scripts/agent-e2e/run.sh` runs Claude Code, Codex, Gemini CLI, OpenCode and dsh for real, each in a scratch home with the guard installed as a user installs it, against a stub model on 127.0.0.1 (no model, key or account). It checks that a warned call runs and who saw the warning, that a self-protection refusal holds, that an `ls` is untouched, and that the agent connected only to 127.0.0.1. CI runs the stub's own test and skips the agents it lacks.
-
 - **The guard in Codex.** `hippo guard install --agent codex` adds a `PreToolUse` entry to `$CODEX_HOME/hooks.json`, beside the session hooks; Codex asks you to trust it at its next start. A warning reaches the model as a developer message and you in Codex's TUI; self-protection refuses with the reason. Codex cannot ask, so a question there will be a refusal. Contract read from Codex's source at 0.170.0 and checked end to end; see the [design](docs/designs/guard.md#codexs-pretooluse-contract).
-
 - **The guard in Cursor.** `hippo guard install --agent cursor` adds a `preToolUse` script to `~/.cursor/hooks.json`. A warning reaches the model as `additional_context` and leaves Cursor's own approval as it was; self-protection denies. cursor-agent also runs Claude Code's `~/.claude/settings.json` hooks, so a Cursor call that reaches the Claude Code entry is answered in Cursor's format, and not at all when Cursor's own entry is installed. Read from the code cursor-agent 2026.11.19 ships; there is no end-to-end run, since cursor-agent cannot use a local model. See the [design](docs/designs/guard.md#cursors-pretooluse-contract).
-
 - **Hippo.app: the team's shared Inbox.** With `[team] inbox = "shared"` in force, the Inbox lists the team's open and crossed lessons first, with who saw each and who kept or dismissed it beside who pushed the file. Keep and Dismiss write your decision; Share… shows the same consent as `hippo lessons share` and writes `member` and `share_lessons` on yes. `app/scripts/demo-home.sh` seeds three synthetic teammates.
-
 - **Allowing a sanctioned credential read.** `hippo guard allow keychain <service>` and `hippo guard allow path <glob>` (`[allow] keychain` and `paths`) silence `credential-read` for that item; the warning names the command. `hippo guard test` shows a rule's most repeated reasons with counts, and `hippo incidents` shows an incident repeated in a day once, with its count.
 - **`scripts/guard-precision/`**: precision and recall per rule on a labelled synthetic history of 6,000 calls across four agents; CI runs 2,000 of them.
 
@@ -154,7 +154,8 @@ The first release. hippo reads what your coding agents did, keeps your notes tru
 - **Hippo.app**, a macOS window over the same files. Built from source in `app/`; no binary is released. Checked on synthetic data, not in daily use.
 - **Docs** at [vanitascaesar1.github.io/hippo](https://vanitascaesar1.github.io/hippo/), including [Sharing a brain in a team](docs/site/src/sharing.md), tried with two people and one git remote.
 
-[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/VanitasCaesar1/hippo/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/VanitasCaesar1/hippo/compare/v0.4.1...v0.4.2
