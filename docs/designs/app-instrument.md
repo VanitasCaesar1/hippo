@@ -1,6 +1,6 @@
 # Hippo.app: the instrument look
 
-Status: accepted 18 Nov 2026, to build on Fleet Pulse ([fleet-pulse.md](fleet-pulse.md)). Covers the app's look, its sidebar, Home and Pulse. Amended 18 Nov 2026: Rows, Lanes, Inbox, Incidents and Memory take the look too (the first build left them with their badges, icons and cards, beside Pulse). The session views (the thread, the x-ray) and Manage keep their layout and take the new look from the shared tokens and kit.
+Status: accepted 18 Nov 2026, to build on Fleet Pulse ([fleet-pulse.md](fleet-pulse.md)). Covers the app's look, its sidebar, Home and Pulse. Amended 18 Nov 2026: Rows, Lanes, Inbox, Incidents and Memory take the look too (the first build left them with their badges, icons and cards, beside Pulse). The session views (the thread, the x-ray) and Manage keep their layout and take the new look from the shared tokens and kit. Amended 20 Nov 2026 by [app-night-map.md](app-night-map.md): the top bar and the views Morning, Brain, Agents and Guard replace the sidebar, Home and the section views; the tokens take the night map's colours and labels become sentence case. What follows is kept as the record of the instrument look.
 
 ## Background
 
