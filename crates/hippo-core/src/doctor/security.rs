@@ -229,7 +229,7 @@ pub fn guard_check(
         }
     };
     let targets = user_home
-        .map(|h| crate::guard::install::targets(h, &[GuardAgent::ClaudeCode, GuardAgent::Gemini]))
+        .map(|h| crate::guard::install::targets(h, &GuardAgent::ALL))
         .unwrap_or_default();
     let mut installed = Vec::new();
     let mut missing = Vec::new();

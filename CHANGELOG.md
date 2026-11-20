@@ -8,6 +8,8 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 - **The guard, end to end in real agents.** `scripts/agent-e2e/run.sh` runs Claude Code, Codex, Gemini CLI, OpenCode and dsh for real, each in a scratch home with the guard installed as a user installs it, against a stub model on 127.0.0.1 (no model, key or account). It checks that a warned call runs and who saw the warning, that a self-protection refusal holds, that an `ls` is untouched, and that the agent connected only to 127.0.0.1. CI runs the stub's own test and skips the agents it lacks.
 
+- **The guard in Codex.** `hippo guard install --agent codex` adds a `PreToolUse` entry to `$CODEX_HOME/hooks.json`, beside the session hooks; Codex asks you to trust it at its next start. A warning reaches the model as a developer message and you in Codex's TUI; self-protection refuses with the reason. Codex cannot ask, so a question there will be a refusal. Contract read from Codex's source at 0.170.0 and checked end to end; see the [design](docs/designs/guard.md#codexs-pretooluse-contract).
+
 ### Fixed
 
 - **The guard on a machine where hippo was never set up.** `hippo guard install` works without an index or workspace, but `guard check` then failed open on every call for want of `config.toml`. It now applies the built-in and machine rules.

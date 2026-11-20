@@ -30,6 +30,8 @@ pub enum InstallAgent {
     Claude,
     /// Gemini CLI's ~/.gemini/settings.json
     Gemini,
+    /// Codex's $CODEX_HOME/hooks.json
+    Codex,
 }
 
 impl InstallAgent {
@@ -37,6 +39,7 @@ impl InstallAgent {
         match self {
             InstallAgent::Claude => GuardAgent::ClaudeCode,
             InstallAgent::Gemini => GuardAgent::Gemini,
+            InstallAgent::Codex => GuardAgent::Codex,
         }
     }
 }
@@ -58,14 +61,14 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Add the guard to every Claude Code account (or Gemini CLI); lists each file, writes with --yes
+    /// Add the guard to every Claude Code account (or Gemini CLI, or Codex); lists each file, writes with --yes
     Install {
         #[arg(long, value_enum, default_value_t)]
         agent: InstallAgent,
         #[arg(long)]
         yes: bool,
     },
-    /// Remove the guard from every Claude Code account (or Gemini CLI); writes with --yes
+    /// Remove the guard from every Claude Code account (or Gemini CLI, or Codex); writes with --yes
     Uninstall {
         #[arg(long, value_enum, default_value_t)]
         agent: InstallAgent,
@@ -255,6 +258,7 @@ fn install(agent: GuardAgent, yes: bool, remove: bool) -> Result<ExitCode> {
                 "no Claude Code account folder found (~/.claude, ~/.claude-*, $CLAUDE_CONFIG_DIR)"
             ),
             GuardAgent::Gemini => bail!("no ~/.gemini folder found"),
+            GuardAgent::Codex => bail!("no Codex home found ($CODEX_HOME or ~/.codex)"),
         }
     }
     let home = config::home();
@@ -299,7 +303,11 @@ fn install(agent: GuardAgent, yes: bool, remove: bool) -> Result<ExitCode> {
     if !remove {
         hooks::write_bin_path(&home, &bin)?;
     }
-    println!("written; new sessions use it");
+    if agent == GuardAgent::Codex && !remove {
+        println!("written; Codex lists the new hook for review at its next start (or in /hooks): trust it there, and new sessions use it");
+    } else {
+        println!("written; new sessions use it");
+    }
     Ok(ExitCode::SUCCESS)
 }
 
@@ -307,6 +315,7 @@ fn agent_event(agent: GuardAgent) -> &'static str {
     match agent {
         GuardAgent::ClaudeCode => "the PreToolUse guard hook",
         GuardAgent::Gemini => "the BeforeTool guard hook",
+        GuardAgent::Codex => "the PreToolUse guard hook",
     }
 }
 
@@ -396,10 +405,7 @@ fn status() -> Result<ExitCode> {
     let (cfg, ws) = load()?;
     let compiled = guard::current(&cfg, ws.as_ref())?;
     let user_home = config::user_home().ok_or_else(|| anyhow::anyhow!("no home folder"))?;
-    for (agent, path) in hippo_core::guard::install::targets(
-        &user_home,
-        &[GuardAgent::ClaudeCode, GuardAgent::Gemini],
-    ) {
+    for (agent, path) in hippo_core::guard::install::targets(&user_home, &GuardAgent::ALL) {
         let state = match hooks::guard_installed(&path, agent) {
             Ok(Some(command)) => format!("installed: {command}"),
             Ok(None) => "not installed".to_owned(),

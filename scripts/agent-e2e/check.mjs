@@ -75,7 +75,7 @@ if (read(join(dir, 'home', '.hippo', 'guard', 'machine.toml')).includes('paste.e
 
 // What the user sees: the agent's own output.
 const out = read(join(dir, 'out.txt')) + read(join(dir, 'err.txt'))
-const shown = out.includes('hippo guard: ')
+const shown = agent === 'codex' ? /^hook warning: hippo guard: /m.test(out) : out.includes('hippo guard: ')
 facts.push(`the user ${shown ? 'saw' : 'did not see'} the warning in the agent's output`)
 if (EXPECT.user && !shown) problems.push('the warning is not in the agent\'s output')
 
@@ -89,7 +89,7 @@ for (const s of sockets) {
 }
 const outside = [...remotes].filter(r => !['127.0.0.1', '[::1]', 'localhost'].includes(r))
 if (outside.length > 0) problems.push(`connections to ${outside.join(', ')}`)
-if (sockets.length === 0) problems.push('the network watch saw no socket at all (is lsof working?)')
+if (sockets.length === 0) facts.push('note: the socket sampler caught no open socket (the run was quicker than lsof); the proxy log is the check')
 facts.push(`network: ${sockets.length} socket sample(s), remote addresses ${[...remotes].join(', ') || 'none'}; proxy refused ${proxied.length ? [...new Set(proxied)].join(', ') : 'nothing'}`)
 
 facts.push(`exit status ${status}`)

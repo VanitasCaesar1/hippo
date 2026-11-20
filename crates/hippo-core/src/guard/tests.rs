@@ -456,6 +456,14 @@ fn each_agent_gets_its_own_answer() {
         .unwrap()
         .starts_with("hippo guard: this runs a script."));
     assert!(v["hookSpecificOutput"].get("permissionDecision").is_none());
+    // Codex reads the same shape: context for the model, a message for
+    // the person, and nothing that decides.
+    let v: serde_json::Value = serde_json::from_str(&respond("codex", &warn)).unwrap();
+    assert_eq!(v["hookSpecificOutput"]["hookEventName"], "PreToolUse");
+    assert!(v["hookSpecificOutput"]["additionalContext"].is_string());
+    assert!(v["systemMessage"].is_string());
+    assert!(v["hookSpecificOutput"].get("permissionDecision").is_none());
+    assert!(v.get("decision").is_none());
     let v: serde_json::Value = serde_json::from_str(&respond("gemini", &warn)).unwrap();
     assert!(v.get("decision").is_none() && v["systemMessage"].is_string());
     let v: serde_json::Value = serde_json::from_str(&respond("dsh", &warn)).unwrap();
@@ -463,6 +471,7 @@ fn each_agent_gets_its_own_answer() {
     let none = decide(Vec::new(), false);
     assert_eq!(respond("claude-code", &none), "");
     assert_eq!(respond("gemini", &none), "");
+    assert_eq!(respond("codex", &none), "");
     assert_eq!(respond("opencode", &none), r#"{"decision":"none"}"#);
     let block = decide(
         vec![Hit {
@@ -475,6 +484,27 @@ fn each_agent_gets_its_own_answer() {
         false,
     );
     let v: serde_json::Value = serde_json::from_str(&respond("claude-code", &block)).unwrap();
+    assert_eq!(v["hookSpecificOutput"]["permissionDecision"], "deny");
+    let v: serde_json::Value = serde_json::from_str(&respond("codex", &block)).unwrap();
+    assert_eq!(v["hookSpecificOutput"]["permissionDecision"], "deny");
+    assert!(v["hookSpecificOutput"]["permissionDecisionReason"]
+        .as_str()
+        .unwrap()
+        .contains("only the person"));
+    // Codex refuses an `ask` answer, so a question there is a refusal.
+    let ask = decide(
+        vec![Hit {
+            rule: "remote-script".into(),
+            kind: Some("remote-script".into()),
+            action: Action::Ask,
+            reason: "this runs a script.".into(),
+            self_protection: false,
+        }],
+        true,
+    );
+    let mut ask = ask;
+    ask.action = Some(Action::Ask);
+    let v: serde_json::Value = serde_json::from_str(&respond("codex", &ask)).unwrap();
     assert_eq!(v["hookSpecificOutput"]["permissionDecision"], "deny");
     let v: serde_json::Value = serde_json::from_str(&respond("gemini", &block)).unwrap();
     assert_eq!(v["decision"], "deny");
@@ -492,6 +522,12 @@ fn each_agents_payload_is_read() {
         (
             "claude-code",
             json!({"session_id": "s", "transcript_path": "/t", "cwd": w.root, "permission_mode": "default", "hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": script, "description": "install"}, "tool_use_id": "t1"}),
+        ),
+        (
+            // codex-rs/hooks/src/schema.rs `PreToolUseCommandInput`
+            // (0.170.0): every shell tool is `Bash` with `command`.
+            "codex",
+            json!({"session_id": "019a", "turn_id": "t", "transcript_path": null, "cwd": w.root, "hook_event_name": "PreToolUse", "model": "m", "permission_mode": "default", "tool_name": "Bash", "tool_input": {"command": script}, "tool_use_id": "call_1"}),
         ),
         (
             "gemini",
@@ -520,6 +556,19 @@ fn each_agents_payload_is_read() {
     let hits = evaluate(&c, &read);
     assert_eq!(hits[0].kind.as_deref(), Some("credential-read"));
     assert_eq!(hits[0].action, Action::Ask);
+    // Codex's apply_patch into $HIPPO_HOME/guard/ is refused.
+    let patch = format!(
+        "*** Begin Patch\n*** Add File: {}\n+[allow]\n*** End Patch\n",
+        w.home.join("guard/machine.toml").display()
+    );
+    let call = parse_call(
+        "codex",
+        &json!({"tool_name": "apply_patch", "tool_input": {"command": patch}, "cwd": w.root, "session_id": "019a"}),
+    )
+    .unwrap();
+    assert!(call.headless);
+    let d = decide(evaluate(&c, &call), call.headless);
+    assert_eq!(d.action, Some(Action::Block), "{d:?}");
 }
 
 #[test]

@@ -671,20 +671,30 @@ pub enum GuardAgent {
     ClaudeCode,
     /// `BeforeTool` in `~/.gemini/settings.json`.
     Gemini,
+    /// `PreToolUse` in `$CODEX_HOME/hooks.json`, beside the session hooks.
+    Codex,
 }
 
 impl GuardAgent {
+    /// Every agent `hippo guard install` can write a hook for.
+    pub const ALL: [GuardAgent; 3] = [
+        GuardAgent::ClaudeCode,
+        GuardAgent::Gemini,
+        GuardAgent::Codex,
+    ];
+
     /// The value of `--agent` for `hippo guard check`.
     pub fn name(self) -> &'static str {
         match self {
             GuardAgent::ClaudeCode => "claude-code",
             GuardAgent::Gemini => "gemini",
+            GuardAgent::Codex => "codex",
         }
     }
 
     fn event(self) -> &'static str {
         match self {
-            GuardAgent::ClaudeCode => "PreToolUse",
+            GuardAgent::ClaudeCode | GuardAgent::Codex => "PreToolUse",
             GuardAgent::Gemini => "BeforeTool",
         }
     }
@@ -695,6 +705,9 @@ impl GuardAgent {
         match self {
             GuardAgent::ClaudeCode => "Bash|Read|Write|Edit|MultiEdit|WebFetch|mcp__.*",
             GuardAgent::Gemini => "run_shell_command|read_file|read_many_files|write_file|replace",
+            // Codex names every shell tool `Bash` in a hook's input, file
+            // edits `apply_patch` and MCP tools `mcp__<server>__<tool>`.
+            GuardAgent::Codex => "^(Bash|apply_patch|mcp__.*)$",
         }
     }
 
@@ -714,7 +727,7 @@ impl GuardAgent {
     fn entry(self, bin: &str, timeout_ms: u64, fail_closed: bool) -> J {
         let command = J::Scalar(Value::from(self.command(bin)));
         let mut hook = match self {
-            GuardAgent::ClaudeCode => vec![
+            GuardAgent::ClaudeCode | GuardAgent::Codex => vec![
                 ("type".into(), J::Scalar(Value::from("command"))),
                 ("command".into(), command),
                 (
@@ -1242,5 +1255,43 @@ mod tests {
         assert_eq!(read_bin_path(&home).unwrap(), Path::new("/usr/bin/hippo"));
         #[cfg(unix)]
         assert_eq!(crate::perms::mode(&bin_path_file(&home)), Some(0o600));
+    }
+
+    #[test]
+    fn the_codex_guard_goes_beside_the_session_hooks_in_hooks_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = codex_hooks_path(dir.path());
+        install_file(&path, Agent::Codex, "/opt/hippo").unwrap();
+        let plan = guard_plan(&path, GuardAgent::Codex, "/opt/hippo", 2000, false).unwrap();
+        assert_eq!(plan.change, "add");
+        plan.apply().unwrap();
+        let v: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        let entry = &v["hooks"]["PreToolUse"][0];
+        assert_eq!(entry["matcher"], "^(Bash|apply_patch|mcp__.*)$");
+        assert_eq!(
+            entry["hooks"][0]["command"],
+            "/opt/hippo guard check --agent codex"
+        );
+        assert_eq!(entry["hooks"][0]["timeout"], 3);
+        // Codex has no onFailure, so even a closed fail mode adds none.
+        let closed = guard_plan(&path, GuardAgent::Codex, "/opt/hippo", 2000, true).unwrap();
+        assert!(!closed.text.contains("onFailure"));
+        // The session hooks stay; Claude Code's guard status does not see it.
+        assert_eq!(v["hooks"]["SessionStart"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            guard_installed(&path, GuardAgent::Codex)
+                .unwrap()
+                .as_deref(),
+            Some("/opt/hippo guard check --agent codex")
+        );
+        assert_eq!(
+            guard_installed(&path, GuardAgent::ClaudeCode).unwrap(),
+            None
+        );
+        let removed = guard_remove_plan(&path, GuardAgent::Codex).unwrap();
+        assert_eq!(removed.change, "remove");
+        removed.apply().unwrap();
+        assert_eq!(guard_installed(&path, GuardAgent::Codex).unwrap(), None);
+        assert_eq!(uninstall_file(&path, Agent::Codex).unwrap().len(), 3);
     }
 }

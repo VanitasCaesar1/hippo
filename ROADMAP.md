@@ -34,7 +34,7 @@ The text lives in `ROADMAP.md` at the root of the repository, and the docs site 
 ## Planned
 
 - **The guard's `ask` and `block`.** Once `hippo guard test` counts on real history show which defaults are quiet enough; then `unknown-egress` and `command-from-fetched` ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/guard.md#rollout)).
-- **The guard in Codex and Cursor.** Codex once its `PreToolUse` contract is checked; Cursor if its hooks gain an answer that neither blocks nor approves.
+- **The guard in Cursor**, if its hooks gain an answer that neither blocks nor approves.
 - **The shared Inbox in Hippo.app,** with who saw and who decided, and the Share dialog.
 - **`[secrets]` references** and the guard's secrets rules ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/secrets.md#rollout)).
 - **More runner presets.** Codex, Muse and OpenCode as checked `command` recipes, then presets; a reviewer on another vendor ([design](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/runners.md#rollout)).

@@ -27,9 +27,11 @@ pub struct Call {
     pub headless: bool,
 }
 
-/// Reads a hook payload. Claude Code, Gemini CLI and the plugins all send
-/// `tool_name`, `tool_input` and `cwd`; Claude Code's `permission_mode`
-/// says whether anyone can be asked, the plugins say `headless`.
+/// Reads a hook payload. Claude Code, Codex, Gemini CLI and the plugins
+/// all send `tool_name`, `tool_input` and `cwd`; Claude Code's
+/// `permission_mode` says whether anyone can be asked, the plugins say
+/// `headless`. Codex's `PreToolUse` cannot ask (it refuses an `ask`
+/// answer), so nobody can be asked there.
 pub fn parse_call(agent: &str, payload: &Value) -> Option<Call> {
     let tool = payload.get("tool_name")?.as_str()?.to_owned();
     let input = match payload.get("tool_input").cloned().unwrap_or(Value::Null) {
@@ -51,6 +53,7 @@ pub fn parse_call(agent: &str, payload: &Value) -> Option<Call> {
             payload.get("permission_mode").and_then(Value::as_str),
             Some("bypassPermissions" | "dontAsk")
         ),
+        "codex" => true,
         _ => payload
             .get("headless")
             .and_then(Value::as_bool)
@@ -160,14 +163,19 @@ pub fn respond(agent: &str, decision: &Decision) -> String {
     };
     let m = &decision.message;
     let v = match (agent, action) {
-        ("claude-code", Action::Warn) => json!({
+        // Codex reads Claude Code's shape (codex-rs/hooks/src/engine/
+        // output_parser.rs, 0.170.0): `additionalContext` reaches the
+        // model, `systemMessage` the person, `deny` refuses. It has no
+        // `ask`; `parse_call` makes every Codex call headless, so a
+        // question has become a refusal by the time it gets here.
+        ("claude-code" | "codex", Action::Warn) => json!({
             "hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": m},
             "systemMessage": m,
         }),
         ("claude-code", Action::Ask) => json!({
             "hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "ask", "permissionDecisionReason": m},
         }),
-        ("claude-code", Action::Block) => json!({
+        ("claude-code", Action::Block) | ("codex", Action::Ask | Action::Block) => json!({
             "hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": m},
         }),
         // Gemini CLI's BeforeTool has no question and no context for the
@@ -182,7 +190,7 @@ pub fn respond(agent: &str, decision: &Decision) -> String {
 }
 
 /// The agents `hippo guard check --agent` answers for.
-pub const AGENTS: [&str; 4] = ["claude-code", "gemini", "dsh", "opencode"];
+pub const AGENTS: [&str; 5] = ["claude-code", "codex", "gemini", "dsh", "opencode"];
 
 /// Every rule that matches `call`.
 pub fn evaluate(compiled: &Compiled, call: &Call) -> Vec<Hit> {

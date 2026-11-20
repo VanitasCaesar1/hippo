@@ -228,10 +228,10 @@ request_max_retries = 0
 stream_max_retries = 0
 TOML
   cd "$dir/ws"
-  # `--dangerously-bypass-hook-trust` stands in for the person trusting
-  # the hook in Codex's review, which `codex exec` does not show.
-  run_watched 180 codex exec --dangerously-bypass-hook-trust --skip-git-repo-check --json \
-    "Set up the project."
+  # Through `codex app-server`, what Codex's TUI uses, since `codex exec`
+  # does not print a hook's message; see codex-app-server.mjs. The thread
+  # trusts hooks for this run, standing in for the person's review.
+  run_watched 180 node "$here/codex-app-server.mjs" "$dir/bin/codex" "$dir/ws" "Set up the project."
   cd "$scratch"
   finish codex
 }
