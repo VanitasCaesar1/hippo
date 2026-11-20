@@ -38,6 +38,7 @@ Unless a command says otherwise, an error prints to stderr and the exit code is 
 | [`context`](#hippo-context) | Print the context block |
 | [`dream`](#hippo-dream) | Run the dreaming passes once |
 | [`lessons`](#hippo-lessons) | Corrections and repeated failures proposed as rules |
+| [`stats`](#hippo-stats) | How often you repeat a rule you already gave |
 | [`review`](#hippo-review) | Mark applied dreaming changes as read and right |
 | [`revert`](#hippo-revert) | Undo an applied change |
 | [`eval`](#hippo-eval) | Measure on an eval set |
@@ -401,7 +402,7 @@ Shows or changes one setting in `config.toml` or `.hippo/hippo.toml`. It prints 
 | Subcommand | Does |
 |---|---|
 | `show` | Prints the settings the desktop app's Manage reads. |
-| `set` | Sets `ingest_interval_minutes`, `dream_at`, `budget_bytes`, `lessons` (`on` or `off`), `snapshot_keep_days`, `model_command`, `member` or `share_lessons`; `role.<role> <runner>` and `fallback.<role> 'a,b'` set [runners](#hippo-runners)' roles; `guard.fail`, `guard.timeout_ms`, `guard_note`, `team.inbox` and `min_hippo_version` set the security settings, which also raises `min_hippo_version` to 0.6.0 and adds `workspace_id` (a loosening then waits for [`hippo accept`](#hippo-accept)). `share_lessons` other than `off` needs you at a terminal. |
+| `set` | Sets `ingest_interval_minutes`, `dream_at`, `budget_bytes`, `lessons` (`on` or `off`), `snapshot_keep_days`, `model_command`, `member`, `share_lessons`, `auto_keep` (`on` keeps a reviewed rule seen in 3 or more sessions without asking; `hippo lessons undo` takes it back), `rules_budget_bytes` or `reinject_every`; `role.<role> <runner>` and `fallback.<role> 'a,b'` set [runners](#hippo-runners)' roles; `guard.fail`, `guard.timeout_ms`, `guard_note`, `team.inbox` and `min_hippo_version` set the security settings, which also raises `min_hippo_version` to 0.6.0 and adds `workspace_id` (a loosening then waits for [`hippo accept`](#hippo-accept)). `share_lessons` other than `off`, `auto_keep` and `memory_sources` need you at a terminal. |
 | `unset` | Removes a key's line, so its default applies. |
 | `add`, `remove` | Add or remove a value of a list: `transcript_roots`, `exclude_roots`, `required_notes`, `passes_off`. |
 
@@ -440,9 +441,9 @@ Receipts record the runner's name, preset, model, effort, data domain, whether i
 ## hippo hooks
 
 ```text
-hippo hooks install [--agent <claude-code|codex|cursor|gemini>] [--workspace <dir>] [--yes]
-hippo hooks uninstall [--agent <claude-code|codex|cursor|gemini>] [--workspace <dir>]
-hippo hooks status [--agent <claude-code|codex|cursor|gemini>] [--workspace <dir>]
+hippo hooks install [--agent <claude-code|codex|cursor|gemini>] [--workspace <dir> | --user] [--yes]
+hippo hooks uninstall [--agent <claude-code|codex|cursor|gemini>] [--workspace <dir> | --user]
+hippo hooks status [--agent <claude-code|codex|cursor|gemini>] [--workspace <dir> | --user]
 ```
 
 Adds, removes or checks hippo's three hooks (`SessionStart`, `UserPromptSubmit`, `SessionEnd`). For Claude Code, the default, they go in the workspace's `.claude/settings.local.json`, which is per person (`--workspace` names another workspace). With `--agent codex` they go in `$CODEX_HOME/hooks.json` (`~/.codex/hooks.json`), which Codex runs for every session; the hooks themselves act only for sessions in the workspace. `install` adds each once and keeps everything else in the file. `uninstall` removes only hippo's three. `status` says which of the three are there.
@@ -452,6 +453,8 @@ Every hook runs the binary that installed it by its absolute path (or the `hippo
 Codex runs a new hook only after you trust it: it lists hippo's hooks for review the next time it starts, or use `/hooks`. hippo never writes that trust for you.
 
 With `--agent cursor` there is one hook, `sessionStart`, in `~/.cursor/hooks.json` (created with `"version": 1` when missing). It gives a new Cursor chat whose folder is in the workspace the start block. Cursor has no hook that adds context to a prompt; for the notes relevant to a task, add the [MCP server](mcp.md) (`hippo mcp install --client cursor`).
+
+With `--user` (Claude Code only) there is one hook, `SessionStart` running `hippo hook session-start --rules-only`, in your user `settings.json` (`$CLAUDE_CONFIG_DIR`, else `~/.claude`): every Claude Code session of that account gets the rules you kept, outside the workspace too. Inside the workspace it stays quiet when the workspace's own hook is there. Run it once per account.
 
 With `--agent gemini` the three hooks go in `~/.gemini/settings.json`, beside its other settings, as `SessionStart`, `BeforeAgent` (Gemini CLI's prompt event) and `SessionEnd`, each with a `name` that `/hooks` shows. They act for Gemini sessions in the workspace as Codex's do. A `settings.json` with comments is refused and left as it is.
 
@@ -516,7 +519,7 @@ Hippo.app on macOS ([Install › Hippo.app](install.md#hippoapp-macos)). `instal
 ## hippo hook
 
 ```text
-hippo hook session-start [--plugin] [--agent <claude-code|codex|cursor|gemini>]
+hippo hook session-start [--plugin | --rules-only] [--agent <claude-code|codex|cursor|gemini>]
 hippo hook prompt [--agent <claude-code|codex|gemini>]
 hippo hook session-end [--agent <claude-code|codex|gemini>]
 ```
@@ -525,14 +528,17 @@ For Claude Code hooks, and with `--agent codex` for Codex hooks (below). Each re
 
 | Subcommand | Does |
 |---|---|
-| `session-start` | Starts a declared Claude Code session and prints the required parts of the context. |
-| `session-start --plugin` | The Claude Code plugin's hook ([Install](install.md#in-claude-code)): prints the required parts read-only, with no session record, and prints nothing at all, not even an error, when there is no notes folder, the session is outside the workspace, or a settings file already runs `hippo hook session-start`. |
-| `prompt` | On the first prompt of a session only: records it as the task and prints the relevant notes and linter counts, within what is left of the budget. Later prompts print nothing. |
+| `session-start` | Starts a declared Claude Code session and prints the required parts of the context, the rules you kept and, when rules wait for you, a request to the agent to ask you about them once. |
+| `session-start --plugin` | The Claude Code plugin's hook ([Install](install.md#in-claude-code)): prints the required parts and the kept rules, with no session record, and nothing when there is no notes folder or a settings file already runs `hippo hook session-start`. Outside the workspace it prints your machine-wide rules only. |
+| `session-start --rules-only` | The Claude Code user hook (`hippo hooks install --user`): your machine-wide rules outside the workspace; inside it, nothing when the workspace hook is there, else every kept rule. No session record. |
+| `prompt` | On the first prompt of a session: records it as the task and prints the relevant notes and linter counts, within what is left of the budget. On a later prompt: nothing, unless the topic changed (at least 3 words that matter, little in common with the prompts since the last time, and at least `reinject_every` prompts since then); then the notes and kept rules for the new topic that the session was not given yet. |
 | `session-end` | Ends the session with no notes, no handoff and no reason (recorded as `unspecified`). |
 
-With `--agent codex` each reads Codex's hook input and does nothing at all unless hippo has a workspace and the input's `cwd` is in it. The session id is `codex-<session_id>`, the id the Codex adapter gives the same session. `session-start` and `prompt` print the same parts as JSON Codex reads (`{"hookSpecificOutput": {"hookEventName": …, "additionalContext": …}}`); `prompt` passes over a sub-agent's prompt (one with an `agent_id`). `session-end` records the last assistant message of the session's transcript as a derived handoff, or ends it `unspecified` when the transcript cannot be read.
+Every output adds one line to `$HIPPO_HOME/logs/injections.jsonl` (the session, the agent, the rules and notes it gave, its size; never the prompt), which [`hippo stats repeats`](#hippo-stats) reads.
 
-With `--agent cursor`, `session-start` reads Cursor's `sessionStart` input and, when one of its `workspace_roots` is in the workspace, prints the required parts as `{"additional_context": …}`. It is read-only: ingest reads the session from its transcript. `prompt` and `session-end` do nothing for Cursor.
+With `--agent codex` each reads Codex's hook input. Outside the workspace (or with no workspace) `session-start` prints your machine-wide rules and the rest does nothing. The session id is `codex-<session_id>`, the id the Codex adapter gives the same session. `session-start` and `prompt` print the same parts as JSON Codex reads (`{"hookSpecificOutput": {"hookEventName": …, "additionalContext": …}}`); `prompt` passes over a sub-agent's prompt (one with an `agent_id`). `session-end` records the last assistant message of the session's transcript as a derived handoff, or ends it `unspecified` when the transcript cannot be read.
+
+With `--agent cursor`, `session-start` reads Cursor's `sessionStart` input and, when one of its `workspace_roots` is in the workspace, prints the required parts and the kept rules as `{"additional_context": …}`; elsewhere, the machine-wide rules. It is read-only: ingest reads the session from its transcript. `prompt` and `session-end` do nothing for Cursor.
 
 With `--agent gemini` each works as with `--agent codex`, for Gemini CLI's input (`session_id`, `cwd`, `prompt`, `transcript_path`): the session is `gemini-<session_id>`, the prompt's output names `BeforeAgent`, and `session-end` reads the last answer from the session file.
 
@@ -600,9 +606,12 @@ Exit codes: 0 on success; 2 when the run fails, for example when the model canno
 ```text
 hippo lessons [--all] [--json]
 hippo lessons scan [--days <n>] [--dry-run] [--candidates] [--json]
-hippo lessons keep <id | L-id> [--text <text>] [--title <title>]
+hippo lessons backfill [--max-calls <n>] [--yes] [--json]
+hippo lessons keep <id | L-id> [--text <text>] [--title <title>] [--note]
+hippo lessons undo <id>
 hippo lessons dismiss <id>
 hippo lessons dismiss <L-id> [--reason wrong|duplicate|not-for-us] [--of <L-id>]
+hippo lessons sources [--on <id> | --off <id>] [--json]
 hippo lessons share
 hippo lessons markers [--yes]
 hippo lessons propose --question <q> --answer <a> [--note] [--json]
@@ -613,12 +622,25 @@ Corrections and repeated failures, proposed as rules. With no subcommand it list
 
 | Subcommand | Does |
 |---|---|
-| `scan` | Runs the lessons pass: finds candidates, drafts rules, reviews them. Calls the model, except with `--candidates`, which only lists what the pass would draft. `--days` looks back 1 to 30 days (default 7); `--dry-run` writes no record. Exits 1 when it tried to draft a lesson and every draft failed. `hippo dream` runs this pass afterwards unless you pass `--no-lessons`. |
-| `keep <id>` | Writes a pending lesson into its note, with `--text` and `--title` to edit it first. It gets a receipt, so `hippo revert` undoes it. The bullet ends with the lesson's marker; keep refuses when a note already has it. On a shared lesson (`L-…`) it also writes your decision. |
-| `dismiss <id>` | Dismisses a pending lesson. It returns only if it recurs in 3 more sessions. On a shared lesson (`L-…`) it writes your decision with an optional reason; `--reason duplicate --of L-…` links the two entries. It never edits a note. |
+| `scan` | Runs the lessons pass. Your corrections of the last 30 days that are not in a group yet join the groups of `$HIPPO_HOME/groups.json` by meaning (most by a local comparison, the rest by one model call per 20); a group is drafted as soon as it spans two sessions, and the draft is reviewed. Repeated failures keep the `--days` window (1 to 30, default 7). Reads the [agent memories you turned on](#lessons-sources). Calls the model, except with `--candidates`, which only lists the failures and clusters the pass would draft; `--dry-run` writes no record. Exits 1 when it tried to draft a lesson and every draft failed. `hippo dream` runs this pass afterwards unless you pass `--no-lessons`. |
+| `backfill` | Places every correction in your history into groups, once. Without `--yes` it prints the estimate (corrections, how many the local comparison places, the match calls, at most how many drafts and reviews could follow) and runs nothing. `--max-calls` (default 200) stops it after that many match calls; run it again to go on. |
+| `keep <id>` | Keeps a pending rule, with `--text` and `--title` to edit it first. A workspace rule goes into its note with a receipt (`hippo revert` or `hippo lessons undo` undoes it); the bullet ends with the lesson's marker. A machine rule (one from an agent memory, or one the drafter found is about how you want agents to work anywhere) stays in `$HIPPO_HOME` and reaches every session, inside the workspace or not; `--note` writes it into its note instead. A rule that replaces an older one closes the older one and takes its bullet out of its note. On a shared lesson (`L-…`) it also writes your decision. An agent may keep or dismiss only a rule hippo asked you about in the last 24 hours. |
+| `undo <id>` | Takes back a kept rule: out of its note through its own receipt, or, for a machine rule, no session gets it from then on. |
+| `dismiss <id>` | Dismisses a pending lesson. It comes back only if it recurs in 2 more sessions, at least 14 days later. On a shared lesson (`L-…`) it writes your decision with an optional reason; `--reason duplicate --of L-…` links the two entries. It never edits a note. |
+| `sources` | <a id="lessons-sources"></a>The agent memories hippo can read rules from: each Claude Code account's `CLAUDE.md` and `feedback` auto-memories, Codex's `AGENTS.md`, Cursor's `~/.cursor/rules/`, Gemini CLI's `GEMINI.md`, each `on`, `off` or `not asked`, and where their lines would be sent. `--on <id>` and `--off <id>` decide; you, at a terminal (refused for an agent). A source that is on is read at each scan, never written; each rule line is checked by a reviewer before it waits in the Inbox. |
 | `share` | Your consent to a [shared Inbox](sharing.md#the-shared-inbox): asks for your handle, shows every file it would write, and on yes sets `member` and `share_lessons = "rules"` and shares your lessons from this workspace. You, at a terminal; refused for an agent. |
 | `markers` | Adds `<!-- hippo:lesson L-… -->` to bullets kept before 0.6.0. Prints each; writes with `--yes`, each with a receipt that `hippo revert` undoes. |
 | `propose` | Proposes a rule, or with `--note` a new note, from an Ask answer. `--miss` instead proposes a rule saying where a search that found nothing would have found its answer. |
+
+## hippo stats
+
+```text
+hippo stats repeats [--weeks <n>] [--json]
+```
+
+How often you repeat a rule you already gave your agents, by ISO week (UTC): the sessions you typed in (top-level, started by you, with at least one turn you typed), your corrections, the repeats, and both per 100 sessions. A repeat is a session in which you corrected something you had already corrected in an earlier session (or that a memory you turned on already said), counted once per rule and session. Then each repeat of the last 30 days by cause: not learned (no rule drafted, or it was declined or dismissed), pending (a rule waited for you), learned but not delivered (the rule was kept and the session was not given it), delivered and ignored.
+
+Every week is computed from today's groups, so past weeks change when grouping gets better. Weeks before the groups reach back are left out until you run [`hippo lessons backfill`](#hippo-lessons). `--weeks` is 1 to 104 (default 12); `--json` prints the same counts and no quotes. It is a number to check hippo by on your own history, not a claim.
 
 ## hippo review
 
@@ -659,7 +681,7 @@ Measures context, recall and dreaming on an eval set directory and prints a Mark
 | `<set>` | The eval set directory, `fixtures/eval` in the repository. |
 | `--with-model` | Also run the dreaming suite with the `model_command` from your `config.toml`. |
 
-Exit 1 after printing the report if a suite failed. Without `--with-model` it reads no configuration and runs no model.
+Exit 1 after printing the report if a suite failed. Without `--with-model` it reads no configuration and runs no model. A set with a `remember.toml` also runs the remember suite, offline, with an oracle model that answers from the set's answer key ([Measuring with hippo eval](eval.md#the-remember-suite)).
 
 ## hippo schedule
 

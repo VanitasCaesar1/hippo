@@ -45,6 +45,9 @@ pub struct Morning {
     pub figures: Figures,
     /// Pending rules, newest evidence first.
     pub rules: Vec<RuleCard>,
+    /// Rules an agent (answering hippo's question) or `auto_keep` kept in
+    /// the last 14 days, newest first, each with an undo.
+    pub kept_for_you: Vec<KeptForYou>,
     /// The pass's applied changes.
     pub applied: Vec<Fix>,
     /// The pass's rejected changes.
@@ -73,6 +76,19 @@ pub struct Pass {
     pub by_agent: Vec<(Agent, usize)>,
     /// Distinct notes a pass checked.
     pub notes_checked: usize,
+}
+
+/// A rule kept without the person pressing Keep.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct KeptForYou {
+    pub id: Ulid,
+    pub rule: String,
+    /// `an agent recorded your answer` or `auto_keep`.
+    pub by: String,
+    /// `day HH:MM`, local.
+    pub at: String,
+    /// `hippo lessons undo <id>`.
+    pub undo: String,
 }
 
 /// The weekly repeat rate, as Morning shows it first.
@@ -413,11 +429,44 @@ pub fn build(inp: &Inputs<'_>) -> Morning {
         lead,
         pass,
         repeats: inp.repeats.map(Repeats::of),
+        kept_for_you: kept_for_you(inp),
         figures,
         rules,
         applied,
         rejected,
     }
+}
+
+fn kept_for_you(inp: &Inputs<'_>) -> Vec<KeptForYou> {
+    use hippo_core::lessons::Keeper;
+    let since = inp.now - time::Duration::days(14);
+    let mut out: Vec<(OffsetDateTime, KeptForYou)> = inp
+        .lessons
+        .iter()
+        .filter(|l| l.status == Status::Kept)
+        .filter_map(|l| {
+            let k = l.kept.as_ref()?;
+            let by = match k.by? {
+                Keeper::Agent => "an agent recorded your answer",
+                Keeper::Auto => "auto_keep",
+                Keeper::Person => return None,
+            };
+            (k.at >= since).then(|| {
+                (
+                    k.at,
+                    KeptForYou {
+                        id: l.id,
+                        rule: l.rule.clone(),
+                        by: by.to_owned(),
+                        at: day_hm(k.at, inp.now, inp.offset),
+                        undo: format!("hippo lessons undo {}", l.id),
+                    },
+                )
+            })
+        })
+        .collect();
+    out.sort_by_key(|b| std::cmp::Reverse(b.0));
+    out.into_iter().map(|(_, k)| k).collect()
 }
 
 fn lead(f: &Figures, ran: bool) -> String {

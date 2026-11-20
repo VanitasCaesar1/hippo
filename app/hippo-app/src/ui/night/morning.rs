@@ -170,6 +170,7 @@ impl Shell {
                     .child(m.lead.clone()),
             );
         let figures = self.render_figures(look, t, &m, narrow || inner < 760.);
+        let kept = self.render_kept_for_you(look, t, &m, cx);
         let strip_el = self.render_strip(look, t, &strip, inner);
         let body = if narrow {
             self.render_morning_feed(look, t, &m, cx)
@@ -192,6 +193,7 @@ impl Shell {
             .pt(look.px(26.))
             .child(head)
             .child(figures)
+            .children(kept)
             .child(strip_el)
             .child(body)
             .children(tail)
@@ -205,6 +207,89 @@ impl Shell {
             .text_color(t.muted)
             .child(text.to_owned())
             .into_any_element()
+    }
+
+    /// Rules an agent or `auto_keep` kept, each with Undo; nothing when
+    /// there are none.
+    fn render_kept_for_you(
+        &self,
+        look: &Look,
+        t: &Nt,
+        m: &Morning,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        if m.kept_for_you.is_empty() {
+            return None;
+        }
+        let busy = self.inbox.busy;
+        let rows = m.kept_for_you.iter().enumerate().map(|(i, k)| {
+            let id = k.id;
+            div()
+                .flex()
+                .items_center()
+                .gap(look.px(10.))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .flex()
+                        .flex_col()
+                        .gap(look.px(2.))
+                        .child(
+                            div()
+                                .truncate()
+                                .text_size(look.text(14.))
+                                .text_color(t.text)
+                                .child(k.rule.clone()),
+                        )
+                        .child(
+                            div()
+                                .text_size(look.text(12.5))
+                                .text_color(t.muted)
+                                .child(format!("{} · {}", k.by, k.at)),
+                        ),
+                )
+                .child(
+                    kit::button(
+                        look,
+                        t,
+                        ("undo-kept", i),
+                        None,
+                        if busy == Some(id) {
+                            "Undoing…"
+                        } else {
+                            "Undo"
+                        },
+                        Btn::Quiet,
+                        false,
+                    )
+                    .when(busy == Some(id), kit::disabled)
+                    .tooltip(crate::ui::tooltip::Tooltip::with_keys(
+                        "Take the rule back",
+                        None,
+                    ))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        cx.stop_propagation();
+                        this.undo_lesson(id, cx);
+                    })),
+                )
+        });
+        Some(
+            kit::card(look, t)
+                .flex()
+                .flex_col()
+                .gap(look.px(10.))
+                .p(look.px(16.))
+                .child(
+                    div()
+                        .text_size(look.text(13.))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(t.muted)
+                        .child("Kept for you"),
+                )
+                .children(rows)
+                .into_any_element(),
+        )
     }
 
     /// B's four figures, in a row or two by two.
@@ -1241,6 +1326,7 @@ mod tests {
             lead: String::new(),
             pass: None,
             repeats: None,
+            kept_for_you: Vec::new(),
             figures: Figures::default(),
             rules: (0..rules).map(rule).collect(),
             applied: (0..applied).map(fix).collect(),

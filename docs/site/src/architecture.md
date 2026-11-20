@@ -77,7 +77,7 @@ A handoff names notes with `[[links]]`. Dreaming reads handoffs to learn which n
 
 The window advances only when a chunk completes, so a failed run is picked up where it stopped. Every run writes a report in `.hippo/reports/`.
 
-The **lessons** pass runs after dreaming (or with `hippo lessons scan`). It finds corrections a person gave and failures that repeat, drafts a rule for each, and has a second run review the draft. A confirmed lesson waits in the Inbox until a person keeps or dismisses it; keeping writes it into a note with a receipt.
+The **lessons** pass runs after dreaming (or with `hippo lessons scan`). It places each correction a person typed into a group of corrections that state the same rule, across the whole history (`$HIPPO_HOME/groups.json`): most by a local comparison of words, the rest by one batched model call that sees only a few candidate groups. A group that spans two sessions is drafted as a rule, and a second run reviews the draft; a group that takes back an older rule drafts its replacement. Rule lines from agent memories the person turned on (`hippo lessons sources`) join the same groups and are reviewed on their own. A confirmed lesson waits in the Inbox until a person keeps or dismisses it (or an agent records their answer to hippo's question in the session). Keeping a workspace rule writes it into a note with a receipt; a machine rule stays in `$HIPPO_HOME`. Kept rules go into every start block, inside the workspace and, for machine rules, outside it, and a long session gets the rules and notes of a new topic when its topic changes ([remember.md](https://github.com/VanitasCaesar1/hippo/blob/main/docs/designs/remember.md)).
 
 ## Receipts, snapshots and revert
 

@@ -30,6 +30,18 @@ Eval works in a temporary directory. It copies the set there, runs `init` and in
 
 It then appends the run's own report, so you can read what the model proposed and what the reviewer said.
 
+## The remember suite
+
+When the set has a `remember.toml`, as `fixtures/eval` does, eval also runs the remember suite: a synthetic history of five planted rules (one said in other words 48 days apart, one taken back weeks later, one only in an invented account's `CLAUDE.md` and then said once, one said twice in two days), a correction an agent relays and a replayed transcript as noise, and sessions that should be given rules, among them a long session that changes topic and one outside the workspace. It runs offline: the model is an oracle that answers from the set's answer key, and drafts a rule only for an item seen in two or more sessions. So it measures hippo's pipeline (who counts as the person, grouping, delivery), not a model's judgement.
+
+It prints, for 0.7.2's behaviour reproduced in the same harness (7-day windows grouped by shared words, no memories, no reversals, notes only on the first prompt, nothing outside the workspace) and for this release:
+
+- `capture`: planted rules, not later taken back, that became a waiting or kept rule;
+- `delivery`: (session, rule it needs) pairs where the session was given the rule, end to end;
+- `stale rules given`: rules a newer one took back, given anyway;
+
+then the model calls this release's backfill made, delivery with a Rules budget that holds one rule, and one line per rule and session.
+
 ## Reading the report
 
 The report is Markdown on standard output. It opens with the set's hash, the hippo version, a hash of the core pack, the model and the start time, then a summary:

@@ -570,6 +570,25 @@ impl Shell {
         );
     }
 
+    /// Runs `hippo lessons undo <id>`: takes back a kept rule.
+    pub(crate) fn undo_lesson(&mut self, id: Ulid, cx: &mut Context<Self>) {
+        if self.lesson_job_running() {
+            return;
+        }
+        self.inbox.busy = Some(id);
+        self.inbox.result = None;
+        self.flow.log.clear();
+        self.start_job(
+            Purpose::Lesson,
+            vec![vec![
+                "lessons".to_owned(),
+                "undo".to_owned(),
+                id.to_string(),
+            ]],
+            cx,
+        );
+    }
+
     /// Opens the rule of lesson `id` for editing, in the Inbox.
     pub(crate) fn edit_lesson(&mut self, id: Ulid, window: &mut Window, cx: &mut Context<Self>) {
         let Some(rule) = self

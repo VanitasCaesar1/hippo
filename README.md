@@ -55,7 +55,7 @@ Each of these is worth knowing; they answer different questions.
 <table>
 <tr>
 <td width="33%" valign="top"><b>A night pass with a reviewer</b><br>Each night a model reads the day's sessions and drafts note fixes and rules; a second model with a fresh context must confirm each one against the turns it cites.</td>
-<td width="33%" valign="top"><b>An Inbox, not autopilot</b><br>Rules drafted from your corrections and from repeated failures wait for you to keep, edit or dismiss; nothing becomes a rule on its own.</td>
+<td width="33%" valign="top"><b>An Inbox, not autopilot</b><br>Rules drafted from your corrections and from repeated failures wait for you to keep, edit or dismiss; nothing becomes a rule on its own unless you turn on <code>auto_keep</code>.</td>
 <td width="33%" valign="top"><b>A start block per task</b><br>A new session gets the entry note, the required notes and the notes its task needs, about 1.5 KB under a hard budget, not the whole pile.</td>
 </tr>
 <tr>
@@ -132,6 +132,7 @@ Hippo.app is signed ad hoc, not notarised; `hippo app install` fetches it the wa
 | "Brief a new session on the album export" | `hippo brief --task "album export"` |
 | "What's waiting in my hippo Inbox?" | `hippo lessons` |
 | "Did any agent do something risky this week?" | `hippo incidents` |
+| "How often do I repeat a rule I already gave?" | `hippo stats repeats` |
 
 ## How it works
 
@@ -211,6 +212,8 @@ Through git: the notes and receipts are files in the repository, what your own a
 <details><summary><b>Does it make agents better?</b></summary>
 
 Not measured. On the repository's eval set with a real model, the night pass fixed 3 of 7 planted errors and damaged 0 of 8 correct notes; on the maintainer's own notes it has fixed 7 wrong statements, each checked by hand. hippo is one person's project, used daily on macOS; Linux is tested in CI.
+
+You can check one thing on your own history: `hippo stats repeats` counts, per 100 sessions you typed in, how often you corrected an agent about something you had already corrected in an earlier session, by week, and why each repeat happened (no rule yet, a rule waiting for you, a kept rule the session was not given, or given and not followed). Run `hippo lessons backfill` first so the count reaches back.
 </details>
 
 ## Contributing and licence

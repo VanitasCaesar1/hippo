@@ -80,7 +80,7 @@ context over budget: 70 > 10
 
 and exits 1. This is deliberate: a context block that silently grows is worse than a loud failure. `sample_tasks` in the workspace settings lets `hippo doctor` check the budget for tasks you care about.
 
-The hooks split the block: `session-start` prints parts 1 to 4 and records their size; `prompt` prints parts 5 and 6 on the first prompt, within what is left of the budget.
+The hooks split the block: `session-start` prints parts 1 to 4 and the kept rules and records their size; `prompt` prints parts 5 and 6 on the first prompt, within what is left of the budget. The kept rules come right after the required parts and never make a compile fail: they shrink, rule by rule, to what the budget leaves (`rules_budget_bytes`, 2000 bytes at most). On a later prompt `prompt` prints something only when the session's topic changed: the notes and kept rules for the new topic that the session was not given yet.
 
 ## Dreaming
 

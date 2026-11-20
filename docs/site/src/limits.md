@@ -1,6 +1,6 @@
 # Limits and known gaps
 
-hippo is early software at version 0.7.2. This page lists what you should expect to go wrong or be missing.
+hippo is early software at version 0.8.0. This page lists what you should expect to go wrong or be missing.
 
 ## Scope
 
@@ -76,6 +76,16 @@ Redaction is best-effort pattern matching, in both directions: it can miss a sec
 - **The model channel can fail.** The default `claude` command depends on your login and your usage limits. A failed run exits with code 2, writes a failed report, and `hippo context` warns every agent within 36 hours. The window does not advance past a failed day.
 - **It is not measured on your notes.** The eval harness measures the shipped set, which is small, invented and has one author. Its numbers describe that set, not your workspace.
 - **Whether hippo's results hold on real daily use is not established.** It is early; treat results as unproven until you have measured them on your own notes.
+
+## Rules and the repeat count
+
+- Grouping corrections by meaning depends on your lessons runner: two people's `hippo stats repeats` share definitions, not exactly the same grouping. A correction the local comparison finds no candidate for starts its own group without a model call, so a rule said in entirely different words can stay two groups.
+- Until `hippo lessons backfill` runs, groups reach back 30 days from the first scan of 0.8.0, and `hippo stats repeats` leaves earlier weeks out.
+- A correction said in one session only is grouped but not drafted; it becomes a rule when it comes back.
+- Delivery is counted from the hooks' log. Sessions no hook saw (an agent without hooks, a session before 0.8.0 with no recorded start block) count as not given the rule.
+- Rules typed into Cursor's settings live in its database, which hippo does not read; files in `~/.cursor/rules/` are read.
+- With many kept rules the Rules section is cut at `rules_budget_bytes`. A session with one prompt gets only what fits; a long session gets more when its topic changes. On the eval set, a budget that holds one rule delivered 4 of 6 needed rules.
+- An agent can record your answer to hippo's question about a pending rule. It could misread a mixed reply; `hippo lessons undo` takes a rule back, and Morning lists rules kept by an agent or by `auto_keep` apart.
 
 ## Packs
 

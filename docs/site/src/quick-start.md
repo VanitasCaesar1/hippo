@@ -128,7 +128,7 @@ To give every Claude Code session this context, run `hippo hooks install`. It ad
 hippo before 0.5.0 put these hooks in `.claude/settings.json`. `hippo hooks install` finds them there, says it will move them, and moves them with `--yes`, taking out hippo's entries only.
 
 - `session-start` records a declared session and prints the required part of the context.
-- `prompt` runs on the first prompt of a session only. It records the prompt as the session's task and prints the relevant notes and the linter counts.
+- `prompt` records the first prompt as the session's task and prints the relevant notes and the linter counts. On a later prompt it prints the notes and rules of a new topic, when the topic changed.
 - `session-end` ends the session with no further information.
 
 A hook never fails your session. On any error it prints one line to stderr (`hippo hook: <error>`) and exits 0.

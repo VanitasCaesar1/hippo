@@ -28,6 +28,11 @@ A value that breaks the rules below makes the file fail to load, and the command
 | `dream_at` | string `HH:MM` | `"03:30"` | The time of day the scheduled dreaming run starts, on a 24-hour clock. Read by `hippo schedule install`. |
 | `member` | string | unset | Your handle in a shared workspace's files (`.hippo/inbox/`): letters, digits, `-` and `_`, at most 32 characters. A label, not an identity: anyone with push access can write any name, and hippo shows each file's git commit author beside it. `hippo lessons share` asks for it. |
 | `share_lessons` | `"off"` or `"rules"` | `"off"` | What of yours may be written to a [shared Inbox](sharing.md#the-shared-inbox): nothing, or your lessons' titles, rules, match terms and counts (no quotes). Your consent: `hippo lessons share` (or `hippo config set share_lessons rules`) needs you at a terminal and refuses an agent. |
+| `auto_keep` | `true` or `false` | `false` | Keep a reviewed rule seen in 3 or more sessions without asking, recorded as kept by `auto`; never one from an agent memory or one that replaces another. `hippo lessons undo` takes it back. You, at a terminal: the guard blocks an agent's `hippo config set auto_keep`. |
+| `memory_sources` | list of source ids | `[]` | The agent memories hippo reads rules from (`hippo lessons sources`). Turned on with `hippo lessons sources --on <id>`, by you at a terminal. |
+| `memory_sources_off` | list of source ids | `[]` | The ones you turned off; a source in neither list was never asked about. |
+| `rules_budget_bytes` | integer | `2000` | The most the start block's Rules section takes. Rules that do not fit are named by count, and a long session can get them when its topic changes. |
+| `reinject_every` | integer, at least 1 | `5` | The fewest prompts between two topic-change injections in one session. |
 | `reviewer_command_override` | list of strings | unset | Advanced. A command to run the reviewer with instead of `model_command`. It follows the same rules. `init` does not write it. It exists for testing with a stand-in model, and it lets the reviewer run a different command from the proposing run. |
 
 After you change `ingest_interval_minutes` or `dream_at`, run `hippo schedule install` again. The values are written into the launchd job files (or the printed cron and systemd lines) when you install.
