@@ -12,6 +12,8 @@ use crate::ui::theme::Look;
 
 /// A row's height.
 pub const ROW_H: f32 = 128.;
+/// At most this many rows; the rest are in All incidents.
+pub const MAX_ROWS: usize = 30;
 /// Below this column width the rows stack.
 pub const STACK_BELOW: f32 = 600.;
 
@@ -122,14 +124,16 @@ impl Shell {
                     this.select_section(crate::state::Section::Incidents, window, cx)
                 })),
             );
-        let important: Vec<&GuardItem> = g
-            .items
+        let shown: Vec<&GuardItem> = g.items.iter().take(MAX_ROWS).collect();
+        let more = g.items.len().saturating_sub(MAX_ROWS);
+        let important: Vec<&GuardItem> = shown
             .iter()
+            .copied()
             .filter(|i| i.severity == Severity::Important)
             .collect();
-        let minor: Vec<&GuardItem> = g
-            .items
+        let minor: Vec<&GuardItem> = shown
             .iter()
+            .copied()
             .filter(|i| i.severity == Severity::Minor)
             .collect();
         let mut body = div()
@@ -150,7 +154,7 @@ impl Shell {
         }
         // Stacked when the three columns have no room.
         if narrow || inner < STACK_BELOW {
-            for (k, i) in g.items.iter().enumerate() {
+            for (k, i) in g.items.iter().take(MAX_ROWS).enumerate() {
                 let selected = sel.as_deref() == Some(i.id.as_str());
                 body = body.child(self.guard_ran_card(look, t, i, k, selected, true, cx));
             }
@@ -192,6 +196,14 @@ impl Shell {
                 body = body.child(self.guard_row(look, t, i, k, selected, &cols, cx));
                 k += 1;
             }
+        }
+        if more > 0 {
+            body = body.child(
+                div()
+                    .text_size(look.text(14.))
+                    .text_color(t.muted)
+                    .child(format!("{more} more this week, the same kinds as above: All incidents lists them all.")),
+            );
         }
         body.into_any_element()
     }

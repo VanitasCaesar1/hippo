@@ -446,7 +446,7 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
         let bounds = Bounds::new(point(px(x), px(y)), size(px(w), px(h)));
         drawn += 1;
         match c.item {
-            Item::Folder(fi) => paint_folder(p, &p.map.folders[fi], bounds, window, cx),
+            Item::Folder(fi) => paint_folder(p, fi, bounds, window, cx),
             Item::Note(i) => {
                 let n = &p.map.notes[i];
                 let sel = p.selected == Some(i);
@@ -476,13 +476,8 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
     }
 }
 
-fn paint_folder(
-    p: &Paint,
-    f: &map::Folder,
-    b: Bounds<Pixels>,
-    window: &mut Window,
-    cx: &mut gpui::App,
-) {
+fn paint_folder(p: &Paint, fi: usize, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::App) {
+    let f = &p.map.folders[fi];
     let t = &p.t;
     let z = p.zoom;
     let u = p.unit * z;
@@ -500,56 +495,87 @@ fn paint_folder(
         f32::from(b.origin.y),
         f32::from(b.size.width),
     );
-    let pad = 32. * u;
+    // Its notes in miniature, where they sit at Mid, tinted by their flag.
+    let frame = p
+        .map
+        .mid
+        .frames
+        .iter()
+        .find(|(i, _)| *i == fi)
+        .map(|(_, r)| *r);
+    if let Some(frame) = frame {
+        for &i in &f.notes {
+            let Some(c) = p.map.mid.card(Item::Note(i)) else {
+                continue;
+            };
+            let (nx, ny) = (
+                x + (c.rect.x - frame.x) * z * p.unit,
+                y + (c.rect.y - frame.y) * z * p.unit,
+            );
+            let color = match p.map.notes[i].flags.chip().map(|c| c.1) {
+                Some("ok") => t.ok.opacity(0.45),
+                Some("you") => t.you.opacity(0.5),
+                Some("bad") => t.bad.opacity(0.5),
+                _ => t.line2.opacity(0.6),
+            };
+            window.paint_quad(
+                gpui::fill(
+                    Bounds::new(
+                        point(px(nx), px(ny)),
+                        size(px(c.rect.w * z * p.unit), px(c.rect.h * z * p.unit)),
+                    ),
+                    color,
+                )
+                .corner_radii(px(8. * u)),
+            );
+        }
+    }
+    let pad = 28. * u;
     let name = if f.name.is_empty() { "Notes" } else { &f.name };
+    // The name fits the card: smaller for a long one, never above 72.
+    let fit = (w - 2. * pad) / (name.chars().count().max(1) as f32 * 0.58);
+    let name_px = (72. * u).min(fit);
+    let band = (name_px * 1.25 + 72. * u).max(30.);
+    window.paint_quad(gpui::fill(
+        Bounds::new(
+            point(px(x + 1.), px(y + 1.)),
+            size(px(w - 2.), px(pad + band)),
+        ),
+        t.surface,
+    ));
     text(
         window,
         cx,
         name,
         x + pad,
         y + pad,
-        72. * u,
+        name_px,
         t.text,
         &font(&p.family, FontWeight::BOLD),
         w - 2. * pad,
     );
+    let mut words = hippo_view::night::count(f.notes.len(), "note", "notes");
+    for (n, one, many) in [
+        (f.fixed, "fixed", "fixed"),
+        (f.waiting, "rule waiting", "rules waiting"),
+        (f.rejected, "rejected", "rejected"),
+        (f.stale, "stale", "stale"),
+    ] {
+        if n > 0 {
+            words.push_str(&format!(" · {n} {}", if n == 1 { one } else { many }));
+        }
+    }
     text(
         window,
         cx,
-        &hippo_view::night::count(f.notes.len(), "note", "notes"),
+        &words,
         x + pad,
-        y + pad + 96. * u,
-        46. * u,
+        y + pad + name_px * 1.25 + 8. * u,
+        (40. * u).min(name_px * 0.75),
         t.muted,
         &font(&p.family, FontWeight::NORMAL),
         w - 2. * pad,
     );
-    let mut cy = y + pad + 170. * u;
-    let chips: [(usize, &str, &str, Tone); 4] = [
-        (f.fixed, "fixed last night", "fixed last night", Tone::Ok),
-        (f.waiting, "rule waiting", "rules waiting", Tone::You),
-        (f.rejected, "fix rejected", "fixes rejected", Tone::Bad),
-        (f.stale, "stale", "stale", Tone::Plain),
-    ];
-    for (n, one, many, tone) in chips {
-        if n == 0 {
-            continue;
-        }
-        let words = format!("{n} {}", if n == 1 { one } else { many });
-        // Chips at Out are drawn 3.2 times the note cards' size.
-        chip(
-            window,
-            cx,
-            p,
-            &words,
-            tone,
-            x + pad,
-            cy,
-            z * 3.2,
-            w - 2. * pad,
-        );
-        cy += 84. * u;
-    }
 }
 
 #[allow(clippy::too_many_arguments)]

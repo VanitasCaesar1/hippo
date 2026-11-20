@@ -205,9 +205,17 @@ fn main() {
         // Read once: `HIPPO_APP_PREFS` moves the preferences file.
         let prefs_path = prefs::default_path();
         let view = dev_view.clone();
+        // Dev-only: for a screenshot, read everything before the window
+        // opens, so its first frame has the data. A window opened in the
+        // background may be covered, and macOS draws a covered window once.
+        let preloaded = (dev_size.is_some() || dev_view.is_some())
+            .then(|| state::load(&installation.home, time::OffsetDateTime::now_utc()));
         cx.open_window(options, |window, cx| {
             cx.new(|cx| {
                 let mut shell = ui::Shell::new(installation, prefs_path, window, cx);
+                if let Some(loaded) = preloaded {
+                    shell.preload(loaded);
+                }
                 if let Some(v) = view.as_deref() {
                     shell.open_section_named(v);
                 }

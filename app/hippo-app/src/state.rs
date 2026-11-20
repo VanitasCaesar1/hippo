@@ -515,12 +515,22 @@ impl Loaded {
 /// Reads everything a reload reads, at `now`. Blocks; the app calls it on the
 /// background executor. Writes nothing.
 pub fn load(home: &Path, now: OffsetDateTime) -> Loaded {
+    // Dev-only: HIPPO_APP_TIMING prints how long each part took, on stderr.
+    let timing = std::env::var_os("HIPPO_APP_TIMING").is_some();
+    let mut last = std::time::Instant::now();
+    let mut lap = |what: &str| {
+        if timing {
+            eprintln!("load {what}: {} ms", last.elapsed().as_millis());
+            last = std::time::Instant::now();
+        }
+    };
     let setup = setup::load(home);
     let (status, panels) = match &setup {
         Setup::Ready { cfg, ws } => (Some(status::load(cfg, ws, now)), Some(load_panels(cfg, ws))),
         Setup::HistoryOnly { cfg } => (Some(status::load_history(cfg, now)), None),
         _ => (None, None),
     };
+    lap("setup, status and panels");
     let mut loaded = Loaded {
         setup,
         status,
@@ -554,9 +564,11 @@ pub fn load(home: &Path, now: OffsetDateTime) -> Loaded {
         let user = hippo_core::config::user_home();
         loaded.gaps = hippo_view::manage::setup_gaps(loaded.setup.workspace(), user.as_deref());
     }
+    lap("lessons, team and gaps");
     if let Some(cfg) = loaded.setup.config().cloned() {
         let rollup = hippo_core::rollup::Rollup::open(&cfg.home).ok().flatten();
         loaded.incidents = crate::incidents::load(&cfg.home, now);
+        lap("incidents");
         match fleet_at(&cfg, rollup.as_ref(), now) {
             Ok(f) => loaded.fleet = Some(f),
             Err(e) => loaded.fleet_error = Some(e),
@@ -565,9 +577,12 @@ pub fn load(home: &Path, now: OffsetDateTime) -> Loaded {
             loaded.titles = r.titles().unwrap_or_default();
             loaded.suggestions = suggestions(r, now);
         }
+        lap("fleet, titles and suggestions");
         loaded.home = load_home(&loaded, rollup.as_ref(), now, offset);
+        lap("home");
         if let Setup::Ready { cfg, ws } = &loaded.setup {
             loaded.night = hippo_view::night::load(cfg, ws, now, offset).ok();
+            lap("night");
             let mut kept: Vec<hippo_core::lessons::Lesson> = hippo_core::lessons::list(&cfg.home)
                 .unwrap_or_default()
                 .into_iter()
@@ -581,12 +596,14 @@ pub fn load(home: &Path, now: OffsetDateTime) -> Loaded {
             loaded.start_block = hippo_core::brief::run(cfg, ws, &task)
                 .ok()
                 .map(|b| (task, b));
+            lap("start block");
         }
         if let (Some(panels), Some(ws)) = (loaded.panels.as_ref(), loaded.setup.workspace()) {
             // The x-ray's fleet week: what start blocks cost.
             let fleet = rollup
                 .as_ref()
                 .and_then(|r| hippo_view::memory::fleet(ws, r, now));
+            lap("memory's fleet week");
             loaded.memory = Some(hippo_view::memory::load(&hippo_view::memory::Inputs {
                 ws,
                 brain: &panels.brain,
@@ -596,6 +613,7 @@ pub fn load(home: &Path, now: OffsetDateTime) -> Loaded {
                 now,
                 offset,
             }));
+            lap("memory");
         }
     }
     loaded

@@ -23,6 +23,9 @@ pub const KINDS: [Kind; 5] = [
     Kind::FreshCloneExec,
 ];
 
+/// At most this many characters of a command in a Fix with brief.
+pub const BRIEF_COMMAND: usize = 120;
+
 /// How much one matters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -129,6 +132,9 @@ pub fn item(
     } else {
         command_of(&i.body.did.text)
     };
+    // The brief quotes the command cut short; the panel shows it whole.
+    let quoted = crate::edition::sentences(&command, BRIEF_COMMAND);
+    let command_q = &quoted;
     let (severity, title, sentence, target, target_note, what, fix) = match i.kind {
         Kind::RemoteScript => {
             let host = hippo_core::incidents::guard::shown(detail.split_whitespace().next().unwrap_or(""));
@@ -141,7 +147,7 @@ pub fn item(
                 host.clone(),
                 "Not on your list of install hosts".to_owned(),
                 "Check what the script installed, then install the tool through a package manager that pins a version, or add the host with hippo guard allow host.".to_owned(),
-                format!("A session ran `{command}`, a script piped from {host} into a shell. Replace it with a pinned package or a downloaded, checked installer, and say which in the guard note."),
+                format!("A session ran `{command_q}`, a script piped from {host} into a shell. Replace it with a pinned package or a downloaded, checked installer, and say which in the guard note."),
             )
         }
         Kind::CredentialRead => {
@@ -177,7 +183,7 @@ pub fn item(
                 } else {
                     "Check whether it was live, and replace it if so.".to_owned()
                 },
-                format!("A session printed a {kind_word} with `{command}`. Find a way to get what it needed without printing the secret (a command that prints one variable, a named profile), and write it in the guard note."),
+                format!("A session printed a {kind_word} with `{command_q}`. Find a way to get what it needed without printing the secret (a command that prints one variable, a named profile), and write it in the guard note."),
             )
         }
         Kind::GuardBypass => (
@@ -187,7 +193,7 @@ pub fn item(
             hippo_core::incidents::guard::shown(detail.split_whitespace().last().unwrap_or("")),
             "Turns hooks off, or holds hippo's own records".to_owned(),
             "Look at what changed, and run hippo doctor.".to_owned(),
-            format!("A session ran `{command}`, which changed agent hooks or hippo's state. Undo the change if it was not asked for, and explain in the guard note when such a change is fine."),
+            format!("A session ran `{command_q}`, which changed agent hooks or hippo's state. Undo the change if it was not asked for, and explain in the guard note when such a change is fine."),
         ),
         Kind::FreshCloneExec => {
             let origin = hippo_core::incidents::guard::shown(detail.split_whitespace().next().unwrap_or(""));
@@ -198,7 +204,7 @@ pub fn item(
                 origin.clone(),
                 "First time this origin was seen".to_owned(),
                 "If you trust the repository, add it with hippo guard allow origin. If not, look at its setup scripts.".to_owned(),
-                format!("A session cloned {origin} and ran `{command}` in it. Check the repository's install and setup scripts, and re-run the install with scripts turned off if it does not need them."),
+                format!("A session cloned {origin} and ran `{command_q}` in it. Check the repository's install and setup scripts, and re-run the install with scripts turned off if it does not need them."),
             )
         }
         _ => return None,

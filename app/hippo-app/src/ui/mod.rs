@@ -757,6 +757,12 @@ impl Shell {
         }
     }
 
+    /// Dev-only: what a reload read, before the first frame (screenshots).
+    pub fn preload(&mut self, loaded: Loaded) {
+        self.loaded = Some(loaded);
+        self.decide_onboarding();
+    }
+
     pub fn reload(&mut self, cx: &mut Context<Self>) {
         self.rescan_themes(cx);
         if self.reloader.request() {
