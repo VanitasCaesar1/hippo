@@ -1004,6 +1004,9 @@ impl Shell {
                 self.look_for_history(cx)
             }
             "Reload" => self.reload(cx),
+            "TextLarger" if self.brain_shown() => self.brain_zoom_step(1.25, cx),
+            "TextSmaller" if self.brain_shown() => self.brain_zoom_step(0.8, cx),
+            "TextDefault" if self.brain_shown() => self.brain_fit(cx),
             "TextLarger" => self.change_scale(window, cx, |s| s.larger()),
             "TextSmaller" => self.change_scale(window, cx, |s| s.smaller()),
             "TextDefault" => self.change_scale(window, cx, |s| s.reset()),
@@ -1938,6 +1941,88 @@ mod tests {
                 "through the Inbox's lesson job"
             );
         });
+    }
+
+    /// Brain's map zooms about the pointer with ⌘-scroll and a pinch,
+    /// pans with a drag, and takes ⌘= and ⌘0 instead of the text size.
+    #[gpui::test]
+    fn brain_zooms_about_the_pointer_and_pans(cx: &mut TestAppContext) {
+        setup_globals(cx);
+        let (dir, home) = ready_home();
+        let notes = dir.path().join("ws/notes");
+        std::fs::create_dir_all(notes.join("Ops")).unwrap();
+        std::fs::write(
+            notes.join("index.md"),
+            "# Index\n\nSee [[a]] and [[Ops/b]].\n",
+        )
+        .unwrap();
+        std::fs::write(
+            notes.join("a.md"),
+            "# A\n\nThe first note. Links [[Ops/b]].\n",
+        )
+        .unwrap();
+        std::fs::write(notes.join("Ops/b.md"), "# B\n\nThe second note.\n").unwrap();
+        let (window, mut vcx) = open(cx, &home);
+        let root = window.root(&mut vcx).unwrap();
+        root.update(&mut vcx, |s, cx| {
+            s.state.tabs.select(Section::Brain);
+            cx.notify();
+        });
+        vcx.run_until_parked();
+        vcx.update(|w, _| w.refresh());
+        vcx.run_until_parked();
+        let (ox, oy, w, h) = root.read_with(&vcx, |s, _| s.night.map.view.get());
+        assert!(w > 100. && h > 100., "the map painted: {w}x{h}");
+        let unit = vcx.update(|_, cx| f32::from(Look::from_app(cx).px(1.)));
+        let centre = (w / 2. / unit, h / 2. / unit);
+        let at = gpui::point(gpui::px(ox + w / 2.), gpui::px(oy + h / 2.));
+        let state = |vcx: &mut VisualTestContext| {
+            root.read_with(vcx, |s, _| (s.night.map.zoom, s.night.map.to_map(centre)))
+        };
+        let (z0, m0) = state(&mut vcx);
+        // ⌘-scroll zooms in about the pointer.
+        vcx.simulate_event(gpui::ScrollEvent {
+            position: at,
+            delta: gpui::ScrollDelta::Pixels(gpui::point(gpui::px(0.), gpui::px(20.))),
+            modifiers: gpui::Modifiers::command(),
+            ..Default::default()
+        });
+        let (z1, m1) = state(&mut vcx);
+        assert!(z1 > z0 * 1.1, "{z0} -> {z1}");
+        assert!(
+            (m1.0 - m0.0).abs() < 0.05 && (m1.1 - m0.1).abs() < 0.05,
+            "{m0:?} {m1:?}"
+        );
+        // A pinch zooms too, about its centre.
+        vcx.simulate_event(gpui::PinchEvent {
+            position: at,
+            delta: 0.25,
+            ..Default::default()
+        });
+        let (z2, _) = state(&mut vcx);
+        assert!((z2 / z1 - 1.25).abs() < 0.01, "{z1} -> {z2}");
+        // A drag pans by the pointer's travel.
+        let pan0 = root.read_with(&vcx, |s, _| s.night.map.pan);
+        vcx.simulate_mouse_down(at, gpui::MouseButton::Left, gpui::Modifiers::default());
+        let to = gpui::point(at.x + gpui::px(60.), at.y);
+        vcx.simulate_mouse_move(to, gpui::MouseButton::Left, gpui::Modifiers::default());
+        vcx.simulate_mouse_up(to, gpui::MouseButton::Left, gpui::Modifiers::default());
+        let pan1 = root.read_with(&vcx, |s, _| s.night.map.pan);
+        assert!(
+            ((pan0.0 - pan1.0) - 60. / unit / z2).abs() < 0.05,
+            "{pan0:?} {pan1:?}"
+        );
+        // ⌘= zooms the map, not the text; ⌘0 fits it.
+        dispatch(&mut vcx, window, &actions::TextLarger);
+        let (z3, _) = state(&mut vcx);
+        assert!((z3 / z2 - 1.25).abs() < 0.01);
+        assert_eq!(root.read_with(&vcx, |s, _| s.state().scale.percent()), 100);
+        dispatch(&mut vcx, window, &actions::TextDefault);
+        let fitted = root.read_with(&vcx, |s, _| {
+            let m = s.night.map.map.clone().unwrap();
+            m.mid.fit(w / unit, h / unit, 28.).0
+        });
+        assert!((state(&mut vcx).0 - fitted).abs() < 0.001);
     }
 
     fn write_harbour(home: &Path, window: &str, pad: usize) {

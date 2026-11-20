@@ -2,6 +2,7 @@
 //! floating panel and Ask bar, and the views Morning, Brain, Agents and
 //! Guard drawn on a dotted ground.
 
+pub mod brain;
 pub mod kit;
 pub mod morning;
 
@@ -53,6 +54,8 @@ pub struct NightUi {
     pub dev_select: Option<String>,
     /// Brain's zoom at launch (`HIPPO_APP_DEV_ZOOM`).
     pub dev_zoom: Option<f32>,
+    /// Brain's map: pan, zoom, the press, frame times.
+    pub map: brain::MapView,
 }
 
 impl Default for NightUi {
@@ -68,6 +71,7 @@ impl Default for NightUi {
             dev_dialog: None,
             dev_select: None,
             dev_zoom: None,
+            map: brain::MapView::default(),
         }
     }
 }
@@ -80,7 +84,7 @@ pub fn is_night(tab: &Tab) -> bool {
 /// Whether a night view is drawn on the night canvas; the others show
 /// the view they replace until they are built.
 pub fn draws(tab: &Tab) -> bool {
-    matches!(tab, Tab::Morning)
+    matches!(tab, Tab::Morning | Tab::Brain)
 }
 
 impl Shell {
@@ -416,6 +420,11 @@ impl Shell {
         self.night.dev_select = None;
     }
 
+    /// Brain's map is on screen.
+    pub(crate) fn brain_shown(&self) -> bool {
+        self.state.tabs.active_tab() == Some(&Tab::Brain)
+    }
+
     /// Return, E and Delete on Morning: Keep, Edit or Dismiss the selected
     /// rule, else the first.
     pub(crate) fn morning_act(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
@@ -665,10 +674,11 @@ impl Shell {
         let panel_w = if vw < 1200. { PANEL_W_SMALL } else { PANEL_W };
         let left_w = if narrow { vw } else { vw - panel_w - 2. * EDGE };
         let ask_w = (left_w - 2. * 24.).clamp(280., 880.);
-        let _ = vh;
+        let view_h = vh - TOP_H;
         let scrolls = narrow || !matches!(tab, Tab::Brain);
         let body = match tab {
             Tab::Morning => self.render_morning(look, &t, left_w, narrow, panel_w, cx),
+            Tab::Brain => self.render_brain(look, &t, left_w, view_h, narrow, cx),
             _ => div().into_any_element(),
         };
         let panel = if narrow {
@@ -676,6 +686,7 @@ impl Shell {
         } else {
             match tab {
                 Tab::Morning => Some(self.render_start_panel(look, &t, cx)),
+                Tab::Brain => Some(self.render_note_panel(look, &t, cx)),
                 _ => None,
             }
         };

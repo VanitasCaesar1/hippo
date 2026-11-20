@@ -43,8 +43,7 @@ impl Shell {
             self.note_seen();
         }
         let content = match &active {
-            Tab::Morning | Tab::Home => self.render_home_tab(look, window, cx),
-            Tab::Brain => self.render_memory_tab(look, window, cx),
+            Tab::Morning | Tab::Brain | Tab::Home => self.render_home_tab(look, window, cx),
             Tab::Agents => self.render_fleet_tab(look, window, cx),
             Tab::Guard => self.render_incidents_tab(look, window, cx),
             Tab::Ask => self.render_ask_tab(look, window, cx),

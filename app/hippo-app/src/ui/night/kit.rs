@@ -15,7 +15,6 @@ pub use crate::ui::kit::MONO;
 
 /// The tokens.
 #[derive(Clone, Copy)]
-#[allow(dead_code)] // Brain's links use `night_line`
 pub struct Nt {
     pub canvas: Hsla,
     pub dot: Hsla,
@@ -224,7 +223,6 @@ pub enum Tone {
 
 impl Tone {
     /// The tone a model's word names (`ok`, `you`, `bad`, `night`).
-    #[allow(dead_code)] // Brain's chips
     pub fn of(word: &str) -> Tone {
         match word {
             "you" => Tone::You,
