@@ -984,7 +984,14 @@ impl Shell {
                 )
             })
             .child(div().flex_1())
-            .child(kit::cap(look, "Fleet →", look.c.faint));
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(look.px(3.))
+                    .child(kit::cap(look, "Fleet", look.c.faint))
+                    .child(kit::icon(look, "arrow-right", 11., look.c.faint)),
+            );
         let pane_w: gpui::Length = if stacked {
             gpui::relative(1.).into()
         } else {

@@ -397,17 +397,17 @@ impl Shell {
                 .filter(|b| **b)
                 .count();
             let label = if on == 0 {
-                "Filter ▾".to_owned()
+                "Filter".to_owned()
             } else {
-                format!("Filter · {on} ▾")
+                format!("Filter · {on}")
             };
             return bar()
                 .child(self.filter_menu(Menu::All, "inc-filter", label, &owned, look, cx))
                 .into_any_element();
         }
         let name = |what: &str, v: Option<String>| match v {
-            Some(v) => format!("{what}: {v} ▾"),
-            None => format!("{what} ▾"),
+            Some(v) => format!("{what}: {v}"),
+            None => what.to_owned(),
         };
         bar()
             .child(self.filter_menu(
@@ -577,6 +577,8 @@ impl Shell {
                         Kind::Ghost
                     },
                 )
+                .gap(look.px(4.))
+                .child(kit::icon(look, "chevron-down", 12., look.c.text_muted))
                 .on_click(cx.listener(move |this, _, _, cx| {
                     cx.stop_propagation();
                     this.incidents_ui.menu = if this.incidents_ui.menu == Some(menu) {
@@ -970,7 +972,7 @@ impl Shell {
                     .gap(look.px(4.))
                     .min_w_0()
                     .flex_shrink(2.)
-                    .child(div().text_color(look.c.faint).child("›"))
+                    .child(kit::icon(look, "chevron-right", 11., look.c.faint))
                     .child(div().min_w_0().truncate().child(kit::title(s)))
             }))
             .children(inc::short_form(i).map(|short| {

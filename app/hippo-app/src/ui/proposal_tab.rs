@@ -591,11 +591,20 @@ impl Shell {
                                     div()
                                         .text_size(look.text(11.))
                                         .text_color(look.c.text_accent)
+                                        .flex()
+                                        .items_center()
+                                        .gap(look.px(3.))
                                         .child(format!(
-                                            "{} · turn {} · {} · open in its session ›",
+                                            "{} · turn {} · {} · open in its session",
                                             visible(&t.session),
                                             t.ordinal,
                                             visible(&t.role)
+                                        ))
+                                        .child(super::kit::icon(
+                                            look,
+                                            "chevron-right",
+                                            11.,
+                                            look.c.text_accent,
                                         )),
                                 )
                                 .child(div().child(visible(t.text.trim())))

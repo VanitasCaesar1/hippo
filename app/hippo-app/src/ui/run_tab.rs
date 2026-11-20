@@ -289,10 +289,23 @@ impl Shell {
                 .cursor_pointer()
                 .text_size(look.text(11.))
                 .text_color(look.c.text_accent)
+                .flex()
+                .items_center()
+                .gap(look.px(4.))
+                .child(super::kit::icon(
+                    look,
+                    if open {
+                        "chevron-down"
+                    } else {
+                        "chevron-right"
+                    },
+                    12.,
+                    look.c.text_accent,
+                ))
                 .child(if open {
-                    "▾ Hide the report file"
+                    "Hide the report file"
                 } else {
-                    "▸ Show the report file"
+                    "Show the report file"
                 })
                 .on_click(cx.listener(move |this, _, _, cx| {
                     if !this.dream_ui.raw_open.remove(&key) {

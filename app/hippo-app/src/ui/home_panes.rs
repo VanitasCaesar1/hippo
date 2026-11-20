@@ -103,7 +103,7 @@ impl Shell {
                     .flex()
                     .items_start()
                     .gap(look.px(12.))
-                    .child(kit::figure(look, "›", 14., look.c.text_muted))
+                    .child(kit::icon(look, "chevron-right", 14., look.c.text_muted))
                     .child(
                         div()
                             .flex_1()

@@ -495,7 +495,11 @@ impl Shell {
                 ))
                 .child("·")
                 .child(
-                    kit::link(look, "xray-tune-memory", "tune in Memory ›")
+                    kit::link(look, "xray-tune-memory", "tune in Memory")
+                        .flex()
+                        .items_center()
+                        .gap(look.px(2.))
+                        .child(kit::icon(look, "chevron-right", 11., look.c.text_muted))
                         .text_color(look.c.text_muted)
                         .on_click(cx.listener(|this, _, window, cx| {
                             this.show_section(crate::state::Section::Memory, window, cx);

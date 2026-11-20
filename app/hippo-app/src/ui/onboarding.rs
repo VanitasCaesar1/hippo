@@ -1193,11 +1193,20 @@ impl Shell {
                     .mt(look.px(14.))
                     .text_color(look.c.text_accent)
                     .cursor_pointer()
+                    .flex()
+                    .items_center()
+                    .gap(look.px(4.))
                     .child(if show {
-                        "Hide the commands it runs ▾"
+                        "Hide the commands it runs"
                     } else {
-                        "Show the commands it runs ▸"
+                        "Show the commands it runs"
                     })
+                    .child(super::kit::icon(
+                        look,
+                        if show { "chevron-down" } else { "chevron-right" },
+                        12.,
+                        look.c.text_accent,
+                    ))
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.flow.show_commands = !this.flow.show_commands;
                         cx.notify();

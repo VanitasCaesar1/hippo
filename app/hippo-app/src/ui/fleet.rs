@@ -550,12 +550,13 @@ impl Shell {
             div()
                 .relative()
                 .child(
-                    kit::switch(look, "account-menu", &format!("{label} ▾"), open).on_click(
-                        cx.listener(|this, _, _, cx| {
+                    kit::switch(look, "account-menu", &label, open)
+                        .gap(look.px(4.))
+                        .child(kit::icon(look, "chevron-down", 12., look.c.text_muted))
+                        .on_click(cx.listener(|this, _, _, cx| {
                             this.fleet_profiles_open = !this.fleet_profiles_open;
                             cx.notify();
-                        }),
-                    ),
+                        })),
                 )
                 .when(open, |d| {
                     d.child(gpui::deferred(

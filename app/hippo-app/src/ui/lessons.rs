@@ -936,7 +936,7 @@ impl Shell {
                             .child(if items.is_empty() {
                                 "Nothing to review."
                             } else {
-                                "Pick one, or press ↓ for the first."
+                                "Pick one, or press the down arrow for the first."
                             }),
                     )
                     .child(
@@ -1446,7 +1446,7 @@ impl Shell {
                         .border_l(look.fixed(2.))
                         .border_color(look.c.border_strong)
                         // A tool call in words, the call itself
-                        // behind `show call ▸`.
+                        // behind `show call`.
                         .children(e.action.as_ref().map(|a| {
                             let (words, raw) = action_words(a);
                             let shown = self.inbox.show_call == Some(id);
@@ -1471,12 +1471,21 @@ impl Shell {
                                                 kit::link(
                                                     look,
                                                     "show-call",
-                                                    if shown {
-                                                        "hide call ▾"
-                                                    } else {
-                                                        "show call ▸"
-                                                    },
+                                                    if shown { "hide call" } else { "show call" },
                                                 )
+                                                .flex()
+                                                .items_center()
+                                                .gap(look.px(2.))
+                                                .child(kit::icon(
+                                                    look,
+                                                    if shown {
+                                                        "chevron-down"
+                                                    } else {
+                                                        "chevron-right"
+                                                    },
+                                                    12.,
+                                                    look.c.text_muted,
+                                                ))
                                                 .text_color(look.c.text_muted)
                                                 .on_click(cx.listener(move |this, _, _, cx| {
                                                     this.inbox.show_call =

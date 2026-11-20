@@ -28,7 +28,13 @@ struct Assets;
 /// brand/agents/README.md). The names of the app's earlier icons
 /// are kept as aliases so every caller draws a Lucide glyph.
 fn icon(name: &str) -> Option<&'static [u8]> {
-    let name = match name {
+    // A night-map name with no alias of its own (`n-minus`) is the Lucide
+    // icon of the same name.
+    icon_file(alias(name)).or_else(|| icon_file(alias(name.strip_prefix("n-")?)))
+}
+
+fn alias(name: &str) -> &str {
+    match name {
         "home" => "house",
         "fleet" => "bot",
         "memory" => "brain",
@@ -72,7 +78,10 @@ fn icon(name: &str) -> Option<&'static [u8]> {
         "n-wait" => "hourglass",
         "n-start" => "flag",
         other => other,
-    };
+    }
+}
+
+fn icon_file(name: &str) -> Option<&'static [u8]> {
     Some(match name {
         "alarm-clock" => include_bytes!("../icons/alarm-clock.svg").as_slice(),
         "alarm-clock-off" => include_bytes!("../icons/alarm-clock-off.svg").as_slice(),
@@ -319,5 +328,66 @@ mod tests {
             "icons/terminal.svg"
         );
         assert!(Assets.load("icons/terminal.svg").unwrap().is_some());
+    }
+
+    /// Every icon the night views name is drawn: the names in their source
+    /// (`icon(look, "…"`, `icon_button(look, t, "<id>", "…"`, `tile(look, t,
+    /// "…"`, and the two names of a `tile(look, t, if … { "…" } else { "…" }`)
+    /// and the guard's incident kinds. In 0.7.1 Brain's zoom buttons asked
+    /// for `n-minus` and `n-plus`, which had no file, and drew nothing.
+    #[test]
+    fn every_icon_the_night_views_name_is_drawn() {
+        let sources = [
+            include_str!("ui/night/mod.rs"),
+            include_str!("ui/night/kit.rs"),
+            include_str!("ui/night/morning.rs"),
+            include_str!("ui/night/brain.rs"),
+            include_str!("ui/night/agents.rs"),
+            include_str!("ui/night/guard.rs"),
+        ];
+        let literal = |s: &str| -> Option<String> {
+            let s = s.trim_start().strip_prefix('"')?;
+            Some(s[..s.find('"')?].to_owned())
+        };
+        let mut names = std::collections::BTreeSet::new();
+        for src in sources {
+            let src = src.split_whitespace().collect::<Vec<_>>().join(" ");
+            for (needle, skip_id) in [
+                ("icon(look, ", false),
+                ("icon( look, ", false),
+                ("icon_button( look, t, ", true),
+                ("icon_button(look, t, ", true),
+                ("tile(look, t, ", false),
+                ("tile( look, t, ", false),
+            ] {
+                for (at, _) in src.match_indices(needle) {
+                    let mut rest = &src[at + needle.len()..];
+                    if skip_id {
+                        let Some(id) = literal(rest) else { continue };
+                        rest = &rest.trim_start()[id.len() + 2..];
+                        rest = rest.trim_start().strip_prefix(',').unwrap_or(rest);
+                    }
+                    if let Some(name) = literal(rest) {
+                        names.insert(name);
+                    } else if let Some(cond) = rest.trim_start().strip_prefix("if ") {
+                        for part in cond.split('{').skip(1).take(2) {
+                            if let Some(name) = literal(part) {
+                                names.insert(name);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        for kind in ["script", "key", "tomodel", "clone", "guard"] {
+            names.insert(kind.to_owned());
+        }
+        assert!(names.len() > 12, "{names:?}");
+        for name in &names {
+            assert!(
+                icon(&format!("n-{name}")).is_some(),
+                "icons/n-{name}.svg draws nothing"
+            );
+        }
     }
 }
