@@ -240,7 +240,11 @@ impl Shell {
                 } else {
                     "rules waiting for you"
                 },
-                if f.rules_waiting > 0 { t.you } else { t.text },
+                if f.rules_waiting > 0 {
+                    t.you_text
+                } else {
+                    t.text
+                },
             ),
             cell(
                 f.notes_fixed,
@@ -975,7 +979,9 @@ impl Shell {
                         .flex_shrink_0()
                         .rounded(look.px(2.))
                         .when(filled, |d| d.bg(t.you))
-                        .when(!filled, |d| d.border(look.fixed(1.5)).border_color(t.you)),
+                        .when(!filled, |d| {
+                            d.border(look.fixed(1.5)).border_color(t.you_mark())
+                        }),
                 )
                 .child(
                     div()

@@ -141,6 +141,14 @@ impl Nt {
     }
 }
 
+impl Nt {
+    /// Lime as a thin outline: the fill itself in the dark theme, the
+    /// darker lime line on white, where the fill would not show.
+    pub fn you_mark(&self) -> Hsla {
+        if self.dark { self.you } else { self.you_line }
+    }
+}
+
 /// An icon from the app's assets.
 pub fn icon(look: &Look, name: &str, size: f32, color: Hsla) -> gpui::Svg {
     svg()

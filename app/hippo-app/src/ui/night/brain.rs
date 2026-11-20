@@ -705,7 +705,7 @@ fn paint_note(
                     Bounds::new(point(px(x + pad), px(my)), size(px(mark), px(mark))),
                     2. * u,
                     gpui::transparent_black(),
-                    t.you,
+                    t.you_mark(),
                     1.5 * u,
                     false,
                 ),
