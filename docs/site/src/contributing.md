@@ -59,3 +59,5 @@ Security problems go through private vulnerability reporting, not issues. See [S
 hippo is released under the MIT licence, copyright 2026 Vanitas Caesar. By contributing you agree that your contribution is licensed under the same terms.
 
 The hippo mark is copyright Vanitas Caesar and may be used to refer to this project.
+
+The icons on the site, in the live demo and in Hippo.app are from [Lucide](https://lucide.dev) (ISC). The coding agents' marks are from LobeHub's icon set (MIT) and belong to their owners; they are used only to say which agent a session came from ([brand/agents/README.md](https://github.com/VanitasCaesar1/hippo/blob/main/brand/agents/README.md)).
