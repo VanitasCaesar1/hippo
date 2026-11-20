@@ -28,6 +28,7 @@ pub mod runners;
 pub mod schedule;
 pub mod session;
 pub mod settings;
+pub mod setup;
 pub mod show;
 pub mod start;
 pub mod view;

@@ -136,9 +136,8 @@ fn the_codex_skill_is_named_hippo() {
     // Every command the skill tells Codex to run exists.
     let text = fs::read_to_string(skill.join("SKILL.md")).unwrap();
     for command in [
-        "hippo init",
-        "hippo hooks install --agent codex",
-        "hippo ingest",
+        "hippo setup --agent codex",
+        "hippo setup --agent codex --yes",
         "hippo schedule install",
         "hippo ask --sources-only",
         "hippo brief --task",
@@ -167,5 +166,9 @@ fn the_claude_code_plugin_is_valid_and_its_paths_exist() {
     for skill in ["setup", "ask", "day"] {
         let (name, _) = frontmatter(&dir.join("skills").join(skill).join("SKILL.md"));
         assert_eq!(name, skill);
+    }
+    let setup = fs::read_to_string(dir.join("skills/setup/SKILL.md")).unwrap();
+    for command in ["hippo setup", "hippo setup --yes", "hippo schedule install"] {
+        assert!(setup.contains(command), "{command}");
     }
 }

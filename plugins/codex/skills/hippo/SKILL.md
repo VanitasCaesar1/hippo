@@ -13,7 +13,7 @@ Keep messages short. Show hippo's own output where a step says to; its errors na
 
 Run `command -v hippo`. If that finds nothing, try, in order: the first line of `~/.hippo/bin-path`, `~/.local/bin/hippo`, `~/.cargo/bin/hippo`. Use the first that exists, by its full path, for every later command. If none exists, hippo is not installed: go to **Set up**, step 1.
 
-hippo keeps its files in `~/.hippo` and the project's `.hippo/` folder. Commands that write there (`init`, `hooks install`, `ingest`, `lessons keep`, `lessons dismiss`) may need to run outside Codex's sandbox: when Codex asks to run one with more access, say which command it is and why.
+hippo keeps its files in `~/.hippo` and the project's `.hippo/` folder. Commands that write there (`setup --yes`, `lessons keep`, `lessons dismiss`) may need to run outside Codex's sandbox: when Codex asks to run one with more access, say which command it is and why.
 
 ## Set up
 
@@ -27,21 +27,17 @@ When the user asks to set hippo up, or a command says hippo is not set up:
 
    Say what it does: it downloads the release for this machine from GitHub, checks its SHA-256 against the published one, copies the binary to `~/.local/bin` without `sudo`, and records the checksum in `~/.hippo/install.json`. Ask whether to run it, and run it only on a yes (it needs the network). On a no, stop and mention `cargo install --locked --git https://github.com/VanitasCaesar1/hippo hippo` as the other way. Afterwards use `~/.local/bin/hippo` if `hippo` is still not on `PATH`.
 
-2. **The notes folder.** hippo needs a folder of Markdown notes in the project and an entry note that every session reads first. If the project already has one (`notes/`, `docs/notes/`, a folder of `.md` files the user keeps for agents), ask whether to use it. Otherwise propose `notes/` with `notes/START HERE.md`. Then run, from the project's root:
+2. **The notes folder.** hippo keeps a folder of Markdown notes in the project, with an entry note every session reads first. If the project already has one (`notes/`, `docs/notes/`, Markdown the user keeps for agents), ask whether to use it and pass it as `--notes-dir <folder>`. Otherwise the default is `notes/` with `notes/START HERE.md`, created if missing.
 
-   ```sh
-   hippo init --notes-dir <folder> --entry-note "<folder>/START HERE.md"
-   ```
+3. **The plan.** From the project's root, run `hippo setup --agent codex` (with `--notes-dir` if the user chose a folder). It prints the steps and writes nothing: `hippo init` (skipped when hippo is already set up here; it writes `~/.hippo/config.toml` and the project's `.hippo/`, and adds `.hippo/` lines to `.gitignore` and `.gitattributes`, committing nothing), `hippo hooks install --agent codex` (three hooks in `~/.codex/hooks.json` that act only for sessions in this project), and `hippo ingest` (the agent history already on this machine, into `~/.hippo`; nothing is sent anywhere). Show the steps and ask whether to go ahead.
 
-   It creates the folder and a starter entry note if they are missing, writes `~/.hippo/config.toml` and the project's `.hippo/`, and adds `.hippo/` lines to `.gitignore` and `.gitattributes`. It commits nothing.
+4. **Run it** on a yes: `hippo setup --agent codex --yes` (with the same `--notes-dir`). It writes outside the project, so Codex may ask to run it with more access. If it stops, show what it printed; hippo's errors name the next command to run.
 
-3. **Codex's hooks.** Run `hippo hooks install --agent codex`. It adds three hooks to `~/.codex/hooks.json` (session start, prompt, session end); they act only for sessions inside this project. Tell the user that Codex lists new hooks for review the next time it starts, and that they run only once trusted there (or with `/hooks`).
+5. **Nightly, only on a yes.** Ask whether hippo should run on a schedule: ingest every 10 minutes and the night pass at 03:30, which calls the user's own `claude` CLI to draft note fixes and rules and a second call to check each one. Run `hippo schedule install` only if they say yes. Without it, nothing runs on its own.
 
-4. **The first index.** Run `hippo ingest`. It reads the agent sessions already on this machine (Codex, Claude Code and others it finds) into `~/.hippo`. History only; nothing is sent anywhere.
+6. **The app, on macOS, only on a yes.** If `hippo app --help` succeeds, ask whether to install Hippo.app; on a yes, run `hippo app install` and show what it printed.
 
-5. **Nightly, only on a yes.** Ask whether hippo should run on a schedule: ingest every 10 minutes and the night pass at 03:30, which calls the user's own `claude` CLI to draft note fixes and rules and a second call to check each one. Run `hippo schedule install` only if they say yes. Without it, nothing runs unless they run it.
-
-6. Say: start a new Codex session in this project (after trusting the hooks) and it begins with hippo's start block. Show `hippo doctor`'s summary line if it reports a problem.
+7. **Done.** Tell the user: Codex lists hippo's three hooks for review the next time it starts; trust them there (or with `/hooks`), then start a new Codex session in this project and it begins with hippo's start block.
 
 ## Ask
 

@@ -87,6 +87,20 @@ Finds your agents' history and indexes it, history only: no notes folder is need
 
 With no terminal and no `--yes` it prints `run hippo start --yes to index it` and exits 0. When it finds no history it names the folders it looked in and exits 0.
 
+## hippo setup
+
+```text
+hippo setup [--agent claude-code|codex] [--workspace <dir>] [--notes-dir <dir>] [--entry-note <note>] [--yes]
+```
+
+The whole first run for one agent, the command the Claude Code plugin's `/hippo:setup` and the Codex plugin's `$hippo` run. Without `--yes` it prints its steps and writes nothing; with `--yes` it runs them, as this binary, and stops at the first that fails:
+
+1. `hippo init` with the project, the notes folder (`notes` by default) and the entry note (`<notes>/START HERE.md`), creating them if missing. Skipped when hippo's workspace is already this project. When hippo's workspace is another folder it exits 1 and names the `hippo init … --force` that would move it: hippo has one workspace per machine.
+2. `hippo hooks install --agent <agent>`: the project's `.claude/settings.local.json` for Claude Code, `$CODEX_HOME/hooks.json` for Codex (which runs them once you trust them in its review).
+3. `hippo ingest`: the history already on the machine.
+
+The project is `--workspace`, else the Git repository around the current directory, else the current directory. It never schedules anything; it ends by naming `hippo schedule install`. Running it again is safe: init is skipped and the hooks are added once.
+
 ## hippo detect
 
 ```text

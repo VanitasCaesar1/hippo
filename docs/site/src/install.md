@@ -41,7 +41,7 @@ The repository is also a Claude Code plugin marketplace. In a Claude Code sessio
 /plugin install hippo@hippo
 ```
 
-Then `/hippo:setup` installs the binary with the script above if it is missing (after asking you) and runs `hippo start`. `/hippo:ask <question>` asks whether an agent already solved something, and `/hippo:day [date]` shows a day's work. Once you have a notes folder (`hippo init`), the plugin gives every session in that workspace the start block; it stays silent everywhere else, and when `hippo hooks install` has already added the workspace's own hooks. The plugin's hook runs the binary named in `~/.hippo/bin-path`, and looks on `PATH` only when that file is missing.
+Then `/hippo:setup` does the first run with no terminal: it installs the binary with the script above if it is missing (after asking you), shows what [`hippo setup`](commands.md#hippo-setup) will do (the notes folder, Claude Code's hooks in the project's personal `.claude/settings.local.json`, the first index) and runs it on your yes, and offers the nightly schedule, which it adds only on a yes. Then a new session in the project starts with hippo's start block. `/hippo:ask <question>` asks whether an agent already solved something, and `/hippo:day [date]` shows a day's work. Once you have a notes folder (`hippo init`), the plugin gives every session in that workspace the start block; it stays silent everywhere else, and when `hippo hooks install` has already added the workspace's own hooks. The plugin's hook runs the binary named in `~/.hippo/bin-path`, and looks on `PATH` only when that file is missing.
 
 ## In Codex
 

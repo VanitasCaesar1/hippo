@@ -24,7 +24,7 @@ struct Cli {
 /// The commands as `hippo --help` groups them, each
 /// once; a test checks that every subcommand is in a group.
 const GROUPS: [(&str, &[&str]); 6] = [
-    ("Start here", &["start", "detect"]),
+    ("Start here", &["start", "setup", "detect"]),
     (
         "Every day",
         &[
@@ -95,6 +95,8 @@ fn grouped_help(cmd: &clap::Command) -> String {
 enum Command {
     /// Find your agents' history and index it (history only); --yes skips the question
     Start(cmd::start::Args),
+    /// Set hippo up for one agent: notes folder, its hooks, the first index; prints the steps, runs them with --yes
+    Setup(cmd::setup::Args),
     /// Write $HIPPO_HOME/config.toml and the workspace's .hippo/
     Init(cmd::init::Args),
     /// Copy a pack into the workspace from git or a path, after a review
@@ -191,6 +193,7 @@ fn main() -> ExitCode {
     };
     let result = match command {
         Command::Start(args) => cmd::start::run(args),
+        Command::Setup(args) => cmd::setup::run(args),
         Command::Init(args) => cmd::init::run(args),
         Command::Add(args) => cmd::add::run(args),
         Command::Detect(args) => cmd::detect::run(args),
