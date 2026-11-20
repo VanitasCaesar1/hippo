@@ -673,14 +673,17 @@ pub enum GuardAgent {
     Gemini,
     /// `PreToolUse` in `$CODEX_HOME/hooks.json`, beside the session hooks.
     Codex,
+    /// `preToolUse` in `~/.cursor/hooks.json`, a flat list of scripts.
+    Cursor,
 }
 
 impl GuardAgent {
     /// Every agent `hippo guard install` can write a hook for.
-    pub const ALL: [GuardAgent; 3] = [
+    pub const ALL: [GuardAgent; 4] = [
         GuardAgent::ClaudeCode,
         GuardAgent::Gemini,
         GuardAgent::Codex,
+        GuardAgent::Cursor,
     ];
 
     /// The value of `--agent` for `hippo guard check`.
@@ -689,6 +692,7 @@ impl GuardAgent {
             GuardAgent::ClaudeCode => "claude-code",
             GuardAgent::Gemini => "gemini",
             GuardAgent::Codex => "codex",
+            GuardAgent::Cursor => "cursor",
         }
     }
 
@@ -696,6 +700,7 @@ impl GuardAgent {
         match self {
             GuardAgent::ClaudeCode | GuardAgent::Codex => "PreToolUse",
             GuardAgent::Gemini => "BeforeTool",
+            GuardAgent::Cursor => "preToolUse",
         }
     }
 
@@ -708,6 +713,9 @@ impl GuardAgent {
             // Codex names every shell tool `Bash` in a hook's input, file
             // edits `apply_patch` and MCP tools `mcp__<server>__<tool>`.
             GuardAgent::Codex => "^(Bash|apply_patch|mcp__.*)$",
+            // cursor-agent's tool names (Shell, Read, Write, Delete) and
+            // `MCP:<tool>`; the matcher is a regular expression.
+            GuardAgent::Cursor => "^(Shell|Read|Write|Delete|MCP:.*)$",
         }
     }
 
@@ -727,7 +735,7 @@ impl GuardAgent {
     fn entry(self, bin: &str, timeout_ms: u64, fail_closed: bool) -> J {
         let command = J::Scalar(Value::from(self.command(bin)));
         let mut hook = match self {
-            GuardAgent::ClaudeCode | GuardAgent::Codex => vec![
+            GuardAgent::ClaudeCode | GuardAgent::Codex | GuardAgent::Cursor => vec![
                 ("type".into(), J::Scalar(Value::from("command"))),
                 ("command".into(), command),
                 (
@@ -744,6 +752,15 @@ impl GuardAgent {
         };
         if fail_closed && self == GuardAgent::ClaudeCode {
             hook.push(("onFailure".into(), J::Scalar(Value::from("block"))));
+        }
+        if self == GuardAgent::Cursor {
+            // One flat script: Cursor has no groups. `failClosed` makes a
+            // missing or crashing hippo refuse the call.
+            hook.push(("matcher".into(), J::Scalar(Value::from(self.matcher()))));
+            if fail_closed {
+                hook.push(("failClosed".into(), J::Scalar(Value::from(true))));
+            }
+            return J::Object(hook);
         }
         J::Object(vec![
             ("matcher".into(), J::Scalar(Value::from(self.matcher()))),
@@ -786,12 +803,16 @@ pub fn guard_installed(path: &Path, agent: GuardAgent) -> Result<Option<String>>
         return Ok(None);
     };
     for entry in entries {
-        if let Some(J::Array(hooks)) = entry.get("hooks") {
-            for h in hooks {
-                if is_hippo(h, &wanted) {
-                    if let Some(J::Scalar(Value::String(c))) = h.get("command") {
-                        return Ok(Some(c.clone()));
-                    }
+        // Cursor lists scripts directly; the others group them.
+        let flat = std::slice::from_ref(entry);
+        let hooks = match entry.get("hooks") {
+            Some(J::Array(hooks)) => hooks.as_slice(),
+            _ => flat,
+        };
+        for h in hooks {
+            if is_hippo(h, &wanted) {
+                if let Some(J::Scalar(Value::String(c))) = h.get("command") {
+                    return Ok(Some(c.clone()));
                 }
             }
         }
@@ -809,6 +830,11 @@ pub fn guard_plan(
     fail_closed: bool,
 ) -> Result<GuardPlan> {
     let mut tree = read(path)?.unwrap_or(J::Object(Vec::new()));
+    if agent == GuardAgent::Cursor && tree.get("version").is_none() {
+        if let J::Object(entries) = &mut tree {
+            entries.insert(0, ("version".into(), J::Scalar(Value::from(1))));
+        }
+    }
     if tree.get("hooks").is_none() {
         if let J::Object(entries) = &mut tree {
             entries.push(("hooks".into(), J::Object(Vec::new())));
@@ -830,7 +856,8 @@ pub fn guard_plan(
         }
         Some((_, J::Array(items))) => {
             let found = items.iter().position(|e| {
-                matches!(e.get("hooks"), Some(J::Array(h)) if h.iter().any(|h| is_hippo(h, &wanted)))
+                is_hippo(e, &wanted)
+                    || matches!(e.get("hooks"), Some(J::Array(h)) if h.iter().any(|h| is_hippo(h, &wanted)))
             });
             match found {
                 Some(i) if items[i] == entry => "none",
@@ -876,6 +903,9 @@ pub fn guard_remove_plan(path: &Path, agent: GuardAgent) -> Result<GuardPlan> {
     let mut removed = false;
     if let Some(J::Object(events)) = tree.get_mut("hooks") {
         if let Some((_, J::Array(items))) = events.iter_mut().find(|(k, _)| k == event) {
+            let n = items.len();
+            items.retain(|e| !is_hippo(e, &wanted));
+            removed |= items.len() != n;
             for entry in items.iter_mut() {
                 if let Some(J::Array(hooks)) = entry.get_mut("hooks") {
                     let n = hooks.len();

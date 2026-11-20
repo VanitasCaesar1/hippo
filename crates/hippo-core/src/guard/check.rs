@@ -39,13 +39,21 @@ pub fn parse_call(agent: &str, payload: &Value) -> Option<Call> {
         Value::String(s) => serde_json::from_str(&s).unwrap_or(Value::String(s)),
         v => v,
     };
-    let cwd = payload
-        .get("cwd")
-        .and_then(Value::as_str)
-        .filter(|s| !s.is_empty())
+    // Cursor has no top-level `cwd`: a shell call names its folder in its
+    // input, and every payload lists the workspace's roots.
+    let root = payload
+        .get("workspace_roots")
+        .and_then(Value::as_array)
+        .and_then(|r| r.first());
+    let cwd = [payload.get("cwd"), input.get("cwd"), root]
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .find(|s| !s.is_empty())
         .map(PathBuf::from);
     let session = payload
         .get("session_id")
+        .or_else(|| payload.get("conversation_id"))
         .and_then(Value::as_str)
         .map(str::to_owned);
     let headless = match agent {
@@ -53,7 +61,9 @@ pub fn parse_call(agent: &str, payload: &Value) -> Option<Call> {
             payload.get("permission_mode").and_then(Value::as_str),
             Some("bypassPermissions" | "dontAsk")
         ),
-        "codex" => true,
+        // Neither can ask from its pre-tool hook: Codex refuses an `ask`
+        // answer, cursor-agent ignores one.
+        "codex" | "cursor" => true,
         _ => payload
             .get("headless")
             .and_then(Value::as_bool)
@@ -158,6 +168,10 @@ pub fn respond(agent: &str, decision: &Decision) -> String {
     let Some(action) = decision.action else {
         return match agent {
             "dsh" | "opencode" => json!({"decision": "none"}).to_string(),
+            // An empty object: no permission, so Cursor's own approval
+            // goes on as if no hook ran. (No output at all counts as a
+            // failed hook in Cursor's log.)
+            "cursor" => "{}".to_owned(),
             _ => String::new(),
         };
     };
@@ -178,6 +192,13 @@ pub fn respond(agent: &str, decision: &Decision) -> String {
         ("claude-code", Action::Block) | ("codex", Action::Ask | Action::Block) => json!({
             "hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": m},
         }),
+        // cursor-agent's preToolUse (2026.11.19): `additional_context`
+        // without a `permission` reaches the model and lets the call go
+        // on through Cursor's own approval; only `deny` refuses, with
+        // `user_message` as the reason. It ignores `ask`; `parse_call`
+        // makes every Cursor call headless.
+        ("cursor", Action::Warn) => json!({"additional_context": m}),
+        ("cursor", _) => json!({"permission": "deny", "user_message": m, "agent_message": m}),
         // Gemini CLI's BeforeTool has no question and no context for the
         // model: a warning reaches the person, a refusal the agent.
         ("gemini", Action::Warn) => json!({"systemMessage": m}),
@@ -190,7 +211,25 @@ pub fn respond(agent: &str, decision: &Decision) -> String {
 }
 
 /// The agents `hippo guard check --agent` answers for.
-pub const AGENTS: [&str; 5] = ["claude-code", "codex", "gemini", "dsh", "opencode"];
+pub const AGENTS: [&str; 6] = [
+    "claude-code",
+    "codex",
+    "cursor",
+    "gemini",
+    "dsh",
+    "opencode",
+];
+
+/// The agent a payload really came from. cursor-agent also runs the
+/// hooks in `~/.claude/settings.json`, so Claude Code's guard entry gets
+/// Cursor's calls too; they carry `cursor_version`.
+pub fn payload_agent<'a>(agent: &'a str, payload: &Value) -> &'a str {
+    if agent == "claude-code" && payload.get("cursor_version").is_some() {
+        "cursor"
+    } else {
+        agent
+    }
+}
 
 /// Every rule that matches `call`.
 pub fn evaluate(compiled: &Compiled, call: &Call) -> Vec<Hit> {

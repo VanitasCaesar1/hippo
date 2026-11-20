@@ -472,6 +472,9 @@ fn each_agent_gets_its_own_answer() {
     assert_eq!(respond("claude-code", &none), "");
     assert_eq!(respond("gemini", &none), "");
     assert_eq!(respond("codex", &none), "");
+    assert_eq!(respond("cursor", &none), "{}");
+    let v: serde_json::Value = serde_json::from_str(&respond("cursor", &warn)).unwrap();
+    assert!(v["additional_context"].is_string() && v.get("permission").is_none());
     assert_eq!(respond("opencode", &none), r#"{"decision":"none"}"#);
     let block = decide(
         vec![Hit {
@@ -485,6 +488,8 @@ fn each_agent_gets_its_own_answer() {
     );
     let v: serde_json::Value = serde_json::from_str(&respond("claude-code", &block)).unwrap();
     assert_eq!(v["hookSpecificOutput"]["permissionDecision"], "deny");
+    let v: serde_json::Value = serde_json::from_str(&respond("cursor", &block)).unwrap();
+    assert_eq!(v["permission"], "deny");
     let v: serde_json::Value = serde_json::from_str(&respond("codex", &block)).unwrap();
     assert_eq!(v["hookSpecificOutput"]["permissionDecision"], "deny");
     assert!(v["hookSpecificOutput"]["permissionDecisionReason"]

@@ -1,6 +1,7 @@
 //! Where `hippo guard install` writes: each Claude Code account's user
 //! settings (`<account>/settings.json`), Gemini CLI's
-//! `~/.gemini/settings.json` and Codex's `$CODEX_HOME/hooks.json`. Never a workspace's committed
+//! `~/.gemini/settings.json`, Codex's `$CODEX_HOME/hooks.json` and
+//! Cursor's `~/.cursor/hooks.json`. Never a workspace's committed
 //! `.claude/settings.json`: that would push the guard, its fail mode and
 //! an absolute path onto every teammate.
 
@@ -46,6 +47,12 @@ pub fn targets(user_home: &Path, agents: &[GuardAgent]) -> Vec<(GuardAgent, Path
                 let dir = user_home.join(".gemini");
                 if dir.is_dir() {
                     out.push((*agent, dir.join("settings.json")));
+                }
+            }
+            GuardAgent::Cursor => {
+                let dir = user_home.join(".cursor");
+                if dir.is_dir() {
+                    out.push((*agent, dir.join("hooks.json")));
                 }
             }
             GuardAgent::Codex => {

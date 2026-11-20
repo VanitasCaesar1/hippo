@@ -38,8 +38,8 @@ use crate::config::{Config, Workspace};
 use crate::error::{Error, Result};
 
 pub use check::{
-    decide, effective, evaluate, log, parse_call, respond, test_history, Call, Decision, Hit,
-    TestCount, AGENTS,
+    decide, effective, evaluate, log, parse_call, payload_agent, respond, test_history, Call,
+    Decision, Hit, TestCount, AGENTS,
 };
 
 /// The release where `ask` and `block` act; until then they warn.

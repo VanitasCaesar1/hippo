@@ -10,6 +10,8 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 - **The guard in Codex.** `hippo guard install --agent codex` adds a `PreToolUse` entry to `$CODEX_HOME/hooks.json`, beside the session hooks; Codex asks you to trust it at its next start. A warning reaches the model as a developer message and you in Codex's TUI; self-protection refuses with the reason. Codex cannot ask, so a question there will be a refusal. Contract read from Codex's source at 0.170.0 and checked end to end; see the [design](docs/designs/guard.md#codexs-pretooluse-contract).
 
+- **The guard in Cursor.** `hippo guard install --agent cursor` adds a `preToolUse` script to `~/.cursor/hooks.json`. A warning reaches the model as `additional_context` and leaves Cursor's own approval as it was; self-protection denies. cursor-agent also runs Claude Code's `~/.claude/settings.json` hooks, so a Cursor call that reaches the Claude Code entry is answered in Cursor's format, and not at all when Cursor's own entry is installed. Read from the code cursor-agent 2026.11.19 ships; there is no end-to-end run, since cursor-agent cannot use a local model. See the [design](docs/designs/guard.md#cursors-pretooluse-contract).
+
 ### Fixed
 
 - **The guard on a machine where hippo was never set up.** `hippo guard install` works without an index or workspace, but `guard check` then failed open on every call for want of `config.toml`. It now applies the built-in and machine rules.

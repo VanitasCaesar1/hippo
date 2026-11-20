@@ -32,6 +32,8 @@ pub enum InstallAgent {
     Gemini,
     /// Codex's $CODEX_HOME/hooks.json
     Codex,
+    /// Cursor's ~/.cursor/hooks.json
+    Cursor,
 }
 
 impl InstallAgent {
@@ -40,6 +42,7 @@ impl InstallAgent {
             InstallAgent::Claude => GuardAgent::ClaudeCode,
             InstallAgent::Gemini => GuardAgent::Gemini,
             InstallAgent::Codex => GuardAgent::Codex,
+            InstallAgent::Cursor => GuardAgent::Cursor,
         }
     }
 }
@@ -61,14 +64,14 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Add the guard to every Claude Code account (or Gemini CLI, or Codex); lists each file, writes with --yes
+    /// Add the guard to every Claude Code account (or Gemini CLI, Codex or Cursor); lists each file, writes with --yes
     Install {
         #[arg(long, value_enum, default_value_t)]
         agent: InstallAgent,
         #[arg(long)]
         yes: bool,
     },
-    /// Remove the guard from every Claude Code account (or Gemini CLI, or Codex); writes with --yes
+    /// Remove the guard from every Claude Code account (or Gemini CLI, Codex or Cursor); writes with --yes
     Uninstall {
         #[arg(long, value_enum, default_value_t)]
         agent: InstallAgent,
@@ -172,11 +175,21 @@ fn check(agent: &str) -> ExitCode {
             }
         });
     }
+    let mut agent = agent;
     let result = (|| -> Result<(String, Option<(guard::Call, Decision)>)> {
         let compiled = compiled.map_err(|e| anyhow::anyhow!("rules: {e}"))?;
         let mut input = String::new();
         io::stdin().read_to_string(&mut input)?;
         let payload: serde_json::Value = serde_json::from_str(&input)?;
+        // cursor-agent runs Claude Code's user hooks too. Its own entry,
+        // when there is one, checks the call; this one stays quiet.
+        let from = guard::payload_agent(agent, &payload);
+        if from != agent {
+            if cursor_guard_installed() {
+                return Ok(("{}".to_owned(), None));
+            }
+            agent = from;
+        }
         let Some(call) = guard::parse_call(agent, &payload) else {
             // Not a tool call this guard reads: nothing to say.
             return Ok((
@@ -204,6 +217,13 @@ fn check(agent: &str) -> ExitCode {
         }
     }
     ExitCode::SUCCESS
+}
+
+/// Whether `~/.cursor/hooks.json` has hippo's guard.
+fn cursor_guard_installed() -> bool {
+    config::user_home()
+        .map(|h| h.join(".cursor").join("hooks.json"))
+        .is_some_and(|p| matches!(hooks::guard_installed(&p, GuardAgent::Cursor), Ok(Some(_))))
 }
 
 fn one_line(text: &str) -> String {
@@ -258,6 +278,7 @@ fn install(agent: GuardAgent, yes: bool, remove: bool) -> Result<ExitCode> {
                 "no Claude Code account folder found (~/.claude, ~/.claude-*, $CLAUDE_CONFIG_DIR)"
             ),
             GuardAgent::Gemini => bail!("no ~/.gemini folder found"),
+            GuardAgent::Cursor => bail!("no ~/.cursor folder found"),
             GuardAgent::Codex => bail!("no Codex home found ($CODEX_HOME or ~/.codex)"),
         }
     }
@@ -315,6 +336,7 @@ fn agent_event(agent: GuardAgent) -> &'static str {
     match agent {
         GuardAgent::ClaudeCode => "the PreToolUse guard hook",
         GuardAgent::Gemini => "the BeforeTool guard hook",
+        GuardAgent::Cursor => "the preToolUse guard hook",
         GuardAgent::Codex => "the PreToolUse guard hook",
     }
 }

@@ -244,10 +244,14 @@ pub fn guard_check(
                     path.display()
                 ));
             }
-            let blocks_on_failure =
-                fs::read_to_string(path).is_ok_and(|t| t.contains("\"onFailure\""));
+            let key = match agent {
+                GuardAgent::Cursor => "\"failClosed\"",
+                _ => "\"onFailure\"",
+            };
+            let blocks_on_failure = fs::read_to_string(path).is_ok_and(|t| t.contains(key));
             let closed = compiled.fail == crate::accept::Fail::Closed;
-            if *agent == GuardAgent::ClaudeCode && closed != blocks_on_failure {
+            let can_close = matches!(agent, GuardAgent::ClaudeCode | GuardAgent::Cursor);
+            if can_close && closed != blocks_on_failure {
                 stale_fail.push(path.display().to_string());
             }
         }
