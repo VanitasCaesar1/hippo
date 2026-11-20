@@ -2025,6 +2025,53 @@ mod tests {
         assert!((state(&mut vcx).0 - fitted).abs() < 0.001);
     }
 
+    /// Below 900 points every night view takes its narrow layout (Morning
+    /// a feed, Brain a board, Agents and Guard stacked) and the map is not
+    /// painted; widened again, the canvas comes back.
+    #[gpui::test]
+    fn the_night_views_switch_to_the_narrow_layout_below_900_points(cx: &mut TestAppContext) {
+        setup_globals(cx);
+        let (dir, home) = ready_home();
+        let notes = dir.path().join("ws/notes");
+        std::fs::create_dir_all(&notes).unwrap();
+        std::fs::write(notes.join("index.md"), "# Index\n\nSee [[a]].\n").unwrap();
+        std::fs::write(notes.join("a.md"), "# A\n\nA note.\n").unwrap();
+        let (window, mut vcx) = open(cx, &home);
+        let root = window.root(&mut vcx).unwrap();
+        let narrow = |vcx: &mut VisualTestContext| root.read_with(vcx, |s, _| s.night.narrow);
+        for section in [
+            Section::Morning,
+            Section::Brain,
+            Section::Agents,
+            Section::Guard,
+        ] {
+            root.update(&mut vcx, |s, cx| {
+                s.state.tabs.select(section);
+                cx.notify();
+            });
+            vcx.simulate_resize(gpui::size(gpui::px(1440.), gpui::px(900.)));
+            vcx.run_until_parked();
+            assert!(!narrow(&mut vcx), "{section:?} at 1440 is the canvas");
+            vcx.simulate_resize(gpui::size(gpui::px(860.), gpui::px(720.)));
+            vcx.run_until_parked();
+            assert!(narrow(&mut vcx), "{section:?} at 860 is narrow");
+        }
+        // Brain's board paints no map: the map's view keeps its last size.
+        root.update(&mut vcx, |s, cx| {
+            s.state.tabs.select(Section::Brain);
+            s.night.map.view.set((0., 0., 1., 1.));
+            cx.notify();
+        });
+        vcx.run_until_parked();
+        assert_eq!(
+            root.read_with(&vcx, |s, _| s.night.map.view.get()),
+            (0., 0., 1., 1.)
+        );
+        vcx.simulate_resize(gpui::size(gpui::px(1440.), gpui::px(900.)));
+        vcx.run_until_parked();
+        assert!(root.read_with(&vcx, |s, _| s.night.map.view.get().2) > 100.);
+    }
+
     fn write_harbour(home: &Path, window: &str, pad: usize) {
         std::fs::create_dir_all(home.join("themes")).unwrap();
         let body = format!(

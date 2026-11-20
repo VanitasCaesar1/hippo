@@ -58,6 +58,8 @@ pub struct NightUi {
     pub dev_zoom: Option<f32>,
     /// Brain's map: pan, zoom, the press, frame times.
     pub map: brain::MapView,
+    /// The last draw was below [`NARROW`]: the feed and the board.
+    pub narrow: bool,
     /// The incident whose Fix with waits for a yes.
     pub fixing: Option<String>,
     /// What the last Fix with did.
@@ -78,6 +80,7 @@ impl Default for NightUi {
             dev_select: None,
             dev_zoom: None,
             map: brain::MapView::default(),
+            narrow: false,
             fixing: None,
             fix_said: None,
         }
@@ -674,6 +677,7 @@ impl Shell {
         let vw = f32::from(window.viewport_size().width) / unit;
         let vh = f32::from(window.viewport_size().height) / unit;
         let narrow = vw < NARROW;
+        self.night.narrow = narrow;
         let panel_w = if vw < 1200. { PANEL_W_SMALL } else { PANEL_W };
         let left_w = if narrow { vw } else { vw - panel_w - 2. * EDGE };
         let ask_w = (left_w - 2. * 24.).clamp(280., 880.);

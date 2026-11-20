@@ -76,7 +76,8 @@ Below 900 points of width a canvas has no room. Morning and Brain switch to B's 
 
 - **Morning** becomes a feed: the headline, the four figures two by two, the strip, then *Waiting for you* as cards with each rule's evidence quoted inside the card, then *Applied overnight* and *Rejected*. The start-block panel moves below the feed.
 - **Brain** becomes a board: the entry note's card, then each folder as a heading over a two-column grid of note cards (one column below 640 points). A selected note's neighbours get a dashed indigo border and a *linked* chip; its panel moves below the board. Zoom is off in the board.
-- Agents and Guard stack their columns.
+- Agents and Guard stack their columns, each list followed by its panel. Above 900 points, Guard keeps its three columns down to 600 points of column width (its lines narrow first) and stacks below that, beside the panel.
+- The breakpoint is the window's width, read at every draw; resizing across it switches every view at once, and Brain's map is not painted while the board shows.
 
 ### Where the old views went
 
