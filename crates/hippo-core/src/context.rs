@@ -1,6 +1,9 @@
 //! The context compiler: the budgeted block an agent sees when a session
 //! starts.
 //!
+//! [`Compiled::add_rules`] adds the kept rules after the required parts,
+//! shrunk to what the budget leaves (`docs/designs/remember.md`).
+//!
 //! Six parts, in this order: 1. warning lines, 2. the entry note's opening
 //! section, 3. the required notes, 4. the session line, 5. relevant notes
 //! (only with a task) and 6. linter counts. Parts 1 to 4 are required: when
@@ -10,6 +13,7 @@
 //! blank line, and an empty part is left out.
 
 pub mod rank;
+pub mod topic;
 
 use std::cmp::Ordering;
 use std::fmt;
@@ -32,6 +36,8 @@ pub enum Part {
     Entry,
     Required,
     Session,
+    /// The kept rules: never fails a compile, shrinks to fit.
+    Rules,
     Relevant,
     Linter,
 }
@@ -44,6 +50,7 @@ impl Part {
             Part::Entry => "entry",
             Part::Required => "required",
             Part::Session => "session",
+            Part::Rules => "rules",
             Part::Relevant => "relevant",
             Part::Linter => "linter",
         }
@@ -104,6 +111,107 @@ impl Compiled {
         render(&self.parts)
     }
 
+    /// Adds the Rules part after the required parts: `rules` in their
+    /// order (machine rules only when `in_workspace` is false), as many as
+    /// fit in `cap` bytes and in what `budget` leaves. Returns the ids of
+    /// the rules it carries.
+    pub fn add_rules(
+        &mut self,
+        rules: &[crate::lessons::Rule],
+        in_workspace: bool,
+        cap: usize,
+        budget: usize,
+    ) -> Vec<ulid::Ulid> {
+        let wanted: Vec<&crate::lessons::Rule> =
+            rules.iter().filter(|r| in_workspace || r.machine).collect();
+        if wanted.is_empty() {
+            return Vec::new();
+        }
+        // Rules come before the optional parts: drop those, last first,
+        // while the rules' share of the cap does not fit.
+        let want = rules_text(&wanted, cap).0.len();
+        while self.bytes + 2 + want > budget
+            && self
+                .parts
+                .last()
+                .is_some_and(|(p, _)| matches!(p, Part::Relevant | Part::Linter))
+        {
+            let (part, text) = self.parts.pop().expect("a last part");
+            if part == Part::Relevant {
+                self.relevant.clear();
+                self.why.clear();
+                self.weak.clear();
+            }
+            self.omitted.push((part, text.len()));
+            self.bytes = self.text().len();
+        }
+        let room = budget.saturating_sub(self.bytes + if self.parts.is_empty() { 1 } else { 2 });
+        let (text, ids) = rules_text(&wanted, cap.min(room));
+        if text.is_empty() {
+            return ids;
+        }
+        let at = self
+            .parts
+            .iter()
+            .position(|(p, _)| *p > Part::Rules)
+            .unwrap_or(self.parts.len());
+        self.parts.insert(at, (Part::Rules, text));
+        self.bytes = self.text().len();
+        ids
+    }
+}
+
+/// The heading of the Rules part.
+pub const RULES_HEADING: &str = "rules (kept from your corrections; follow them):";
+
+/// The Rules part for `rules`, best first, in at most `budget` bytes: the
+/// heading and one line per rule, `- <rule>`, and when some do not fit,
+/// `(+N more: hippo lessons --all)`. Empty when not even one rule fits.
+pub fn rules_text(rules: &[&crate::lessons::Rule], budget: usize) -> (String, Vec<ulid::Ulid>) {
+    let mut text = String::from(RULES_HEADING);
+    let mut ids = Vec::new();
+    for (k, r) in rules.iter().enumerate() {
+        let line = format!("\n- {}", r.text);
+        let rest = rules.len() - k - 1;
+        let more = if rest > 0 {
+            format!("\n(+{rest} more: hippo lessons --all)").len()
+        } else {
+            0
+        };
+        if text.len() + line.len() + more > budget {
+            if ids.is_empty() {
+                return (String::new(), Vec::new());
+            }
+            text.push_str(&format!(
+                "\n(+{} more: hippo lessons --all)",
+                rules.len() - k
+            ));
+            return (text, ids);
+        }
+        text.push_str(&line);
+        ids.push(r.id);
+    }
+    if ids.is_empty() {
+        return (String::new(), Vec::new());
+    }
+    (text, ids)
+}
+
+/// The relevant part's lines for the notes in `paths` not in `given`,
+/// from [`Compiled`]'s `relevant` part, under `heading`.
+pub fn new_relevant_lines(compiled: &Compiled, given: &[PathBuf]) -> Vec<(PathBuf, String)> {
+    let Some((_, text)) = compiled.parts.iter().find(|(p, _)| *p == Part::Relevant) else {
+        return Vec::new();
+    };
+    text.lines()
+        .skip(1)
+        .zip(&compiled.relevant)
+        .filter(|(_, p)| !given.contains(p))
+        .map(|(l, p)| (p.clone(), l.to_owned()))
+        .collect()
+}
+
+impl Compiled {
     /// One `omitted: <part> (<bytes>)` line per dropped part, for stderr.
     pub fn omitted_lines(&self) -> Vec<String> {
         self.omitted

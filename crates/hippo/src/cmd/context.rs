@@ -37,7 +37,7 @@ enum Parts {
 }
 
 pub fn run(args: Args) -> Result<ExitCode> {
-    let (_, workspace) = super::load()?;
+    let (config, workspace) = super::load()?;
     let session = match &args.session {
         Some(id) => Some(sessions::get(&workspace, id)?.ok_or_else(|| anyhow!("no session {id}"))?),
         None => None,
@@ -52,7 +52,7 @@ pub fn run(args: Args) -> Result<ExitCode> {
     let repo = std::env::current_dir()
         .ok()
         .and_then(|dir| context::rank::repo_name(&dir, &workspace.root));
-    let compiled = context::compile(
+    let mut compiled = context::compile(
         &workspace,
         None,
         args.task.as_deref(),
@@ -61,6 +61,12 @@ pub fn run(args: Args) -> Result<ExitCode> {
         budget,
         selection,
     )?;
+    // The kept rules go with the required parts (the dsh and OpenCode
+    // plugins print `--parts required`).
+    if selection != PartSelection::Optional {
+        let rules = hippo_core::lessons::kept_rules(&config.home, Some(&workspace));
+        compiled.add_rules(&rules, true, config.remember.rules_budget(), budget);
+    }
     if args.json {
         let paths = |paths: &[std::path::PathBuf]| -> Vec<String> {
             paths.iter().map(|p| p.display().to_string()).collect()

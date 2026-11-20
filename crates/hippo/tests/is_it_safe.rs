@@ -67,6 +67,7 @@ fn every_hook_is_on_the_page() {
     let mut found = Vec::new();
     for (i, agent) in [
         Agent::ClaudeCode,
+        Agent::ClaudeCodeUser,
         Agent::Codex,
         Agent::Cursor,
         Agent::Gemini,

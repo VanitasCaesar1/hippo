@@ -108,6 +108,7 @@ pub fn mcp_commands(files: &[PathBuf]) -> Vec<(PathBuf, String)> {
 fn agent_flag(agent: Agent) -> &'static str {
     match agent {
         Agent::ClaudeCode => "",
+        Agent::ClaudeCodeUser => " --user",
         Agent::Codex => " --agent codex",
         Agent::Cursor => " --agent cursor",
         Agent::Gemini => " --agent gemini",

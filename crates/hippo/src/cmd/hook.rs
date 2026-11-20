@@ -20,9 +20,17 @@
 //! With `--agent cursor`, `session-start` is a Cursor `sessionStart` hook
 //! (`~/.cursor/hooks.json`): read-only, it prints the required parts as
 //! `{"additional_context": …}` when one of the input's `workspace_roots` is
-//! in the workspace, and nothing otherwise. Cursor has no prompt hook that
-//! adds context, and hippo writes no session record for it: ingest reads
-//! the session from its transcript.
+//! in the workspace, and the machine rules otherwise. Cursor has no prompt
+//! hook that adds context, and hippo writes no session record for it:
+//! ingest reads the session from its transcript.
+//!
+//! Every start block carries the kept rules (`docs/designs/remember.md`).
+//! Outside the workspace the Codex, Gemini CLI and Cursor hooks and the
+//! plugin's print the machine rules only, and `hippo hook session-start
+//! --rules-only` (the Claude Code user hook, `hippo hooks install --user`)
+//! does the same. A later prompt of a long session gets the notes and
+//! rules of a new topic when the topic changes. Each output is logged in
+//! `$HIPPO_HOME/logs/injections.jsonl`.
 
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -30,8 +38,10 @@ use std::process::ExitCode;
 
 use anyhow::{anyhow, Result};
 use hippo_core::config::{self, Config, Workspace};
-use hippo_core::context::{self, PartSelection};
+use hippo_core::context::topic::{self, Injection, Topic};
+use hippo_core::context::{self, Compiled, PartSelection};
 use hippo_core::hooks;
+use hippo_core::lessons;
 use hippo_core::records::Tool;
 use hippo_core::sessions;
 use serde_json::Value;
@@ -49,6 +59,11 @@ pub enum Command {
         /// prints it
         #[arg(long, conflicts_with = "agent")]
         plugin: bool,
+        /// Print only the kept rules: the machine rules outside the
+        /// workspace, and nothing inside it when a workspace hook gives the
+        /// whole block (the Claude Code user hook)
+        #[arg(long, conflicts_with = "plugin")]
+        rules_only: bool,
         /// The agent running the hook: claude-code, codex, cursor or gemini
         #[arg(long, value_enum, default_value_t)]
         agent: AgentArg,
@@ -85,6 +100,15 @@ pub fn run(command: Command) -> ExitCode {
         let _ = plugin_session_start();
         return ExitCode::SUCCESS;
     }
+    if let Command::SessionStart {
+        rules_only: true, ..
+    } = command
+    {
+        if let Err(err) = rules_only_session_start() {
+            eprintln!("hippo hook: {}", one_line(&format!("{err:#}")));
+        }
+        return ExitCode::SUCCESS;
+    }
     let result = match command.agent() {
         AgentArg::ClaudeCode => hook(command),
         AgentArg::Codex => codex_hook(command, Hooked::Codex),
@@ -105,12 +129,13 @@ fn hook(command: Command) -> Result<()> {
         .get("session_id")
         .and_then(Value::as_str)
         .ok_or_else(|| anyhow!("the hook input has no session_id"))?;
-    let (_, workspace) = super::load()?;
+    let (cfg, workspace) = super::load()?;
     match command {
-        // Start the session, print parts 1 to 4, and record their size.
+        // Start the session, print parts 1 to 4 and the rules, and record
+        // their size.
         Command::SessionStart { .. } => {
             let session = sessions::start(&workspace, Tool::ClaudeCode, id, None)?;
-            let compiled = context::compile(
+            let mut compiled = context::compile(
                 &workspace,
                 None,
                 None,
@@ -119,22 +144,28 @@ fn hook(command: Command) -> Result<()> {
                 workspace.budget_bytes,
                 PartSelection::Required,
             )?;
+            let rules = add_rules(&cfg, &workspace, &mut compiled);
             let text = compiled.text();
             print!("{text}");
             sessions::set_context_start(&workspace, id, compiled.bytes, Some(&text))?;
+            started(&cfg, id, "claude-code", rules, text.len());
         }
         // On the first prompt only: parts 5 and 6 within what is left of
         // the budget, then the prompt becomes the task.
         Command::Prompt { .. } => {
-            let session =
-                sessions::get(&workspace, id)?.ok_or_else(|| anyhow!("no session {id}"))?;
-            if session.task_seen {
+            let Some(session) = sessions::get(&workspace, id)? else {
                 return Ok(());
-            }
+            };
             let prompt = input
                 .get("prompt")
                 .and_then(Value::as_str)
                 .unwrap_or_default();
+            if session.task_seen {
+                if let Some(text) = new_topic(&cfg, &workspace, id, "claude-code", prompt)? {
+                    print!("{text}");
+                }
+                return Ok(());
+            }
             // The repository the session works in: the hook's `cwd`, else
             // this process's directory.
             let cwd = input
@@ -161,6 +192,7 @@ fn hook(command: Command) -> Result<()> {
                 eprintln!("{line}");
             }
             sessions::set_task_seen_and_context(&workspace, id, prompt, Some(&text))?;
+            first_prompt(&cfg, id, "claude-code", prompt, &compiled, text.len());
         }
         Command::SessionEnd { .. } => {
             sessions::end(&workspace, id, &[], None, None)?;
@@ -216,22 +248,42 @@ fn codex_hook(command: Command, agent: Hooked) -> Result<()> {
         Err(hippo_core::error::Error::NotSetUp(_)) => return Ok(()),
         Err(err) => return Err(err.into()),
     };
-    if config.workspace.is_none() {
-        return Ok(());
-    }
-    let workspace = Workspace::load(&config)?;
-    let Some(cwd) = input.get("cwd").and_then(Value::as_str) else {
+    let id = agent.id(raw);
+    let cwd = input.get("cwd").and_then(Value::as_str).map(PathBuf::from);
+    let workspace = match &config.workspace {
+        Some(_) => Some(Workspace::load(&config)?),
+        None => None,
+    };
+    let inside = match (&workspace, &cwd) {
+        (Some(ws), Some(cwd)) => canonical(cwd).starts_with(canonical(&ws.root)),
+        _ => false,
+    };
+    let (Some(workspace), true) = (workspace, inside) else {
+        // Outside the workspace: the machine rules at the start, nothing
+        // else.
+        let top = input.get("agent_id").is_none_or(Value::is_null);
+        if matches!(command, Command::SessionStart { .. }) && top {
+            let (text, rules) = machine_rules(&config);
+            print_codex_context("SessionStart", &text);
+            if !text.is_empty() {
+                log_injection(
+                    &config,
+                    &id,
+                    agent.tool().as_str(),
+                    "rules-only",
+                    rules,
+                    Vec::new(),
+                    text.len(),
+                );
+            }
+        }
         return Ok(());
     };
-    let cwd = PathBuf::from(cwd);
-    if !canonical(&cwd).starts_with(canonical(&workspace.root)) {
-        return Ok(());
-    }
-    let id = agent.id(raw);
+    let Some(cwd) = cwd else { return Ok(()) };
     match command {
         Command::SessionStart { .. } => {
             let session = sessions::start(&workspace, agent.tool(), &id, None)?;
-            let compiled = context::compile(
+            let mut compiled = context::compile(
                 &workspace,
                 None,
                 None,
@@ -240,9 +292,11 @@ fn codex_hook(command: Command, agent: Hooked) -> Result<()> {
                 workspace.budget_bytes,
                 PartSelection::Required,
             )?;
+            let rules = add_rules(&config, &workspace, &mut compiled);
             let text = compiled.text();
             print_codex_context("SessionStart", &text);
             sessions::set_context_start(&workspace, &id, compiled.bytes, Some(&text))?;
+            started(&config, &id, agent.tool().as_str(), rules, text.len());
         }
         Command::Prompt { .. } => {
             if input.get("agent_id").is_some_and(|v| !v.is_null()) {
@@ -251,13 +305,21 @@ fn codex_hook(command: Command, agent: Hooked) -> Result<()> {
             let Some(session) = sessions::get(&workspace, &id)? else {
                 return Ok(());
             };
-            if session.derived || session.task_seen {
+            if session.derived {
                 return Ok(());
             }
             let prompt = input
                 .get("prompt")
                 .and_then(Value::as_str)
                 .unwrap_or_default();
+            if session.task_seen {
+                if let Some(text) =
+                    new_topic(&config, &workspace, &id, agent.tool().as_str(), prompt)?
+                {
+                    print_codex_context(agent.prompt_event(), &text);
+                }
+                return Ok(());
+            }
             let repo = context::rank::repo_name(&cwd, &workspace.root);
             let budget = workspace
                 .budget_bytes
@@ -277,6 +339,14 @@ fn codex_hook(command: Command, agent: Hooked) -> Result<()> {
                 eprintln!("{line}");
             }
             sessions::set_task_seen_and_context(&workspace, &id, prompt, Some(&text))?;
+            first_prompt(
+                &config,
+                &id,
+                agent.tool().as_str(),
+                prompt,
+                &compiled,
+                text.len(),
+            );
         }
         Command::SessionEnd { .. } => {
             let Some(session) = sessions::get(&workspace, &id)? else {
@@ -310,33 +380,56 @@ fn cursor_hook(command: Command) -> Result<()> {
         Err(hippo_core::error::Error::NotSetUp(_)) => return Ok(()),
         Err(err) => return Err(err.into()),
     };
-    if config.workspace.is_none() {
-        return Ok(());
-    }
-    let workspace = Workspace::load(&config)?;
-    let root = canonical(&workspace.root);
-    let inside = input
-        .get("workspace_roots")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .any(|dir| canonical(Path::new(dir)).starts_with(&root));
-    if !inside {
-        return Ok(());
-    }
-    let compiled = context::compile(
-        &workspace,
-        None,
-        None,
-        None,
-        None,
-        workspace.budget_bytes,
-        PartSelection::Required,
-    )?;
-    let text = compiled.text();
+    let session = input
+        .get("session_id")
+        .or_else(|| input.get("conversation_id"))
+        .and_then(Value::as_str)
+        .map(|s| format!("cursor-{s}"))
+        .unwrap_or_else(|| "cursor".to_owned());
+    let workspace = match &config.workspace {
+        Some(_) => Some(Workspace::load(&config)?),
+        None => None,
+    };
+    let inside = workspace.as_ref().is_some_and(|ws| {
+        let root = canonical(&ws.root);
+        input
+            .get("workspace_roots")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .any(|dir| canonical(Path::new(dir)).starts_with(&root))
+    });
+    let (text, rules, event) = match (workspace, inside) {
+        (Some(workspace), true) => {
+            let mut compiled = context::compile(
+                &workspace,
+                None,
+                None,
+                None,
+                None,
+                workspace.budget_bytes,
+                PartSelection::Required,
+            )?;
+            let rules = add_rules(&config, &workspace, &mut compiled);
+            (compiled.text(), rules, "start")
+        }
+        _ => {
+            let (text, rules) = machine_rules(&config);
+            (text, rules, "rules-only")
+        }
+    };
     if !text.trim().is_empty() {
         println!("{}", serde_json::json!({ "additional_context": text }));
+        log_injection(
+            &config,
+            &session,
+            "cursor",
+            event,
+            rules,
+            Vec::new(),
+            text.len(),
+        );
     }
     Ok(())
 }
@@ -380,8 +473,11 @@ fn plugin_session_start() -> Result<()> {
     io::stdin().read_to_string(&mut stdin)?;
     let input: Value = serde_json::from_str(&stdin).unwrap_or(Value::Null);
     let config = Config::load()?;
-    let workspace = Workspace::load(&config)?;
-    let root = canonical(&workspace.root);
+    let session = input
+        .get("session_id")
+        .and_then(Value::as_str)
+        .unwrap_or("plugin")
+        .to_owned();
     let dir = input
         .get("cwd")
         .and_then(Value::as_str)
@@ -390,13 +486,36 @@ fn plugin_session_start() -> Result<()> {
         .or_else(|| std::env::current_dir().ok())
         .ok_or_else(|| anyhow!("no session directory"))?;
     let dir = canonical(&dir);
-    if !dir.starts_with(&root) {
+    let workspace = match &config.workspace {
+        Some(_) => Some(Workspace::load(&config)?),
+        None => None,
+    };
+    let Some(workspace) = workspace.filter(|ws| dir.starts_with(canonical(&ws.root))) else {
+        // Outside the workspace: the machine rules, unless the user hook
+        // gives them.
+        if user_settings().is_some_and(|f| hooks::file_runs_rules_only(&f)) {
+            return Ok(());
+        }
+        let (text, rules) = machine_rules(&config);
+        print!("{text}");
+        if !text.is_empty() {
+            log_injection(
+                &config,
+                &session,
+                "plugin",
+                "rules-only",
+                rules,
+                Vec::new(),
+                text.len(),
+            );
+        }
         return Ok(());
-    }
+    };
+    let root = canonical(&workspace.root);
     if already_hooked(&dir, &root) {
         return Ok(());
     }
-    let compiled = context::compile(
+    let mut compiled = context::compile(
         &workspace,
         None,
         None,
@@ -405,8 +524,250 @@ fn plugin_session_start() -> Result<()> {
         workspace.budget_bytes,
         PartSelection::Required,
     )?;
-    print!("{}", compiled.text());
+    let rules = add_rules(&config, &workspace, &mut compiled);
+    let text = compiled.text();
+    print!("{text}");
+    log_injection(
+        &config,
+        &session,
+        "plugin",
+        "start",
+        rules,
+        Vec::new(),
+        text.len(),
+    );
     Ok(())
+}
+
+/// The Claude Code user hook (`hippo hooks install --user`): the machine
+/// rules outside the workspace; inside it, nothing when a workspace hook
+/// gives the whole block, else every kept rule. No session record.
+fn rules_only_session_start() -> Result<()> {
+    let mut stdin = String::new();
+    io::stdin().read_to_string(&mut stdin)?;
+    let input: Value = serde_json::from_str(&stdin).unwrap_or(Value::Null);
+    let config = match Config::load() {
+        Ok(config) => config,
+        Err(hippo_core::error::Error::NotSetUp(_)) => return Ok(()),
+        Err(err) => return Err(err.into()),
+    };
+    let session = input
+        .get("session_id")
+        .and_then(Value::as_str)
+        .unwrap_or("user-hook")
+        .to_owned();
+    let dir = input
+        .get("cwd")
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .or_else(|| std::env::current_dir().ok())
+        .map(|d| canonical(&d));
+    let workspace = match &config.workspace {
+        Some(_) => Workspace::load(&config).ok(),
+        None => None,
+    };
+    let inside = match (&workspace, &dir) {
+        (Some(ws), Some(dir)) => dir.starts_with(canonical(&ws.root)),
+        _ => false,
+    };
+    let (text, rules) = match (&workspace, inside, &dir) {
+        (Some(ws), true, Some(dir)) => {
+            let root = canonical(&ws.root);
+            if already_hooked(dir, &root) {
+                return Ok(());
+            }
+            let rules = lessons::kept_rules(&config.home, Some(ws));
+            let refs: Vec<&lessons::Rule> = rules.iter().collect();
+            let (t, ids) = context::rules_text(&refs, config.remember.rules_budget());
+            (if t.is_empty() { t } else { t + "\n" }, ids)
+        }
+        _ => machine_rules(&config),
+    };
+    print!("{text}");
+    if !text.is_empty() {
+        log_injection(
+            &config,
+            &session,
+            "claude-code",
+            "rules-only",
+            rules,
+            Vec::new(),
+            text.len(),
+        );
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Rules, topics and the delivery log
+
+/// Adds the kept rules to a workspace start block; their ids.
+fn add_rules(cfg: &Config, ws: &Workspace, compiled: &mut Compiled) -> Vec<ulid::Ulid> {
+    let rules = lessons::kept_rules(&cfg.home, Some(ws));
+    compiled.add_rules(&rules, true, cfg.remember.rules_budget(), ws.budget_bytes)
+}
+
+/// The machine rules alone, as a block, and their ids; empty when there
+/// are none.
+fn machine_rules(cfg: &Config) -> (String, Vec<ulid::Ulid>) {
+    let rules = lessons::kept_rules(&cfg.home, None);
+    let refs: Vec<&lessons::Rule> = rules.iter().filter(|r| r.machine).collect();
+    let (text, ids) = context::rules_text(&refs, cfg.remember.rules_budget());
+    if text.is_empty() {
+        return (text, ids);
+    }
+    (text + "\n", ids)
+}
+
+/// Logs a delivery; a hook never fails on it.
+fn log_injection(
+    cfg: &Config,
+    session: &str,
+    agent: &str,
+    event: &str,
+    rules: Vec<ulid::Ulid>,
+    notes: Vec<PathBuf>,
+    bytes: usize,
+) {
+    let _ = topic::log(
+        &cfg.home,
+        &Injection {
+            at: time::OffsetDateTime::now_utc(),
+            session: session.to_owned(),
+            agent: agent.to_owned(),
+            event: event.to_owned(),
+            rules,
+            notes,
+            bytes,
+        },
+    );
+}
+
+/// After a start block: the session's topic state begins with the rules it
+/// carries, old state files are swept, and the delivery is logged.
+fn started(cfg: &Config, session: &str, agent: &str, rules: Vec<ulid::Ulid>, bytes: usize) {
+    topic::sweep(&cfg.home, std::time::SystemTime::now());
+    let state = Topic {
+        rules: rules.clone(),
+        ..Topic::default()
+    };
+    let _ = state.save(&cfg.home, session);
+    log_injection(cfg, session, agent, "start", rules, Vec::new(), bytes);
+}
+
+/// After the first prompt's notes: they join the topic state, with the
+/// prompt's terms.
+fn first_prompt(
+    cfg: &Config,
+    session: &str,
+    agent: &str,
+    prompt: &str,
+    compiled: &Compiled,
+    bytes: usize,
+) {
+    let mut state = Topic::load(&cfg.home, session).unwrap_or_default();
+    state.changed(
+        &lessons::detect::key_terms(prompt),
+        cfg.remember.reinject_every(),
+    );
+    state.notes.extend(compiled.relevant.iter().cloned());
+    let _ = state.save(&cfg.home, session);
+    if bytes > 0 {
+        log_injection(
+            cfg,
+            session,
+            agent,
+            "prompt",
+            Vec::new(),
+            compiled.relevant.clone(),
+            bytes,
+        );
+    }
+}
+
+/// A later prompt: when its topic is new, the kept rules that share its
+/// words and were not given yet, and the relevant notes not given yet,
+/// within the workspace budget. `None` when the topic is the same, the
+/// session has no state, or there is nothing new.
+fn new_topic(
+    cfg: &Config,
+    ws: &Workspace,
+    session: &str,
+    agent: &str,
+    prompt: &str,
+) -> Result<Option<String>> {
+    let Some(mut state) = Topic::load(&cfg.home, session) else {
+        return Ok(None);
+    };
+    let terms = lessons::detect::key_terms(prompt);
+    if !state.changed(&terms, cfg.remember.reinject_every()) {
+        state.save(&cfg.home, session)?;
+        return Ok(None);
+    }
+    let compiled = context::compile(
+        ws,
+        None,
+        Some(prompt),
+        None,
+        None,
+        ws.budget_bytes,
+        PartSelection::Optional,
+    )?;
+    let notes = context::new_relevant_lines(&compiled, &state.notes);
+    let rules: Vec<lessons::Rule> = lessons::kept_rules(&cfg.home, Some(ws))
+        .into_iter()
+        .filter(|r| !state.rules.contains(&r.id))
+        .filter(|r| r.terms.iter().any(|t| terms.contains(t)))
+        .take(3)
+        .collect();
+    if notes.is_empty() && rules.is_empty() {
+        state.save(&cfg.home, session)?;
+        return Ok(None);
+    }
+    let mut text = String::from("For the new topic:");
+    let mut given_rules = Vec::new();
+    for r in &rules {
+        let line = format!("\n- {}", r.text);
+        if text.len() + line.len() < ws.budget_bytes {
+            text.push_str(&line);
+            given_rules.push(r.id);
+        }
+    }
+    let mut given_notes = Vec::new();
+    if !notes.is_empty() && text.len() + 10 < ws.budget_bytes {
+        text.push_str("\nrelevant:");
+        for (path, line) in notes {
+            if text.len() + line.len() + 1 < ws.budget_bytes {
+                text.push('\n');
+                text.push_str(&line);
+                given_notes.push(path);
+            }
+        }
+    }
+    text.push('\n');
+    state.rules.extend(given_rules.iter().copied());
+    state.notes.extend(given_notes.iter().cloned());
+    state.save(&cfg.home, session)?;
+    log_injection(
+        cfg,
+        session,
+        agent,
+        "topic",
+        given_rules,
+        given_notes,
+        text.len(),
+    );
+    Ok(Some(text))
+}
+
+/// The user's Claude Code `settings.json` (`$CLAUDE_CONFIG_DIR`, else
+/// `~/.claude`).
+fn user_settings() -> Option<PathBuf> {
+    std::env::var_os("CLAUDE_CONFIG_DIR")
+        .filter(|d| !d.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| config::user_home().map(|h| h.join(".claude")))
+        .map(|d| d.join("settings.json"))
 }
 
 fn canonical(path: &Path) -> PathBuf {

@@ -58,10 +58,16 @@ pub const GEMINI_HOOKS: [(&str, &str); 3] = [
 /// Cursor's one hook event and its subcommand.
 pub const CURSOR_HOOKS: [(&str, &str); 1] = [("sessionStart", "session-start")];
 
+/// The Claude Code user hook (`hippo hooks install --user`): the kept rules
+/// in every session, inside the workspace or not.
+pub const CLAUDE_USER_HOOKS: [(&str, &str); 1] = [("SessionStart", "session-start --rules-only")];
+
 /// The agent whose hooks file is meant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Agent {
     ClaudeCode,
+    /// Claude Code's user `settings.json`: the rules-only start hook.
+    ClaudeCodeUser,
     Codex,
     Cursor,
     Gemini,
@@ -73,6 +79,7 @@ impl Agent {
         match self {
             Agent::Cursor => &CURSOR_HOOKS,
             Agent::Gemini => &GEMINI_HOOKS,
+            Agent::ClaudeCodeUser => &CLAUDE_USER_HOOKS,
             _ => &HOOKS,
         }
     }
@@ -81,7 +88,7 @@ impl Agent {
     /// `hook <sub> --agent codex`.
     fn suffix(self, sub: &str) -> String {
         match self {
-            Agent::ClaudeCode => format!("hook {sub}"),
+            Agent::ClaudeCode | Agent::ClaudeCodeUser => format!("hook {sub}"),
             Agent::Codex => format!("hook {sub} --agent codex"),
             Agent::Cursor => format!("hook {sub} --agent cursor"),
             Agent::Gemini => format!("hook {sub} --agent gemini"),
@@ -127,6 +134,16 @@ impl Agent {
         }
         J::Object(vec![("hooks".into(), J::Array(vec![J::Object(hook)]))])
     }
+}
+
+/// The user's Claude Code `settings.json`: `$CLAUDE_CONFIG_DIR`, else
+/// `~/.claude`.
+pub fn claude_user_settings_path() -> Option<PathBuf> {
+    std::env::var_os("CLAUDE_CONFIG_DIR")
+        .filter(|d| !d.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| crate::config::user_home().map(|h| h.join(".claude")))
+        .map(|d| d.join("settings.json"))
 }
 
 /// `<workspace>/.claude/settings.local.json`, the person's own Claude Code
@@ -514,6 +531,15 @@ pub fn file_runs_session_start(path: &Path) -> bool {
         .get("hooks")
         .and_then(|h| h.get("SessionStart"))
         .is_some_and(|e| e.runs(&Agent::ClaudeCode.suffix("session-start"))))
+}
+
+/// Whether the Claude Code settings file at `path` has hippo's user hook,
+/// `hippo hook session-start --rules-only`.
+pub fn file_runs_rules_only(path: &Path) -> bool {
+    matches!(read(path), Ok(Some(tree)) if tree
+        .get("hooks")
+        .and_then(|h| h.get("SessionStart"))
+        .is_some_and(|e| e.runs("hook session-start --rules-only")))
 }
 
 /// What [`install_file`] changed: the events whose hook it added, and those

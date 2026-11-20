@@ -22,14 +22,16 @@ Hooks are added only by commands you run (`hippo setup --yes`, `hippo hooks inst
 | | | `BeforeAgent` | `hippo hook prompt --agent gemini` |
 | | | `SessionEnd` | `hippo hook session-end --agent gemini` |
 | Cursor | `~/.cursor/hooks.json` | `sessionStart` | `hippo hook session-start --agent cursor` |
+| Claude Code, user (`hippo hooks install --user`) | `$CLAUDE_CONFIG_DIR/settings.json` (`~/.claude/settings.json`) | `SessionStart` | `hippo hook session-start --rules-only` |
 | Claude Code plugin | `plugin/hooks/hooks.json`, inside the plugin | `SessionStart` | `hippo hook session-start --plugin` (the binary named in `~/.hippo/bin-path`) |
 
 What they read and write:
 
-- **session-start** reads the hook's JSON on stdin (session id, working directory), your notes and `~/.hippo`. It prints the start block (the entry note, the required notes, kept rules) for the agent to add to the session. For Claude Code, Codex and Gemini CLI it writes one session record, `<project>/.hippo/sessions/<id>.json`, which is ignored by git. It acts only for a session whose directory is inside hippo's workspace; elsewhere it prints nothing and writes nothing.
-- **prompt** runs on the first prompt only: it prints the notes relevant to the task and adds the task to the same record.
+- **session-start** reads the hook's JSON on stdin (session id, working directory), your notes and `~/.hippo`. It prints the start block (the entry note, the required notes, the rules you kept) for the agent to add to the session. For Claude Code, Codex and Gemini CLI it writes one session record, `<project>/.hippo/sessions/<id>.json`, which is ignored by git, and a small state file, `~/.hippo/hook-state/<id>.json` (prompt count, the words of recent prompts, what was given; removed after 14 days). For a session outside hippo's workspace it prints only your machine-wide rules and writes no record; `--rules-only` does the same for the Claude Code user hook, and prints nothing inside the workspace when the workspace hook is there.
+- **prompt** on the first prompt prints the notes relevant to the task and adds the task to the same record. On a later prompt it prints something only when the topic changed (new words, at least 5 prompts since the last time): the notes and kept rules for the new topic not given yet.
+- **Every output** adds one line to `~/.hippo/logs/injections.jsonl`: the session id, the agent, which rules and notes it gave and its size, never your prompt.
 - **session-end** marks the record ended. For Codex and Gemini CLI it reads the session's transcript (read only) to keep the last answer as the handoff.
-- **The Cursor hook and the plugin's hook are read-only**: they print the start block and write nothing. The plugin's hook stays silent when a settings file already runs hippo's own hook, so a session gets the block once.
+- **The Cursor hook and the plugin's hook** print the start block (outside the workspace, the machine rules) and write only the delivery log line. The plugin's hook stays silent when a settings file already runs hippo's own hook, so a session gets the block once.
 
 ### The guard (`hippo guard install --yes`)
 

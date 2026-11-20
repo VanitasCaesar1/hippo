@@ -537,6 +537,66 @@ pub fn keep_lesson(
     })
 }
 
+/// A kept rule as a session gets it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Rule {
+    pub id: Ulid,
+    pub text: String,
+    /// A machine rule: every session gets it, inside the workspace or not.
+    pub machine: bool,
+    /// How many sessions its corrections span.
+    pub sessions: usize,
+    /// Its key terms, to match a prompt's.
+    pub terms: Vec<String>,
+}
+
+/// The kept rules in force, best first (most sessions, then newest kept).
+/// A replaced rule is left out, and so is a workspace rule whose bullet is
+/// no longer in its note (reverted or removed by hand) or, with no
+/// workspace, any workspace rule.
+pub fn kept_rules(home: &Path, ws: Option<&Workspace>) -> Vec<Rule> {
+    let mut kept: Vec<(Rule, OffsetDateTime)> = Vec::new();
+    for l in list(home).unwrap_or_default() {
+        if l.status != Status::Kept || l.links.superseded_by.is_some() || l.rule.trim().is_empty() {
+            continue;
+        }
+        let machine = l.links.scope == Some(Scope::Machine) || l.target.is_none();
+        if !machine {
+            let (Some(ws), Some(target)) = (ws, &l.target) else {
+                continue;
+            };
+            let text = fs::read_to_string(ws.root.join(&target.note)).unwrap_or_default();
+            let marker = team::marker(&team::dir_name(l.id));
+            let rule_line = l.rule.split_whitespace().collect::<Vec<_>>().join(" ");
+            if !text.contains(&marker) && !text.contains(&rule_line) {
+                continue;
+            }
+        }
+        let at = l.kept.as_ref().map_or(l.updated, |k| k.at);
+        kept.push((
+            Rule {
+                id: l.id,
+                text: detect::one_line(&l.rule, 400),
+                machine,
+                sessions: l.seen.sessions,
+                terms: if l.terms.is_empty() {
+                    detect::key_terms(&l.rule)
+                } else {
+                    l.terms.clone()
+                },
+            },
+            at,
+        ));
+    }
+    kept.sort_by(|a, b| {
+        b.0.sessions
+            .cmp(&a.0.sessions)
+            .then_with(|| b.1.cmp(&a.1))
+            .then_with(|| a.0.id.cmp(&b.0.id))
+    });
+    kept.into_iter().map(|(r, _)| r).collect()
+}
+
 /// What keeping a rule did, wherever it went.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeptRule {

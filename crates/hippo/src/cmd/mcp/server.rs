@@ -324,13 +324,13 @@ fn run_tool(name: &str, args: &Map<String, Value>) -> Result<String> {
     let mut out: Vec<u8> = Vec::new();
     match name {
         "hippo_context" => {
-            let (_, workspace) = super::super::load()?;
+            let (config, workspace) = super::super::load()?;
             let dir = match text_arg(args, "cwd")? {
                 Some(d) => Some(PathBuf::from(d)),
                 None => std::env::current_dir().ok(),
             };
             let repo = dir.and_then(|d| context::rank::repo_name(&d, &workspace.root));
-            let compiled = context::compile(
+            let mut compiled = context::compile(
                 &workspace,
                 None,
                 text_arg(args, "task")?,
@@ -339,6 +339,13 @@ fn run_tool(name: &str, args: &Map<String, Value>) -> Result<String> {
                 workspace.budget_bytes,
                 PartSelection::All,
             )?;
+            let rules = hippo_core::lessons::kept_rules(&config.home, Some(&workspace));
+            compiled.add_rules(
+                &rules,
+                true,
+                config.remember.rules_budget(),
+                workspace.budget_bytes,
+            );
             out.extend_from_slice(compiled.text().as_bytes());
         }
         "hippo_recall" => {

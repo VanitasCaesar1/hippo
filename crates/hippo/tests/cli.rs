@@ -76,6 +76,7 @@ impl Hippo {
             .env("HIPPO_HOME", self.home.path())
             .env("HOME", self.user_home.path())
             .env_remove("CODEX_HOME")
+            .env_remove("CLAUDE_CONFIG_DIR")
             .env_remove("RUST_LOG")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -236,9 +237,16 @@ fn hooks_print_context_and_never_fail_the_session() {
     assert!(record["ended"].is_string());
     assert_eq!(record["no_change_reason"], "unspecified");
 
+    // A prompt of a session the hooks did not start is passed over.
+    let out = hippo.run(
+        &["hook", "prompt"],
+        Some(r#"{"session_id":"nobody","prompt":"hi"}"#),
+    );
+    assert!(out.status.success());
+    assert_eq!((stdout(&out), stderr(&out)), (String::new(), String::new()));
+
     // Errors print one line and still exit 0.
     for (hook, input) in [
-        ("prompt", r#"{"session_id":"nobody","prompt":"hi"}"#),
         ("session-start", "not json"),
         ("session-end", r#"{"hook_event_name":"SessionEnd"}"#),
         ("session-start", r#"{"session_id":"../escape"}"#),
@@ -1181,4 +1189,178 @@ fn fixtures_in(to: &Path, cwd: &Path) {
     for tool in ["claude-code", "codex"] {
         copy(&Path::new(FIXTURES).join(tool), &to.join(tool), &cwd);
     }
+}
+
+/// A kept rule's record in `$HIPPO_HOME/lessons/`.
+fn kept_rule(
+    hippo: &Hippo,
+    id: &str,
+    rule: &str,
+    terms: &[&str],
+    sessions: usize,
+    scope: &str,
+    note: Option<&str>,
+) {
+    let record = serde_json::json!({
+        "protocol": "HIPPO_V1",
+        "id": id,
+        "kind": "correction",
+        "key": terms.join(" "),
+        "terms": terms,
+        "title": rule,
+        "rule": rule,
+        "target": note.map(|n| serde_json::json!({"note": n, "section": null, "new": false})),
+        "evidence": [],
+        "seen": {"sessions": sessions, "profiles": [], "first": "2026-11-01T00:00:00Z", "last": "2026-11-02T00:00:00Z"},
+        "status": "kept",
+        "created": "2026-11-01T00:00:00Z",
+        "updated": "2026-11-02T00:00:00Z",
+        "kept": {"receipt": "01JE0000000000000000000000", "at": "2026-11-02T00:00:00Z", "edited": false},
+        "scope": scope,
+    });
+    let dir = hippo.home.path().join("lessons");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join(format!("{id}.json")), record.to_string()).unwrap();
+}
+
+#[test]
+fn kept_rules_reach_every_start_block_outside_the_workspace_and_on_a_new_topic() {
+    let hippo = Hippo::init();
+    fs::write(
+        hippo.workspace.join("notes/Agent rules.md"),
+        "# Agent rules\n\n- **Lint.** Run the linter before every commit. <!-- hippo:lesson L-01JE0000000000000000000003 -->\n",
+    )
+    .unwrap();
+    kept_rule(
+        &hippo,
+        "01JE0000000000000000000001",
+        "Use pnpm in every repository, never npm.",
+        &["pnpm", "npm"],
+        3,
+        "machine",
+        None,
+    );
+    kept_rule(
+        &hippo,
+        "01JE0000000000000000000002",
+        "Build the Android app with the gradle wrapper, never a global gradle.",
+        &["androi", "gradle", "wrappe"],
+        2,
+        "machine",
+        None,
+    );
+    kept_rule(
+        &hippo,
+        "01JE0000000000000000000003",
+        "Run the linter before every commit.",
+        &["linter", "commit"],
+        2,
+        "workspace",
+        Some("notes/Agent rules.md"),
+    );
+    // A workspace rule whose bullet was reverted is not given.
+    kept_rule(
+        &hippo,
+        "01JE0000000000000000000004",
+        "Deploy only on Tuesdays.",
+        &["deploy", "tuesda"],
+        9,
+        "workspace",
+        Some("notes/Agent rules.md"),
+    );
+
+    // In the workspace: every rule in force, best first.
+    let start = r#"{"session_id":"r1","hook_event_name":"SessionStart","source":"startup"}"#;
+    let out = hippo.run(&["hook", "session-start"], Some(start));
+    assert!(out.status.success(), "{}", stderr(&out));
+    let printed = stdout(&out);
+    assert!(
+        printed.contains("rules (kept from your corrections; follow them):\n- Use pnpm in every repository, never npm.\n- Build the Android app"),
+        "{printed}"
+    );
+    assert!(
+        printed.contains("- Run the linter before every commit."),
+        "{printed}"
+    );
+    assert!(!printed.contains("Tuesdays"), "{printed}");
+    assert!(printed.ends_with("\n"));
+
+    // Outside it, a Codex session gets the machine rules only.
+    let elsewhere = tempfile::tempdir().unwrap();
+    let input = serde_json::json!({"session_id": "c9", "cwd": elsewhere.path(), "hook_event_name": "SessionStart"}).to_string();
+    let out = hippo.run(&["hook", "session-start", "--agent", "codex"], Some(&input));
+    let printed = stdout(&out);
+    let v: Value = serde_json::from_str(printed.trim()).unwrap();
+    let text = v["hookSpecificOutput"]["additionalContext"]
+        .as_str()
+        .unwrap();
+    assert!(
+        text.contains("Use pnpm") && text.contains("gradle"),
+        "{text}"
+    );
+    assert!(!text.contains("linter"), "{text}");
+
+    // The Claude Code user hook: machine rules outside, everything inside
+    // until the workspace hook is there, then nothing.
+    let out = hippo.run(&["hooks", "install", "--user"], None);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let settings =
+        fs::read_to_string(hippo.user_home.path().join(".claude/settings.json")).unwrap();
+    assert!(
+        settings.contains("hook session-start --rules-only"),
+        "{settings}"
+    );
+    let at = |dir: &Path| serde_json::json!({"session_id": "u1", "cwd": dir}).to_string();
+    let out = hippo.run(
+        &["hook", "session-start", "--rules-only"],
+        Some(&at(elsewhere.path())),
+    );
+    let printed = stdout(&out);
+    assert!(
+        printed.contains("Use pnpm") && !printed.contains("linter"),
+        "{printed}"
+    );
+    let out = hippo.run(
+        &["hook", "session-start", "--rules-only"],
+        Some(&at(&hippo.workspace)),
+    );
+    assert!(stdout(&out).contains("linter"), "{}", stdout(&out));
+    assert!(hippo.run(&["hooks", "install"], None).status.success());
+    let out = hippo.run(
+        &["hook", "session-start", "--rules-only"],
+        Some(&at(&hippo.workspace)),
+    );
+    assert_eq!(stdout(&out), "");
+
+    // A long session: with a small Rules budget the Android rule is cut at
+    // the start, and a prompt on Android later brings it.
+    let out = hippo.run(
+        &["config", "set", "rules_budget_bytes", "140", "--yes"],
+        None,
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    let start = r#"{"session_id":"r2","hook_event_name":"SessionStart","source":"startup"}"#;
+    let printed = stdout(&hippo.run(&["hook", "session-start"], Some(start)));
+    assert!(
+        printed.contains("Use pnpm") && !printed.contains("gradle"),
+        "{printed}"
+    );
+    assert!(printed.contains("more: hippo lessons --all"), "{printed}");
+    let prompt = |text: &str| {
+        let input = serde_json::json!({"session_id": "r2", "prompt": text}).to_string();
+        stdout(&hippo.run(&["hook", "prompt"], Some(&input)))
+    };
+    prompt("fix the checkout page totals");
+    for _ in 0..5 {
+        assert_eq!(prompt("the checkout page totals are still wrong"), "");
+    }
+    let topic = prompt("now set up the android release build with gradle signing");
+    assert!(
+        topic.starts_with("For the new topic:\n- Build the Android app with the gradle wrapper"),
+        "{topic}"
+    );
+    // The delivery log names each output, never the prompt.
+    let log = fs::read_to_string(hippo.home.path().join("logs/injections.jsonl")).unwrap();
+    assert!(log.contains("\"event\":\"topic\"") && log.contains("01JE0000000000000000000002"));
+    assert!(!log.contains("signing"));
 }

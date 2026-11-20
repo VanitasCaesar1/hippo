@@ -43,6 +43,11 @@ pub struct Target {
     /// The workspace, for Claude Code; the configured one when not given
     #[arg(long)]
     workspace: Option<PathBuf>,
+    /// Claude Code only: the user's settings.json ($CLAUDE_CONFIG_DIR, else
+    /// ~/.claude), one start hook that gives the kept rules in every
+    /// session, inside the workspace or not
+    #[arg(long, conflicts_with = "workspace")]
+    user: bool,
 }
 
 #[derive(clap::Args)]
@@ -74,6 +79,16 @@ fn workspace(target: &Target) -> Result<PathBuf> {
 
 /// The hooks file and the agent a target means.
 fn file(target: Target) -> Result<(PathBuf, Agent)> {
+    if target.user {
+        if target.agent != AgentArg::ClaudeCode {
+            bail!(
+                "--user is for Claude Code; the other agents' hooks are already for every session"
+            );
+        }
+        let path = hooks::claude_user_settings_path()
+            .ok_or_else(|| anyhow!("cannot find the home directory; set HOME"))?;
+        return Ok((path, Agent::ClaudeCodeUser));
+    }
     match target.agent {
         AgentArg::ClaudeCode => Ok((
             hooks::settings_path(&workspace(&target)?),
@@ -114,7 +129,7 @@ pub fn run(command: Command) -> Result<ExitCode> {
                 .to_str()
                 .ok_or_else(|| anyhow!("this binary's path is not UTF-8: {}", bin.display()))?
                 .to_owned();
-            let shared = if target.agent == AgentArg::ClaudeCode {
+            let shared = if target.agent == AgentArg::ClaudeCode && !target.user {
                 let ws = workspace(&target)?;
                 let events = hooks::claude_code_shared(&ws)?;
                 (!events.is_empty()).then(|| (hooks::shared_settings_path(&ws), events))
