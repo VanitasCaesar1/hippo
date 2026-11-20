@@ -742,6 +742,17 @@ impl Shell {
 
     /// Reads everything again on the background executor while the old view
     /// stays up. One reload runs and at most one waits.
+    /// Opens the section named `name` (`inbox`, any case): the dev-only
+    /// `HIPPO_APP_DEV_VIEW`.
+    pub fn open_section_named(&mut self, name: &str) {
+        if let Some(s) = Section::ALL
+            .into_iter()
+            .find(|s| s.name().eq_ignore_ascii_case(name))
+        {
+            self.state.tabs.select(s);
+        }
+    }
+
     pub fn reload(&mut self, cx: &mut Context<Self>) {
         self.rescan_themes(cx);
         if self.reloader.request() {

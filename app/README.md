@@ -26,7 +26,9 @@ HIPPO_BIN=target/debug/hippo app/scripts/demo-home.sh /tmp/hippo-demo
 HIPPO_HOME=/tmp/hippo-demo/home PATH=$PWD/target/debug:$PATH app/target/release/hippo-app
 ```
 
-`demo-home.sh` builds a home from the synthetic fixtures in this repository: 16 notes; 34 top-level sessions, including the shapes real homes have (a session named by its client with three sub-agents and a failed background command, a context handoff, a session a program started, a live session with sub-agents working now, and T3 Code delegated tasks with their own sessions); and one dreaming run with an applied change you can revert.
+`demo-home.sh` builds a home from the synthetic fixtures in this repository: 16 notes; 34 top-level sessions, including the shapes real homes have (a session named by its client with three sub-agents and a failed background command, a context handoff, a session a program started, a live session with sub-agents working now, and T3 Code delegated tasks with their own sessions); and one dreaming run with an applied change you can revert; and the team's shared Inbox with three synthetic teammates.
+
+For screenshots, four development-only variables set the window up without touching it: `HIPPO_APP_DEV_SIZE=1200x800` sizes the window, `HIPPO_APP_DEV_VIEW=inbox` opens a section, `HIPPO_APP_DEV_SELECT=<card key>` selects an Inbox card (a lesson id or `L-…`), and `HIPPO_APP_DEV_SHARE=1` opens the Share dialog once the Inbox loads. With the first two the app does not bring itself to the front. Use them with `HIPPO_APP_PREFS` on a scratch file, launch the bundle with `open -g -n --env …`, capture the window by its id (`screencapture -l`) and stop the process by its PID. GPUI's dialogs make their window key, so a `HIPPO_APP_DEV_SHARE` capture is not a background one.
 
 ## The window
 

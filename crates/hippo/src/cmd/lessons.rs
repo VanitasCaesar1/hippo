@@ -230,7 +230,7 @@ fn share() -> Result<ExitCode> {
     let member = match cfg.member.clone() {
         Some(m) => m,
         None => {
-            let suggested = git_email_handle(&ws.root);
+            let suggested = team::suggested_handle(&ws.root);
             print!(
                 "Your handle in the team's files (letters, digits, - and _){}: ",
                 suggested
@@ -254,9 +254,7 @@ fn share() -> Result<ExitCode> {
         }
     };
     let lessons = lessons::shareable(&cfg, &ws)?;
-    println!(
-        "Sharing writes your lessons' titles, rules, match terms and counts into the repository (no quotes, no session ids), under the handle {member}. You commit and push them as usual."
-    );
+    println!("{}", team::consent(&member));
     if lessons.is_empty() {
         println!("No lesson of yours can be shared yet; later ones are shared by each scan once you say yes.");
     }
@@ -269,7 +267,7 @@ fn share() -> Result<ExitCode> {
         }
         println!("      {}: {}", l.title, l.rule);
     }
-    print!("Share these, and later lessons from this workspace? [y/N] ");
+    print!("{} [y/N] ", team::CONSENT_QUESTION);
     io::stdout().flush()?;
     let mut answer = String::new();
     io::stdin().read_line(&mut answer)?;
@@ -277,37 +275,13 @@ fn share() -> Result<ExitCode> {
         println!("nothing shared");
         return Ok(ExitCode::SUCCESS);
     }
-    for (key, value) in [("member", member.as_str()), ("share_lessons", "rules")] {
-        let plan = hippo_core::settings::plan(
-            &cfg.home,
-            key,
-            &hippo_core::settings::Op::Set(value.to_owned()),
-        )?;
-        hippo_core::settings::apply(&plan)?;
-    }
-    cfg.member = Some(member.clone());
-    cfg.share_lessons = Some("rules".into());
-    let dirs = lessons::share_lessons(&cfg, &ws, &member, &lessons, OffsetDateTime::now_utc())?;
+    let dirs =
+        lessons::share_with_consent(&mut cfg, &ws, &member, &lessons, OffsetDateTime::now_utc())?;
     println!(
         "shared {} lessons; share_lessons = \"rules\" and member = \"{member}\" are in config.toml. Read git status before you commit.",
         dirs.len()
     );
     Ok(ExitCode::SUCCESS)
-}
-
-/// The local part of `git config user.email` in `root`, when it is a
-/// valid handle.
-fn git_email_handle(root: &std::path::Path) -> Option<String> {
-    let out = std::process::Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["config", "user.email"])
-        .stderr(std::process::Stdio::null())
-        .output()
-        .ok()?;
-    let email = String::from_utf8_lossy(&out.stdout).trim().to_owned();
-    let local = email.split('@').next()?.to_owned();
-    hippo_core::settings::valid_handle(&local).then_some(local)
 }
 
 fn markers(yes: bool) -> Result<ExitCode> {
@@ -335,68 +309,52 @@ fn markers(yes: bool) -> Result<ExitCode> {
 /// who saw it, and the decisions as written, beside each file's committer.
 fn list_shared(out: &mut impl Write, ws: &hippo_core::config::Workspace) -> Result<()> {
     use hippo_core::lessons::team;
-    let shared = team::read(ws);
-    let groups = team::groups(&shared);
-    for g in &groups {
-        let first = &shared[g[0]];
-        let wording = first.wordings.first();
-        let seen: Vec<String> = g
-            .iter()
-            .flat_map(|&i| shared[i].seen.iter())
-            .map(|s| format!("{} {}", s.member, s.record.sessions))
-            .collect();
+    for e in team::entries(ws) {
+        let seen = e.seen_words();
         writeln!(
             out,
             "{} {:<10} seen by {:<20} {}",
-            first.dir,
-            wording.map_or("correction", |w| w.record.kind.as_str()),
+            e.dirs[0],
+            e.kind.as_str(),
             if seen.is_empty() {
                 "-".to_owned()
             } else {
-                seen.join(", ")
+                seen
             },
-            wording.map_or("", |w| w.record.title.as_str())
+            e.title
         )?;
-        if let Some(w) = wording {
-            writeln!(out, "    {}", w.record.rule)?;
-            writeln!(
-                out,
-                "    reviewer: {} (as written in lesson-{}.json{})",
-                w.record.verdict,
-                w.member,
-                team::committer(ws, &w.path)
-                    .map(|c| format!(", pushed by {c}"))
-                    .unwrap_or_default()
-            )?;
+        writeln!(out, "    {}", e.rule)?;
+        writeln!(
+            out,
+            "    reviewer: {} (as written in lesson-{}.json{})",
+            e.verdict,
+            e.worded_by,
+            e.worded_committer
+                .as_deref()
+                .map(|c| format!(", pushed by {c}"))
+                .unwrap_or_default()
+        )?;
+        for (member, title) in &e.also {
+            writeln!(out, "    also worded by {member}: {title}")?;
         }
-        for other in g.iter().flat_map(|&i| shared[i].wordings.iter()).skip(1) {
-            writeln!(
-                out,
-                "    also worded by {}: {}",
-                other.member, other.record.title
-            )?;
-        }
-        let state = team::state(&shared, g);
-        for d in team::decisions(&shared, g) {
-            let who = team::committer(ws, &d.path);
-            let verdict = match d.record.verdict {
+        for d in &e.decisions {
+            let verdict = match d.verdict {
                 team::Verdict::Keep => "kept".to_owned(),
                 team::Verdict::Dismiss => format!(
                     "dismissed{}",
-                    d.record
-                        .reason
+                    d.reason
                         .as_deref()
                         .map(|r| format!(" as {r}"))
                         .unwrap_or_default()
                 ),
             };
-            let by = match who {
-                Some(c) => format!("{} (pushed by {c})", d.record.by),
-                None => format!("{} (not committed yet)", d.record.by),
+            let by = match &d.committer {
+                Some(c) => format!("{} (pushed by {c})", d.by),
+                None => format!("{} (not committed yet)", d.by),
             };
-            writeln!(out, "    {verdict} by {by} {}", d.record.at.date())?;
+            writeln!(out, "    {verdict} by {by} {}", d.at.date())?;
         }
-        if state == team::State::Crossed {
+        if e.state == team::State::Crossed {
             writeln!(out, "    crossed: kept and dismissed; talk it over")?;
         }
     }

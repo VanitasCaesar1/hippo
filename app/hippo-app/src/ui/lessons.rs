@@ -6,6 +6,7 @@
 use std::path::{Path, PathBuf};
 
 use gpui::{Context, Entity, FocusHandle, Focusable, FontWeight, Hsla, Window, div, prelude::*};
+use hippo_core::lessons::team::{Entry, State as TeamState, Verdict};
 use hippo_core::lessons::{Kind as LessonKind, Lesson};
 use hippo_view::home::ReviewItem;
 use time::OffsetDateTime;
@@ -59,6 +60,9 @@ pub enum Item {
     Change(Box<ReviewItem>),
     /// The overnight changes as one row, under All.
     Overnight(Vec<ReviewItem>),
+    /// A lesson in the team's shared Inbox (`L-…`): who saw it and who
+    /// decided.
+    Shared(Box<Entry>),
 }
 
 impl Item {
@@ -68,6 +72,7 @@ impl Item {
             Item::Group(g) => g.first().map(|l| l.id.to_string()).unwrap_or_default(),
             Item::Change(c) => c.receipt.to_string(),
             Item::Overnight(_) => "overnight".to_owned(),
+            Item::Shared(e) => e.dirs[0].clone(),
         }
     }
 
@@ -75,6 +80,7 @@ impl Item {
     fn holds(&self, key: &str) -> bool {
         match self {
             Item::Group(g) => g.iter().any(|l| l.id.to_string() == key),
+            Item::Shared(e) => e.holds(key),
             other => other.key() == key,
         }
     }
@@ -214,6 +220,9 @@ pub struct InboxUi {
     /// Ask's "Make it a rule" or "Save as note": running, or what came back.
     pub proposing: bool,
     pub proposed: Option<Result<String, String>>,
+    /// Dev-only (`HIPPO_APP_DEV_SHARE`): open the Share dialog once the
+    /// team's Inbox has loaded, for a capture.
+    pub dev_share: bool,
 }
 
 impl InboxUi {
@@ -237,6 +246,7 @@ impl InboxUi {
             result: None,
             proposing: false,
             proposed: None,
+            dev_share: false,
         }
     }
 }
@@ -322,6 +332,69 @@ fn kind_color(look: &Look, kind: LessonKind) -> Hsla {
     }
 }
 
+/// A group heading in the Inbox's list: a label with its count and one
+/// faint line saying what the group is.
+fn section_head(look: &Look, label: &str, n: usize, gloss: &str, top: f32) -> gpui::AnyElement {
+    div()
+        .flex()
+        .items_center()
+        .gap(look.px(12.))
+        .h(look.px(34.))
+        .px(look.px(8.))
+        .mt(look.px(top))
+        .border_b(look.fixed(1.))
+        .border_color(look.c.border)
+        .child(kit::heading(look, label, n, look.c.text))
+        .child(
+            div()
+                .min_w_0()
+                .truncate()
+                .text_size(look.text(12.))
+                .text_color(look.c.faint)
+                .child(gloss.to_owned()),
+        )
+        .into_any_element()
+}
+
+/// A decision as words: "kept by bob" or "dismissed by carol as wrong".
+pub fn decision_words(d: &hippo_core::lessons::team::Seen) -> String {
+    match d.verdict {
+        Verdict::Keep => format!("kept by {}", d.by),
+        Verdict::Dismiss => format!(
+            "dismissed by {}{}",
+            d.by,
+            d.reason
+                .as_deref()
+                .map(|r| format!(" as {r}"))
+                .unwrap_or_default()
+        ),
+    }
+}
+
+/// Who pushed a file, as git says, or that it is not committed yet.
+fn pushed(committer: Option<&str>) -> String {
+    match committer {
+        Some(c) => format!("pushed by {c}"),
+        None => "not committed yet".to_owned(),
+    }
+}
+
+/// Where a shared lesson's rule goes, as [`target_words`] says it.
+fn entry_target(e: &Entry, notes_dir: Option<&Path>) -> Option<(&'static str, String)> {
+    let t = e.target.as_ref()?;
+    let note = note_label(&t.note, notes_dir);
+    if t.new {
+        return Some(("new note", note));
+    }
+    Some((
+        "appends to",
+        match &t.section {
+            Some(sec) => format!("{note} › {sec}"),
+            None => note,
+        },
+    ))
+}
+
 // ---------------------------------------------------------------------------
 // The Shell's side
 
@@ -341,9 +414,29 @@ impl Shell {
     /// The cards under `filter`: lessons first, newest first, then the
     /// overnight changes.
     pub(crate) fn inbox_items(&self, filter: Filter) -> Vec<Item> {
+        let team = self.loaded.as_ref().and_then(|l| l.team.as_ref());
+        // The team's entries that wait on a decision (or have crossed
+        // ones) come first; a local lesson that is one of them shows once,
+        // as the shared entry.
+        let mut shared: Vec<Item> = team
+            .map(|t| {
+                t.entries
+                    .iter()
+                    .filter(|e| matches!(e.state, TeamState::Open | TeamState::Crossed))
+                    .filter(|e| match filter {
+                        Filter::All => true,
+                        Filter::Corrections => e.kind == LessonKind::Correction,
+                        Filter::Failures => e.kind == LessonKind::Failure,
+                        Filter::Overnight => false,
+                    })
+                    .map(|e| Item::Shared(Box::new(e.clone())))
+                    .collect()
+            })
+            .unwrap_or_default();
         let lessons: Vec<Lesson> = self
             .lessons()
             .iter()
+            .filter(|l| !team.is_some_and(|t| t.shares(l)))
             .filter(|l| match filter {
                 Filter::All => true,
                 Filter::Corrections => l.kind == LessonKind::Correction,
@@ -352,7 +445,8 @@ impl Shell {
             })
             .cloned()
             .collect();
-        let mut out = group_lessons(lessons);
+        let mut out = std::mem::take(&mut shared);
+        out.extend(group_lessons(lessons));
         let changes = self.review_items();
         match filter {
             // Under All, the overnight changes are one row.
@@ -594,6 +688,8 @@ impl Shell {
                 self.inbox.filter = Filter::Overnight;
                 self.inbox.selected = None;
             }
+            (Item::Shared(e), 'k') => self.decide_shared(e.dirs[0].clone(), true, cx),
+            (Item::Shared(e), 'd') => self.decide_shared(e.dirs[0].clone(), false, cx),
             (Item::Lesson(l), 'k') => self.keep_lesson(l.id, None, cx),
             (Item::Lesson(l), 'e') => self.edit_lesson(l.id, window, cx),
             (Item::Lesson(l), 'd') => self.dismiss_lesson(l.id, cx),
@@ -689,6 +785,10 @@ impl Shell {
         let now = OffsetDateTime::now_utc();
         let items = self.inbox_items(self.inbox.filter);
         let selected = self.inbox_index(&items);
+        if self.inbox.dev_share && self.loaded.as_ref().is_some_and(|l| l.team.is_some()) {
+            self.inbox.dev_share = false;
+            cx.defer_in(window, |this, window, cx| this.open_share(window, cx));
+        }
         let pane = f32::from(window.viewport_size().width) - self.sidebar_width(window);
         // The list and a 400-point detail pane side by side from
         // 900 points of pane; below that the detail opens under its row.
@@ -696,6 +796,7 @@ impl Shell {
         let notes_dir = self.notes_dir();
 
         let mut rows: Vec<gpui::AnyElement> = Vec::new();
+        rows.extend(self.share_banner(look, cx));
         let mut singles_head: Option<LessonKind> = None;
         for (k, item) in items.iter().enumerate() {
             let on = Some(k) == selected;
@@ -746,6 +847,23 @@ impl Shell {
                 }
                 Item::Change(c) => self.change_card(k, c, on, look, cx),
                 Item::Overnight(c) => self.overnight_card(k, c, on, look, cx),
+                Item::Shared(e) => {
+                    if k == 0 {
+                        let n = items
+                            .iter()
+                            .filter(|i| matches!(i, Item::Shared(_)))
+                            .count();
+                        rows.push(section_head(
+                            look,
+                            "Team",
+                            n,
+                            "shared in the repository; kept once anyone keeps it",
+                            0.,
+                        ));
+                    }
+                    singles_head = None;
+                    self.shared_card(k, e, on, notes_dir.as_deref(), look, cx)
+                }
             };
             rows.push(row);
             if on && !wide {
@@ -1203,6 +1321,7 @@ impl Shell {
                 Some(first) => self.change_detail(first, look, cx),
                 None => div().into_any_element(),
             },
+            Item::Shared(e) => self.shared_detail(e, notes_dir, look),
         };
         // Keep, Edit and Dismiss sit at the pane's foot.
         let lesson: Option<&Lesson> = match item {
@@ -1215,9 +1334,12 @@ impl Shell {
                 .or_else(|| g.first()),
             _ => None,
         };
-        let foot = lesson
-            .filter(|l| self.inbox.editing != Some(l.id))
-            .map(|l| self.lesson_actions(l, look, cx));
+        let foot = match item {
+            Item::Shared(e) => Some(self.shared_actions(e, look, cx)),
+            _ => lesson
+                .filter(|l| self.inbox.editing != Some(l.id))
+                .map(|l| self.lesson_actions(l, look, cx)),
+        };
         div()
             .id("inbox-detail")
             .flex()
@@ -1794,6 +1916,471 @@ impl Shell {
     }
 }
 
+impl Shell {
+    /// The person's handle, set or suggested, for the Share dialog.
+    fn share_handle(&self) -> Option<String> {
+        let t = self.loaded.as_ref()?.team.as_ref()?;
+        t.member.clone().or_else(|| t.suggested.clone())
+    }
+
+    /// The Inbox's first line when the team's Inbox is shared and this
+    /// person has not said yes: what stays on this Mac, and Share….
+    fn share_banner(&self, look: &Look, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
+        let t = self.loaded.as_ref()?.team.as_ref()?;
+        if t.sharing {
+            return None;
+        }
+        let words = match t.shareable.len() {
+            0 => "Your lessons stay on this Mac until you share them. You can still keep and dismiss the team's.".to_owned(),
+            1 => "1 lesson of yours from this workspace stays on this Mac until you share it.".to_owned(),
+            n => format!("{n} lessons of yours from this workspace stay on this Mac until you share them."),
+        };
+        Some(
+            div()
+                .flex()
+                .items_center()
+                .gap(look.px(12.))
+                .px(look.px(8.))
+                .py(look.px(10.))
+                .mb(look.px(8.))
+                .border_b(look.fixed(1.))
+                .border_color(look.c.border)
+                .child(kit::cap(look, "Team Inbox", look.c.faint))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .text_size(look.text(12.5))
+                        .text_color(look.c.text_muted)
+                        .child(words),
+                )
+                .child(
+                    kit::button(look, "share-lessons", "Share…", Kind::Plain)
+                        .on_click(cx.listener(|this, _, window, cx| this.open_share(window, cx))),
+                )
+                .into_any_element(),
+        )
+    }
+
+    /// The Share dialog: the consent `hippo lessons share` shows, the
+    /// files it would write, and Share. hippo's own code writes the
+    /// settings and the files; nothing runs through a shell an agent
+    /// could drive.
+    pub(crate) fn open_share(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        use hippo_core::lessons::team;
+        let Some((cfg, ws)) = (match self.loaded.as_ref().map(|l| &l.setup) {
+            Some(hippo_view::setup::Setup::Ready { cfg, ws }) => Some((cfg.clone(), ws.clone())),
+            _ => None,
+        }) else {
+            return;
+        };
+        let Some(t) = self.loaded.as_ref().and_then(|l| l.team.clone()) else {
+            return;
+        };
+        let Some(member) = self.share_handle() else {
+            let answer = window.prompt(
+                gpui::PromptLevel::Info,
+                "Choose a handle first",
+                Some("The team's files name you by a short handle (letters, digits, - and _). Set one with hippo config set member <handle> in a terminal, then Share again."),
+                &["OK"],
+                cx,
+            );
+            cx.spawn_in(window, async move |_, _| {
+                answer.await.ok();
+            })
+            .detach();
+            return;
+        };
+        let mut lines = vec![team::consent(&member), String::new()];
+        if t.shareable.is_empty() {
+            lines.push("No lesson of yours can be shared yet; later ones are shared by each scan once you say yes.".to_owned());
+        }
+        for l in &t.shareable {
+            for path in team::planned_files(&ws, &member, l) {
+                lines.push(
+                    path.strip_prefix(&ws.root)
+                        .unwrap_or(&path)
+                        .display()
+                        .to_string(),
+                );
+            }
+            lines.push(format!("    {}: {}", l.title, l.rule));
+        }
+        if t.member.is_none() {
+            lines.push(String::new());
+            lines.push(format!("{member} is the local part of your git email; hippo config set member <handle> picks another."));
+        }
+        let answer = window.prompt(
+            gpui::PromptLevel::Warning,
+            team::CONSENT_QUESTION,
+            Some(&lines.join("\n")),
+            &["Share", "Not now"],
+            cx,
+        );
+        let lessons = t.shareable.clone();
+        cx.spawn_in(window, async move |this, cx| {
+            if answer.await.ok() != Some(0) {
+                return;
+            }
+            let mut cfg = cfg;
+            let written = hippo_core::lessons::share_with_consent(
+                &mut cfg,
+                &ws,
+                &member,
+                &lessons,
+                OffsetDateTime::now_utc(),
+            );
+            this.update(cx, |this, cx| {
+                this.inbox.result = Some(match written {
+                    Ok(dirs) => (
+                        format!(
+                            "shared {} lessons as {member}; read git status before you commit",
+                            dirs.len()
+                        ),
+                        Ok(()),
+                    ),
+                    Err(e) => (String::new(), Err(format!("share failed: {e}"))),
+                });
+                this.reload(cx);
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    /// Runs `hippo lessons keep L-…` or `dismiss L-…`: the decision is a
+    /// file in `.hippo/inbox/L-…/` for the team to pull.
+    pub(crate) fn decide_shared(&mut self, dir: String, keep: bool, cx: &mut Context<Self>) {
+        if self.lesson_job_running() {
+            return;
+        }
+        let no_handle = self
+            .loaded
+            .as_ref()
+            .and_then(|l| l.team.as_ref())
+            .is_some_and(|t| t.member.is_none());
+        if no_handle {
+            self.inbox.result = Some((
+                String::new(),
+                Err("decisions need your handle: press Share… (or run hippo config set member <handle>)".to_owned()),
+            ));
+            cx.notify();
+            return;
+        }
+        let id = dir.strip_prefix("L-").and_then(|i| i.parse::<Ulid>().ok());
+        if let Some(id) = id {
+            self.select_after_key(&dir);
+            self.inbox.busy = Some(id);
+        }
+        self.inbox.result = None;
+        self.flow.log.clear();
+        let verb = if keep { "keep" } else { "dismiss" };
+        self.start_job(
+            Purpose::Lesson,
+            vec![vec!["lessons".to_owned(), verb.to_owned(), dir]],
+            cx,
+        );
+    }
+
+    /// Selects the card after the one keyed `key` (else the one before).
+    fn select_after_key(&mut self, key: &str) {
+        let items = self.inbox_items(self.inbox.filter);
+        if let Some(at) = items.iter().position(|i| i.holds(key)) {
+            let next = items
+                .get(at + 1)
+                .or_else(|| at.checked_sub(1).and_then(|p| items.get(p)));
+            self.inbox.selected = next.map(Item::key);
+        }
+    }
+
+    /// A shared lesson as a row: its mark, title and who saw it; the
+    /// rule; the decisions so far, as written.
+    fn shared_card(
+        &self,
+        k: usize,
+        e: &Entry,
+        on: bool,
+        notes_dir: Option<&Path>,
+        look: &Look,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let key = e.dirs[0].clone();
+        let crossed = e.state == TeamState::Crossed;
+        let seen = e.seen_words();
+        let decided: Vec<String> = e.decisions.iter().map(decision_words).collect();
+        let foot = if decided.is_empty() {
+            entry_target(e, notes_dir).map(|(verb, place)| {
+                (
+                    if verb == "new note" {
+                        "New note"
+                    } else {
+                        "Goes into"
+                    },
+                    place,
+                    look.c.text_muted,
+                )
+            })
+        } else {
+            Some((
+                if crossed { "Crossed" } else { "Decided" },
+                decided.join(" · "),
+                if crossed {
+                    look.c.warn
+                } else {
+                    look.c.text_muted
+                },
+            ))
+        };
+        let row = div()
+            .id(("shared-card", k))
+            .flex()
+            .items_start()
+            .gap(look.px(10.))
+            .px(look.px(8.))
+            .py(look.px(10.))
+            .border_b(look.fixed(1.))
+            .border_color(look.c.border.opacity(0.6))
+            .cursor_pointer()
+            .child(div().flex_shrink_0().pt(look.px(5.)).child(kit::square(
+                look,
+                if crossed {
+                    kit::Mark::Wait
+                } else {
+                    kit::Mark::Note
+                },
+            )))
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(look.px(4.))
+                    .flex_1()
+                    .min_w_0()
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(look.px(8.))
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .truncate()
+                                    .text_size(look.text(13.5))
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(look.c.text)
+                                    .child(kit::title(&e.title)),
+                            )
+                            .child(kit::figure(
+                                look,
+                                if seen.is_empty() {
+                                    "NOT SEEN YET".to_owned()
+                                } else {
+                                    format!("SEEN BY {}", seen.to_uppercase())
+                                },
+                                11.,
+                                look.c.faint,
+                            )),
+                    )
+                    .child(
+                        div()
+                            .min_w_0()
+                            .truncate()
+                            .text_size(look.text(12.5))
+                            .text_color(look.c.text_muted)
+                            .child(e.rule.clone()),
+                    )
+                    .children(foot.map(|(label, text, color)| {
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(look.px(8.))
+                            .min_w_0()
+                            .pt(look.px(2.))
+                            .child(kit::cap(look, label, look.c.faint))
+                            .child(
+                                div()
+                                    .min_w_0()
+                                    .truncate()
+                                    .text_size(look.text(12.))
+                                    .text_color(color)
+                                    .child(text),
+                            )
+                    })),
+            )
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.inbox.selected = Some(key.clone());
+                this.inbox.editing = None;
+                window.focus(&this.inbox.focus, cx);
+                cx.notify();
+            }));
+        kit::row_fill(row, look, on).into_any_element()
+    }
+
+    /// A shared lesson's detail: the rule, where it goes, and a spec
+    /// table of who worded it, who saw it and who decided, each beside
+    /// the commit author of their file.
+    fn shared_detail(&self, e: &Entry, notes_dir: Option<&Path>, look: &Look) -> gpui::AnyElement {
+        let mut spec = kit::spec(look)
+            .child(kit::spec_row(look, "Lesson", e.dirs.join(", "), None))
+            .child(kit::spec_row(
+                look,
+                "Seen by",
+                if e.seen.is_empty() {
+                    "nobody's counts yet".to_owned()
+                } else {
+                    e.seen_words()
+                },
+                None,
+            ))
+            .child(kit::spec_row(
+                look,
+                "Worded by",
+                format!(
+                    "{} ({})",
+                    e.worded_by,
+                    pushed(e.worded_committer.as_deref())
+                ),
+                None,
+            ))
+            .child(kit::spec_row(
+                look,
+                "Reviewer",
+                format!("{} (as written in lesson-{}.json)", e.verdict, e.worded_by),
+                None,
+            ));
+        for (member, title) in &e.also {
+            spec = spec.child(kit::spec_row(
+                look,
+                "Also worded",
+                format!("{member}: {title}"),
+                None,
+            ));
+        }
+        for d in &e.decisions {
+            spec = spec.child(kit::spec_row(
+                look,
+                "Decision",
+                format!(
+                    "{} ({}) {}",
+                    decision_words(d),
+                    pushed(d.committer.as_deref()),
+                    d.at.date()
+                ),
+                None,
+            ));
+        }
+        if let Some((verb, place)) = entry_target(e, notes_dir) {
+            spec = spec.child(kit::spec_row(
+                look,
+                if verb == "new note" {
+                    "New note"
+                } else {
+                    "Goes into"
+                },
+                place,
+                None,
+            ));
+        }
+        let crossed = (e.state == TeamState::Crossed).then(|| {
+            div()
+                .text_size(look.text(12.5))
+                .text_color(look.c.warn)
+                .child("Kept and dismissed: talk it over. A dismissal never edits the note.")
+        });
+        div()
+            .flex()
+            .flex_col()
+            .gap(look.px(12.))
+            .child(kit::cap(look, "Team lesson · shared in the repository", look.c.faint))
+            .child(
+                div()
+                    .text_size(look.text(15.))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(look.c.text)
+                    .child(kit::title(&e.title)),
+            )
+            .child(kit::quote(look, e.rule.clone(), look.c.border_strong).text_size(look.text(13.)))
+            .children(crossed)
+            .child(spec)
+            .child(
+                div()
+                    .text_size(look.text(12.))
+                    .text_color(look.c.faint)
+                    .child("Names are as written in the team's files, beside who pushed each file. Keep writes the rule into the note and your decision for the team to pull."),
+            )
+            .into_any_element()
+    }
+
+    /// Keep ↵ and Dismiss ⌫ for a shared lesson; a person with no handle
+    /// is pointed at Share… instead.
+    fn shared_actions(&self, e: &Entry, look: &Look, cx: &mut Context<Self>) -> gpui::Div {
+        let dir = e.dirs[0].clone();
+        let busy = e.dirs[0]
+            .strip_prefix("L-")
+            .and_then(|i| i.parse::<Ulid>().ok())
+            .is_some_and(|id| self.inbox.busy == Some(id))
+            && self.lesson_job_running();
+        let handle = self
+            .loaded
+            .as_ref()
+            .and_then(|l| l.team.as_ref())
+            .and_then(|t| t.member.clone());
+        let kept =
+            e.state == TeamState::Kept || e.decisions.iter().any(|d| d.verdict == Verdict::Keep);
+        let keep_dir = dir.clone();
+        let row = div().flex().items_center().gap(look.px(8.));
+        let Some(handle) = handle else {
+            return row
+                .child(
+                    div()
+                        .flex_1()
+                        .text_size(look.text(12.))
+                        .text_color(look.c.text_muted)
+                        .child("Decisions name you by a handle."),
+                )
+                .child(
+                    kit::button(look, "detail-share", "Share…", Kind::Plain)
+                        .on_click(cx.listener(|this, _, window, cx| this.open_share(window, cx))),
+                );
+        };
+        row.child(
+            kit::button_key(
+                look,
+                "detail-keep",
+                if busy {
+                    "Keeping…"
+                } else if kept {
+                    "Kept"
+                } else {
+                    "Keep"
+                },
+                "↵",
+                if kept { Kind::Disabled } else { Kind::Primary },
+            )
+            .when(!kept, |b| {
+                b.on_click(
+                    cx.listener(move |this, _, _, cx| {
+                        this.decide_shared(keep_dir.clone(), true, cx)
+                    }),
+                )
+            }),
+        )
+        .child(
+            div()
+                .flex_1()
+                .text_size(look.text(11.5))
+                .text_color(look.c.faint)
+                .child(format!("as {handle}")),
+        )
+        .child(
+            kit::button_key(look, "detail-dismiss", "Dismiss", "⌫", Kind::Ghost).on_click(
+                cx.listener(move |this, _, _, cx| this.decide_shared(dir.clone(), false, cx)),
+            ),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1929,6 +2516,30 @@ mod tests {
         let mut b = lesson(LessonKind::Correction, 1, &[], true);
         b.id = Ulid(7);
         assert_eq!(group_lessons(vec![a, b]).len(), 2);
+    }
+
+    #[test]
+    fn team_decisions_read_as_written() {
+        use hippo_core::lessons::team::{Seen, Verdict};
+        let at = time::macros::datetime!(2026-11-12 10:41 UTC);
+        let keep = Seen {
+            verdict: Verdict::Keep,
+            reason: None,
+            by: "bob".into(),
+            committer: None,
+            at,
+        };
+        assert_eq!(decision_words(&keep), "kept by bob");
+        let dismiss = Seen {
+            verdict: Verdict::Dismiss,
+            reason: Some("wrong".into()),
+            by: "carol".into(),
+            committer: Some("Carol Example".into()),
+            at,
+        };
+        assert_eq!(decision_words(&dismiss), "dismissed by carol as wrong");
+        assert_eq!(pushed(None), "not committed yet");
+        assert_eq!(pushed(Some("Carol Example")), "pushed by Carol Example");
     }
 
     #[test]

@@ -450,6 +450,9 @@ pub struct Loaded {
     pub lessons: Vec<hippo_core::lessons::Lesson>,
     /// The last lessons scan.
     pub lessons_state: Option<hippo_core::lessons::State>,
+    /// The team's shared Inbox, when it is on for this workspace on this
+    /// Mac (`[team] inbox = "shared"`, accepted).
+    pub team: Option<TeamInbox>,
     /// This week's incidents and session counts.
     pub incidents: Option<crate::incidents::Data>,
     /// Memory's map: every note with its reads, size, edits and freshness.
@@ -487,6 +490,7 @@ pub fn load(home: &Path, now: OffsetDateTime) -> Loaded {
         about: HashMap::new(),
         lessons: Vec::new(),
         lessons_state: None,
+        team: None,
         incidents: None,
         memory: None,
         gaps: Vec::new(),
@@ -494,6 +498,9 @@ pub fn load(home: &Path, now: OffsetDateTime) -> Loaded {
     if let Setup::Ready { cfg, .. } = &loaded.setup {
         loaded.lessons = hippo_core::lessons::pending(&cfg.home).unwrap_or_default();
         loaded.lessons_state = hippo_core::lessons::State::load(&cfg.home);
+    }
+    if let Setup::Ready { cfg, ws } = &loaded.setup {
+        loaded.team = TeamInbox::load(cfg, ws);
     }
     let offset = crate::ui::status::local_offset();
     if loaded.ready() {
@@ -905,5 +912,55 @@ mod tests {
         let loaded = load(&home, OffsetDateTime::now_utc());
         assert!(loaded.ready());
         assert_eq!(snapshot(dir.path()), before);
+    }
+}
+
+/// The shared Inbox as the app shows it (`docs/designs/team-brain.md`).
+#[derive(Debug, Clone)]
+pub struct TeamInbox {
+    /// One entry per group of linked lesson directories.
+    pub entries: Vec<hippo_core::lessons::team::Entry>,
+    /// The person's handle (`member`), once set.
+    pub member: Option<String>,
+    /// The handle to offer when none is set: the local part of
+    /// `git config user.email`.
+    pub suggested: Option<String>,
+    /// Whether the person said yes (`share_lessons = "rules"`).
+    pub sharing: bool,
+    /// Lessons of theirs the Share dialog would write, while not sharing.
+    pub shareable: Vec<hippo_core::lessons::Lesson>,
+}
+
+impl TeamInbox {
+    fn load(cfg: &Config, ws: &hippo_core::config::Workspace) -> Option<TeamInbox> {
+        use hippo_core::lessons::team;
+        if !team::enabled(ws) {
+            return None;
+        }
+        let sharing = team::Share::of(cfg) == team::Share::Rules;
+        Some(TeamInbox {
+            entries: team::entries(ws),
+            member: cfg.member.clone(),
+            suggested: cfg
+                .member
+                .is_none()
+                .then(|| team::suggested_handle(&ws.root))
+                .flatten(),
+            sharing,
+            shareable: if sharing {
+                Vec::new()
+            } else {
+                hippo_core::lessons::shareable(cfg, ws).unwrap_or_default()
+            },
+        })
+    }
+
+    /// Whether lesson record `id` is one of the shared entries, as its
+    /// own directory: the Inbox then shows the shared entry only.
+    pub fn shares(&self, l: &hippo_core::lessons::Lesson) -> bool {
+        let dir = hippo_core::lessons::team::dir_name(l.id);
+        self.entries
+            .iter()
+            .any(|e| e.holds(&dir) || l.shared.as_deref().is_some_and(|d| e.holds(d)))
     }
 }

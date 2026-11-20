@@ -61,7 +61,7 @@ Each keeps what it shows and how it is laid out; it is drawn with the same parts
 - **Groups and columns.** Group headings and column heads are labels with their count (*NEEDS YOU 02*); no badges and no chevrons (a group still folds when its heading is clicked).
 - **Rows.** A row is a mark, its text and its values in SF Mono at the right: state and time (*WAITING 13M*, *WORKING 2H 32M*, *QUIET 13:42*), claims (*1 CHECKED*, *1 UNVERIFIED*), pull requests (*#57 OPEN*), branch. A waiting row's *Open thread* stays; no icon in any cell.
 - **Lanes.** The day's line becomes readouts (*SESSIONS*, *SUB-AGENTS*, *AGENT WORK*, *WAITED ON YOU*, *INCIDENTS*); the legend shows the marks, not icons; marks on lanes are the vector marks of [fleet-pulse.md](fleet-pulse.md) (ring, diamond, square, dot) and the amber square for a question. *At this minute* is a row on a hairline at the foot, not a card.
-- **Inbox, Incidents, Memory.** Lists are rows on hairlines; facts are spec tables (label and value rows); a quote has a grey rule at its left as in Pulse; cards, chips and note icons become rows. An empty pane says what to do in one line, with no icon.
+- **Inbox, Incidents, Memory.** The Inbox's *Team* group (v0.6.1) comes first when the workspace's Inbox is shared: a row is the mark (amber when kept and dismissed), the title, *SEEN BY ALICE 3, BOB 1* in SF Mono, the rule, and the decisions so far; its detail is a spec table (*Seen by*, *Worded by*, *Reviewer*, each *Decision* with who pushed its file). Lists are rows on hairlines; facts are spec tables (label and value rows); a quote has a grey rule at its left as in Pulse; cards, chips and note icons become rows. An empty pane says what to do in one line, with no icon.
 
 ## What the engine adds
 

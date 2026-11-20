@@ -566,6 +566,132 @@ pub fn committer(ws: &Workspace, path: &Path) -> Option<String> {
     (out.status.success() && !name.is_empty()).then_some(name)
 }
 
+/// What sharing writes, in the words `hippo lessons share` and
+/// Hippo.app's Share dialog both show before the person says yes.
+pub fn consent(member: &str) -> String {
+    format!(
+        "Sharing writes your lessons' titles, rules, match terms and counts into the repository (no quotes, no session ids), under the handle {member}. You commit and push them as usual."
+    )
+}
+
+/// The question after [`consent`] and the files.
+pub const CONSENT_QUESTION: &str = "Share these, and later lessons from this workspace?";
+
+/// The handle suggested for a person: the local part of
+/// `git config user.email` in `root`, when it is a valid handle (never
+/// `user.name`, often a full name).
+pub fn suggested_handle(root: &Path) -> Option<String> {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["config", "user.email"])
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
+    let email = String::from_utf8_lossy(&out.stdout).trim().to_owned();
+    let local = email.split('@').next()?.to_owned();
+    crate::settings::valid_handle(&local).then_some(local)
+}
+
+/// One decision as a person sees it: the verdict and name as written,
+/// beside the commit author of the file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Seen {
+    pub verdict: Verdict,
+    /// For a dismissal, as written.
+    pub reason: Option<String>,
+    /// The `by` the file names: a label.
+    pub by: String,
+    /// The commit author of the file; `None` before it is committed.
+    pub committer: Option<String>,
+    pub at: OffsetDateTime,
+}
+
+/// One entry of the shared Inbox: a group of linked lesson directories,
+/// as `hippo lessons` and Hippo.app list it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Entry {
+    /// The group's directories; the first is the one shown and acted on.
+    pub dirs: Vec<String>,
+    pub kind: Kind,
+    pub title: String,
+    pub rule: String,
+    pub target: Option<Target>,
+    /// The reviewer's verdict, as written in the first wording.
+    pub verdict: String,
+    /// Who wrote the first wording (its file name), and its committer.
+    pub worded_by: String,
+    pub worded_committer: Option<String>,
+    /// Other wordings: (member, title).
+    pub also: Vec<(String, String)>,
+    /// Sessions per member, as each `seen` file says.
+    pub seen: Vec<(String, usize)>,
+    pub decisions: Vec<Seen>,
+    pub state: State,
+}
+
+impl Entry {
+    /// "alice 3, bob 1".
+    pub fn seen_words(&self) -> String {
+        self.seen
+            .iter()
+            .map(|(m, n)| format!("{m} {n}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    /// Every directory of the group holds `dir`.
+    pub fn holds(&self, dir: &str) -> bool {
+        self.dirs.iter().any(|d| d == dir)
+    }
+}
+
+/// The shared Inbox's entries, one per group, in directory order.
+/// Reads git for each file's committer.
+pub fn entries(ws: &Workspace) -> Vec<Entry> {
+    let shared = read(ws);
+    let mut out = Vec::new();
+    for g in groups(&shared) {
+        let mut wordings = g.iter().flat_map(|&i| shared[i].wordings.iter());
+        let Some(first) = wordings.next() else {
+            continue;
+        };
+        let also = wordings
+            .map(|w| (w.member.clone(), w.record.title.clone()))
+            .collect();
+        let decisions = decisions(&shared, &g)
+            .into_iter()
+            .map(|d| Seen {
+                verdict: d.record.verdict,
+                reason: d.record.reason.clone(),
+                by: d.record.by.clone(),
+                committer: committer(ws, &d.path),
+                at: d.record.at,
+            })
+            .collect();
+        out.push(Entry {
+            dirs: g.iter().map(|&i| shared[i].dir.clone()).collect(),
+            kind: first.record.kind,
+            title: first.record.title.clone(),
+            rule: first.record.rule.clone(),
+            target: first.record.target.clone(),
+            verdict: first.record.verdict.clone(),
+            worded_by: first.member.clone(),
+            worded_committer: committer(ws, &first.path),
+            also,
+            seen: g
+                .iter()
+                .flat_map(|&i| shared[i].seen.iter())
+                .map(|s| (s.member.clone(), s.record.sessions))
+                .collect(),
+            decisions,
+            state: state(&shared, &g),
+        });
+    }
+    out
+}
+
 /// What the `doctor` team row reports.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Health {

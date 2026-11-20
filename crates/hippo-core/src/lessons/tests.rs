@@ -792,14 +792,38 @@ fn a_lesson_from_another_project_stays_local_and_off_shares_nothing() {
         "{:?}",
         scanned.notes
     );
-    // Sharing it, as `hippo lessons share` does after the person's yes.
+    // Sharing it, as `hippo lessons share` and Hippo.app's Share do after
+    // the person's yes: the handle and the setting go to config.toml.
     let ready = shareable(&carol, &ws).unwrap();
     assert_eq!(ready.len(), 1);
-    let dirs = share_lessons(&carol, &ws, "carol", &ready, OffsetDateTime::now_utc()).unwrap();
+    carol.member = None;
+    // A set-up home has its config.toml; this test's has none yet.
+    fs::write(carol.home.join("config.toml"), "").unwrap();
+    assert!(share_with_consent(
+        &mut carol,
+        &ws,
+        "not a handle",
+        &ready,
+        OffsetDateTime::now_utc()
+    )
+    .is_err());
+    let dirs =
+        share_with_consent(&mut carol, &ws, "carol", &ready, OffsetDateTime::now_utc()).unwrap();
     assert!(team::inbox_dir(&ws)
         .join(&dirs[0])
         .join("lesson-carol.json")
         .is_file());
+    let saved = Config::load_in(&carol.home).unwrap();
+    assert_eq!(saved.member.as_deref(), Some("carol"));
+    assert_eq!(saved.share_lessons.as_deref(), Some("rules"));
+    // The entry as the CLI and the app list it.
+    let entries = team::entries(&ws);
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].dirs, dirs);
+    assert_eq!(entries[0].worded_by, "carol");
+    assert_eq!(entries[0].seen_words(), "carol 2");
+    assert_eq!(entries[0].state, team::State::Open);
+    assert!(team::consent("carol").contains("under the handle carol"));
 }
 
 #[test]

@@ -50,6 +50,11 @@
 #              toolbar; a new note), and a zsh
 #              glob error and a BSD sed error that each repeated in three
 #              sessions, whose rules go to one section (a group, Keep all).
+#   Team       the shared Inbox on ([team] inbox = "shared", accepted): three
+#              teammates' lessons in .hippo/inbox/ (one open, seen by alice
+#              and bob; one kept by bob and dismissed by carol, crossed; one
+#              kept by alice), committed by synthetic authors, and Share…
+#              for this person, who has not said yes.
 #   Fleet      a session waiting on a question, synthetic usage
 #              meters for the default and work profiles (default at 74 %
 #              of its 5 hours and burning: Pulse says it runs dry), and an empty
@@ -947,6 +952,64 @@ kept_at=$(date -u -v-2d +%Y-%m-%dT%H:%M:%SZ)
 mkdir -p "$home/lessons"
 printf '{"protocol":"HIPPO_V1","id":"01M6Z00000000000000000KEPT","kind":"correction","key":"bundl mid work","terms":["bundl","mid","work"],"title":"Bundle the app only when asked","rule":"Never bundle the app mid-work. Bundle it only when asked.","target":{"note":"notes/Style guide.md","section":null,"new":false},"evidence":[],"seen":{"sessions":2,"profiles":["default"],"first":"%s","last":"%s","most_in_a_day":1},"status":"kept","review":null,"created":"%s","updated":"%s","closed_sessions":null,"kept":{"receipt":"01M6Z000000000000000000RC1","at":"%s","edited":false},"ask":null}\n' \
   "$kept_at" "$kept_at" "$kept_at" "$kept_at" "$kept_at" >"$home/lessons/01M6Z00000000000000000KEPT.json"
+
+# The team's shared Inbox (docs/designs/team-brain.md), with three
+# synthetic teammates. [team] inbox = "shared" is a loosening that waits
+# for `hippo accept` at a terminal; here it is written as already accepted
+# on this machine. This person (no `member` yet) has not said yes to
+# sharing, so the Inbox offers Share…. Three lessons are in the
+# repository: one seen by alice and bob with no decision; one kept by bob
+# and dismissed by carol as wrong (crossed); one kept by alice. git knows
+# who pushed alice's and bob's files; carol's dismissal is not committed.
+hippo config set team.inbox shared --yes >/dev/null
+wsid=$(sed -n 's/^workspace_id = "\(.*\)"$/\1/p' "$ws/.hippo/hippo.toml")
+mkdir -p "$home/accepted"
+printf '[settings]\nteam_inbox = "shared"\nmin_hippo_version = "0.6.0"\n' >"$home/accepted/$wsid.toml"
+inbox="$ws/.hippo/inbox"
+day() { date -u -v-"$1"d +%Y-%m-%dT%H:%M:%SZ; }
+wording() { # dir member kind title rule note section terms...
+  d=$1 m=$2 k=$3 t=$4 r=$5 n=$6 sec=$7
+  shift 7
+  terms=$(printf '"%s",' "$@")
+  mkdir -p "$inbox/$d"
+  printf '{"protocol":"HIPPO_V1","hippo_version":"0.6.0","kind":"%s","terms":[%s],"title":"%s","rule":"%s","target":{"note":"%s","section":"%s","new":false},"verdict":"confirmed","runner":"stub"}\n' \
+    "$k" "${terms%,}" "$t" "$r" "$n" "$sec" >"$inbox/$d/lesson-$m.json"
+}
+seen() { # dir member sessions first-days-ago last-days-ago agent
+  printf '{"protocol":"HIPPO_V1","hippo_version":"0.6.0","sessions":%s,"first":"%s","last":"%s","most_in_a_day":1,"agents":["%s"]}\n' \
+    "$3" "$(day "$4")" "$(day "$5")" "$6" >"$inbox/$1/seen-$2.json"
+}
+decision() { # dir member ulid verdict days-ago [reason]
+  reason=${6:+,\"reason\":\"$6\"}
+  printf '{"protocol":"HIPPO_V1","hippo_version":"0.6.0","verdict":"%s","by":"%s","at":"%s","edited":false%s,"sessions_at":3}\n' \
+    "$4" "$2" "$(day "$5")" "$reason" >"$inbox/$1/decision-$2-$3.json"
+}
+L1=L-01M6Z0000000000000000TEAM1
+L2=L-01M6Z0000000000000000TEAM2
+L3=L-01M6Z0000000000000000TEAM3
+wording $L1 alice correction "Run migrations through the deploy script" \
+  "Never run migrations by hand against a shared database. Run them through scripts/deploy.sh, which takes the lock." \
+  "notes/Database migrations.md" "Rules" migrat deploy script lock
+seen $L1 alice 3 6 1 claude-code
+seen $L1 bob 1 2 2 codex
+wording $L2 bob correction "Keep the photo grid at three columns on iPad" \
+  "Keep the photo grid at three columns on iPad in both orientations; do not switch to four in landscape." \
+  "notes/Style guide.md" "Layout" grid column ipad landscap
+seen $L2 bob 2 5 3 claude-code
+seen $L2 carol 1 4 4 cursor
+decision $L2 bob 01M6Z00000000000000000DEC1 keep 2
+decision $L2 carol 01M6Z00000000000000000DEC2 dismiss 1 wrong
+wording $L3 alice correction "Name feature flags after the screen" \
+  "Name a feature flag after the screen it changes (album_grid_v2), never after the ticket." \
+  "notes/Style guide.md" "Naming" flag screen ticket name
+seen $L3 alice 2 9 7 claude-code
+decision $L3 alice 01M6Z00000000000000000DEC3 keep 6
+# Who pushed what, as git records it; carol's dismissal is not committed.
+git -C "$ws" init -q
+git -C "$ws" -c user.name="Alice Example" -c user.email=alice@example.com add .hippo/inbox/$L1 .hippo/inbox/$L3
+git -C "$ws" -c user.name="Alice Example" -c user.email=alice@example.com commit -q -m "team: lessons"
+git -C "$ws" -c user.name="Bob Example" -c user.email=bob@example.com add .hippo/inbox/$L2/lesson-bob.json .hippo/inbox/$L2/seen-bob.json .hippo/inbox/$L2/seen-carol.json .hippo/inbox/$L2/decision-bob-01M6Z00000000000000000DEC1.json
+git -C "$ws" -c user.name="Bob Example" -c user.email=bob@example.com commit -q -m "team: grid lesson"
 
 # Open the dreaming window before the 1 November sessions.
 printf '{"protocol":"HIPPO_V1","last_success":"2026-10-31T00:00:00Z"}\n' \

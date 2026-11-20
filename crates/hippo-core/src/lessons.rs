@@ -984,6 +984,33 @@ pub fn share_lessons(
     Ok(dirs)
 }
 
+/// The person's consent, given: writes `member` and
+/// `share_lessons = "rules"` to `config.toml`, then shares `lessons`
+/// ([`share_lessons`]). `hippo lessons share` calls it after its terminal
+/// question, Hippo.app after its Share dialog; both show
+/// [`team::consent`] first. Returns the directories written.
+pub fn share_with_consent(
+    cfg: &mut Config,
+    ws: &Workspace,
+    member: &str,
+    lessons: &[Lesson],
+    now: OffsetDateTime,
+) -> Result<Vec<String>> {
+    if !crate::settings::valid_handle(member) {
+        return Err(Error::InvalidProposal(format!(
+            "{member:?} is not a handle: letters, digits, - and _, at most 32"
+        )));
+    }
+    for (key, value) in [("member", member), ("share_lessons", "rules")] {
+        let plan =
+            crate::settings::plan(&cfg.home, key, &crate::settings::Op::Set(value.to_owned()))?;
+        crate::settings::apply(&plan)?;
+    }
+    cfg.member = Some(member.to_owned());
+    cfg.share_lessons = Some("rules".into());
+    share_lessons(cfg, ws, member, lessons, now)
+}
+
 /// The local record for shared lesson `dir`, or one made from the
 /// wording a person sees first, waiting to be kept.
 fn record_for_shared(cfg: &Config, ws: &Workspace, dir: &str) -> Result<Lesson> {

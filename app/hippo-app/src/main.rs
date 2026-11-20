@@ -155,13 +155,41 @@ fn main() {
         .detach();
         ui::init_globals(cx);
         let installation = cli::find(&cli::Environment::current());
-        let options = ui::window_options(cx);
+        let mut options = ui::window_options(cx);
+        // Dev-only, for screenshots of a synthetic home: HIPPO_APP_DEV_SIZE
+        // (`1200x800`) sizes the window and HIPPO_APP_DEV_VIEW (`inbox`)
+        // opens a section. With either set, the app does not bring itself
+        // to the front, so a capture never takes the person's focus.
+        let dev_size = std::env::var("HIPPO_APP_DEV_SIZE").ok().and_then(|s| {
+            let (w, h) = s.split_once('x')?;
+            Some((w.parse::<f32>().ok()?, h.parse::<f32>().ok()?))
+        });
+        let dev_view = std::env::var("HIPPO_APP_DEV_VIEW").ok();
+        if let Some((w, h)) = dev_size {
+            options.window_bounds = Some(gpui::WindowBounds::Windowed(gpui::Bounds::centered(
+                None,
+                gpui::size(gpui::px(w), gpui::px(h)),
+                cx,
+            )));
+        }
         // Read once: `HIPPO_APP_PREFS` moves the preferences file.
         let prefs_path = prefs::default_path();
+        let view = dev_view.clone();
         cx.open_window(options, |window, cx| {
-            cx.new(|cx| ui::Shell::new(installation, prefs_path, window, cx))
+            cx.new(|cx| {
+                let mut shell = ui::Shell::new(installation, prefs_path, window, cx);
+                if let Some(v) = view.as_deref() {
+                    shell.open_section_named(v);
+                }
+                // Dev-only: a card to show selected, and the Share dialog.
+                shell.inbox.selected = std::env::var("HIPPO_APP_DEV_SELECT").ok();
+                shell.inbox.dev_share = std::env::var_os("HIPPO_APP_DEV_SHARE").is_some();
+                shell
+            })
         })
         .expect("the window opens");
-        cx.activate(true);
+        if dev_size.is_none() && dev_view.is_none() {
+            cx.activate(true);
+        }
     });
 }

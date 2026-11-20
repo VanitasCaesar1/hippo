@@ -12,6 +12,8 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 - **The guard in Cursor.** `hippo guard install --agent cursor` adds a `preToolUse` script to `~/.cursor/hooks.json`. A warning reaches the model as `additional_context` and leaves Cursor's own approval as it was; self-protection denies. cursor-agent also runs Claude Code's `~/.claude/settings.json` hooks, so a Cursor call that reaches the Claude Code entry is answered in Cursor's format, and not at all when Cursor's own entry is installed. Read from the code cursor-agent 2026.11.19 ships; there is no end-to-end run, since cursor-agent cannot use a local model. See the [design](docs/designs/guard.md#cursors-pretooluse-contract).
 
+- **Hippo.app: the team's shared Inbox.** With `[team] inbox = "shared"` in force, the Inbox lists the team's open and crossed lessons first, with who saw each and who kept or dismissed it beside who pushed the file. Keep and Dismiss write your decision; Share… shows the same consent as `hippo lessons share` and writes `member` and `share_lessons` on yes. `app/scripts/demo-home.sh` seeds three synthetic teammates.
+
 ### Fixed
 
 - **The guard on a machine where hippo was never set up.** `hippo guard install` works without an index or workspace, but `guard check` then failed open on every call for want of `config.toml`. It now applies the built-in and machine rules.
