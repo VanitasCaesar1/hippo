@@ -95,4 +95,4 @@ The adapter already skips `developer` messages, so the block Codex records in th
 - **Write the trust hash for the person.** It would make the hooks run at once, but it bypasses the review Codex shows for exactly this, with a hash format hippo would have to copy. Rejected.
 - **An MCP server.** It gives the model tools, not context at the start; the model would still have to decide to call it. Possible later for `hippo ask`, separately.
 - **Hooks in `config.toml`.** Same effect, but hippo would have to edit TOML the person writes by hand and keep its comments. `hooks.json` is a file hippo can merge with the same code as Claude Code's settings.
-- **A Codex plugin.** Codex plugins can carry hooks, but a plugin is installed from a marketplace, and its hooks still need trust. Not worth a package for three hooks.
+- **A Codex plugin.** Codex plugins can carry hooks, but a plugin is installed from a marketplace, and its hooks still need trust. Not worth a package for three hooks. (0.7.1 adds a [Codex plugin](codex-plugin.md) for a skill; the hooks still come from this command.)

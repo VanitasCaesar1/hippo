@@ -1,0 +1,20 @@
+{
+  "name": "hippo",
+  "interface": {
+    "displayName": "hippo"
+  },
+  "plugins": [
+    {
+      "name": "hippo",
+      "source": {
+        "source": "local",
+        "path": "./plugins/codex"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

@@ -43,6 +43,11 @@ if [ -f "$plugin" ]; then
   pv=$(sed -n 's/^ *"version": *"\(.*\)",*$/\1/p' "$plugin")
   [ "$version" = "$pv" ] || die "version $version is not the plugin's ($pv in plugin/.claude-plugin/plugin.json)"
 fi
+codex_plugin=$root/plugins/codex/.codex-plugin/plugin.json
+if [ -f "$codex_plugin" ]; then
+  cv=$(sed -n 's/^ *"version": *"\(.*\)",*$/\1/p' "$codex_plugin")
+  [ "$version" = "$cv" ] || die "version $version is not the Codex plugin's ($cv in plugins/codex/.codex-plugin/plugin.json)"
+fi
 dsh_plugin=$root/plugins/dsh/package.json
 if [ -f "$dsh_plugin" ]; then
   dv=$(sed -n 's/^ *"version": *"\(.*\)",*$/\1/p' "$dsh_plugin")

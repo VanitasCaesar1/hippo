@@ -43,6 +43,17 @@ The repository is also a Claude Code plugin marketplace. In a Claude Code sessio
 
 Then `/hippo:setup` installs the binary with the script above if it is missing (after asking you) and runs `hippo start`. `/hippo:ask <question>` asks whether an agent already solved something, and `/hippo:day [date]` shows a day's work. Once you have a notes folder (`hippo init`), the plugin gives every session in that workspace the start block; it stays silent everywhere else, and when `hippo hooks install` has already added the workspace's own hooks. The plugin's hook runs the binary named in `~/.hippo/bin-path`, and looks on `PATH` only when that file is missing.
 
+## In Codex
+
+The repository is also a Codex plugin marketplace. In the Codex app, open **Plugins**, choose **Add a marketplace**, enter `VanitasCaesar1/hippo` as the source (leave the Git ref empty), then click **+** on hippo and start a new chat. From a terminal:
+
+```sh
+codex plugin marketplace add VanitasCaesar1/hippo
+codex plugin add hippo@hippo
+```
+
+The app and the CLI share their plugins. The plugin adds one skill, `$hippo`: ask it to *set up hippo for this project* and it installs the binary with the script above if it is missing (after asking you), creates the notes folder, adds hippo's Codex hooks, indexes the history already on the machine, and offers the nightly schedule, which it adds only on a yes. Codex lists the new hooks for review at its next start; they run once you trust them there (or with `/hooks`). The same skill asks past sessions (*has any agent already solved this?*), prints a brief for a task, and walks the Inbox. The plugin carries no hooks or MCP server of its own. To update it: `codex plugin marketplace upgrade hippo`; to remove it: `codex plugin remove hippo@hippo` and `codex plugin marketplace remove hippo`.
+
 ## In Cursor, Gemini CLI and other agents
 
 Install the binary as above, then give the agent hippo's notes:

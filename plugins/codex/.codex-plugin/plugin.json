@@ -1,0 +1,33 @@
+{
+  "name": "hippo",
+  "version": "0.7.0",
+  "description": "Your coding agents learn while you sleep. hippo indexes what your agents did on this machine, keeps your notes true overnight with a second model checking every change, and starts each new session with the notes its task needs. This plugin adds the $hippo skill: set hippo up, ask what an earlier session found, brief a new task, and go through the Inbox.",
+  "author": {
+    "name": "VanitasCaesar1",
+    "url": "https://github.com/VanitasCaesar1"
+  },
+  "homepage": "https://vanitascaesar1.github.io/hippo/",
+  "repository": "https://github.com/VanitasCaesar1/hippo",
+  "license": "MIT",
+  "keywords": ["memory", "context", "notes", "transcripts", "history", "agents"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "hippo",
+    "shortDescription": "Your coding agents learn while you sleep",
+    "longDescription": "hippo reads the sessions your coding agents leave on this machine (Codex, Claude Code, Cursor, Gemini CLI and more) and indexes them locally. At night a model reads the day and drafts fixes to your notes and rules from what you corrected; a second model checks each one before it is applied, and every change has a receipt you can undo. Each new Codex session starts with the notes its task needs. The $hippo skill sets it up for this project, answers \"has an agent already solved this?\" from past sessions, writes a start brief for a new task, and walks you through the rules waiting in the Inbox.",
+    "developerName": "VanitasCaesar1",
+    "category": "Developer Tools",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "websiteURL": "https://vanitascaesar1.github.io/hippo/",
+    "privacyPolicyURL": "https://github.com/VanitasCaesar1/hippo/blob/main/SECURITY.md",
+    "defaultPrompt": [
+      "Set up hippo for this project",
+      "Has any agent already solved the flaky upload test?",
+      "What's waiting in my hippo Inbox?"
+    ],
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/icon.png",
+    "brandColor": "#1E2A4A",
+    "screenshots": []
+  }
+}
