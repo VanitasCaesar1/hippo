@@ -119,7 +119,7 @@ Failure lessons stay local in the first version: their signatures carry paths an
 
 **Matching.** Today a scan matches a new cluster to an existing lesson by kind and key, and for corrections by overlapping terms (`lessons::matches`, `detect::same_terms`: at least two shared terms and a Jaccard index of at least 0.34). A correction's key is its four most frequent terms (`detect.rs`, `cluster_corrections`), so it depends on whose sessions were counted and two people seldom get the same key. The shared Inbox never uses the key as an identity. Before drafting, a scan reads `.hippo/inbox/` and compares each cluster's terms with every shared lesson's terms, in code, with the same `same_terms` rule:
 
-- a match with a decision is not drafted: kept means done, dismissed means closed (it reopens after three more sessions, counted across everyone's `seen` files);
+- a match with a decision is not drafted: kept means done, dismissed means closed (it reopens after three more sessions, counted across everyone's `seen` files; a person's own local lessons reopen on the next recurrence from 0.8.0, [remember.md](remember.md#groups-by-meaning-across-the-whole-history), and shared decisions keep this rule);
 - a match without a decision updates the person's `seen` file and drafts nothing. That saves a model call and gives one entry with "seen by alice, bob";
 - only an unmatched cluster is drafted, and if confirmed, gets a new directory.
 
