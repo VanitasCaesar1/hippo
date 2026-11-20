@@ -38,10 +38,17 @@ enum Shape {
     List,
     /// An argv: set whole, from a JSON array or words; a multi-line array in the file is replaced whole.
     Command,
+    /// One of a fixed set of words, written as a string.
+    Choice(&'static [&'static str]),
+    /// A path relative to the workspace, without `..`.
+    Path,
+    /// A version, `major.minor.patch`.
+    Version,
 }
 
-/// The keys `hippo config` changes, their file and shape.
-const KEYS: [(&str, File, Shape); 10] = [
+/// The keys `hippo config` changes, their file and shape. A key with a
+/// dot lives in a table: `guard.fail` is `fail` under `[guard]`.
+const KEYS: [(&str, File, Shape); 15] = [
     ("transcript_roots", File::Config, Shape::List),
     ("exclude_roots", File::Config, Shape::List),
     ("ingest_interval_minutes", File::Config, Shape::Count),
@@ -52,6 +59,30 @@ const KEYS: [(&str, File, Shape); 10] = [
     ("passes_off", File::Workspace, Shape::List),
     ("lessons", File::Workspace, Shape::Switch),
     ("snapshot_keep_days", File::Workspace, Shape::Count),
+    ("min_hippo_version", File::Workspace, Shape::Version),
+    ("guard_note", File::Workspace, Shape::Path),
+    (
+        "guard.fail",
+        File::Workspace,
+        Shape::Choice(&["open", "closed"]),
+    ),
+    ("guard.timeout_ms", File::Workspace, Shape::Count),
+    (
+        "team.inbox",
+        File::Workspace,
+        Shape::Choice(&["local", "shared"]),
+    ),
+];
+
+/// The keys in rule 3's table (`docs/designs/common.md`): writing one
+/// raises `min_hippo_version` to the first release that understands it,
+/// and a loosening waits for `hippo accept` on each machine.
+pub const SECURITY_KEYS: [&str; 5] = [
+    "min_hippo_version",
+    "guard_note",
+    "guard.fail",
+    "guard.timeout_ms",
+    "team.inbox",
 ];
 
 /// The names of the keys `hippo config` changes.
@@ -80,6 +111,9 @@ pub struct Plan {
     pub after: Option<String>,
     /// Whether the text changes at all.
     pub changed: bool,
+    /// Other lines the change brings with it, as (before, after): the
+    /// raised `min_hippo_version` and a new `workspace_id`.
+    pub also: Vec<(Option<String>, Option<String>)>,
     #[serde(skip)]
     pub text: String,
 }
@@ -101,6 +135,10 @@ impl Plan {
             "+ {}\n",
             self.after.as_deref().unwrap_or("(none)")
         ));
+        for (before, after) in &self.also {
+            out.push_str(&format!("- {}\n", before.as_deref().unwrap_or("(none)")));
+            out.push_str(&format!("+ {}\n", after.as_deref().unwrap_or("(none)")));
+        }
         out
     }
 }
@@ -143,7 +181,45 @@ pub fn plan(home: &Path, key: &str, op: &Op) -> Result<Plan> {
         File::Workspace => Some(Config::load_in(home)?.workspace_dir()?.to_path_buf()),
         File::Config => None,
     };
-    plan_text(file, &path, &text, key, op, ws_root.as_deref())
+    let mut plan = plan_text(file, &path, &text, key, op, ws_root.as_deref())?;
+    if plan.changed && SECURITY_KEYS.contains(&key) && key != "min_hippo_version" {
+        raise_floor(&mut plan, ws_root.as_deref())?;
+    }
+    Ok(plan)
+}
+
+/// Adds to a plan that writes a security setting the lines rule 2 and
+/// rule 3 need: `min_hippo_version` raised to the first release that
+/// understands the setting, and a `workspace_id` when the file has none.
+fn raise_floor(plan: &mut Plan, ws_root: Option<&Path>) -> Result<()> {
+    let floor = crate::accept::FIRST_VERSION;
+    let current = find_line(&plan.text, "min_hippo_version", None).and_then(|(_, line)| {
+        line.split_once('=')
+            .map(|(_, v)| v.trim().trim_matches('"').to_owned())
+    });
+    let lower = match current.as_deref().map(crate::config::parse_version) {
+        None => true,
+        Some(None) => false,
+        Some(Some(v)) => crate::config::parse_version(floor).is_some_and(|f| v < f),
+    };
+    if lower {
+        let raised = plan_text(
+            File::Workspace,
+            &plan.path,
+            &plan.text,
+            "min_hippo_version",
+            &Op::Set(floor.to_owned()),
+            ws_root,
+        )?;
+        plan.also.push((raised.before, raised.after));
+        plan.text = raised.text;
+    }
+    if find_line(&plan.text, "workspace_id", None).is_none() {
+        let line = format!("workspace_id = \"{}\"", ulid::Ulid::generate());
+        plan.text = insert_top_level(&plan.text, &line);
+        plan.also.push((None, Some(line)));
+    }
+    Ok(())
 }
 
 /// [`plan`] on a file's `text`; `ws_root` is the workspace for a
@@ -157,7 +233,11 @@ pub fn plan_text(
     ws_root: Option<&Path>,
 ) -> Result<Plan> {
     let (_, shape) = shape(key)?;
-    let found = find_line(text, key);
+    let (table, name) = match key.split_once('.') {
+        Some((table, name)) => (Some(table), name),
+        None => (None, key),
+    };
+    let found = find_line(text, name, table);
     let before = found.as_ref().map(|(_, l)| l.clone());
     let value_text = before
         .as_deref()
@@ -172,9 +252,41 @@ pub fn plan_text(
             if n == 0 {
                 return Err(bad(format!("{key} must be at least 1")));
             }
-            Some(format!("{key} = {n}"))
+            Some(format!("{name} = {n}"))
         }
         (Op::Set(v), Shape::Clock) => Some(format!("{key} = \"{}\"", v.trim())),
+        (Op::Set(v), Shape::Choice(words)) => {
+            let v = v.trim();
+            if !words.contains(&v) {
+                return Err(bad(format!(
+                    "{key} is one of {}, found {v:?}",
+                    words.join(", ")
+                )));
+            }
+            Some(format!("{name} = \"{v}\""))
+        }
+        (Op::Set(v), Shape::Path) => {
+            let rel = normalise(Path::new(v.trim()));
+            if !crate::config::stays_inside(&rel) || rel.as_os_str().is_empty() {
+                return Err(bad(format!(
+                    "{key} must be relative to the workspace and without `..`, found {v:?}"
+                )));
+            }
+            Some(format!(
+                "{key} = {}",
+                serde_json::to_string(&rel.to_string_lossy()).expect("a string serialises")
+            ))
+        }
+        (Op::Set(v), Shape::Version) => {
+            let v = v.trim();
+            if crate::config::parse_version(v).is_none() {
+                return Err(bad(format!(
+                    "{key} is a version such as 0.6.0, found {v:?}"
+                )));
+            }
+            Some(format!("{key} = \"{v}\""))
+        }
+
         (Op::Set(v), Shape::Switch) => {
             let on = match v.trim() {
                 "on" | "true" | "yes" => true,
@@ -257,7 +369,10 @@ pub fn plan_text(
             replace_lines(text, *i, last, Some(&format!("{indent}{after}")))
         }
         (Some((i, _)), None, Some(last)) => replace_lines(text, *i, last, None),
-        (None, Some(after), _) => insert_top_level(text, after),
+        (None, Some(after), _) => match table {
+            Some(table) => insert_in_table(text, table, after),
+            None => insert_top_level(text, after),
+        },
         _ => text.to_owned(),
     };
     check(file, &new_text, ws_root)?;
@@ -269,8 +384,37 @@ pub fn plan_text(
         before,
         after,
         changed,
+        also: Vec::new(),
         text: new_text,
     })
+}
+
+/// `text` with `line` added under `[table]`: after the table's last key,
+/// or as a new table at the end.
+fn insert_in_table(text: &str, table: &str, line: &str) -> String {
+    let lines: Vec<&str> = text.lines().collect();
+    let header = format!("[{table}]");
+    let Some(start) = lines.iter().position(|l| l.trim() == header) else {
+        let mut out = text.trim_end().to_owned();
+        if !out.is_empty() {
+            out.push_str("\n\n");
+        }
+        return format!("{out}{header}\n{line}\n");
+    };
+    let end = lines
+        .iter()
+        .enumerate()
+        .skip(start + 1)
+        .find(|(_, l)| l.trim_start().starts_with('['))
+        .map_or(lines.len(), |(i, _)| i);
+    let mut at = end;
+    while at > start + 1 && lines[at - 1].trim().is_empty() {
+        at -= 1;
+    }
+    let mut out: Vec<&str> = lines[..at].to_vec();
+    out.push(line);
+    out.extend_from_slice(&lines[at..]);
+    out.join("\n") + "\n"
 }
 
 /// Writes a plan, atomically.
@@ -281,14 +425,21 @@ pub fn apply(plan: &Plan) -> Result<()> {
     Ok(())
 }
 
-/// The first line that sets `key` (not a comment, not inside a table), and
-/// its index. A list that does not close on its line is refused later.
-fn find_line(text: &str, key: &str) -> Option<(usize, String)> {
+/// The first line that sets `key` (not a comment), at the top level or,
+/// with `table`, under `[table]`, and its index. A list that does not
+/// close on its line is refused later.
+fn find_line(text: &str, key: &str, table: Option<&str>) -> Option<(usize, String)> {
+    let mut current: Option<String> = None;
     for (i, line) in text.lines().enumerate() {
         let t = line.trim_start();
         if t.starts_with('[') {
-            // A table: keys below it are not top-level.
-            return None;
+            current = Some(t.trim().trim_matches(['[', ']']).trim().to_owned());
+            // Keys below a table are not top-level.
+            table?;
+            continue;
+        }
+        if current.as_deref() != table {
+            continue;
         }
         if t.starts_with('#') {
             continue;
@@ -585,6 +736,45 @@ mod tests {
         let plan = p(CFG, "ingest_interval_minutes", Op::Unset).unwrap();
         assert!(!plan.text.contains("ingest_interval_minutes ="));
         assert!(plan.text.contains("# `ingest_interval_minutes` (10)"));
+    }
+
+    #[test]
+    fn table_keys_are_written_under_their_table() {
+        let ws = "notes_dir = \"notes\"\nentry_note = \"notes/A.md\"\n";
+        let wp = |text: &str, key: &str, op: Op| {
+            plan_text(
+                File::Workspace,
+                Path::new("/w/.hippo/hippo.toml"),
+                text,
+                key,
+                &op,
+                None,
+            )
+        };
+        let plan = wp(ws, "guard.fail", Op::Set("closed".into())).unwrap();
+        assert_eq!(plan.text, format!("{ws}\n[guard]\nfail = \"closed\"\n"));
+        let both = wp(&plan.text, "guard.timeout_ms", Op::Set("500".into())).unwrap();
+        assert!(both
+            .text
+            .ends_with("[guard]\nfail = \"closed\"\ntimeout_ms = 500\n"));
+        let tables = format!("{ws}\n[guard]\nfail = \"closed\"\n\n[team]\ninbox = \"local\"\n");
+        let open = wp(&tables, "guard.fail", Op::Set("open".into())).unwrap();
+        assert_eq!(open.before.as_deref(), Some("fail = \"closed\""));
+        assert!(open
+            .text
+            .contains("[guard]\nfail = \"open\"\n\n[team]\ninbox = \"local\""));
+        let added = wp(&tables, "guard.timeout_ms", Op::Set("900".into())).unwrap();
+        assert!(added
+            .text
+            .contains("fail = \"closed\"\ntimeout_ms = 900\n\n[team]"));
+        // A top-level key is never read from inside a table.
+        assert_eq!(find_line(&tables, "inbox", None), None);
+        assert!(wp(ws, "team.inbox", Op::Set("everyone".into())).is_err());
+        assert!(wp(ws, "guard.timeout_ms", Op::Set("90000".into())).is_err());
+        assert!(wp(ws, "guard_note", Op::Set("../Guard.md".into())).is_err());
+        assert!(wp(ws, "min_hippo_version", Op::Set("soon".into())).is_err());
+        let note = wp(ws, "guard_note", Op::Set("notes/Rules.md".into())).unwrap();
+        assert!(note.text.contains("guard_note = \"notes/Rules.md\""));
     }
 
     #[test]

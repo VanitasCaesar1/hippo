@@ -1911,6 +1911,58 @@ impl Shell {
         .detach();
     }
 
+    /// The app's accept path (docs/designs/common.md, rule 3): a native
+    /// dialog lists the loosenings that wait, and Accept records them as
+    /// accepted on this Mac. hippo's own code does the writing; nothing
+    /// runs through a shell an agent could drive.
+    fn accept_loosenings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        use hippo_core::accept;
+        use hippo_core::config::{Config, Workspace};
+        let home = self.installation.home.clone();
+        let loaded = Config::load_in(&home)
+            .and_then(|cfg| Workspace::load_optional(&cfg).map(|ws| (cfg, ws)));
+        let Ok((cfg, ws)) = loaded else { return };
+        let Ok(pending) = accept::pending(&cfg, ws.as_ref()) else {
+            return;
+        };
+        if pending.is_empty() {
+            self.manage_ui.doctor = None;
+            cx.notify();
+            return;
+        }
+        let mut lines: Vec<String> = pending.settings.iter().map(|w| w.to_string()).collect();
+        lines.extend(pending.guard.iter().map(|g| format!("guard rules: {g}")));
+        let detail = format!(
+            "{}\n\nUntil you accept, the stricter values stay in force on this Mac. Accept only a change you or your team made on purpose.",
+            lines.join("\n")
+        );
+        let answer = window.prompt(
+            gpui::PromptLevel::Warning,
+            "Accept these loosened settings on this Mac?",
+            Some(&detail),
+            &["Accept", "Keep current"],
+            cx,
+        );
+        cx.spawn_in(window, async move |this, cx| {
+            if answer.await.ok() != Some(0) {
+                return;
+            }
+            let written = Config::load_in(&home).and_then(|cfg| {
+                let ws = Workspace::load_optional(&cfg)?;
+                accept::accept_all(&cfg, ws.as_ref())
+            });
+            this.update(cx, |this, cx| {
+                this.manage_ui.doctor = match written {
+                    Ok(()) => None,
+                    Err(err) => Some(Err(format!("accept failed: {err}"))),
+                };
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+    }
+
     fn health_card(&self, look: &Look, cx: &mut Context<Self>) -> gpui::AnyElement {
         let busy = self.manage_busy();
         let run = kit::button(
@@ -1985,6 +2037,7 @@ impl Shell {
                     };
                     let fix = model::doctor_fix(name, status);
                     let show_memory = name == "linter" && status != "ok";
+                    let show_accept = name == "accept" && status != "ok";
                     card = card.child(
                         div()
                             .flex()
@@ -2055,6 +2108,21 @@ impl Shell {
                                     }))
                                 })
                             }))
+                            .when(show_accept, |d| {
+                                d.child(
+                                    kit::button(
+                                        look,
+                                        ("doctor-accept", i),
+                                        "Accept…",
+                                        if busy { Kind::Disabled } else { Kind::Plain },
+                                    )
+                                    .when(!busy, |b| {
+                                        b.on_click(cx.listener(|this, _, window, cx| {
+                                            this.accept_loosenings(window, cx);
+                                        }))
+                                    }),
+                                )
+                            })
                             .when(show_memory, |d| {
                                 d.child(
                                     kit::button(

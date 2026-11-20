@@ -20,6 +20,7 @@ fn workspace(root: &Path) -> Workspace {
         log_notes: None,
         min_hippo_version: None,
         unknown_keys: Vec::new(),
+        ..Default::default()
     }
 }
 

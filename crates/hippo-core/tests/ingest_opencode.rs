@@ -83,6 +83,7 @@ fn setup(home: &Path, workspace: &Path, roots: Vec<String>) -> (Config, Workspac
         log_notes: None,
         min_hippo_version: None,
         unknown_keys: Vec::new(),
+        ..Default::default()
     };
     (config, ws)
 }

@@ -2,6 +2,11 @@
 # The keys are described at https://vanitascaesar1.github.io/hippo/docs/configuration.html
 # Paths are relative to the workspace.
 
+# Names this workspace's accepted security settings on each machine.
+# Written once; do not change it.
+# `workspace_id`
+workspace_id = "{{workspace_id}}"
+
 # `notes_dir` (required)
 notes_dir = "{{notes_dir}}"
 

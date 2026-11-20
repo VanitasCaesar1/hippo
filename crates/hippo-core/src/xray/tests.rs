@@ -386,6 +386,7 @@ fn workspace() -> (tempfile::TempDir, Workspace) {
         log_notes: None,
         min_hippo_version: None,
         unknown_keys: Vec::new(),
+        ..Default::default()
     };
     (dir, ws)
 }

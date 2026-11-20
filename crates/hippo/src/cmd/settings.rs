@@ -16,7 +16,7 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Set a key: ingest_interval_minutes, dream_at, budget_bytes, lessons (on|off), snapshot_keep_days, model_command (a JSON array or words), role.<role> <runner>, fallback.<role> 'a,b'
+    /// Set a key: ingest_interval_minutes, dream_at, budget_bytes, lessons (on|off), snapshot_keep_days, model_command (a JSON array or words), role.<role> <runner>, fallback.<role> 'a,b', and the security settings guard.fail, guard.timeout_ms, guard_note, team.inbox, min_hippo_version
     Set {
         key: String,
         value: String,
@@ -64,7 +64,7 @@ pub fn run(command: Command) -> Result<ExitCode> {
         Command::Remove { key, value, yes } => (key, Op::Remove(value), yes),
     };
     // role.<role> and fallback.<role> live in [roles] and [fallback].
-    if let Some((table, role)) = key.split_once('.') {
+    if let Some((table @ ("role" | "fallback"), role)) = key.split_once('.') {
         use hippo_core::runners::edit::Change;
         let change = match (table, &op) {
             ("role", Op::Set(runner)) => Change::SetRole(role.to_owned(), runner.trim().to_owned()),
@@ -92,6 +92,15 @@ pub fn run(command: Command) -> Result<ExitCode> {
         println!("written");
         if matches!(key.as_str(), "ingest_interval_minutes" | "dream_at") {
             println!("run hippo schedule install for the launchd jobs to use it");
+        }
+        if settings::SECURITY_KEYS.contains(&key.as_str()) {
+            let cfg = config::Config::load_in(&home)?;
+            let ws = config::Workspace::load(&cfg)?;
+            for waiting in &ws.waiting {
+                println!(
+                    "loosening waiting: {waiting}; each machine keeps the value in force until its person runs hippo accept"
+                );
+            }
         }
     } else {
         println!("nothing written; add --yes to write it");

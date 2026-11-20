@@ -198,7 +198,7 @@ impl Config {
 
 /// `<workspace>/.hippo/hippo.toml`. Missing keys take the Records defaults;
 /// paths are relative to [`Workspace::root`].
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 pub struct Workspace {
     /// The workspace directory, [`Config::workspace`]. Not a key in the file.
     #[serde(skip)]
@@ -241,11 +241,80 @@ pub struct Workspace {
     /// working.
     #[serde(default)]
     pub min_hippo_version: Option<String>,
+    /// A ULID written once, which names this workspace's file of accepted
+    /// settings on each machine (`docs/designs/common.md`, rule 3).
+    #[serde(default)]
+    pub workspace_id: Option<String>,
+    /// The note holding the team's guard rules; `<notes_dir>/Guard.md`
+    /// when unset. A change waits for a local accept.
+    #[serde(default, deserialize_with = "optional_inside_workspace")]
+    pub guard_note: Option<PathBuf>,
+    /// `[guard]`.
+    #[serde(default)]
+    pub guard: GuardSettings,
+    /// `[team]`.
+    #[serde(default)]
+    pub team: TeamSettings,
     /// Keys and tables in the file that this hippo does not know, in file
     /// order: settings a newer hippo added. They make the same commands
     /// refuse, and `doctor` reports them. Not a key in the file.
     #[serde(skip)]
     pub unknown_keys: Vec<String>,
+    /// The security settings as the file sets them, before rule 3 kept
+    /// any accepted value in force; `None` until [`Workspace::load`]
+    /// applied the rule. Not a key in the file.
+    #[serde(skip)]
+    pub file_values: Option<crate::accept::Values>,
+    /// Loosenings in the file that wait for `hippo accept`. Not a key in
+    /// the file.
+    #[serde(skip)]
+    pub waiting: Vec<crate::accept::Waiting>,
+}
+
+/// `[guard]` in `hippo.toml`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+pub struct GuardSettings {
+    /// What an agent's call does when the guard cannot answer.
+    #[serde(default)]
+    pub fail: Option<crate::accept::Fail>,
+    /// How long the guard may take before `fail` applies, in milliseconds.
+    #[serde(default, deserialize_with = "optional_timeout")]
+    pub timeout_ms: Option<u64>,
+}
+
+/// `[team]` in `hippo.toml`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+pub struct TeamSettings {
+    /// Whether lessons are shared through `.hippo/inbox/`.
+    #[serde(default)]
+    pub inbox: Option<crate::accept::Inbox>,
+}
+
+/// The keys `[guard]` and `[team]` may hold in this release.
+pub const TABLE_KEYS: [(&str, &[&str]); 2] =
+    [("guard", &["fail", "timeout_ms"]), ("team", &["inbox"])];
+
+fn optional_timeout<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<u64>, D::Error> {
+    match Option::<u64>::deserialize(deserializer)? {
+        Some(ms) if !(1..=60_000).contains(&ms) => {
+            Err(D::Error::custom("must be from 1 to 60000 milliseconds"))
+        }
+        ms => Ok(ms),
+    }
+}
+
+fn optional_inside_workspace<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<PathBuf>, D::Error> {
+    match Option::<PathBuf>::deserialize(deserializer)? {
+        Some(path) if !stays_inside(&path) => Err(D::Error::custom(format!(
+            "must be relative to the workspace and without `..`, found {}",
+            path.display()
+        ))),
+        path => Ok(path),
+    }
 }
 
 fn default_true() -> bool {
@@ -327,7 +396,7 @@ pub(crate) fn stays_inside(path: &Path) -> bool {
 }
 
 /// Every key `hippo.toml` may hold in this release.
-pub const WORKSPACE_KEYS: [&str; 11] = [
+pub const WORKSPACE_KEYS: [&str; 15] = [
     "notes_dir",
     "entry_note",
     "required_notes",
@@ -339,6 +408,10 @@ pub const WORKSPACE_KEYS: [&str; 11] = [
     "snapshot_keep_days",
     "log_notes",
     "min_hippo_version",
+    "workspace_id",
+    "guard_note",
+    "guard",
+    "team",
 ];
 
 /// This hippo's version.
@@ -413,7 +486,17 @@ impl Workspace {
     pub fn load(config: &Config) -> Result<Workspace> {
         let root = config.workspace_dir()?;
         let path = root.join(".hippo").join("hippo.toml");
-        Self::parse(&read(&path)?, root)
+        let mut ws = Self::parse(&read(&path)?, root)?;
+        crate::accept::apply(&config.home, &mut ws);
+        Ok(ws)
+    }
+
+    /// The guard note: `guard_note`, or `<notes_dir>/Guard.md`.
+    pub fn guard_note_path(&self) -> PathBuf {
+        match &self.guard_note {
+            Some(p) => self.root.join(p),
+            None => self.notes_root().join("Guard.md"),
+        }
     }
 
     /// [`Workspace::load`], or `None` when the configuration names no
@@ -430,11 +513,21 @@ impl Workspace {
         let mut workspace: Workspace = toml::from_str(text)?;
         workspace.root = root.to_path_buf();
         if let Ok(table) = text.parse::<toml::Table>() {
-            workspace.unknown_keys = table
-                .keys()
-                .filter(|k| !WORKSPACE_KEYS.contains(&k.as_str()))
-                .cloned()
-                .collect();
+            for (key, value) in &table {
+                if !WORKSPACE_KEYS.contains(&key.as_str()) {
+                    workspace.unknown_keys.push(key.clone());
+                    continue;
+                }
+                let known = TABLE_KEYS.iter().find(|(t, _)| t == key).map(|(_, k)| *k);
+                if let (Some(known), Some(inner)) = (known, value.as_table()) {
+                    workspace.unknown_keys.extend(
+                        inner
+                            .keys()
+                            .filter(|k| !known.contains(&k.as_str()))
+                            .map(|k| format!("{key}.{k}")),
+                    );
+                }
+            }
         }
         if workspace.log_path.as_os_str().is_empty() {
             workspace.log_path = workspace.notes_dir.join("Session log.md");
@@ -714,7 +807,8 @@ pub fn init_in(home: &Path, options: InitOptions) -> Result<InitReport> {
                 fs::create_dir_all(hippo_dir).map_err(|e| Error::io_at(hippo_dir, e))?;
                 let settings = WORKSPACE_TEMPLATE
                     .replace("{{notes_dir}}", &toml_escape(notes_dir))
-                    .replace("{{entry_note}}", &toml_escape(entry_note));
+                    .replace("{{entry_note}}", &toml_escape(entry_note))
+                    .replace("{{workspace_id}}", &ulid::Ulid::generate().to_string());
                 let settings_path = hippo_dir.join("hippo.toml");
                 write_file(&settings_path, &settings, options.force)?;
                 let gitignore = hippo_dir.join(".gitignore");
@@ -1075,9 +1169,21 @@ mod tests {
             log_notes: None,
             min_hippo_version: None,
             unknown_keys: Vec::new(),
+            ..Default::default()
         };
         let text = read(&hippo.join("hippo.toml")).unwrap();
-        assert_eq!(Workspace::parse(&text, &root).unwrap(), records_workspace);
+        let parsed = Workspace::parse(&text, &root).unwrap();
+        assert!(parsed
+            .workspace_id
+            .as_deref()
+            .is_some_and(crate::accept::valid_id));
+        assert_eq!(
+            Workspace {
+                workspace_id: None,
+                ..parsed
+            },
+            records_workspace
+        );
         let minimal = "notes_dir = \"brain\"\nentry_note = \"brain/START HERE.md\"\n";
         assert_eq!(Workspace::parse(minimal, &root).unwrap(), records_workspace);
         assert_eq!(
@@ -1109,8 +1215,8 @@ mod tests {
                 assert!(named, "{line}");
             }
         }
-        // The home config has 5 keys and the workspace config 6.
-        assert_eq!(keys, 11);
+        // The home config has 5 keys and the workspace config 7.
+        assert_eq!(keys, 12);
     }
 
     #[test]
@@ -1374,17 +1480,18 @@ mod tests {
         let ws = Workspace::parse(&format!("{base}min_hippo_version = \"soon\"\n"), root).unwrap();
         assert!(ws.write_refusal().unwrap().contains("cannot read"));
 
-        // A table from a newer release loads, and refuses writes.
+        // A table from a newer release loads, and refuses writes; so does
+        // a key this release does not know in a table it does.
         let ws = Workspace::parse(
-            &format!("{base}[guard]\nfail = \"closed\"\n\n[team]\ninbox = \"shared\"\n"),
+            &format!("{base}[secrets]\nrunner = \"x\"\n\n[team]\ninbox = \"shared\"\ndreamer = \"alice\"\n"),
             root,
         )
         .unwrap();
-        assert_eq!(ws.unknown_keys, ["guard", "team"]);
+        assert_eq!(ws.unknown_keys, ["secrets", "team.dreamer"]);
         assert!(ws
             .write_refusal()
             .unwrap()
-            .contains("does not know: guard, team"));
+            .contains("does not know: secrets, team.dreamer"));
         assert!(matches!(ws.check_can_write(), Err(Error::Refused(_))));
     }
 

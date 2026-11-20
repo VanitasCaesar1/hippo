@@ -40,6 +40,7 @@
 //!   [`revert`](dream::revert).
 //! - [`eval`]: `hippo eval`, the three suites over a synthetic set.
 
+pub mod accept;
 pub mod adapters;
 pub mod ask;
 pub mod brief;

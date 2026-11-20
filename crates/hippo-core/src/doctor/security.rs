@@ -181,6 +181,34 @@ pub fn workspace_settings_check(ws: &Workspace) -> Check {
     }
 }
 
+/// `accept`: the loosenings that wait for `hippo accept` on this machine
+/// (`docs/designs/common.md`, rule 3). A warning, never a problem: the
+/// values in force are the stricter ones.
+pub fn accept_check(pending: &crate::accept::Pending) -> Check {
+    if pending.is_empty() {
+        return row("accept", Status::Ok, "no loosening waiting");
+    }
+    let mut parts: Vec<String> = pending
+        .settings
+        .iter()
+        .map(|w| format!("loosening waiting: {w}"))
+        .collect();
+    parts.extend(
+        pending
+            .guard
+            .iter()
+            .map(|g| format!("loosening waiting: guard rules: {g}")),
+    );
+    row(
+        "accept",
+        Status::Warn,
+        format!(
+            "{}; the stricter values stay in force until you run hippo accept (or Accept in the app)",
+            parts.join("; ")
+        ),
+    )
+}
+
 /// Whether git tracks `path` in the work tree at `root`. `false` when git
 /// cannot say.
 fn git_tracks(root: &Path, path: &Path) -> bool {

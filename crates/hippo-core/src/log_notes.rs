@@ -208,6 +208,7 @@ mod tests {
             log_notes,
             min_hippo_version: None,
             unknown_keys: Vec::new(),
+            ..Default::default()
         }
     }
 

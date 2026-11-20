@@ -794,6 +794,7 @@ mod tests {
                 log_notes: None,
                 min_hippo_version: None,
                 unknown_keys: Vec::new(),
+                ..Default::default()
             };
             let fake = Fake {
                 ws: Some(ws.root.clone()),

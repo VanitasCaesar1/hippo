@@ -211,6 +211,10 @@ fn security_checks(cfg: &Config, ws: Option<&Workspace>, env: &Env) -> Vec<Check
     if let Some(ws) = ws {
         out.push(security::workspace_settings_check(ws));
     }
+    match crate::accept::pending(cfg, ws) {
+        Ok(pending) => out.push(security::accept_check(&pending)),
+        Err(err) => out.push(row("accept", Status::Problem, err.to_string())),
+    }
     out.push(security::permissions_check(&cfg.home));
     out.push(security::hooks_check(
         ws,
@@ -1529,6 +1533,7 @@ mod tests {
             log_notes: None,
             min_hippo_version: None,
             unknown_keys: Vec::new(),
+            ..Default::default()
         };
         Setup {
             _home: home,

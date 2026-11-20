@@ -1539,6 +1539,7 @@ mod tests {
             log_notes: None,
             min_hippo_version: None,
             unknown_keys: Vec::new(),
+            ..Default::default()
         };
         Setup {
             _home: home,

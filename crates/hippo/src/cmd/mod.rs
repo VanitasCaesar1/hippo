@@ -1,5 +1,6 @@
 //! One module per command.
 
+pub mod accept;
 pub mod add;
 pub mod ask;
 pub mod brief;
