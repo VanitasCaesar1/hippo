@@ -503,6 +503,16 @@ hippo mcp install --client <cursor|claude-desktop|gemini|windsurf|zed|vscode|cla
 
 `hippo mcp` is an MCP server over stdio, started by an MCP client such as Cursor, Gemini CLI or Zed. Its tools are `hippo_context`, `hippo_recall`, `hippo_ask`, `hippo_day` and `hippo_incidents`, each returning the text of the matching command, redacted; `--allow-write` adds `hippo_note_correction`, which queues a correction to the Inbox after a fresh-context review. `hippo mcp install` prints the client's configuration entry for hippo, and with `--write` merges it into the client's file after a backup. See [Any MCP client](mcp.md).
 
+## hippo app
+
+```text
+hippo app install [--version <version>] [--dir <folder>]
+hippo app uninstall
+hippo app status
+```
+
+Hippo.app on macOS ([Install › Hippo.app](install.md#hippoapp-macos)). `install` downloads `Hippo-<version>-macos.tar.gz` and its `.sha256` from the GitHub release of this hippo's version (or `--version`) with `curl`, refuses it unless the checksum matches and the bundle inside is that version, puts `Hippo.app` in `~/Applications` (or `--dir`), replacing the one there, and records it under `app` in `~/.hippo/install.json`. `HIPPO_BASE_URL` names another folder of release files, as for `install.sh`. `status` prints the recorded version and path and exits 1 when the bundle's binary is no longer the one checked; `hippo doctor` shows the same as its `app` row. `uninstall` removes the recorded bundle and its record, and nothing it did not install. hippo never changes a file's quarantine attribute. Elsewhere than macOS each exits 1.
+
 ## hippo hook
 
 ```text

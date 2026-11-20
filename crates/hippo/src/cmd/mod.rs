@@ -2,6 +2,7 @@
 
 pub mod accept;
 pub mod add;
+pub mod app;
 pub mod ask;
 pub mod brief;
 pub mod card;

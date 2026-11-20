@@ -49,7 +49,7 @@ const GROUPS: [(&str, &[&str]); 6] = [
         "Setup and checks",
         &[
             "init", "ingest", "config", "accept", "runners", "doctor", "schedule", "hooks",
-            "guard", "mcp",
+            "guard", "mcp", "app",
         ],
     ),
     (
@@ -170,6 +170,9 @@ enum Command {
     Schedule(cmd::schedule::Command),
     /// Serve hippo's tools to any MCP client over stdio; `hippo mcp install` configures a client
     Mcp(cmd::mcp::Args),
+    /// Hippo.app on macOS: download this version's, checked against its sha256 (install, uninstall, status)
+    #[command(subcommand)]
+    App(cmd::app::Command),
 }
 
 fn main() -> ExitCode {
@@ -194,6 +197,7 @@ fn main() -> ExitCode {
     let result = match command {
         Command::Start(args) => cmd::start::run(args),
         Command::Setup(args) => cmd::setup::run(args),
+        Command::App(command) => cmd::app::run(command),
         Command::Init(args) => cmd::init::run(args),
         Command::Add(args) => cmd::add::run(args),
         Command::Detect(args) => cmd::detect::run(args),

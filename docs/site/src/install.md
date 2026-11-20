@@ -71,6 +71,26 @@ hippo mcp install --client cursor --write     # any MCP client: hippo's tools (p
 - For dreaming, and for `hippo ask`'s written answers, a model command. The default is the `claude` CLI (Claude Code), signed in. You can set another command; see [Configuration](configuration.md).
 - Every command is meant to run on macOS and Linux; [Limits](limits.md) says how far Linux is tested. Scheduling installs launchd jobs on macOS. Elsewhere `hippo schedule install` prints cron and systemd lines for you to copy.
 
+## Hippo.app (macOS)
+
+Hippo.app is the window onto the same files: Morning, Brain, Agents and Guard. Each release has it for Apple silicon and Intel, as `Hippo-<version>-macos.tar.gz` with a `.sha256` beside it. It is signed ad hoc and **not notarised**: there is no Apple Developer ID behind it.
+
+The way to install it is hippo itself, which needs no `sudo` and no prompt from macOS:
+
+```sh
+hippo app install            # or, with the CLI: curl -fsSL …/install.sh | sh -s -- --app
+```
+
+It downloads the app of the same version as your `hippo` with `curl`, checks it against the published sha256, puts `Hippo.app` in `~/Applications`, and records it in `~/.hippo/install.json` (`hippo doctor` and `hippo app status` compare it later). `hippo app uninstall` removes it. A download made with `curl` carries no "downloaded from the internet" mark, so macOS opens the app like one you built yourself; the checksum is what tells you it is the release's.
+
+If you download the tarball from the releases page in a browser instead, macOS marks it, and the first time you open Hippo it says it cannot check the app for malicious software. To open it anyway:
+
+1. Double-click Hippo.app once and close the message.
+2. Open System Settings › Privacy & Security. Under Security it says "Hippo" was blocked; click **Open Anyway**.
+3. Confirm with **Open** (and your password or Touch ID if asked). macOS remembers the choice for this copy.
+
+The Claude Code plugin's `/hippo:setup` and the Codex plugin's `$hippo` offer `hippo app install` after the CLI, and run it only if you say yes. To build the app from source instead, see [app/README.md](https://github.com/VanitasCaesar1/hippo/blob/main/app/README.md).
+
 ## macOS notes
 
 `hippo schedule install` writes launchd jobs that run the absolute path of the binary that ran the install. If you later move or reinstall hippo to another path, run `hippo schedule install` again.

@@ -1,0 +1,35 @@
+name: app-release-check
+
+# The release's Hippo.app job, run on a pull request that changes how the
+# app is packaged, so a release never finds out first. Nothing is published.
+on:
+  pull_request:
+    paths: ["app/scripts/release-app.sh", "app/scripts/bundle.sh", "app/resources/**", ".github/workflows/app-release-check.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - name: Build
+        env:
+          HIPPO_DIST_DIR: ${{ runner.temp }}/dist
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' app/hippo-app/Cargo.toml | head -n 1)
+          app/scripts/release-app.sh "$version"
+      - name: Check the archive
+        run: |
+          cd "$RUNNER_TEMP/dist"
+          shasum -a 256 -c Hippo-*-macos.tar.gz.sha256
+          test "$(tar -tzf Hippo-*-macos.tar.gz | cut -d / -f 1 | sort -u)" = Hippo.app
+          mkdir x && tar -xzf Hippo-*-macos.tar.gz -C x
+          lipo -archs x/Hippo.app/Contents/MacOS/hippo-app | grep -q arm64
+          lipo -archs x/Hippo.app/Contents/MacOS/hippo-app | grep -q x86_64
+          codesign --verify --strict x/Hippo.app

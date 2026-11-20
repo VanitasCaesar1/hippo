@@ -42,6 +42,7 @@
 
 pub mod accept;
 pub mod adapters;
+pub mod app_install;
 pub mod ask;
 pub mod brief;
 pub mod config;

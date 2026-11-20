@@ -1,8 +1,9 @@
 name: release
 
 # On a pushed v* tag: the four release binaries, built by the same
-# scripts/release.sh as a local release, attached to the tag's release with
-# their checksums and the filled Homebrew formula.
+# scripts/release.sh as a local release, and Hippo.app, built by
+# app/scripts/release-app.sh, attached to the tag's release with their
+# checksums and the filled Homebrew formula.
 on:
   push:
     tags: ["v*"]
@@ -28,6 +29,24 @@ jobs:
           name: dist-macos
           path: ${{ runner.temp }}/dist/hippo-*
 
+  # Hippo.app: universal, ad-hoc signed, not notarised (docs/designs/app-download.md).
+  app:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - name: Build
+        env:
+          HIPPO_DIST_DIR: ${{ runner.temp }}/dist
+        run: app/scripts/release-app.sh "${GITHUB_REF_NAME#v}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-app
+          path: ${{ runner.temp }}/dist/Hippo-*
+
   linux:
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -50,7 +69,7 @@ jobs:
           path: ${{ runner.temp }}/dist/hippo-*
 
   publish:
-    needs: [macos, linux]
+    needs: [macos, linux, app]
     runs-on: ubuntu-latest
     permissions:
       contents: write

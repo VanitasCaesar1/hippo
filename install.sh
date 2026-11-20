@@ -2,6 +2,7 @@
 # Installs hippo from the latest GitHub release:
 #
 #   curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippo/main/install.sh | sh
+#   curl -fsSL …/install.sh | sh -s -- --app     # and Hippo.app, on macOS
 #
 # It picks the binary for this machine, checks its sha256, and copies it to
 # $HIPPO_INSTALL_DIR (default ~/.local/bin). No sudo. It then records the
@@ -15,8 +16,20 @@
 #                           file:///path/to/dist (then give HIPPO_VERSION)
 #   HIPPO_INSTALL_OS, HIPPO_INSTALL_ARCH
 #                           stand in for uname -s and uname -m, for testing
+#
+# With --app, on macOS, it then runs `hippo app install`: Hippo.app of the
+# same version, downloaded with curl, checked against its sha256 and put in
+# ~/Applications (docs/designs/app-download.md).
 
 set -eu
+
+app=no
+for arg in "$@"; do
+  case $arg in
+    --app) app=yes ;;
+    *) printf 'install.sh: unknown option %s (the only one is --app)\n' "$arg" >&2; exit 2 ;;
+  esac
+done
 
 repo=https://github.com/VanitasCaesar1/hippo
 dir=${HIPPO_INSTALL_DIR:-$HOME/.local/bin}
@@ -167,6 +180,15 @@ json_string() {
   mv -f "$home/.bin-path.$$" "$home/bin-path"
 ) || die "installed $bin, but could not write $home/install.json and $home/bin-path"
 say "Recorded its sha256 in $home/install.json"
+
+if [ "$app" = yes ]; then
+  say ""
+  if [ "$os" = Darwin ]; then
+    "$bin" app install --version "$version" || die "hippo $version is installed, but Hippo.app is not; run $bin app install to try again"
+  else
+    say "Hippo.app is for macOS; skipped it on $os."
+  fi
+fi
 
 next=hippo
 case ":$PATH:" in

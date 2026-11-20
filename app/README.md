@@ -4,14 +4,18 @@ A macOS window onto your agent fleet and what it learned: which agents are worki
 
 Status: built and early. It is checked on synthetic data and used on macOS on Apple silicon; whether it can replace the CLI in daily use is not proven yet.
 
-## Build and install
+## Install
+
+`hippo app install` downloads this version's Hippo.app (Apple silicon and Intel, signed ad hoc, not notarised), checks its sha256 and puts it in `~/Applications`; `curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippo/main/install.sh | sh -s -- --app` does the same after installing the CLI. [Install › Hippo.app](../docs/site/src/install.md#hippoapp-macos) has the details, including how to open a copy downloaded in a browser. The release asset is made by `app/scripts/release-app.sh` ([design](../docs/designs/app-download.md)).
+
+## Build from source
 
 The app is its own Cargo workspace, so the engine's build never compiles GPUI. It needs macOS and a stable Rust no older than the pinned Zed commit's toolchain (1.99.1 at the time of writing).
 
 ```sh
 app/scripts/bundle.sh                       # release build, then target/Hippo.app, signed ad hoc
 TOOLCHAIN=+1.99.1 app/scripts/bundle.sh     # when the default toolchain is older
-cp -R app/target/Hippo.app /Applications/
+cp -R app/target/Hippo.app ~/Applications/
 ```
 
 The first build compiles GPUI and takes a while; later builds are quick. The bundle is signed ad hoc, not notarized, so the first launch needs System Settings › Privacy & Security › Open Anyway. If your workspace or `~/.hippo` is on a removable volume, macOS asks once whether Hippo may read it.

@@ -229,6 +229,7 @@ fn security_checks(cfg: &Config, ws: Option<&Workspace>, env: &Env) -> Vec<Check
         &env.mcp_files,
         ws,
     ));
+    out.extend(crate::app_install::check(&cfg.home));
     out
 }
 

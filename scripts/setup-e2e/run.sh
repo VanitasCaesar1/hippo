@@ -6,7 +6,14 @@
 # reads what the model was sent. "Start a new session and it's ready" holds
 # when the first request carries the entry note.
 #
-#   scripts/setup-e2e/run.sh <hippo binary> [codex] [claude]
+#   scripts/setup-e2e/run.sh <hippo binary> [codex] [claude] [app]
+#   HIPPO_APP_DIST=<folder> …  app   # a folder holding Hippo-<version>-macos.tar.gz
+#                                    # and its .sha256 (app/scripts/release-app.sh)
+#
+# `app` installs with `install.sh --app` instead, checks the bundle carries
+# no quarantine attribute, then opens it in the background on the scratch
+# home (open -g -n, nothing comes to the front), captures its window by id
+# into the scratch folder and quits it by its PID.
 #
 # No model, no key and no account are used. Everything is under a new
 # temporary folder, which is HOME, HIPPO_HOME, CODEX_HOME,
@@ -17,7 +24,7 @@
 # checkout's plugin with --plugin-dir.
 set -eu
 
-[ $# -ge 1 ] || { echo "usage: $0 <hippo binary> [codex] [claude]" >&2; exit 2; }
+[ $# -ge 1 ] || { echo "usage: $0 <hippo binary> [codex] [claude] [app]" >&2; exit 2; }
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
 hippo_bin=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
@@ -58,6 +65,12 @@ cp "$hippo_bin" "$dist/hippo-$version-$target/hippo"
 cp "$root/LICENSE" "$root/README.md" "$dist/hippo-$version-$target/"
 (cd "$dist" && tar -czf "hippo-$version-$target.tar.gz" "hippo-$version-$target" && rm -r "hippo-$version-$target")
 (cd "$dist" && shasum -a 256 "hippo-$version-$target.tar.gz" >"hippo-$version-$target.tar.gz.sha256")
+case " $agents " in
+  *" app "*)
+    [ -n "${HIPPO_APP_DIST:-}" ] || fail "app needs HIPPO_APP_DIST"
+    cp "$HIPPO_APP_DIST/Hippo-$version-macos.tar.gz" "$HIPPO_APP_DIST/Hippo-$version-macos.tar.gz.sha256" "$dist/"
+    ;;
+esac
 SERVE_LOG="$scratch/serve.log" node "$here/serve.mjs" "$dist" >"$scratch/serve.port" &
 serve=$!
 pids=$serve
@@ -67,7 +80,10 @@ base="http://127.0.0.1:$(cat "$scratch/serve.port")"
 
 # 1. Nothing installed; the install script, as the plugins run it.
 [ -z "$(command -v hippo || true)" ] || fail "a hippo is on PATH before the install"
-HIPPO_BASE_URL=$base HIPPO_VERSION=$version sh "$root/install.sh" >"$scratch/install.txt" 2>&1 \
+flags=
+case " $agents " in *" app "*) flags=--app ;; esac
+# shellcheck disable=SC2086
+HIPPO_BASE_URL=$base HIPPO_VERSION=$version sh "$root/install.sh" $flags >"$scratch/install.txt" 2>&1 \
   || { cat "$scratch/install.txt" >&2; fail "install.sh"; }
 [ "$(command -v hippo)" = "$HOME/.local/bin/hippo" ] || fail "install.sh put no hippo in ~/.local/bin"
 grep -q "Checked hippo-$version-$target.tar.gz against its published sha256" "$scratch/install.txt" || fail "install.sh did not check the checksum"
@@ -140,13 +156,44 @@ run_claude() {
   echo "setup-e2e: claude: after hippo setup, a new session's first request carried the entry note"
 }
 
+run_app() {
+  bundle="$HOME/Applications/Hippo.app"
+  [ -x "$bundle/Contents/MacOS/hippo-app" ] || { cat "$scratch/install.txt" >&2; fail "install.sh --app put no Hippo.app in ~/Applications"; }
+  grep -q "Checked Hippo-$version-macos.tar.gz against its published sha256" "$scratch/install.txt" || fail "the app's checksum was not checked"
+  if /usr/bin/xattr -p com.apple.quarantine "$bundle" >/dev/null 2>&1; then fail "the bundle carries a quarantine attribute"; fi
+  hippo app status >"$scratch/app-status.txt" || { cat "$scratch/app-status.txt" >&2; fail "hippo app status"; }
+  codesign --verify --strict "$bundle" || fail "the bundle's ad-hoc signature does not verify"
+  # Open it in the background on the scratch home, find its window by PID,
+  # capture it, quit it.
+  before=$(pgrep -f "$bundle/Contents/MacOS/hippo-app" || true)
+  [ -z "$before" ] || fail "a Hippo from the scratch folder is already running"
+  open -g -n "$bundle" --env HOME="$HOME" --env HIPPO_HOME="$HIPPO_HOME" --env PATH="$HOME/.local/bin:/usr/bin:/bin" \
+    --env TZ=UTC --env HIPPO_APP_DEV_SIZE=1200x800 --env HIPPO_APP_DEV_VIEW=morning --env HIPPO_APP_PREFS="$scratch/app-prefs.json"
+  pid=
+  for _ in $(seq 1 40); do pid=$(pgrep -f "$bundle/Contents/MacOS/hippo-app" | head -n 1 || true); [ -n "$pid" ] && break; sleep 0.25; done
+  [ -n "$pid" ] || fail "Hippo.app did not start"
+  pids="$pids $pid"
+  wid=
+  for _ in $(seq 1 40); do
+    wid=$(swift -e 'import CoreGraphics; let p = Int32(CommandLine.arguments[1])!; for w in (CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as! [[String: Any]]) where (w[kCGWindowOwnerPID as String] as? Int32) == p && (w[kCGWindowLayer as String] as? Int) == 0 { if let b = w[kCGWindowBounds as String] as? [String: Any], (b["Height"] as? Double ?? 0) > 100 { print(w[kCGWindowNumber as String]!); break } }' "$pid" 2>/dev/null || true)
+    [ -n "$wid" ] && break
+    sleep 0.25
+  done
+  sleep 3
+  if [ -n "$wid" ]; then /usr/sbin/screencapture -o -x -l "$wid" "$scratch/app.png"; fi
+  kill "$pid"
+  [ -n "$wid" ] || fail "Hippo.app opened no window"
+  echo "setup-e2e: app: install.sh --app installed Hippo.app $version (checksum checked, no quarantine, ad-hoc signature verifies); it opened a window (captured to $scratch/app.png)"
+}
+
 for agent in $agents; do
   case $agent in
     codex) run_codex ;;
     claude) run_claude ;;
+    app) run_app ;;
     *) fail "unknown agent $agent" ;;
   esac
 done
-outside=$(grep -v '^GET /hippo-' "$scratch/serve.log" || true)
+outside=$(grep -v '^GET /hippo-\|^GET /Hippo-' "$scratch/serve.log" || true)
 [ -z "$outside" ] || fail "unexpected requests to the release server: $outside"
 echo "scratch: $scratch"
