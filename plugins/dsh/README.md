@@ -33,7 +33,7 @@ hippo sends nothing for these commands. But the start block and each tool result
 
 ## Settings
 
-Override the plugin's row in your profile's `cordis.patch.yml` (`$DSH_HOME/profiles/<profile>/cordis.patch.yml`, `DSH_HOME` defaulting to `~/.dsh`). An override replaces the whole `config`, so give all three:
+Override the plugin's row in your profile's `cordis.patch.yml` (`$DSH_HOME/profiles/<profile>/cordis.patch.yml`, `DSH_HOME` defaulting to `~/.dsh`). An override replaces the whole `config`, so give every key you set:
 
 ```yaml
 - id: hippo
@@ -41,7 +41,10 @@ Override the plugin's row in your profile's `cordis.patch.yml` (`$DSH_HOME/profi
     command: hippo     # a name looked up as above, or an absolute path
     timeoutMs: 10000   # how long one hippo command may run
     tools: true        # register hippo_ask and hippo_day
+    guard: false       # run hippo guard check before every tool call
 ```
+
+**The guard.** With `guard: true` the plugin runs `hippo guard check --agent dsh` in dsh's `tools/pre-execute` gate with the tool's name, parsed arguments and the session's folder ([the guard](https://vanitascaesar1.github.io/hippo/docs/security.html#the-guard)). A refusal becomes dsh's `deny`; a warning lets the call run and reaches the model with the call's result (and dsh's log). In hippo 0.6 only hippo's self-protection rules refuse. When hippo cannot answer, the call goes on, unless `fail = "closed"` is in force. The contract was read from dsh's `dsh-tools` type definitions; the end-to-end check below has not yet run with it on.
 
 ## What it does not do
 

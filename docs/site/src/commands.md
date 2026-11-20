@@ -58,7 +58,9 @@ Unless a command says otherwise, an error prints to stderr and the exit code is 
 | [`runners`](#hippo-runners) | The CLIs, models and accounts hippo's own model calls use |
 | [`doctor`](#hippo-doctor) | Check the setup |
 | [`schedule`](#hippo-schedule) | Schedule ingest and dreaming |
+| [`accept`](#hippo-accept) | Accept a loosened security setting on this machine (you, at a terminal) |
 | [`hooks`](#hippo-hooks) | Install or check the three Claude Code hooks |
+| [`guard`](#hippo-guard) | The guard in each agent's pre-tool hook: check, test, install, allow, status |
 | [`mcp`](#hippo-mcp) | Serve hippo's tools to any MCP client; configure a client |
 
 **Run by hippo itself.** Hooks and jobs call these. You rarely type them.
@@ -360,7 +362,7 @@ Shows or changes one setting in `config.toml` or `.hippo/hippo.toml`. It prints 
 | Subcommand | Does |
 |---|---|
 | `show` | Prints the settings the desktop app's Manage reads. |
-| `set` | Sets `ingest_interval_minutes`, `dream_at`, `budget_bytes`, `lessons` (`on` or `off`), `snapshot_keep_days` or `model_command`; `role.<role> <runner>` and `fallback.<role> 'a,b'` set [runners](#hippo-runners)' roles. |
+| `set` | Sets `ingest_interval_minutes`, `dream_at`, `budget_bytes`, `lessons` (`on` or `off`), `snapshot_keep_days`, `model_command`, `member` or `share_lessons`; `role.<role> <runner>` and `fallback.<role> 'a,b'` set [runners](#hippo-runners)' roles; `guard.fail`, `guard.timeout_ms`, `guard_note`, `team.inbox` and `min_hippo_version` set the security settings, which also raises `min_hippo_version` to 0.6.0 and adds `workspace_id` (a loosening then waits for [`hippo accept`](#hippo-accept)). `share_lessons` other than `off` needs you at a terminal. |
 | `unset` | Removes a key's line, so its default applies. |
 | `add`, `remove` | Add or remove a value of a list: `transcript_roots`, `exclude_roots`, `required_notes`, `passes_off`. |
 
@@ -413,6 +415,45 @@ Codex runs a new hook only after you trust it: it lists hippo's hooks for review
 With `--agent cursor` there is one hook, `sessionStart`, in `~/.cursor/hooks.json` (created with `"version": 1` when missing). It gives a new Cursor chat whose folder is in the workspace the start block. Cursor has no hook that adds context to a prompt; for the notes relevant to a task, add the [MCP server](mcp.md) (`hippo mcp install --client cursor`).
 
 With `--agent gemini` the three hooks go in `~/.gemini/settings.json`, beside its other settings, as `SessionStart`, `BeforeAgent` (Gemini CLI's prompt event) and `SessionEnd`, each with a `name` that `/hooks` shows. They act for Gemini sessions in the workspace as Codex's do. A `settings.json` with comments is refused and left as it is.
+
+## hippo accept
+
+```text
+hippo accept
+hippo accept --list
+```
+
+Accepts, on this machine, the security settings in `.hippo/hippo.toml` and the guard rules that a change has loosened ([the accept rule](security.md#the-accept-rule)). It lists each one (the value in force and the value in the file) and asks. It needs a terminal on stdin and stdout and refuses when an agent's marker is in its environment; there is no `--yes`. `--list` only lists, and anyone may run it. `hippo guard accept` is the same command. Hippo.app's Manage › Health has the same as Accept… on the `accept` row.
+
+## hippo guard
+
+```text
+hippo guard check --agent <claude-code|gemini|dsh|opencode>
+hippo guard test [--days <n>] [--json]
+hippo guard install [--agent claude|gemini] [--yes]
+hippo guard uninstall [--agent claude|gemini] [--yes]
+hippo guard allow <host|origin> <value> [--note] [--yes]
+hippo guard status
+hippo guard accept
+```
+
+The [guard](security.md#the-guard), warn-only in 0.6.0.
+
+| Subcommand | Does |
+|---|---|
+| `check` | What the hooks run: reads one pending tool call as JSON on stdin and prints the agent's answer (nothing when no rule matched). Answers within `[guard] timeout_ms`, else as `fail` says. |
+| `test` | Runs the rules over your indexed calls of the last `--days` (30) and prints, per rule, how many it would warn on, ask about or block once those act, with examples. Acts on nothing and calls no model. |
+| `install` | Lists every Claude Code account's `settings.json` (`$CLAUDE_CONFIG_DIR`, `~/.claude`, `~/.claude-*`), or with `--agent gemini` `~/.gemini/settings.json`, and the entry it adds; writes with `--yes`. The entry runs this binary by its absolute path. It never writes a workspace's settings. |
+| `uninstall` | Removes the guard's entry, keeping everything else; writes with `--yes`. |
+| `allow` | Adds a host (`remote-script`) or clone origin (`fresh-clone-exec`) to `$HIPPO_HOME/guard/machine.toml`, or with `--note` to the team's guard note. Prints the change; writes with `--yes`. It takes effect after `hippo accept`. |
+| `status` | Where the guard is installed, the rules in force, `fail` and the timeout, what waits, and today's counts. |
+
+```sh
+hippo guard install --yes        # every Claude Code account on this machine
+hippo guard test --days 30       # what it would have flagged
+```
+
+For dsh and OpenCode, set `guard: true` in the plugin's options ([dsh](https://github.com/VanitasCaesar1/hippo/tree/main/plugins/dsh), [OpenCode](https://github.com/VanitasCaesar1/hippo/tree/main/plugins/opencode)).
 
 ## hippo mcp
 
@@ -510,8 +551,11 @@ Exit codes: 0 on success; 2 when the run fails, for example when the model canno
 ```text
 hippo lessons [--all] [--json]
 hippo lessons scan [--days <n>] [--dry-run] [--candidates] [--json]
-hippo lessons keep <id> [--text <text>] [--title <title>]
+hippo lessons keep <id | L-id> [--text <text>] [--title <title>]
 hippo lessons dismiss <id>
+hippo lessons dismiss <L-id> [--reason wrong|duplicate|not-for-us] [--of <L-id>]
+hippo lessons share
+hippo lessons markers [--yes]
 hippo lessons propose --question <q> --answer <a> [--note] [--json]
 hippo lessons propose --miss <session>:<turn> [--json]
 ```
@@ -521,8 +565,10 @@ Corrections and repeated failures, proposed as rules. With no subcommand it list
 | Subcommand | Does |
 |---|---|
 | `scan` | Runs the lessons pass: finds candidates, drafts rules, reviews them. Calls the model, except with `--candidates`, which only lists what the pass would draft. `--days` looks back 1 to 30 days (default 7); `--dry-run` writes no record. Exits 1 when it tried to draft a lesson and every draft failed. `hippo dream` runs this pass afterwards unless you pass `--no-lessons`. |
-| `keep <id>` | Writes a pending lesson into its note, with `--text` and `--title` to edit it first. It gets a receipt, so `hippo revert` undoes it. |
-| `dismiss <id>` | Dismisses a pending lesson. It returns only if it recurs in 3 more sessions. |
+| `keep <id>` | Writes a pending lesson into its note, with `--text` and `--title` to edit it first. It gets a receipt, so `hippo revert` undoes it. The bullet ends with the lesson's marker; keep refuses when a note already has it. On a shared lesson (`L-…`) it also writes your decision. |
+| `dismiss <id>` | Dismisses a pending lesson. It returns only if it recurs in 3 more sessions. On a shared lesson (`L-…`) it writes your decision with an optional reason; `--reason duplicate --of L-…` links the two entries. It never edits a note. |
+| `share` | Your consent to a [shared Inbox](sharing.md#the-shared-inbox): asks for your handle, shows every file it would write, and on yes sets `member` and `share_lessons = "rules"` and shares your lessons from this workspace. You, at a terminal; refused for an agent. |
+| `markers` | Adds `<!-- hippo:lesson L-… -->` to bullets kept before 0.6.0. Prints each; writes with `--yes`, each with a receipt that `hippo revert` undoes. |
 | `propose` | Proposes a rule, or with `--note` a new note, from an Ask answer. `--miss` instead proposes a rule saying where a search that found nothing would have found its answer. |
 
 ## hippo review

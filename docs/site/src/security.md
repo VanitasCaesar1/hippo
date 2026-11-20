@@ -19,7 +19,7 @@ hippo's own code makes no network calls: it has no HTTP client among its depende
 
 **B. Git over HTTPS, for packs.** `hippo add <url>`, `hippo add` with `--registry`, `hippo packs update`, and `hippo packs diff` for a git-sourced pack fetch the pack with `git`.
 
-Everything else is local: `hippo` and `hippo start`, `detect`, `init`, `ingest`, `recall`, `ask --sources-only`, `fleet`, `resume`, `xray`, `incidents`, `context`, `brief`, `show`, `session`, `hook`, `hooks`, `config`, `log`, `review`, `revert`, `packs list` and `packs check`, `doctor` without `--model`, and `schedule`.
+Everything else is local: `hippo` and `hippo start`, `detect`, `init`, `ingest`, `recall`, `ask --sources-only`, `fleet`, `resume`, `xray`, `incidents`, `context`, `brief`, `show`, `session`, `hook`, `hooks`, `guard`, `accept`, `config`, `log`, `review`, `revert`, `packs list` and `packs check`, `doctor` without `--model`, and `schedule`.
 
 **The agent you run hippo inside.** The Claude Code plugin's start block and `/hippo:ask` and `/hippo:day` output, and the DeepSeek Harness and OpenCode plugins' start blocks and their `hippo_ask` and `hippo_day` tool results, become part of that agent's session, and the agent sends its session to its own model provider. hippo does not send them; the agent does, as with any file it reads. In Claude Code the commands run when you type them; in dsh the model calls the tools itself, and `hippo_ask` searches every indexed session, across projects. In OpenCode the start block is in the system prompt of every request of the session, and the model calls the tools itself too. Set either plugin's `tools: false` to keep only the start block.
 
@@ -76,6 +76,41 @@ The exception is a configuration that still sets `model_command` or `reviewer_co
 
 Which provider sees which call is the runners your roles use: `hippo runners` prints each role's runner and data domain, and a fallback never leaves that domain unless `[fallback] cross_domain` names the role.
 
+## The guard
+
+The guard runs `hippo guard check` in an agent's pre-tool hook before each tool call it covers (shell commands, file reads and writes, fetches, and in Claude Code MCP tools). It reads the call, compares it with rules, and answers in the agent's format. It is machine-wide: `hippo guard install` puts it in every Claude Code account's user `settings.json` (and with `--agent gemini` in Gemini CLI's `~/.gemini/settings.json`), never in a workspace's committed settings, so a session in a repository cloned into `~/Downloads` is checked too. The dsh and OpenCode plugins run it with `guard: true`. Codex and Cursor do not run it in 0.6.0 ([Limits](limits.md#the-guard)).
+
+**Warn-only in 0.6.0.** Every rule warns, whatever its configured action: the call runs, the agent gets a note to tell you (in Claude Code beside the tool result, and you see it too), and the call is logged. Only the self-protection rules below refuse a call. `ask` and `block` take effect in a later release, once `hippo guard test` counts on real history show which defaults are quiet enough.
+
+**What it looks for.** The built-in kinds are those of the [incidents](concepts.md): `remote-script` (a download piped into an interpreter), `fresh-clone-exec` (a repository's install or build run soon after it was cloned, in the same call or, read from the disk, in a later one), `credential-read` and `guard-bypass`. Rules in a note add `match` rules (a regular expression over a shell command) and `path` rules (a glob over a file tool's paths), raise a kind's action, or add allow entries (hosts for `remote-script`, clone origins for `fresh-clone-exec`). For one call the strictest action wins; an allow entry never silences a `match` rule.
+
+**Where rules come from.** Four layers, compiled into `$HIPPO_HOME/guard/compiled.json`: hippo's built-ins; your machine rules in `$HIPPO_HOME/guard/machine.toml`; the team's guard note (`guard_note`, `<notes_dir>/Guard.md` by default: only its fenced `hippo-guard` blocks are read), for sessions inside the workspace or one of its worktrees; and packs' `Guard.md`, which can add rules and raise actions but never add allow entries. Dreaming and `hippo lessons keep` never write the guard note.
+
+**Self-protection.** Built-in rules no note can lower refuse an agent's call to `hippo accept`, `hippo guard accept`, `guard allow`, `guard uninstall`, `hippo hooks uninstall`, `hippo lessons share`, and `hippo config set|unset` of a key in the accept table or `share_lessons`; and an agent's write (by a file tool, or a shell redirect, `cp`, `mv`, `tee`, `sed -i` and the like) under `$HIPPO_HOME/guard/`, `$HIPPO_HOME/accepted/` or to `$HIPPO_HOME/config.toml`. An agent never needs to accept a loosening for you, so these never stop legitimate work.
+
+**When the guard fails.** If hippo is missing, crashes, or does not answer within `[guard] timeout_ms` (2,000 by default), the call proceeds and the failure is logged in `$HIPPO_HOME/guard/failures.jsonl`; `hippo doctor` counts the last day's. With `[guard] fail = "closed"` the call is refused instead: the guard's own watchdog refuses a slow call, Claude Code's hook entry gets `onFailure: "block"` for a missing or crashing hippo (run `hippo guard install --yes` after changing `fail`; `doctor` says when the two differ), and the plugins read `fail` themselves. Gemini CLI has no such setting, so a missing hippo there fails open.
+
+**What it keeps.** A call that matches a rule is a line in `$HIPPO_HOME/guard/log.jsonl` (0600): time, agent, session, tool, rules, decision and the command after redaction, cut to 400 characters. Other calls only add to a per-day count. The compiled rules hold no transcript text. The answer goes to the agent, and so to its model provider, as any tool result does; it quotes only a host or path made of plain characters, otherwise `(host not shown)`.
+
+**It is not a security boundary.** It reads a call's text, not what the call does. A script written to a file and then run, a command decoded from base64, or an edit through a language runtime pass unseen, and anything that controls the machine can remove the hook. It makes the common agent paths to these mistakes visible, and the injected-by-text case fail visibly.
+
+## The accept rule
+
+Shared settings in `.hippo/hippo.toml` have many writers: every teammate with push access, and every agent that can edit files in the workspace. So a setting that makes hippo stricter applies at once, and one that makes it looser waits until you accept it on your machine.
+
+| Setting | Applies at once | Waits for `hippo accept` |
+|---|---|---|
+| The guard rule set, from every layer | a rule added; an action raised; an allow entry removed | an allow entry added; an action lowered; a rule removed; any edit to a `match` rule (a removal and an addition) |
+| `guard_note` | | any change |
+| `[guard] fail` | `open` → `closed` | `closed` → `open` |
+| `[guard] timeout_ms` | | any change |
+| `[team] inbox` | `shared` → `local` | `local` → `shared` |
+| `min_hippo_version` | raised | lowered |
+
+Each machine keeps what it accepted in `$HIPPO_HOME/accepted/<workspace-id>.toml` (0600), with the hash of the guard rules in force. Until you accept, the value you accepted last stays in force, and `doctor`'s `accept` row, `hippo accept --list`, and Hippo.app (Manage › Health) say "loosening waiting". A workspace you just cloned starts from the defaults, so its loosenings wait too.
+
+To accept, use Hippo.app's Accept… on the `accept` row (a native dialog that shows each change), or run `hippo accept` yourself: it shows the same list and asks. It needs a terminal on stdin and stdout and refuses when an agent's marker is set in its environment (Claude Code, Codex, OpenCode, Gemini CLI, Cursor and others set one in the commands they run); there is no `--yes`. dsh, Muse and Command Code set no marker hippo knows, so there only the terminal check applies. An agent with a shell runs as you and can get around all of this; the rule stops the casual and the injected-by-text cases and leaves a trace in the transcript (`guard-bypass`). `hippo config set` of a setting in the table also raises `min_hippo_version` to 0.6.0, so a teammate's older hippo refuses to write rather than ignore it.
+
 ## What limits a write
 
 Dreaming can only change a note through one code path, and that path needs a receipt from a reviewer's confirmation:
@@ -99,6 +134,10 @@ Pass and persona files are text, and hippo never executes anything a pack contai
 | `$HIPPO_HOME/bin-path` | The absolute path of the `hippo` binary, written by `hippo init`, `hippo hooks install` and `install.sh`. The Claude Code, dsh and OpenCode plugins run that path, and look on `PATH` only when the file is missing |
 | `$HIPPO_HOME/install.json` | Written by `install.sh` after it checked the release against its published checksum: the version, the binary's path and its sha256. `hippo doctor` compares the binary, and the ones the hooks run, against it |
 | `<workspace>/.claude/settings.local.json` | hippo's three Claude Code hooks, running hippo by its absolute path. Per person: hippo writes nothing to the shared `.claude/settings.json` |
+| `<account>/settings.json` (`~/.claude*`), `~/.gemini/settings.json` | The guard's `PreToolUse` (`BeforeTool`) entry, after `hippo guard install --yes` |
+| `$HIPPO_HOME/accepted/<workspace-id>.toml` | The security settings this machine accepted, and the hash of the guard rules in force |
+| `$HIPPO_HOME/guard/` | `machine.toml` (your rules), `compiled.json` (the rules in force and what waits), `log.jsonl` (calls a rule matched, redacted), `failures.jsonl`, `calls/<day>` (a count) |
+| `<workspace>/.hippo/inbox/` | With a shared Inbox: each person's wording of a lesson, their counts and their decisions. No quotes, no session ids. Committed |
 
 Everything hippo creates under `$HIPPO_HOME` is private: folders 0700, files 0600, the index included. hippo runs with a umask of 077, so files it writes elsewhere (notes, `.hippo/` records, hook files) are created 0600 too; a file that exists keeps its mode. A command that finds `$HIPPO_HOME` itself open to other accounts makes it 0700 and says so once; `hippo doctor` lists anything inside still readable by others, and `hippo doctor --fix-permissions` tightens it.
 

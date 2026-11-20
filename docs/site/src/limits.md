@@ -47,8 +47,25 @@ Redaction is best-effort pattern matching, in both directions: it can miss a sec
 
 ## The guard's incidents
 
-- **Text, not behaviour.** The guard's kinds read a command's text as the transcript records it. A script written to a file and then run, a base64-encoded command, a read through a language runtime, or a shell that is not one of the agents' shell tools are not found. Nothing is blocked before the fact until the guard of 0.6.0.
+- **Text, not behaviour.** The guard's kinds read a command's text as the transcript records it. A script written to a file and then run, a base64-encoded command, a read through a language runtime, or a shell that is not one of the agents' shell tools are not found.
+- **Built-in allow lists only.** The incidents use hippo's built-in allow list; the machine and team lists apply to the guard before the fact.
 - **Measured on synthetic data only.** Precision was measured on a labeled synthetic set written by the rules' author and on the synthetic demo history, where nothing fired. Real history may be noisier; `hippo incidents --kind <kind>` shows what fires.
+
+## The guard
+
+- **Warn-only.** Every rule warns in 0.6.0; only the self-protection rules refuse a call. `ask` and `block` wait for counts on real history.
+- **Not every agent.** Claude Code, Gemini CLI, dsh and OpenCode run it. Codex does not: its `PreToolUse` contract has not been checked. Cursor does not: its `preToolUse` answer has no neutral value (an empty answer blocks the call, and `allow` may skip Cursor's own approval). OpenCode's hook was read from its binary, not documentation, and is unverified. Gemini CLI shows a warning to you but gives the model none.
+- **One call at a time.** A clone is followed within one call, and across calls only through the disk: a git repository outside the workspace created in the last day. A clone older than a day, or code run from elsewhere, is not counted.
+- **`guard test` cannot tell where a session ran.** The index does not keep a session's folder, so the test applies the team note's rules to every call.
+- **Not a boundary.** An agent with a shell can remove the hook, unset its markers or edit hippo's files with a tool the guard does not see. The accept rule's terminal and marker checks stop casual and injected attempts, not a determined one.
+- **No guard in the desktop app yet.** Hippo.app shows the guard's rows in Manage › Health and accepts there; it has no guard panel per agent.
+
+## Teams
+
+- **Corrections only, no quotes.** The shared Inbox shares correction lessons whose evidence all ran in the workspace, with no quotes. Failure lessons stay local: their signatures carry paths and commands from a person's machine.
+- **A session's folder must be known.** A session whose transcript does not name its folder counts as outside the workspace, so its lessons stay local.
+- **Hippo.app does not show shared lessons yet.** `hippo lessons` does.
+- **Git is the transport.** Nothing syncs until people pull and push; two people who scan before pulling can make two entries for one lesson, which `dismiss --reason duplicate --of` links.
 
 ## Dreaming
 

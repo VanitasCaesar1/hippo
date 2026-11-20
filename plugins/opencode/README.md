@@ -36,8 +36,11 @@ hippo sends nothing for these commands. But the start block is in the system pro
 | `command` | `hippo` | The hippo binary: a name looked up as above, or an absolute path |
 | `timeoutMs` | `10000` | How long one hippo command may run |
 | `tools` | `true` | Add `hippo_ask` and `hippo_day` |
+| `guard` | `false` | Run `hippo guard check` before every tool call ([the guard](https://vanitascaesar1.github.io/hippo/docs/security.html#the-guard)) |
 
 A wrong or unknown option is reported in OpenCode's log, and its default is used.
+
+**The guard.** With `"guard": true` the plugin runs `hippo guard check --agent opencode` from OpenCode's `execute.before` hook with the tool's name, input and the session's folder. In hippo 0.6 only hippo's self-protection rules refuse a call (the plugin throws, which refuses it); every other rule's warning goes to OpenCode's log, not to the model. When hippo cannot answer, the call goes on, unless `fail = "closed"` is in force. OpenCode does not document this hook: it was read from the 2.3 binary and has not been checked against a running OpenCode, so treat it as unverified.
 
 ## What it does not do
 

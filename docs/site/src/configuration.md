@@ -26,6 +26,8 @@ A value that breaks the rules below makes the file fail to load, and the command
 | `model_command` | list of strings | the `claude` command below | The command hippo runs for dreaming and for the reviewer. Each element `{system_prompt}` is replaced by the system prompt. The user prompt is written to the command's standard input. |
 | `ingest_interval_minutes` | integer, at least 1 | `10` | Minutes between scheduled ingests. Read by `hippo schedule install`, and by `hippo doctor` to decide when the index is stale (older than three intervals). |
 | `dream_at` | string `HH:MM` | `"03:30"` | The time of day the scheduled dreaming run starts, on a 24-hour clock. Read by `hippo schedule install`. |
+| `member` | string | unset | Your handle in a shared workspace's files (`.hippo/inbox/`): letters, digits, `-` and `_`, at most 32 characters. A label, not an identity: anyone with push access can write any name, and hippo shows each file's git commit author beside it. `hippo lessons share` asks for it. |
+| `share_lessons` | `"off"` or `"rules"` | `"off"` | What of yours may be written to a [shared Inbox](sharing.md#the-shared-inbox): nothing, or your lessons' titles, rules, match terms and counts (no quotes). Your consent: `hippo lessons share` (or `hippo config set share_lessons rules`) needs you at a terminal and refuses an agent. |
 | `reviewer_command_override` | list of strings | unset | Advanced. A command to run the reviewer with instead of `model_command`. It follows the same rules. `init` does not write it. It exists for testing with a stand-in model, and it lets the reviewer run a different command from the proposing run. |
 
 After you change `ingest_interval_minutes` or `dream_at`, run `hippo schedule install` again. The values are written into the launchd job files (or the printed cron and systemd lines) when you install.
@@ -143,11 +145,45 @@ Paths in this file are relative to the workspace, must not be absolute and must 
 | `budget_bytes` | integer | `25600` | The hard limit on the context block, in bytes. |
 | `log_path` | path | `<notes_dir>/Session log.md` | Where `hippo log` writes the session log. Must stay inside the workspace; hippo checks this when it writes. |
 | `sample_tasks` | list of strings | `[]` | Tasks `hippo doctor` compiles a context block for, to check that each stays within `budget_bytes`. |
+| `workspace_id` | string (a ULID) | written by `hippo init` | Names this workspace's file of accepted settings on each machine (`$HIPPO_HOME/accepted/<id>.toml`). Written once; do not change it. `hippo config set` of a security setting adds it to an older workspace. |
+| `guard_note` | path | `<notes_dir>/Guard.md` | The note whose fenced `hippo-guard` blocks hold the team's [guard](security.md#the-guard) rules. A change waits for `hippo accept` on each machine. |
+| `[guard] fail` | `"open"` or `"closed"` | `"open"` | What a call does when the guard cannot answer: proceeds (and is logged), or is refused. `closed` applies at once; back to `open` waits for `hippo accept`. Run `hippo guard install --yes` after a change so Claude Code's hook entry matches. |
+| `[guard] timeout_ms` | integer, 1 to 60000 | `2000` | How long the guard may take before `fail` applies. Any change waits for `hippo accept`. |
+| `[team] inbox` | `"local"` or `"shared"` | `"local"` | Whether lessons are shared through `.hippo/inbox/` ([Sharing](sharing.md#the-shared-inbox)). `shared` waits for `hippo accept` on each machine, and each person still decides what of theirs is written (`share_lessons`). |
 | `min_hippo_version` | string `X.Y.Z` | unset | The oldest hippo that may write a note or a shared record in this workspace, or call a model for it. An older hippo refuses `dream`, `lessons` (scan, keep, dismiss), `add`, `packs update` and `remove`, `review`, `revert` and `ask` (unless `--sources-only`), naming the version it needs; hooks, `context` and `brief` keep working, so a teammate's agents are not stranded. Read from hippo 0.5.0. |
 
-A key or table this hippo does not know (one a newer release added) does not stop the file from loading. It is a `hippo doctor` problem, and the commands above refuse while it is there, as they do below `min_hippo_version`. Set `min_hippo_version` to the release that introduced a setting before relying on it in a team.
+**Security settings.** `guard_note`, `[guard]`, `[team]` and `min_hippo_version` follow the [accept rule](security.md#the-accept-rule): a change that makes hippo stricter applies at once, one that makes it looser waits until each person accepts it on their machine. `hippo config set guard.fail closed`, `guard.timeout_ms`, `guard_note`, `team.inbox` and `min_hippo_version` edit them in place; setting one also raises `min_hippo_version` to 0.6.0, the first release that understands them.
+
+A key or table this hippo does not know (one a newer release added) does not stop the file from loading. Neither does a key it does not know inside a table it does (`[team] dreamer`, which a later release adds). It is a `hippo doctor` problem, and the commands above refuse while it is there, as they do below `min_hippo_version`. Set `min_hippo_version` to the release that introduced a setting before relying on it in a team.
 
 `hippo init` writes `log_path` out in full as `"<notes_dir>/Session log.md"` using the directory you gave.
+
+## `$HIPPO_HOME/guard/machine.toml`
+
+Your own guard rules, for every session on this machine, in the format of a `hippo-guard` block. `hippo guard allow host|origin <value>` adds an allow entry here (or to the team's note with `--note`); like every loosening it waits for `hippo accept`.
+
+```toml
+[allow]
+hosts = ["raw.githubusercontent.com/Homebrew/", "github.com/example-org/"]
+clone_origins = ["github.com/example-org/"]
+
+[[rule]]
+kind = "credential-read"        # remote-script, fresh-clone-exec, credential-read, guard-bypass
+action = "ask"                  # warn, ask, block (all warn in 0.6.0)
+
+[[rule]]
+name = "prod deploys need a tag"
+match = 'kubectl .*--context[= ]prod'   # a regular expression over a shell command
+action = "block"
+reason = "Production deploys go through CI with a release tag."
+
+[[rule]]
+name = "no edits to the lockfile"
+path = "**/package-lock.json"           # a glob over a file tool's paths
+action = "warn"
+```
+
+A rule has exactly one of `kind`, `match` or `path`. A block or rule hippo cannot use (a bad expression, an unknown kind or key) is left out, and `hippo doctor`'s `guard` row names it.
 
 ## The `.hippo/` directory
 
@@ -162,5 +198,6 @@ A key or table this hippo does not know (one a newer release added) does not sto
 | `reports/<date>-dream.md` | `hippo dream` | One per UTC day. |
 | `dream-state.json` | `hippo dream` | `{"protocol": "HIPPO_V1", "last_success": "<time>"}`. |
 | `snapshots/` | `hippo dream` | Pre-change copies for `hippo revert`. Gitignored. |
+| `inbox/L-<id>/` | `hippo lessons` with a shared Inbox | `lesson-<member>.json`, `seen-<member>.json`, `decision-<member>-<ulid>.json`, `same-as-<other>-<member>.json`. Committed. |
 
 Every JSON record carries `"protocol": "HIPPO_V1"`. A record without it, or with another value, is rejected when read.

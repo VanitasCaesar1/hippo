@@ -4,6 +4,28 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-20
+
+**Upgrading.** Everyone on a shared workspace should be on 0.6.0 before anyone sets `[guard]`, `guard_note` or `[team]`: `hippo config set` of one raises `min_hippo_version` to 0.6.0, and a 0.5 hippo then refuses to write there. `hippo init` now writes a `workspace_id` into a new workspace's `hippo.toml`; an older workspace gets one the first time a security setting is set, and nothing else changes for it. Kept lesson bullets now end with a hidden marker; `hippo lessons markers --yes` adds it to bullets kept before. The guard is off until you run `hippo guard install --yes` (or set the dsh and OpenCode plugins' `guard: true`).
+
+### Added
+
+- **The guard, before the fact, warn-only.** `hippo guard check` runs in each agent's pre-tool hook, machine-wide: `hippo guard install` lists every Claude Code account's user `settings.json` and adds a `PreToolUse` entry with `--yes` (never a workspace's committed settings), `--agent gemini` adds Gemini CLI's `BeforeTool`, and the dsh and OpenCode plugins gain `guard: true`. It checks the incident kinds before a call runs (`remote-script`, `fresh-clone-exec`, including a repository cloned in the last day and set up in a later call, `credential-read`, `guard-bypass`) and the team's `match` and `path` rules, from four layers: built-ins, `$HIPPO_HOME/guard/machine.toml`, the team's guard note (`<notes_dir>/Guard.md`, fenced `hippo-guard` blocks; for sessions inside the workspace or its worktrees) and packs' `Guard.md`. Every rule warns in this release: the call runs and the agent is told to tell you. `hippo guard test` counts what the rules would have flagged on your indexed history; `guard allow`, `guard status` and `guard uninstall` round it out; `doctor` gains a `guard` row. Measured on a release build: p50 3.4 ms, p95 6.1 ms per check. Codex and Cursor are not covered yet. See the [design](docs/designs/guard.md#part-b-before-the-fact-a-guard-in-the-agent).
+- **The accept rule.** A shared security setting that makes hippo stricter applies at once; one that loosens it (an allow entry added, a rule removed or an action lowered, `fail` back to `open`, a new `guard_note` or `timeout_ms`, `[team] inbox = "shared"`, a lower `min_hippo_version`) keeps the accepted value in force until you run `hippo accept` on your machine, or press Accept… in Hippo.app's Manage › Health. `hippo accept` needs a terminal and refuses when an agent's marker is set; there is no `--yes`. `doctor` gains an `accept` row; `hippo config set` edits `guard.fail`, `guard.timeout_ms`, `guard_note`, `team.inbox` and `min_hippo_version`. See [common.md](docs/designs/common.md#rule-3-tightening-takes-effect-at-once-loosening-needs-a-local-accept-on-each-machine).
+- **A shared Inbox for teams.** With `[team] inbox = "shared"` accepted, a reviewed correction whose evidence all ran in the workspace goes to `.hippo/inbox/L-<id>/` once its person said yes (`hippo lessons share`, at a terminal; `member` and `share_lessons` in `config.toml`): their wording, match terms and counts, one file per person, no quotes and no session ids. Scans skip drafting what the team already has, so one entry is "seen by alice 3, bob 1". `hippo lessons keep L-…` and `dismiss L-… --reason …` write decisions as files; a lesson is kept if anyone kept it, and a keep against a dismissal is shown as crossed. `doctor` gains a `team` row. See [Sharing a brain in a team](docs/site/src/sharing.md#the-shared-inbox) and the [design](docs/designs/team-brain.md).
+- **Lesson markers.** A kept bullet ends with `<!-- hippo:lesson L-… -->`, hidden by Obsidian and GitHub; keep refuses when the marker is already in a note. `hippo lessons markers` adds it to bullets kept before, with receipts.
+
+### Security
+
+- **Self-protection.** Whether or not anything else warns, the guard refuses an agent's `hippo accept`, `guard accept`, `guard allow`, `guard uninstall`, `hooks uninstall`, `lessons share`, and `hippo config set` of a security key or `share_lessons`, and an agent's write under `$HIPPO_HOME/guard/`, `$HIPPO_HOME/accepted/` or to `$HIPPO_HOME/config.toml`.
+- **`fail` behaves as set.** If hippo is missing, crashes or does not answer within `[guard] timeout_ms` (2,000), the call proceeds and the failure is logged; with `fail = "closed"` it is refused (Claude Code's entry carries `onFailure: "block"`).
+- Dreaming's validator and `hippo lessons keep` refuse the guard note.
+
+### Changed
+
+- `sharing.md` no longer calls `git add -A` safe once the shared Inbox is on: read `git status` first.
+- A key `hippo.toml` does not know inside a table it does (`[team] dreamer`) counts as unknown, like an unknown table.
+
 ## [0.5.0] - 2026-11-19
 
 **Upgrading.** Everyone on a shared workspace should be on 0.5.0 before anyone turns on a team, guard or secrets setting: older hippo silently ignores settings it does not know, and only 0.5.0 and later refuse to write under a `min_hippo_version` or unknown keys. On your machine: run `hippo hooks install --yes` once in each workspace to move hippo's Claude Code hooks from the shared `.claude/settings.json` to your own `.claude/settings.local.json` (until then they keep working where they are, and `hippo doctor` warns), and `hippo doctor --fix-permissions` once to close files an older hippo left readable by others. The rollup is rebuilt at the next ingest. `hippo ingest --full` counts secrets in sessions ingested before this release.
@@ -113,7 +135,8 @@ The first release. hippo reads what your coding agents did, keeps your notes tru
 - **Hippo.app**, a macOS window over the same files. Built from source in `app/`; no binary is released. Checked on synthetic data, not in daily use.
 - **Docs** at [vanitascaesar1.github.io/hippo](https://vanitascaesar1.github.io/hippo/), including [Sharing a brain in a team](docs/site/src/sharing.md), tried with two people and one git remote.
 
-[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/VanitasCaesar1/hippo/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/VanitasCaesar1/hippo/compare/v0.4.0...v0.4.1
