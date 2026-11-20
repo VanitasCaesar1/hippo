@@ -5,6 +5,8 @@
 //! away) it does not dock: the title bar holds its toggle and it opens as
 //! an overlay.
 
+use std::rc::Rc;
+
 use gpui::{
     Context, FontWeight, MouseButton, Role, Window, WindowControlArea, div, prelude::*, px,
 };
@@ -13,6 +15,7 @@ use time::OffsetDateTime;
 
 use super::Shell;
 use super::kit::{self, Status};
+use super::popover::{Hang, Pick, Pop};
 use super::theme::Look;
 use crate::shelving::{self, Marks, Shelves, Tally};
 use crate::state::Section;
@@ -60,17 +63,12 @@ pub struct SidebarUi {
     pub overlay: bool,
     /// The row under the pointer: its Settle and Snooze show.
     pub hover: Option<String>,
-    /// The row whose snooze menu is open.
-    pub snooze_menu: Option<String>,
-    /// When a press outside closed the menu: a click on its own clock in
-    /// the same press does not open it again.
-    pub snooze_closed: Option<std::time::Instant>,
     /// The shelves as the pointer found them: while it is over the list,
     /// a live refresh does not move rows.
     pub frozen: Option<Vec<(Shelf, Vec<String>)>>,
-    /// Where the clock was clicked, and whether the menu opens upward
-    /// (too near the window's foot to fit below).
-    pub snooze_at: Option<(gpui::Point<gpui::Pixels>, bool)>,
+    /// The snooze menu opens upward: its clock was too near the window's
+    /// foot for it to fit below.
+    pub snooze_up: bool,
 }
 
 /// A row's status glyph and word, and its detail (`49m`, `6m`, `11:37`).
@@ -261,7 +259,7 @@ impl Shell {
     }
 
     fn row_hovered(&self, id: &str) -> bool {
-        self.sidebar.hover.as_deref() == Some(id) || self.sidebar.snooze_menu.as_deref() == Some(id)
+        self.sidebar.hover.as_deref() == Some(id) || self.pop_is(&Pop::Snooze(id.to_owned()))
     }
 
     /// Keeps [`SidebarUi::hover`] on the row under the pointer.
@@ -322,7 +320,7 @@ impl Shell {
         controls: shelving::Controls,
         cx: &mut Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
-        let menu_open = self.sidebar.snooze_menu.as_deref() == Some(id);
+        let menu_open = self.pop_is(&Pop::Snooze(id.to_owned()));
         let (a, b) = (id.to_owned(), id.to_owned());
         let snooze = controls.snooze.then(|| {
             Self::row_control(
@@ -335,14 +333,9 @@ impl Shell {
             .on_click(cx.listener(move |this, e: &gpui::ClickEvent, window, cx| {
                 cx.stop_propagation();
                 let at = e.position();
-                let up = f32::from(window.viewport_size().height) - f32::from(at.y) < 220.;
-                this.sidebar.snooze_at = Some((at, up));
-                let just_closed = this
-                    .sidebar
-                    .snooze_closed
-                    .take()
-                    .is_some_and(|t| t.elapsed().as_millis() < 400);
-                this.sidebar.snooze_menu = if just_closed { None } else { Some(a.clone()) };
+                this.sidebar.snooze_up =
+                    f32::from(window.viewport_size().height) - f32::from(at.y) < 220.;
+                this.toggle_pop(Pop::Snooze(a.clone()));
                 cx.notify();
             }))
         });
@@ -383,7 +376,7 @@ impl Shell {
             .enumerate()
             .map(|(i, p)| {
                 let (id2, until) = (id.to_owned(), p.until.unix_timestamp());
-                div()
+                let row = div()
                     .id(("snooze-choice", i))
                     .role(Role::MenuItem)
                     .aria_label(format!("{} {}", p.label, p.when))
@@ -404,68 +397,47 @@ impl Shell {
                             .text_size(look.text(12.))
                             .text_color(look.c.faint)
                             .child(p.when),
-                    )
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        cx.stop_propagation();
-                        this.snooze(&id2, Some(until));
-                        this.sidebar.snooze_menu = None;
-                        this.sidebar.hover = None;
-                        cx.notify();
-                    }))
+                    );
+                let pick: Pick = Rc::new(move |this, _, _| {
+                    this.snooze(&id2, Some(until));
+                    this.sidebar.hover = None;
+                });
+                self.pop_row(i, row, look.c.hover, pick, cx)
                     .into_any_element()
             })
             .collect();
         // Below the clock, or above it near the window's foot (T3 Code's
         // menu flips the same way).
-        let (at, up) = self
-            .sidebar
-            .snooze_at
-            .unwrap_or((gpui::point(gpui::px(240.), gpui::px(200.)), false));
-        let pos = gpui::point(
-            at.x + gpui::px(14.),
-            at.y + gpui::px(if up { -14. } else { 14. }),
-        );
-        gpui::deferred(
-            gpui::anchored()
-                .position_mode(gpui::AnchoredPositionMode::Window)
-                .position(pos)
-                .anchor(if up {
-                    gpui::Anchor::BottomRight
-                } else {
-                    gpui::Anchor::TopRight
-                })
-                .snap_to_window_with_margin(gpui::px(8.))
+        self.popover(
+            look,
+            if self.sidebar.snooze_up {
+                Hang::AboveEnd
+            } else {
+                Hang::BelowEnd
+            },
+            div()
+                .id("snooze-menu")
+                .min_w(look.px(200.))
+                .p(look.px(4.))
+                .rounded(look.px(10.))
+                .bg(look.c.surface)
+                .border(look.fixed(1.))
+                .border_color(look.c.border)
+                .shadow_lg()
+                .flex()
+                .flex_col()
                 .child(
                     div()
-                        .id("snooze-menu")
-                        .occlude()
-                        .min_w(look.px(200.))
-                        .p(look.px(4.))
-                        .rounded(look.px(10.))
-                        .bg(look.c.surface)
-                        .border(look.fixed(1.))
-                        .border_color(look.c.border)
-                        .shadow_lg()
-                        .flex()
-                        .flex_col()
-                        .child(
-                            div()
-                                .px(look.px(8.))
-                                .pt(look.px(4.))
-                                .pb(look.px(2.))
-                                .text_size(look.text(12.))
-                                .text_color(look.c.faint)
-                                .child("Snooze until"),
-                        )
-                        .children(items)
-                        .on_mouse_down_out(cx.listener(|this, _, _, cx| {
-                            this.sidebar.snooze_menu = None;
-                            this.sidebar.snooze_closed = Some(std::time::Instant::now());
-                            cx.notify();
-                        })),
-                ),
+                        .px(look.px(8.))
+                        .pt(look.px(4.))
+                        .pb(look.px(2.))
+                        .text_size(look.text(12.))
+                        .text_color(look.c.faint)
+                        .child("Snooze until"),
+                )
+                .children(items),
+            cx,
         )
-        .with_priority(1)
     }
 
     /// The foot: Manage, then when the index was last written. A problem
@@ -505,18 +477,23 @@ impl Shell {
             .and_then(|g| g.refused)
             .map(|r| (r.words().to_string(), false));
         let notice = refused.or_else(|| model.notice()).filter(|_| !narrow);
+        let health_open = self.pop_is(&Pop::Health);
         let health = (!ok).then(|| {
             div()
                 .id("foot-health")
                 .role(Role::Button)
                 .aria_label(format!("{word}: show hippo's health"))
+                .relative()
                 .min_w_0()
                 .cursor_pointer()
                 .on_click(cx.listener(|this, _, _, cx| {
-                    this.health_open = !this.health_open;
+                    this.toggle_pop(Pop::Health);
                     cx.notify();
                 }))
                 .child(kit::cap(look, &word, look.c.warn).truncate())
+                .when(health_open, |d| {
+                    d.child(self.render_health_popover(look, cx))
+                })
         });
         let foot = div()
             .flex_shrink_0()

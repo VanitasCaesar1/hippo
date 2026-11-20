@@ -29,6 +29,7 @@ pub mod overview;
 pub mod palette;
 pub mod pane;
 pub mod picker;
+pub mod popover;
 pub mod proposal_tab;
 pub mod pulse_ui;
 pub mod rail;
@@ -99,8 +100,6 @@ pub struct Shell {
     pub(crate) fleet_filter_text: String,
     /// Below 900 points the filter field shows only after `/`.
     pub(crate) fleet_filter_shown: bool,
-    /// Fleet's narrow profile menu is open.
-    pub(crate) fleet_profiles_open: bool,
     picker: Option<OpenPicker>,
     pub(crate) revert_running: Option<String>,
     /// The command (or resume key) last copied, which its button marks
@@ -110,8 +109,8 @@ pub struct Shell {
     /// draw, which their quotes are fitted to.
     pub(crate) review_width: std::rc::Rc<std::cell::Cell<gpui::Pixels>>,
     pub(crate) home_review_width: std::rc::Rc<std::cell::Cell<gpui::Pixels>>,
-    /// The title bar's health detail is open.
-    pub(crate) health_open: bool,
+    /// The open menu or popover, if any: see [`popover`].
+    pub(crate) pops: popover::Pops,
     /// The Home's scroll, which its scrollbar reads.
     pub(crate) home_scroll: gpui::ScrollHandle,
     /// The sidebar: its width and the hovered row.
@@ -223,6 +222,10 @@ impl Shell {
         // directories again, too).
         subscriptions.push(cx.observe_window_activation(window, |this, window, cx| {
             this.reach.window_active = window.is_window_active();
+            // A menu does not outlive the window's focus.
+            if !window.is_window_active() && this.close_pop() {
+                cx.notify();
+            }
             this.sync_key_guard(window.is_window_active(), cx);
             if window.is_window_active() {
                 this.reload(cx);
@@ -234,7 +237,20 @@ impl Shell {
         // Esc closes the sidebar's overlay, then Pulse's sheet or its
         // stacked focus, before anything else sees it.
         let shell = cx.entity().downgrade();
-        subscriptions.push(cx.intercept_keystrokes(move |e, _, cx| {
+        subscriptions.push(cx.intercept_keystrokes(move |e, window, cx| {
+            // An open menu takes Escape, the arrows and Return first.
+            if !e.keystroke.modifiers.modified()
+                && matches!(e.keystroke.key.as_str(), "escape" | "up" | "down" | "enter")
+            {
+                let key = e.keystroke.key.clone();
+                let used = shell
+                    .update(cx, |s, cx| s.pop_key(&key, window, cx))
+                    .unwrap_or(false);
+                if used {
+                    cx.stop_propagation();
+                    return;
+                }
+            }
             if e.keystroke.key == "escape" && !e.keystroke.modifiers.modified() {
                 let closed = shell
                     .update(cx, |s, cx| {
@@ -313,13 +329,12 @@ impl Shell {
             fleet_filter,
             fleet_filter_text: String::new(),
             fleet_filter_shown: false,
-            fleet_profiles_open: false,
             picker: None,
             revert_running: None,
             copied: None,
             review_width: std::rc::Rc::new(std::cell::Cell::new(gpui::px(0.))),
             home_review_width: std::rc::Rc::new(std::cell::Cell::new(gpui::px(0.))),
-            health_open: false,
+            pops: popover::Pops::default(),
             home_scroll: gpui::ScrollHandle::new(),
             sidebar: sidebar::SidebarUi {
                 width: saved.sidebar_width.map(|w| w as f32),
@@ -757,6 +772,17 @@ impl Shell {
         }
     }
 
+    /// Shows the section named `name` as a click on its tab does: the
+    /// dev-only `HIPPO_APP_DEV_THEN`.
+    pub fn show_section_named(&mut self, name: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(s) = Section::ALL
+            .into_iter()
+            .find(|s| s.name().eq_ignore_ascii_case(name))
+        {
+            self.show_section(s, window, cx);
+        }
+    }
+
     /// Dev-only: what a reload read, before the first frame (screenshots).
     pub fn preload(&mut self, loaded: Loaded) {
         self.loaded = Some(loaded);
@@ -1048,7 +1074,7 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.health_open = false;
+        self.close_pop();
         self.sidebar.overlay = false;
         self.state.tabs.select(section);
         if section == Section::Memory {
@@ -1063,7 +1089,6 @@ impl Shell {
             self.inbox.editing = None;
             window.focus(&self.inbox.focus, cx);
         } else if section == Section::Incidents {
-            self.incidents_ui.menu = None;
             self.mark_incidents_seen();
             window.focus(&self.incidents_ui.focus, cx);
         } else {
@@ -1237,6 +1262,7 @@ macro_rules! wire {
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.prepare_active_tab();
+        self.sync_pop();
         // Profile marks are unique among every profile the app knows
         // (Manage's never-used folders too).
         if let Some(f) = self.loaded.as_ref().and_then(|l| l.fleet.as_ref()) {
@@ -1579,7 +1605,6 @@ impl Render for Shell {
             .children(self.render_incident_toast(&look, cx))
             .children(self.render_resume_confirm(&look, cx))
             .children(step_two)
-            .children(self.render_health_popover(&look, cx))
             .when_some(picker, |d, picker| {
                 d.child(
                     div()
@@ -2370,5 +2395,218 @@ mod tests {
         assert_eq!(crate::prefs::load(&prefs).theme, "system");
         let root = window.root(&mut vcx).unwrap();
         assert!(!root.read_with(&vcx, |s, _| s.picker_open()));
+    }
+
+    /// Each menu: where it lives and what opens it.
+    fn menus() -> Vec<(popover::Pop, Section)> {
+        use super::incidents_ui::Menu;
+        use popover::Pop;
+        vec![
+            (Pop::AskRunner, Section::Morning),
+            (Pop::IncidentFilter(Menu::Cause), Section::Incidents),
+            (Pop::IncidentFilter(Menu::Account), Section::Incidents),
+            (Pop::IncidentFilter(Menu::Project), Section::Incidents),
+            (Pop::IncidentFilter(Menu::All), Section::Incidents),
+            (Pop::Accounts, Section::Fleet),
+            (Pop::HooksHelp, Section::Manage),
+            (Pop::Health, Section::Home),
+            (Pop::Snooze("row".into()), Section::Home),
+            (Pop::Brief("repo"), Section::Home),
+            (Pop::Brief("profile"), Section::Home),
+        ]
+    }
+
+    fn opened(
+        vcx: &mut VisualTestContext,
+        root: &Entity<Shell>,
+        pop: &popover::Pop,
+        section: Section,
+    ) {
+        let pop = pop.clone();
+        // Fleet's account menu and Incidents' one filter menu are the
+        // narrow window's; Brief's chips are on Brief.
+        let narrow = matches!(
+            pop,
+            popover::Pop::Accounts | popover::Pop::IncidentFilter(super::incidents_ui::Menu::All)
+        );
+        vcx.simulate_resize(if narrow {
+            size(px(820.), px(700.))
+        } else {
+            size(px(1200.), px(800.))
+        });
+        vcx.update(|w, cx| {
+            root.update(cx, |s, cx| {
+                s.show_section(section, w, cx);
+                if matches!(pop, popover::Pop::Brief(_)) {
+                    s.brief.mode = true;
+                    s.state.tabs.open(Tab::Brief);
+                }
+                s.toggle_pop(pop.clone());
+                cx.notify();
+            })
+        });
+        vcx.run_until_parked();
+    }
+
+    /// Every menu closes on Escape, a change of view (by its tab or any
+    /// other way) and the window losing focus; every one this home draws
+    /// is drawn hung off its trigger and closes on a press outside it.
+    #[gpui::test]
+    fn every_menu_closes_on_a_press_outside_escape_a_change_of_view_and_blur(
+        cx: &mut TestAppContext,
+    ) {
+        setup_globals(cx);
+        let (_dir, home) = ready_home();
+        let (window, mut vcx) = open(cx, &home);
+        let root = window.root(&mut vcx).unwrap();
+        let is_open =
+            |vcx: &VisualTestContext, p: &popover::Pop| root.read_with(vcx, |s, _| s.pop_is(p));
+        let mut drawn = Vec::new();
+        for (pop, section) in menus() {
+            // A press outside it.
+            opened(&mut vcx, &root, &pop, section);
+            assert!(is_open(&vcx, &pop), "{pop:?} opens");
+            if root.read_with(&vcx, |s, _| s.pops.drawn()) {
+                drawn.push(pop.clone());
+                // The window's far corner, away from every menu.
+                let at = vcx.update(|w, _| {
+                    let v = w.viewport_size();
+                    gpui::point(v.width - px(10.), v.height - px(10.))
+                });
+                vcx.simulate_mouse_down(at, gpui::MouseButton::Left, gpui::Modifiers::none());
+                vcx.simulate_mouse_up(at, gpui::MouseButton::Left, gpui::Modifiers::none());
+                vcx.run_until_parked();
+                assert!(
+                    !is_open(&vcx, &pop),
+                    "{pop:?} stays open after a press outside"
+                );
+            }
+            // Escape.
+            opened(&mut vcx, &root, &pop, section);
+            vcx.simulate_keystrokes("escape");
+            vcx.run_until_parked();
+            assert!(!is_open(&vcx, &pop), "{pop:?} stays open after Escape");
+            // A change of view by its tab, and by anything else.
+            let other = if section == Section::Brain {
+                Section::Morning
+            } else {
+                Section::Brain
+            };
+            opened(&mut vcx, &root, &pop, section);
+            vcx.update(|w, cx| root.update(cx, |s, cx| s.show_section(other, w, cx)));
+            vcx.run_until_parked();
+            assert!(!is_open(&vcx, &pop), "{pop:?} stays open on another view");
+            opened(&mut vcx, &root, &pop, section);
+            vcx.update(|_, cx| {
+                root.update(cx, |s, cx| {
+                    s.state.tabs.select(other);
+                    cx.notify();
+                })
+            });
+            vcx.run_until_parked();
+            assert!(
+                !is_open(&vcx, &pop),
+                "{pop:?} stays open when the view changes"
+            );
+            // The window losing focus.
+            vcx.update(|w, _| w.activate_window());
+            vcx.run_until_parked();
+            opened(&mut vcx, &root, &pop, section);
+            assert!(is_open(&vcx, &pop));
+            vcx.deactivate_window();
+            vcx.run_until_parked();
+            assert!(
+                !is_open(&vcx, &pop),
+                "{pop:?} stays open after the window loses focus"
+            );
+        }
+        // Each of these draws in a ready home with no sessions; Snooze
+        // needs a row, Health a problem and Accounts a session's account,
+        // and are the same kit (see `only_the_popover_kit_hangs_menus`).
+        eprintln!("drawn and pressed around: {drawn:?}");
+        for p in [
+            popover::Pop::AskRunner,
+            popover::Pop::IncidentFilter(super::incidents_ui::Menu::Cause),
+            popover::Pop::IncidentFilter(super::incidents_ui::Menu::All),
+            popover::Pop::HooksHelp,
+            popover::Pop::Brief("repo"),
+            popover::Pop::Brief("profile"),
+        ] {
+            assert!(drawn.contains(&p), "{p:?} did not draw: {drawn:?}");
+        }
+    }
+
+    /// The Ask bar's menu: the arrows move through its rows and Return
+    /// picks one, closing it; a click on its chip toggles it, and the press
+    /// that closes it does not reopen it through the chip.
+    #[gpui::test]
+    fn the_ask_menu_answers_the_keys_and_its_chip(cx: &mut TestAppContext) {
+        setup_globals(cx);
+        let (_dir, home) = ready_home();
+        let (window, mut vcx) = open(cx, &home);
+        let root = window.root(&mut vcx).unwrap();
+        let pop = popover::Pop::AskRunner;
+        opened(&mut vcx, &root, &pop, Section::Morning);
+        vcx.simulate_keystrokes("down");
+        vcx.run_until_parked();
+        let (hi, rows) = root.read_with(&vcx, |s, _| (s.pops.hi, s.pops.rows()));
+        if rows > 0 {
+            assert_eq!(hi, Some(0));
+            vcx.simulate_keystrokes("enter");
+            vcx.run_until_parked();
+            assert!(
+                !root.read_with(&vcx, |s, _| s.pop_is(&pop)),
+                "Return picks and closes"
+            );
+        }
+        // Toggle: open, then the same toggle closes it.
+        opened(&mut vcx, &root, &pop, Section::Morning);
+        root.update(&mut vcx, |s, _| s.toggle_pop(pop.clone()));
+        assert!(!root.read_with(&vcx, |s, _| s.pop_is(&pop)));
+    }
+
+    /// Nothing but the popover kit hangs a menu or closes one on a press
+    /// outside, so a new menu cannot skip what [`popover`] does. The
+    /// command palette is a dialog with its own overlay.
+    #[test]
+    fn only_the_popover_kit_hangs_menus() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut stack = vec![dir];
+        let mut found = Vec::new();
+        while let Some(d) = stack.pop() {
+            for e in std::fs::read_dir(&d).unwrap().flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    stack.push(p);
+                    continue;
+                }
+                if p.extension().is_none_or(|x| x != "rs") || p.ends_with("ui/popover.rs") {
+                    continue;
+                }
+                let src = std::fs::read_to_string(&p).unwrap();
+                for (n, line) in src.lines().enumerate() {
+                    let l = line.trim_start();
+                    if l.starts_with("//") {
+                        continue;
+                    }
+                    let hits = (l.contains("anchored()") || l.contains("on_mouse_down_out("))
+                        && !l.contains("contains(\"");
+                    // The palette's overlay closes the palette.
+                    let picker = src
+                        .lines()
+                        .skip(n)
+                        .take(4)
+                        .any(|x| x.contains("close_picker"));
+                    if hits && !picker {
+                        found.push(format!("{}:{}: {l}", p.display(), n + 1));
+                    }
+                }
+            }
+        }
+        assert!(
+            found.is_empty(),
+            "menus built outside the popover kit:\n{}",
+            found.join("\n")
+        );
     }
 }

@@ -3,11 +3,14 @@
 //! `hippo_view::fleet`; Resume copies `hippo_view::fleet::resume`'s command
 //! and handoff to the clipboard and writes nothing.
 
+use std::rc::Rc;
+
 use gpui::{Context, FontWeight, Role, Window, div, prelude::*};
 use hippo_view::fleet::{Fleet, Row, Shelf, State};
 
 use super::Shell;
 use super::kit::{self, Kind, Status};
+use super::popover::{Hang, Pick, Pop};
 use super::theme::Look;
 
 /// How Fleet groups its rows.
@@ -517,14 +520,15 @@ impl Shell {
                 Some(p) => kit::profile_name(p),
                 None => "All accounts".to_owned(),
             };
-            let open = self.fleet_profiles_open;
+            let open = self.pop_is(&Pop::Accounts);
             let items: Vec<gpui::AnyElement> = std::iter::once(None)
                 .chain(profiles.iter().map(Some))
                 .enumerate()
                 .map(|(i, p)| {
                     let p2 = p.cloned();
-                    div()
+                    let row = div()
                         .id(("account-menu-item", i))
+                        .role(Role::MenuItem)
                         .flex()
                         .items_center()
                         .gap(look.px(8.))
@@ -538,12 +542,9 @@ impl Shell {
                             look,
                             &p.map_or_else(|| "All accounts".to_owned(), |p| kit::profile_name(p)),
                             look.c.text,
-                        ))
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.fleet_ui.profile = p2.clone();
-                            this.fleet_profiles_open = false;
-                            cx.notify();
-                        }))
+                        ));
+                    let pick: Pick = Rc::new(move |this, _, _| this.fleet_ui.profile = p2.clone());
+                    self.pop_row(i, row, look.c.hover, pick, cx)
                         .into_any_element()
                 })
                 .collect();
@@ -554,16 +555,17 @@ impl Shell {
                         .gap(look.px(4.))
                         .child(kit::icon(look, "chevron-down", 12., look.c.text_muted))
                         .on_click(cx.listener(|this, _, _, cx| {
-                            this.fleet_profiles_open = !this.fleet_profiles_open;
+                            this.toggle_pop(Pop::Accounts);
                             cx.notify();
                         })),
                 )
                 .when(open, |d| {
-                    d.child(gpui::deferred(
-                        gpui::anchored().child(
+                    d.child(
+                        self.popover(
+                            look,
+                            Hang::BelowStart,
                             div()
                                 .id("account-menu-pop")
-                                .mt(look.px(32.))
                                 .min_w(look.px(180.))
                                 .p(look.px(4.))
                                 .rounded(look.px(3.))
@@ -573,13 +575,10 @@ impl Shell {
                                 .shadow_lg()
                                 .flex()
                                 .flex_col()
-                                .children(items)
-                                .on_mouse_down_out(cx.listener(|this, _, _, cx| {
-                                    this.fleet_profiles_open = false;
-                                    cx.notify();
-                                })),
+                                .children(items),
+                            cx,
                         ),
-                    ))
+                    )
                 })
                 .into_any_element()
         } else {

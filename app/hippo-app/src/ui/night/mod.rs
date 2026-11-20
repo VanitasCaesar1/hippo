@@ -9,12 +9,14 @@ pub mod kit;
 pub mod morning;
 
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use gpui::{AnyElement, Context, FontWeight, ScrollHandle, Window, div, prelude::*};
 use ulid::Ulid;
 
 use self::kit::{Btn, Nt, Tone};
 use super::Shell;
+use super::popover::{Hang, Pick, Pop};
 use super::theme::Look;
 use crate::state::{Section, Tab};
 
@@ -59,8 +61,6 @@ pub struct NightUi {
     pub panel_scroll: ScrollHandle,
     /// The Ask bar's answer card shows.
     pub answer_open: bool,
-    /// The Ask bar's runner menu is open.
-    pub runner_menu: bool,
     /// A dialog drawn as a view for screenshots (`HIPPO_APP_DEV_DIALOG`).
     pub dev_dialog: Option<String>,
     /// What to select once the models load (`HIPPO_APP_DEV_SELECT`).
@@ -90,7 +90,6 @@ impl Default for NightUi {
             scroll: ScrollHandle::new(),
             panel_scroll: ScrollHandle::new(),
             answer_open: false,
-            runner_menu: false,
             dev_dialog: None,
             dev_select: None,
             dev_zoom: None,
@@ -521,9 +520,11 @@ impl Shell {
             .night
             .answer_open
             .then(|| self.render_answer_card(look, &t, cx));
-        let menu = self.night.runner_menu.then(|| {
+        let open = self.pop_is(&Pop::AskRunner);
+        // Hung above the chip, lined up with its trailing edge.
+        let menu = open.then(|| {
             let current = asker.as_ref().map(|a| a.runner.clone());
-            let mut m = kit::menu(look, &t).child(
+            let mut m = kit::menu(look, &t).id("ask-runner-menu").child(
                 div()
                     .px(look.px(10.))
                     .pt(look.px(6.))
@@ -539,41 +540,43 @@ impl Shell {
                     None => r.agent.name.clone(),
                 };
                 let chosen = current.as_deref() == Some(name.as_str());
-                m = m.child(
-                    kit::menu_row(
-                        look,
-                        &t,
-                        ("runner", i),
-                        Some(kit::mark(look, &r.agent, 16., t.text).into_any_element()),
-                        label,
-                        chosen,
-                    )
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.night.runner_menu = false;
-                        if !chosen {
-                            this.start_job(
-                                crate::flow::Purpose::Manage,
-                                vec![vec![
-                                    "config".into(),
-                                    "set".into(),
-                                    "role.ask".into(),
-                                    name.clone(),
-                                    "--yes".into(),
-                                ]],
-                                cx,
-                            );
-                        }
-                        cx.notify();
-                    })),
+                let row = kit::menu_row(
+                    look,
+                    &t,
+                    ("runner", i),
+                    Some(kit::mark(look, &r.agent, 16., t.text).into_any_element()),
+                    label,
+                    chosen,
                 );
+                let pick: Pick = Rc::new(move |this, _, cx| {
+                    if !chosen {
+                        this.start_job(
+                            crate::flow::Purpose::Manage,
+                            vec![vec![
+                                "config".into(),
+                                "set".into(),
+                                "role.ask".into(),
+                                name.clone(),
+                                "--yes".into(),
+                            ]],
+                            cx,
+                        );
+                    }
+                });
+                m = m.child(self.pop_row(i, row, t.hover, pick, cx));
             }
-            m.child(
-                div()
-                    .px(look.px(10.))
-                    .py(look.px(6.))
-                    .text_size(look.text(12.))
-                    .text_color(t.faint)
-                    .child("Add another with hippo runners add"),
+            self.popover(
+                look,
+                Hang::AboveEnd,
+                m.child(
+                    div()
+                        .px(look.px(10.))
+                        .py(look.px(6.))
+                        .text_size(look.text(12.))
+                        .text_color(t.faint)
+                        .child("Add another with hippo runners add"),
+                ),
+                cx,
             )
         });
         let (lead, label) = match &asker {
@@ -587,18 +590,24 @@ impl Shell {
             ),
         };
         let runner = kit::select(look, &t, "ask-runner", Some(lead), label, "Who answers Ask")
-            .tooltip(crate::ui::tooltip::Tooltip::text("Who answers Ask"))
+            .relative()
+            .aria_expanded(open)
+            // Pressed while its menu is open.
+            .when(open, |d| d.bg(t.selected).border_color(t.line2))
+            .when(!open, |d| {
+                d.tooltip(crate::ui::tooltip::Tooltip::text("Who answers Ask"))
+            })
             .on_click(cx.listener(|this, _, _, cx| {
-                this.night.runner_menu = !this.night.runner_menu;
+                this.toggle_pop(Pop::AskRunner);
                 cx.notify();
-            }));
+            }))
+            .children(menu);
         div()
             .flex()
             .flex_col()
             .gap(look.px(10.))
             .w(look.px(width))
             .children(answer)
-            .children(menu.map(|m| div().flex().justify_end().pr(look.px(56.)).child(m)))
             .child(
                 div()
                     .h(look.px(ASK_H))
@@ -760,8 +769,12 @@ impl Shell {
     ) -> AnyElement {
         let t = Nt::of(look);
         self.apply_dev_select();
+        // Dev-only: open the runner menu once, as a click on its chip does.
         if self.night.dev_dialog.as_deref() == Some("runners") {
-            self.night.runner_menu = true;
+            self.night.dev_dialog = None;
+            if !self.pop_is(&Pop::AskRunner) {
+                self.toggle_pop(Pop::AskRunner);
+            }
         }
         if self.night.dev_scroll_end {
             self.night.scroll.scroll_to_bottom();

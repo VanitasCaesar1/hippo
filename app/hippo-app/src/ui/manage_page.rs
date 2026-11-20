@@ -62,8 +62,6 @@ pub struct ManageUi {
     pub doctor_open: bool,
     /// Doctor rows whose engine text is shown (behind `▸`).
     pub doctor_detail: std::collections::HashSet<usize>,
-    /// The Hooks card's `?` is open.
-    pub hooks_help: bool,
     /// A pack folder picked with Add a pack, for the next draw's sheet.
     pub pending_pack: Option<std::path::PathBuf>,
 }
@@ -86,7 +84,6 @@ impl ManageUi {
             card_bounds: Rc::new(std::cell::RefCell::new([None; 9])),
             doctor_open: false,
             doctor_detail: Default::default(),
-            hooks_help: false,
             pending_pack: None,
         }
     }
@@ -1055,7 +1052,7 @@ impl Shell {
                     .into_any_element(),
             );
         }
-        let help_open = self.manage_ui.hooks_help;
+        let help_open = self.pop_is(&super::popover::Pop::HooksHelp);
         let help = div()
             .id("hooks-help")
             .role(Role::Button)
@@ -1073,38 +1070,34 @@ impl Shell {
             .cursor_pointer()
             .child("?")
             .on_click(cx.listener(|this, _, _, cx| {
-                this.manage_ui.hooks_help = !this.manage_ui.hooks_help;
+                this.toggle_pop(super::popover::Pop::HooksHelp);
                 cx.notify();
             }))
             .children(help_open.then(|| {
-                gpui::deferred(
-                    gpui::anchored().anchor(gpui::Anchor::TopRight).child(
-                        div()
-                            .id("hooks-help-pop")
-                            .mt(look.px(24.))
-                            .w(look.px(330.))
-                            .p(look.px(12.))
-                            .rounded(look.px(8.))
-                            .bg(look.c.elevated)
-                            .border(look.fixed(1.))
-                            .border_color(look.c.border)
-                            .shadow_md()
-                            .flex()
-                            .flex_col()
-                            .gap(look.px(6.))
-                            .children(what.iter().map(|(t, d)| {
-                                div()
-                                    .flex()
-                                    .gap(look.px(8.))
-                                    .text_size(look.text(12.))
-                                    .child(div().flex_shrink_0().w(look.px(96.)).child(*t))
-                                    .child(div().min_w_0().text_color(kit::dim(look)).child(*d))
-                            }))
-                            .on_mouse_down_out(cx.listener(|this, _, _, cx| {
-                                this.manage_ui.hooks_help = false;
-                                cx.notify();
-                            })),
-                    ),
+                self.popover(
+                    look,
+                    super::popover::Hang::BelowEnd,
+                    div()
+                        .id("hooks-help-pop")
+                        .w(look.px(330.))
+                        .p(look.px(12.))
+                        .rounded(look.px(8.))
+                        .bg(look.c.elevated)
+                        .border(look.fixed(1.))
+                        .border_color(look.c.border)
+                        .shadow_md()
+                        .flex()
+                        .flex_col()
+                        .gap(look.px(6.))
+                        .children(what.iter().map(|(t, d)| {
+                            div()
+                                .flex()
+                                .gap(look.px(8.))
+                                .text_size(look.text(12.))
+                                .child(div().flex_shrink_0().w(look.px(96.)).child(*t))
+                                .child(div().min_w_0().text_color(kit::dim(look)).child(*d))
+                        })),
+                    cx,
                 )
             }));
         settings_section(look)

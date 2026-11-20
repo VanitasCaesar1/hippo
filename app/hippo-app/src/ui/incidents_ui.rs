@@ -7,6 +7,7 @@
 //! writes nothing but its preferences.
 
 use std::collections::{BTreeMap, HashSet};
+use std::rc::Rc;
 
 use gpui::{Context, FocusHandle, FontWeight, Role, SharedString, Window, div, prelude::*};
 use hippo_core::incidents::{Cause, Incident, Kind as IncidentKind};
@@ -15,6 +16,7 @@ use time::OffsetDateTime;
 
 use super::Shell;
 use super::kit::{self, Kind};
+use super::popover::{Hang, Pick, Pop};
 use super::theme::Look;
 use crate::incidents::{self as inc, Filter, NeverAgain};
 use crate::state::{Section, Tab};
@@ -57,7 +59,6 @@ pub struct IncidentsUi {
     pub selected: Option<String>,
     pub focus: FocusHandle,
     pub filter: Filter,
-    pub menu: Option<Menu>,
     /// `dismissed_incidents` and `incidents_seen_at`, as the preferences
     /// hold them.
     pub dismissed: BTreeMap<String, i64>,
@@ -80,7 +81,6 @@ impl IncidentsUi {
             selected: None,
             focus: cx.focus_handle(),
             filter: Filter::default(),
-            menu: None,
             dismissed: prefs.dismissed_incidents.clone(),
             seen_at: prefs.incidents_seen_at,
             toast: None,
@@ -187,7 +187,7 @@ impl Shell {
 
     /// Opens incident `id`'s page.
     pub(crate) fn open_incident(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
-        self.incidents_ui.menu = None;
+        self.close_pop();
         self.incidents_ui.selected = Some(id.to_owned());
         self.page_scroll.set_offset(gpui::Point::default());
         self.state.tabs.open(Tab::Incident(id.to_owned()));
@@ -373,7 +373,7 @@ impl Shell {
             Choice::Account(v) => f.account = v,
             Choice::Project(v) => f.project = v,
         }
-        self.incidents_ui.menu = None;
+        self.close_pop();
         cx.notify();
     }
 
@@ -446,7 +446,7 @@ impl Shell {
         look: &Look,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
-        let open = self.incidents_ui.menu == Some(menu);
+        let open = self.pop_is(&Pop::IncidentFilter(menu));
         let f = &self.incidents_ui.filter;
         let mut items: Vec<gpui::AnyElement> = Vec::new();
         let mut n = 0usize;
@@ -457,27 +457,26 @@ impl Shell {
                         choice: Choice,
                         cx: &mut Context<Self>| {
             n += 1;
+            let row = div()
+                .id(("inc-menu-item", n))
+                .role(Role::MenuItem)
+                .aria_label(text.clone())
+                .flex()
+                .items_center()
+                .gap(look.px(8.))
+                .h(look.px(28.))
+                .px(look.px(8.))
+                .rounded(look.px(3.))
+                .cursor_pointer()
+                .hover(|h| h.bg(look.c.hover))
+                .when(on, |d| d.bg(look.c.selected))
+                .text_size(look.text(12.5))
+                .text_color(if on { look.c.text } else { look.c.text_muted })
+                .children(mark.map(|p| kit::account_bar(look, Some(&p), 12.)))
+                .child(div().min_w_0().truncate().child(text));
+            let pick: Pick = Rc::new(move |this, _, cx| this.apply_choice(choice.clone(), cx));
             items.push(
-                div()
-                    .id(("inc-menu-item", n))
-                    .role(Role::MenuItem)
-                    .aria_label(text.clone())
-                    .flex()
-                    .items_center()
-                    .gap(look.px(8.))
-                    .h(look.px(28.))
-                    .px(look.px(8.))
-                    .rounded(look.px(3.))
-                    .cursor_pointer()
-                    .hover(|h| h.bg(look.c.hover))
-                    .when(on, |d| d.bg(look.c.selected))
-                    .text_size(look.text(12.5))
-                    .text_color(if on { look.c.text } else { look.c.text_muted })
-                    .children(mark.map(|p| kit::account_bar(look, Some(&p), 12.)))
-                    .child(div().min_w_0().truncate().child(text))
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.apply_choice(choice.clone(), cx);
-                    }))
+                self.pop_row(n - 1, row, look.c.hover, pick, cx)
                     .into_any_element(),
             );
         };
@@ -581,20 +580,17 @@ impl Shell {
                 .child(kit::icon(look, "chevron-down", 12., look.c.text_muted))
                 .on_click(cx.listener(move |this, _, _, cx| {
                     cx.stop_propagation();
-                    this.incidents_ui.menu = if this.incidents_ui.menu == Some(menu) {
-                        None
-                    } else {
-                        Some(menu)
-                    };
+                    this.toggle_pop(Pop::IncidentFilter(menu));
                     cx.notify();
                 })),
             )
             .when(open, |d| {
-                d.child(gpui::deferred(
-                    gpui::anchored().child(
+                d.child(
+                    self.popover(
+                        look,
+                        Hang::BelowStart,
                         div()
                             .id(SharedString::from(format!("{id}-pop")))
-                            .mt(look.px(32.))
                             .min_w(look.px(200.))
                             .max_w(look.px(320.))
                             .max_h(look.px(360.))
@@ -605,16 +601,12 @@ impl Shell {
                             .border(look.fixed(1.))
                             .border_color(look.c.border)
                             .shadow_lg()
-                            .occlude()
                             .flex()
                             .flex_col()
-                            .children(items)
-                            .on_mouse_down_out(cx.listener(|this, _, _, cx| {
-                                this.incidents_ui.menu = None;
-                                cx.notify();
-                            })),
+                            .children(items),
+                        cx,
                     ),
-                ))
+                )
             })
             .into_any_element()
     }

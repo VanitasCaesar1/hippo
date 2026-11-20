@@ -6,6 +6,7 @@
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use gpui::{
     ClipboardItem, Context, FocusHandle, Focusable, FontWeight, Role, SharedString, Window, div,
@@ -17,6 +18,7 @@ use hippo_view::briefing;
 
 use super::Shell;
 use super::kit::{self, Kind};
+use super::popover::{Hang, Pick, Pop};
 use super::theme::Look;
 use crate::state::{Section, Tab};
 
@@ -33,8 +35,6 @@ pub struct BriefUi {
     /// The profile to start on; `None` is Use next.
     pub profile: Option<String>,
     pub repo: Option<PathBuf>,
-    /// Which menu is open: `profile` or `repo`.
-    pub menu: Option<&'static str>,
     /// What the last Copy, Start or Send did.
     pub said: Option<Result<String, String>>,
     pub focus: FocusHandle,
@@ -56,7 +56,6 @@ impl BriefUi {
             selected: 0,
             profile: None,
             repo: None,
-            menu: None,
             said: None,
             focus,
             seq: 0,
@@ -706,7 +705,7 @@ impl Shell {
                 }
             }
         };
-        let footer = self.brief_footer(look, cx);
+        let footer = self.brief_footer(look);
         div()
             .id("brief")
             .key_context("Brief")
@@ -986,9 +985,11 @@ impl Shell {
         tip: String,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
-        let open = self.brief.menu == Some(which);
+        let open = self.pop_is(&Pop::Brief(which));
+        let menu = open.then(|| self.brief_menu(look, which, cx));
         div()
             .id(id)
+            .relative()
             .role(Role::Button)
             .aria_label(label.clone())
             .aria_expanded(open)
@@ -1015,13 +1016,10 @@ impl Shell {
             .tooltip(super::tooltip::Tooltip::text(tip))
             .on_click(cx.listener(move |this, _, _, cx| {
                 cx.stop_propagation();
-                this.brief.menu = if this.brief.menu == Some(which) {
-                    None
-                } else {
-                    Some(which)
-                };
+                this.toggle_pop(Pop::Brief(which));
                 cx.notify();
             }))
+            .children(menu)
             .into_any_element()
     }
 
@@ -1212,12 +1210,16 @@ impl Shell {
         self.brief_send_t3(cx);
     }
 
-    /// Above the composer: the open chip's menu and what the last action
-    /// said.
-    fn brief_footer(&self, look: &Look, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
+    /// A chip's menu, hung above it: the profiles to start on, or the
+    /// repositories.
+    fn brief_menu(
+        &self,
+        look: &Look,
+        which: &'static str,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
         let fleet = self.loaded.as_ref().and_then(|l| l.fleet.as_ref());
-        let mut menu: Option<gpui::AnyElement> = None;
-        if let Some(which) = self.brief.menu {
+        {
             let items: Vec<(String, Option<String>, Option<PathBuf>)> = if which == "profile" {
                 let mut v = vec![("Use next".to_owned(), None, None)];
                 if let Some(f) = fleet {
@@ -1254,32 +1256,34 @@ impl Shell {
             };
             let mut rows: Vec<gpui::AnyElement> = Vec::new();
             for (i, (label, p, r)) in items.into_iter().enumerate() {
+                let row = div()
+                    .id(SharedString::from(format!("brief-menu-{which}-{i}")))
+                    .role(Role::MenuItem)
+                    .px(look.px(10.))
+                    .py(look.px(5.))
+                    .rounded(look.px(5.))
+                    .text_size(look.text(12.5))
+                    .cursor_pointer()
+                    .hover(|h| h.bg(look.c.hover))
+                    .child(label);
+                let pick: Pick = Rc::new(move |this, _, _| {
+                    if which == "profile" {
+                        this.brief.profile = p.clone();
+                    } else {
+                        this.brief.repo = r.clone();
+                        this.brief.repo_picked = true;
+                    }
+                });
                 rows.push(
-                    div()
-                        .id(SharedString::from(format!("brief-menu-{which}-{i}")))
-                        .role(Role::MenuItem)
-                        .px(look.px(10.))
-                        .py(look.px(5.))
-                        .rounded(look.px(5.))
-                        .text_size(look.text(12.5))
-                        .cursor_pointer()
-                        .hover(|h| h.bg(look.c.hover))
-                        .child(label)
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            if which == "profile" {
-                                this.brief.profile = p.clone();
-                            } else {
-                                this.brief.repo = r.clone();
-                                this.brief.repo_picked = true;
-                            }
-                            this.brief.menu = None;
-                            cx.notify();
-                        }))
+                    self.pop_row(i, row, look.c.hover, pick, cx)
                         .into_any_element(),
                 );
             }
-            menu = Some(
+            self.popover(
+                look,
+                Hang::AboveStart,
                 div()
+                    .id(SharedString::from(format!("brief-menu-{which}")))
                     .flex()
                     .flex_col()
                     .gap(look.px(1.))
@@ -1289,10 +1293,15 @@ impl Shell {
                     .border(look.fixed(1.))
                     .border_color(look.c.border)
                     .bg(look.c.elevated)
-                    .children(rows)
-                    .into_any_element(),
-            );
+                    .shadow_lg()
+                    .children(rows),
+                cx,
+            )
         }
+    }
+
+    /// Above the composer: what the last action said.
+    fn brief_footer(&self, look: &Look) -> Option<gpui::AnyElement> {
         let said = self.brief.said.clone().map(|r| {
             let (t, c) = match r {
                 Ok(t) => (t, kit::dim(look)),
@@ -1306,17 +1315,14 @@ impl Shell {
                 .font_family("Menlo")
                 .child(t)
         });
-        if menu.is_none() && said.is_none() {
-            return None;
-        }
+        let said = said?;
         Some(
             div()
                 .flex()
                 .flex_col()
                 .gap(look.px(8.))
                 .flex_shrink_0()
-                .children(menu)
-                .children(said)
+                .child(said)
                 .into_any_element(),
         )
     }

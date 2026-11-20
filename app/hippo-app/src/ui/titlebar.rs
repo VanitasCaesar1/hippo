@@ -212,37 +212,27 @@ impl Shell {
 }
 
 impl Shell {
-    /// The health detail over the status bar's pill, while open (the title
-    /// bar has no pill).
+    /// The health detail, hung above the sidebar foot's health word that
+    /// opens it.
     pub(super) fn render_health_popover(
         &self,
         look: &Look,
         cx: &mut Context<Self>,
-    ) -> Option<impl IntoElement> {
-        if !self.health_open {
-            return None;
-        }
+    ) -> gpui::AnyElement {
         let (word, _) = self.health_word();
-        Some(
+        self.popover(
+            look,
+            super::popover::Hang::AboveStart,
             div()
                 .id("health-popover")
-                .absolute()
-                .bottom(look.px(30.))
-                .left(look.px(8.))
                 .w(look.px(420.))
-                .max_w(gpui::relative(0.9))
                 .p(look.px(16.))
                 .rounded(look.px(10.))
                 .border(look.fixed(1.))
                 .border_color(look.c.border)
                 .bg(look.c.elevated)
                 .shadow_lg()
-                .occlude()
                 .text_size(look.text(13.))
-                .on_mouse_down_out(cx.listener(|this, _, _, cx| {
-                    this.health_open = false;
-                    cx.notify();
-                }))
                 .child(
                     div()
                         .pb(look.px(10.))
@@ -250,6 +240,7 @@ impl Shell {
                         .child(format!("Health · {word}")),
                 )
                 .child(self.render_health(look)),
+            cx,
         )
     }
 }

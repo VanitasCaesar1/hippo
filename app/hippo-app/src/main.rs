@@ -254,32 +254,50 @@ fn main() {
         // background may be covered, and macOS draws a covered window once.
         let preloaded = (dev_size.is_some() || dev_view.is_some())
             .then(|| state::load(&installation.home, time::OffsetDateTime::now_utc()));
-        cx.open_window(options, |window, cx| {
-            cx.new(|cx| {
-                let mut shell = ui::Shell::new(installation, prefs_path, window, cx);
-                if let Some(loaded) = preloaded {
-                    shell.preload(loaded);
-                }
-                if let Some(v) = view.as_deref() {
-                    shell.open_section_named(v);
-                }
-                // Dev-only: a card to show selected, and the Share dialog.
-                shell.inbox.selected = std::env::var("HIPPO_APP_DEV_SELECT").ok();
-                shell.inbox.dev_share = std::env::var_os("HIPPO_APP_DEV_SHARE").is_some();
-                // Dev-only, the night map: what to select (`rule:0`,
-                // `fix:1`, `note:<path>`, `session:0`, `incident:0`), a
-                // dialog drawn as a view, and Brain's zoom.
-                shell.night.dev_select = std::env::var("HIPPO_APP_DEV_SELECT").ok();
-                shell.night.dev_dialog = std::env::var("HIPPO_APP_DEV_DIALOG").ok();
-                shell.night.dev_scroll_end =
-                    std::env::var("HIPPO_APP_DEV_SCROLL").is_ok_and(|v| v == "end");
-                shell.night.dev_zoom = std::env::var("HIPPO_APP_DEV_ZOOM")
-                    .ok()
-                    .and_then(|z| z.parse().ok());
-                shell
+        let handle = cx
+            .open_window(options, |window, cx| {
+                cx.new(|cx| {
+                    let mut shell = ui::Shell::new(installation, prefs_path, window, cx);
+                    if let Some(loaded) = preloaded {
+                        shell.preload(loaded);
+                    }
+                    if let Some(v) = view.as_deref() {
+                        shell.open_section_named(v);
+                    }
+                    // Dev-only: a card to show selected, and the Share dialog.
+                    shell.inbox.selected = std::env::var("HIPPO_APP_DEV_SELECT").ok();
+                    shell.inbox.dev_share = std::env::var_os("HIPPO_APP_DEV_SHARE").is_some();
+                    // Dev-only, the night map: what to select (`rule:0`,
+                    // `fix:1`, `note:<path>`, `session:0`, `incident:0`), a
+                    // dialog drawn as a view, and Brain's zoom.
+                    shell.night.dev_select = std::env::var("HIPPO_APP_DEV_SELECT").ok();
+                    shell.night.dev_dialog = std::env::var("HIPPO_APP_DEV_DIALOG").ok();
+                    shell.night.dev_scroll_end =
+                        std::env::var("HIPPO_APP_DEV_SCROLL").is_ok_and(|v| v == "end");
+                    shell.night.dev_zoom = std::env::var("HIPPO_APP_DEV_ZOOM")
+                        .ok()
+                        .and_then(|z| z.parse().ok());
+                    shell
+                })
             })
-        })
-        .expect("the window opens");
+            .expect("the window opens");
+        // Dev-only: HIPPO_APP_DEV_THEN (`brain:4`) shows that section after
+        // that many seconds, as a click on its tab does: for a screenshot of
+        // what a change of view closes.
+        if let Some((name, secs)) = std::env::var("HIPPO_APP_DEV_THEN").ok().and_then(|v| {
+            let (n, s) = v.split_once(':')?;
+            Some((n.to_owned(), s.parse::<f32>().ok()?))
+        }) {
+            cx.spawn(async move |cx| {
+                cx.background_executor()
+                    .timer(std::time::Duration::from_secs_f32(secs))
+                    .await;
+                let _ = handle.update(cx, |shell, window, cx| {
+                    shell.show_section_named(&name, window, cx);
+                });
+            })
+            .detach();
+        }
         // Dev-only: HIPPO_APP_DEV_THEME (`dark`, `light`) draws Hippo's
         // theme of that appearance, saving nothing.
         if let Ok(which) = std::env::var("HIPPO_APP_DEV_THEME") {
