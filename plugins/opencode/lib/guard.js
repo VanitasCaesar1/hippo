@@ -2,10 +2,13 @@
  * hippo's guard in OpenCode (`guard: true`): before every tool call, the
  * plugin runs `hippo guard check --agent opencode` with the call on
  * standard input (docs/designs/guard.md). A refusal is thrown from
- * `execute.before`, which refuses the call; a warning is reported where
- * the plugin reports problems. OpenCode's plugin hooks are not documented,
- * so this is unverified against a running OpenCode. In hippo 0.6 only
- * hippo's self-protection rules refuse; everything else warns.
+ * `execute.before`, which refuses the call, and the model reads the
+ * reason as the call's error. A warning lets the call run and is put at
+ * the top of its result in `execute.after`, so the model reads it and the
+ * person sees it in the tool's output; it also goes where the plugin
+ * reports problems. Checked against a running OpenCode 2.3.2 by
+ * scripts/agent-e2e. In hippo 0.6 only hippo's self-protection rules
+ * refuse; everything else warns.
  *
  * When hippo cannot answer, the call goes on, unless
  * `$HIPPO_HOME/guard/compiled.json` says `fail = "closed"`.
@@ -67,12 +70,33 @@ export function checkCall(config, call, cwd) {
         child.stdin?.end(JSON.stringify(call));
     });
 }
-/** Add the guard's `execute.before` hook. */
+/** The warning at the top of a call's result. */
+export function withWarning(event, warning) {
+    if (event.status !== 'completed')
+        return;
+    const content = event.result.content;
+    const note = { type: 'text', text: warning };
+    event.result = {
+        ...event.result,
+        content: content === undefined ? [note] : typeof content === 'string' ? `${warning}\n\n${content}` : [note, ...content],
+    };
+}
+/** Add the guard's `execute.before` and `execute.after` hooks. */
 export async function addGuard(ctx, config, warn) {
     if (ctx.tool.hook === undefined) {
         warn('hippo: guard is on, but this OpenCode has no tool hooks; the guard is not running');
         return;
     }
+    // Warnings waiting for their call's result, by session and call id.
+    const pending = new Map();
+    const key = (event) => `${event.sessionID}\u0000${event.id ?? ''}`;
+    await ctx.tool.hook('execute.after', event => {
+        const warning = pending.get(key(event));
+        if (warning === undefined)
+            return;
+        pending.delete(key(event));
+        withWarning(event, warning);
+    });
     await ctx.tool.hook('execute.before', async (event) => {
         let cwd = ctx.location.directory;
         try {
@@ -87,7 +111,10 @@ export async function addGuard(ctx, config, warn) {
         if (answer.decision === 'block' || answer.decision === 'ask') {
             throw new Error(answer.reason ?? 'hippo guard refused this call');
         }
-        if (answer.decision === 'warn' && answer.reason)
+        if (answer.decision === 'warn' && answer.reason) {
             warn(answer.reason);
+            if (event.id !== undefined)
+                pending.set(key(event), answer.reason);
+        }
     });
 }

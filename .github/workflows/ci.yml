@@ -95,3 +95,21 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run check-lib
+
+  # The guard end to end in real agent CLIs (scripts/agent-e2e). The
+  # runners have none of the agents, so this checks the stub model and
+  # that the script skips each missing agent with a message; run it where
+  # the agents are installed before a release that changes a hook.
+  agent-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/agent-e2e/stub-test.mjs
+      - run: cargo build -p hippo --locked
+      - run: sh scripts/agent-e2e/run.sh target/debug/hippo

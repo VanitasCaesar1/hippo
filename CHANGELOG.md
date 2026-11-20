@@ -4,6 +4,15 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Added
+
+- **The guard, end to end in real agents.** `scripts/agent-e2e/run.sh` runs Claude Code, Codex, Gemini CLI, OpenCode and dsh for real, each in a scratch home with the guard installed as a user installs it, against a stub model on 127.0.0.1 (no model, key or account). It checks that a warned call runs and who saw the warning, that a self-protection refusal holds, that an `ls` is untouched, and that the agent connected only to 127.0.0.1. CI runs the stub's own test and skips the agents it lacks.
+
+### Fixed
+
+- **The guard on a machine where hippo was never set up.** `hippo guard install` works without an index or workspace, but `guard check` then failed open on every call for want of `config.toml`. It now applies the built-in and machine rules.
+- **OpenCode: warnings reach the model and you.** The plugin's guard put a warning only in OpenCode's log. It now puts it at the top of the call's result (`execute.after`), which the model reads and the tool's output shows. The hooks were checked against OpenCode's source at v2.3.2 and a running OpenCode; they are no longer marked unverified.
+
 ## [0.6.0] - 2026-11-20
 
 **Upgrading.** Everyone on a shared workspace should be on 0.6.0 before anyone sets `[guard]`, `guard_note` or `[team]`: `hippo config set` of one raises `min_hippo_version` to 0.6.0, and a 0.5 hippo then refuses to write there. `hippo init` now writes a `workspace_id` into a new workspace's `hippo.toml`; an older workspace gets one the first time a security setting is set, and nothing else changes for it. Kept lesson bullets now end with a hidden marker; `hippo lessons markers --yes` adds it to bullets kept before. The guard is off until you run `hippo guard install --yes` (or set the dsh and OpenCode plugins' `guard: true`).

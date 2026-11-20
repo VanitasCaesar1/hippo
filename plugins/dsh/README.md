@@ -44,7 +44,7 @@ Override the plugin's row in your profile's `cordis.patch.yml` (`$DSH_HOME/profi
     guard: false       # run hippo guard check before every tool call
 ```
 
-**The guard.** With `guard: true` the plugin runs `hippo guard check --agent dsh` in dsh's `tools/pre-execute` gate with the tool's name, parsed arguments and the session's folder ([the guard](https://vanitascaesar1.github.io/hippo/docs/security.html#the-guard)). A refusal becomes dsh's `deny`; a warning lets the call run and reaches the model with the call's result (and dsh's log). In hippo 0.6 only hippo's self-protection rules refuse. When hippo cannot answer, the call goes on, unless `fail = "closed"` is in force. The contract was read from dsh's `dsh-tools` type definitions; the end-to-end check below has not yet run with it on.
+**The guard.** With `guard: true` the plugin runs `hippo guard check --agent dsh` in dsh's `tools/pre-execute` gate with the tool's name, parsed arguments and the session's folder ([the guard](https://vanitascaesar1.github.io/hippo/docs/security.html#the-guard)). A refusal becomes dsh's `deny`; a warning lets the call run and reaches the model with the call's result (and dsh's log). In hippo 0.6 only hippo's self-protection rules refuse. When hippo cannot answer, the call goes on, unless `fail = "closed"` is in force. The contract was read from dsh's `dsh-tools` type definitions and checked against a running dsh 0.2.2-rc.5 by `scripts/agent-e2e` in the repository: a warned call runs and the model reads the warning with its result; a refused call does not run. dsh's headless profile prints only the final answer, so there the person sees a warning only in the session (dsh's web UI) or if the model passes it on.
 
 ## What it does not do
 

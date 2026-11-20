@@ -40,7 +40,7 @@ hippo sends nothing for these commands. But the start block is in the system pro
 
 A wrong or unknown option is reported in OpenCode's log, and its default is used.
 
-**The guard.** With `"guard": true` the plugin runs `hippo guard check --agent opencode` from OpenCode's `execute.before` hook with the tool's name, input and the session's folder. In hippo 0.6 only hippo's self-protection rules refuse a call (the plugin throws, which refuses it); every other rule's warning goes to OpenCode's log, not to the model. When hippo cannot answer, the call goes on, unless `fail = "closed"` is in force. OpenCode does not document this hook: it was read from the 2.3 binary and has not been checked against a running OpenCode, so treat it as unverified.
+**The guard.** With `"guard": true` the plugin runs `hippo guard check --agent opencode` from OpenCode's `execute.before` hook with the tool's name, input and the session's folder. In hippo 0.6 only hippo's self-protection rules refuse a call (the plugin throws, which refuses it, and the model reads the reason as the call's error). Every other rule warns: the call runs, and the plugin's `execute.after` hook puts the warning at the top of the call's result, so the model reads it and you see it in the tool's output. When hippo cannot answer, the call goes on, unless `fail = "closed"` is in force. OpenCode does not document these hooks; they were read from OpenCode's source at tag v2.3.2 (`packages/plugin/src/promise/tool.ts`, `packages/core/src/tool.ts`) and checked against a running OpenCode 2.3.2 by `scripts/agent-e2e` in the repository.
 
 ## What it does not do
 

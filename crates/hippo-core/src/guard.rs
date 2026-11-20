@@ -660,7 +660,13 @@ pub fn for_check(home: &Path) -> Result<Compiled> {
             return Ok(c);
         }
     }
-    let cfg = Config::load_in(home)?;
+    // The guard is machine-wide: it needs no index and no workspace, so a
+    // machine where hippo was never run gets the built-in and machine
+    // rules rather than failing open on every call.
+    let cfg = match Config::load_in(home) {
+        Err(crate::error::Error::NotSetUp(_)) => Config::defaults_in(home),
+        other => other?,
+    };
     let ws = Workspace::load_optional(&cfg)?;
     compile(&cfg, ws.as_ref())
 }

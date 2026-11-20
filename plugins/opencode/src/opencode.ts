@@ -58,9 +58,10 @@ export interface ToolEditor {
 
 /**
  * The `execute.before` event of `ctx.tool.hook`: the tool, its session and
- * its input, before it runs. Read from the OpenCode 2.3.2 binary's
- * strings (`trigger("tool","execute.before",{tool,sessionID,agent,messageID,id,input})`);
- * the plugin contract is not documented, so the guard here is unverified.
+ * its input, before it runs; an error thrown refuses the call. Read from
+ * OpenCode's source at tag v2.3.2 (packages/plugin/src/promise/tool.ts,
+ * `ToolHooks`; packages/core/src/tool.ts triggers it) and checked against
+ * a running OpenCode 2.3.2 by scripts/agent-e2e.
  */
 export interface ToolExecuteBefore {
   readonly tool: string
@@ -69,6 +70,24 @@ export interface ToolExecuteBefore {
   readonly id?: string
   input: unknown
 }
+
+/** A tool's text or file content, as a result carries it. */
+export type ToolContent = { type: 'text'; text: string } | { type: string; [key: string]: unknown }
+
+/**
+ * The `execute.after` event: the call's result, which the hook may
+ * replace; OpenCode gives the model what is in `result` afterwards
+ * (packages/core/src/tool.ts, v2.3.2).
+ */
+export type ToolExecuteAfter = {
+  readonly tool: string
+  readonly sessionID: string
+  readonly id?: string
+  readonly input: unknown
+} & (
+  | { readonly status: 'completed'; result: { output?: unknown; content?: string | readonly ToolContent[]; metadata?: unknown } }
+  | { readonly status: 'error'; error: unknown }
+)
 
 /** The plugin context, as far as the plugin uses it. */
 export interface Context {
@@ -81,8 +100,11 @@ export interface Context {
   readonly tool: {
     /** The callback must be synchronous and free of side effects: OpenCode replays it. */
     transform(callback: (editor: ToolEditor) => void): Promise<unknown>
-    /** A hook before a tool runs; an error thrown refuses the call. */
-    hook?(name: 'execute.before', callback: (event: ToolExecuteBefore) => void | Promise<void>): Promise<Registration>
+    /** A hook before a tool runs (an error thrown refuses the call), or after it (the result may be replaced). */
+    hook?: {
+      (name: 'execute.before', callback: (event: ToolExecuteBefore) => void | Promise<void>): Promise<Registration>
+      (name: 'execute.after', callback: (event: ToolExecuteAfter) => void | Promise<void>): Promise<Registration>
+    }
   }
 }
 
