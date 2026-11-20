@@ -42,7 +42,9 @@ const GROUPS: [(&str, &[&str]); 6] = [
     ),
     (
         "Notes and dreaming",
-        &["context", "dream", "lessons", "review", "revert", "eval"],
+        &[
+            "context", "dream", "lessons", "stats", "review", "revert", "eval",
+        ],
     ),
     ("Packs", &["add", "packs"]),
     (
@@ -156,6 +158,9 @@ enum Command {
     Dream(cmd::dream::Args),
     /// Corrections and repeated failures proposed as rules: list, scan, keep, dismiss
     Lessons(cmd::lessons::Args),
+    /// Numbers to check hippo by on your own history: repeats of rules you already gave
+    #[command(subcommand)]
+    Stats(cmd::stats::Command),
     /// Mark applied dreaming changes as read and right (--ok)
     Review(cmd::review::Args),
     /// Undo an applied dreaming change from its snapshot
@@ -224,6 +229,7 @@ fn main() -> ExitCode {
         Command::Doctor(args) => cmd::doctor::run(args),
         Command::Dream(args) => return cmd::dream::run(args),
         Command::Lessons(args) => cmd::lessons::run(args),
+        Command::Stats(command) => cmd::stats::run(command),
         Command::Review(args) => cmd::review::run(args),
         Command::Revert(args) => cmd::revert::run(args),
         Command::Eval(args) => cmd::eval::run(args),

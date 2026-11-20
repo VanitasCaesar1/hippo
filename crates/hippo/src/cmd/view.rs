@@ -67,6 +67,7 @@ struct Loaded {
     rollup: Option<Rollup>,
     brain: Brain,
     titles: HashMap<PathBuf, String>,
+    repeats: Option<hippo_core::lessons::repeats::Report>,
     now: OffsetDateTime,
     offset: UtcOffset,
 }
@@ -85,6 +86,7 @@ fn load() -> Result<Loaded> {
         .iter()
         .map(|r| (r.path.clone(), r.title.clone()))
         .collect();
+    let repeats = hippo_core::lessons::repeats::from_home(&config, Some(&ws), 6, now).ok();
     Ok(Loaded {
         ws,
         history,
@@ -93,6 +95,7 @@ fn load() -> Result<Loaded> {
         rollup,
         brain,
         titles,
+        repeats,
         now,
         offset,
     })
@@ -106,6 +109,7 @@ fn morning_of(l: &Loaded) -> morning::Morning {
         lessons: &l.lessons,
         rollup: l.rollup.as_ref(),
         titles: &l.titles,
+        repeats: l.repeats.as_ref(),
         now: l.now,
         offset: l.offset,
     })

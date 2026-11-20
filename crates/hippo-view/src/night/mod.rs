@@ -301,6 +301,7 @@ pub fn load(
         .iter()
         .map(|r| (r.path.clone(), r.title.clone()))
         .collect();
+    let repeats = hippo_core::lessons::repeats::from_home(cfg, Some(ws), 6, now).ok();
     let morning = morning::build(&morning::Inputs {
         ws,
         history: &history,
@@ -308,6 +309,7 @@ pub fn load(
         lessons: &lessons,
         rollup: rollup.as_ref(),
         titles: &note_titles,
+        repeats: repeats.as_ref(),
         now,
         offset,
     });

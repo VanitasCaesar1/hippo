@@ -155,6 +155,37 @@ pub fn corrections(
     Ok((people.len(), corrections))
 }
 
+/// The person-typed sessions since `since`: top-level sessions a person
+/// started with at least one turn the person typed (not injected, relayed
+/// or replayed), each with the time of its first such turn. The
+/// denominator of `hippo stats repeats`.
+pub fn person_sessions(
+    index: &Index,
+    rollup: &Rollup,
+    since: OffsetDateTime,
+) -> Result<BTreeMap<String, OffsetDateTime>> {
+    let people = people_sessions(rollup, since)?;
+    let turns = index.user_turns_since(since, MAX_PERSON_CHARS * 4)?;
+    let replayed = replayed_turns(&turns);
+    let mut out: BTreeMap<String, OffsetDateTime> = BTreeMap::new();
+    for turn in &turns {
+        if !people.contains_key(&turn.session)
+            || replayed.contains(&(turn.session.as_str(), turn.ts.as_str()))
+            || person_text(&turn.text).is_none()
+        {
+            continue;
+        }
+        let Ok(at) = OffsetDateTime::parse(&turn.ts, &Rfc3339) else {
+            continue;
+        };
+        let e = out.entry(turn.session.clone()).or_insert(at);
+        if at < *e {
+            *e = at;
+        }
+    }
+    Ok(out)
+}
+
 /// How many of a session's user turns sharing one timestamp mark a
 /// replayed transcript.
 pub const REPLAY_TURNS: usize = 3;

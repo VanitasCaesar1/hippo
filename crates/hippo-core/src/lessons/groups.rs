@@ -256,6 +256,10 @@ pub struct Store {
     /// When `hippo lessons backfill` last placed the whole index.
     #[serde(default, with = "time::serde::rfc3339::option")]
     pub backfilled: Option<OffsetDateTime>,
+    /// Corrections from this time on are in the store: the window of the
+    /// first scan, or the start of time after a whole backfill.
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub covered_from: Option<OffsetDateTime>,
     #[serde(default)]
     pub groups: Vec<Group>,
 }

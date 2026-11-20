@@ -275,7 +275,7 @@ impl Shell {
             ),
         ];
         let [a, b, c, d] = cells;
-        if two {
+        let grid = if two {
             div()
                 .flex()
                 .flex_col()
@@ -292,7 +292,49 @@ impl Shell {
                 .child(c)
                 .child(d)
                 .into_any_element()
-        }
+        };
+        let Some(r) = &m.repeats else {
+            return grid;
+        };
+        // The first figure: how often the person repeats a rule they
+        // already gave (`hippo stats repeats`).
+        let repeats = kit::card(look, t)
+            .flex()
+            .items_center()
+            .gap(look.px(14.))
+            .p(look.px(16.))
+            .child(
+                div()
+                    .text_size(look.text(26.))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(t.text)
+                    .child(r.figure.clone()),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(look.px(2.))
+                    .child(
+                        div()
+                            .text_size(look.text(13.))
+                            .text_color(t.text)
+                            .child(r.words.clone()),
+                    )
+                    .child(
+                        div()
+                            .text_size(look.text(13.))
+                            .text_color(t.muted)
+                            .child(r.then.clone()),
+                    ),
+            );
+        div()
+            .flex()
+            .flex_col()
+            .gap(look.px(10.))
+            .child(repeats)
+            .child(grid)
+            .into_any_element()
     }
 
     /// The strip and its three labels.
@@ -1198,6 +1240,7 @@ mod tests {
             headline: String::new(),
             lead: String::new(),
             pass: None,
+            repeats: None,
             figures: Figures::default(),
             rules: (0..rules).map(rule).collect(),
             applied: (0..applied).map(fix).collect(),

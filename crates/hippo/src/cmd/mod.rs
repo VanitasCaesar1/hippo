@@ -32,6 +32,7 @@ pub mod settings;
 pub mod setup;
 pub mod show;
 pub mod start;
+pub mod stats;
 pub mod view;
 pub mod xray;
 

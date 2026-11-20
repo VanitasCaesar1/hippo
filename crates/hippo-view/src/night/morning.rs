@@ -38,6 +38,10 @@ pub struct Morning {
     /// notes. The second model rejected 1 fix.`
     pub lead: String,
     pub pass: Option<Pass>,
+    /// The first figure: repeats of a rule the person already gave, per
+    /// 100 sessions, this week and four weeks ago (`hippo stats repeats`);
+    /// `None` when it could not be computed.
+    pub repeats: Option<Repeats>,
     pub figures: Figures,
     /// Pending rules, newest evidence first.
     pub rules: Vec<RuleCard>,
@@ -69,6 +73,41 @@ pub struct Pass {
     pub by_agent: Vec<(Agent, usize)>,
     /// Distinct notes a pass checked.
     pub notes_checked: usize,
+}
+
+/// The weekly repeat rate, as Morning shows it first.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Repeats {
+    pub this_week: Option<f64>,
+    pub four_weeks_ago: Option<f64>,
+    /// `12.4`, or `–` with no sessions this week.
+    pub figure: String,
+    /// `repeats per 100 sessions this week`.
+    pub words: String,
+    /// `15.1 four weeks ago`, or why there is no comparison yet.
+    pub then: String,
+}
+
+impl Repeats {
+    pub fn of(r: &hippo_core::lessons::repeats::Report) -> Repeats {
+        let (this, before) = r.headline();
+        let fmt = |v: Option<f64>| v.map_or_else(|| "–".to_owned(), |x| format!("{x:.1}"));
+        let then = match before {
+            Some(_) => format!("{} four weeks ago", fmt(before)),
+            None if !r.backfilled => {
+                "four weeks ago: not in the groups yet; hippo lessons backfill adds your history"
+                    .to_owned()
+            }
+            None => "four weeks ago: no sessions".to_owned(),
+        };
+        Repeats {
+            this_week: this,
+            four_weeks_ago: before,
+            figure: fmt(this),
+            words: "repeats per 100 sessions this week".to_owned(),
+            then,
+        }
+    }
 }
 
 /// B's four figures.
@@ -155,6 +194,8 @@ pub struct Inputs<'a> {
     pub rollup: Option<&'a Rollup>,
     /// Note titles by path relative to the workspace.
     pub titles: &'a HashMap<PathBuf, String>,
+    /// `hippo stats repeats`' report, when it could be computed.
+    pub repeats: Option<&'a hippo_core::lessons::repeats::Report>,
     pub now: OffsetDateTime,
     pub offset: UtcOffset,
 }
@@ -371,6 +412,7 @@ pub fn build(inp: &Inputs<'_>) -> Morning {
         headline,
         lead,
         pass,
+        repeats: inp.repeats.map(Repeats::of),
         figures,
         rules,
         applied,

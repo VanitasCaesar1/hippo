@@ -13,6 +13,7 @@ pub mod detect;
 pub mod draft;
 pub mod groups;
 pub mod memory;
+pub mod repeats;
 pub mod team;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -1492,6 +1493,10 @@ pub fn scan_with(cfg: &Config, ws: &Workspace, opts: &ScanOptions) -> Result<Sca
     }
     if opts.backfill && placed.left == 0 {
         store.backfilled = Some(now);
+        store.covered_from = Some(OffsetDateTime::UNIX_EPOCH);
+    }
+    if store.covered_from.is_none_or(|c| c > corrections_since) && placed.left == 0 {
+        store.covered_from = Some(corrections_since);
     }
     // Lessons drafted before groups existed find their group by key and
     // terms, once.
