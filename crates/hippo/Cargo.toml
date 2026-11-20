@@ -31,3 +31,4 @@ crc32fast.workspace = true
 tempfile.workspace = true
 time.workspace = true
 hippo-theme.workspace = true
+regex.workspace = true

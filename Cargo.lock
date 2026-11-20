@@ -566,6 +566,7 @@ dependencies = [
  "hippo-core",
  "hippo-theme",
  "hippo-view",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",

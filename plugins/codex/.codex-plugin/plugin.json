@@ -19,7 +19,7 @@
     "category": "Developer Tools",
     "capabilities": ["Interactive", "Read", "Write"],
     "websiteURL": "https://vanitascaesar1.github.io/hippo/",
-    "privacyPolicyURL": "https://github.com/VanitasCaesar1/hippo/blob/main/SECURITY.md",
+    "privacyPolicyURL": "https://github.com/VanitasCaesar1/hippo/blob/main/docs/is-it-safe.md",
     "defaultPrompt": [
       "Set up hippo for this project",
       "Has any agent already solved the flaky upload test?",

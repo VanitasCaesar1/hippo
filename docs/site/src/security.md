@@ -1,6 +1,6 @@
 # Security and privacy
 
-hippo reads agent transcripts, which are sensitive, and writes to files that agents load at the start of every session. This page says what it does with them.
+hippo reads agent transcripts, which are sensitive, and writes to files that agents load at the start of every session. This page says what it does with them. The full inventory (every hook, MCP tool, program hippo starts and host, kept in step with the code by a test) is [Is it safe?](https://github.com/VanitasCaesar1/hippo/blob/main/docs/is-it-safe.md).
 
 ## When data leaves your machine
 
