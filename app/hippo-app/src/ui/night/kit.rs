@@ -64,7 +64,7 @@ impl Nt {
         let mut t = if dark {
             Nt {
                 canvas: c(0x0A0A0A),
-                dot: ca(0xFFFFFF, 0.09),
+                dot: ca(0xFFFFFF, 0.14),
                 surface: c(0x121212),
                 raised: c(0x181818),
                 inset: c(0x0E0E0E),
@@ -146,6 +146,16 @@ impl Nt {
     /// darker lime line on white, where the fill would not show.
     pub fn you_mark(&self) -> Hsla {
         if self.dark { self.you } else { self.you_line }
+    }
+
+    /// Lime as a stroke: a line or an edge. On a light ground the fill is
+    /// too faint, so a darker lime (brand/tokens.json `you-stroke`).
+    pub fn you_stroke(&self) -> Hsla {
+        if self.dark {
+            self.you
+        } else {
+            rgba(0x65A30DFF).into()
+        }
     }
 }
 

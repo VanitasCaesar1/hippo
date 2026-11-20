@@ -108,6 +108,7 @@ jobs:
           node-version: 24
       - run: python3 -I docs/site/check-agent-marks.py .
       - run: node docs/site/check-demo-render.mjs .
+      - run: node docs/site/check-tokens.mjs .
 
   # The guard end to end in real agent CLIs (scripts/agent-e2e). The
   # runners have none of the agents, so this checks the stub model and

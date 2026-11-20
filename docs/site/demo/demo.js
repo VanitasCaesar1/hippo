@@ -42,7 +42,8 @@
     s = s || 16;
     return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (P[n] || '') + '</svg>';
   }
-  var MARK = '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20c0-6 5-10 11-10s11 4 11 10c0 3-2 5-5 5H10c-3 0-5-2-5-5z"/><circle cx="11" cy="17" r="1"/><circle cx="21" cy="17" r="1"/><path d="M9 10 7 6M23 10l2-4"/></svg>';
+  // Hippo's mark (brand/hippo-mark.svg), as the app draws it.
+  var MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 473 387" fill="currentColor" aria-hidden="true"><g transform="translate(0,387) scale(0.1,-0.1)"><path d="M2167 3229 c-294 -28 -582 -125 -766 -257 -41 -30 -81 -56 -87 -59 -19 -7 -144 45 -248 103 -176 98 -282 107 -364 31 -59 -55 -90 -196 -63 -280 29 -85 144 -147 304 -162 42 -4 77 -9 77 -11 0 -2 -24 -41 -54 -87 -270 -414 -391 -1001 -241 -1174 52 -60 62 -32 68 202 13 470 192 876 528 1200 202 195 395 288 719 347 138 25 453 31 560 10 269 -53 448 -177 528 -369 31 -73 31 -73 -43 -73 -205 0 -478 -48 -637 -112 -116 -47 -298 -146 -298 -163 0 -35 32 -31 261 38 390 118 871 141 1289 62 124 -24 350 -84 390 -105 122 -63 155 -177 148 -512 -5 -198 -7 -218 -31 -285 -105 -293 -387 -427 -892 -426 -566 1 -953 119 -1134 345 -100 124 -141 229 -189 478 -4 21 -14 36 -24 38 -26 5 -42 -66 -41 -183 1 -207 104 -400 288 -542 76 -58 76 -58 68 -98 -33 -166 5 -213 212 -266 220 -55 287 -39 320 75 19 65 6 62 180 41 66 -8 201 -15 301 -15 181 0 181 0 197 -60 30 -106 80 -130 237 -112 118 14 177 34 227 76 38 34 38 34 41 129 4 96 4 96 68 138 131 85 236 233 280 394 25 91 31 469 10 593 -39 226 -100 286 -363 358 -220 61 -362 86 -573 105 -97 9 -140 17 -140 25 0 7 -2 19 -5 27 -5 11 9 14 69 14 258 2 372 356 150 464 -72 34 -113 24 -184 -48 -32 -32 -89 -75 -128 -96 -70 -37 -70 -37 -139 14 -206 157 -514 223 -876 188z m1287 -185 c58 -57 6 -194 -80 -210 -46 -9 -162 14 -173 34 -7 13 6 26 67 63 43 26 95 65 117 87 47 46 49 47 69 26z m-2463 -134 c47 -27 113 -62 147 -77 61 -28 61 -28 31 -62 -29 -32 -35 -34 -113 -38 -101 -7 -215 11 -258 41 -32 21 -33 24 -33 90 0 124 67 138 226 46z m1490 -1774 c35 -13 99 -32 142 -42 77 -18 77 -18 77 -51 0 -38 5 -37 -96 -18 -180 34 -221 59 -198 119 8 20 0 20 75 -8z m1395 -61 c21 -54 -15 -77 -151 -99 -97 -15 -100 -15 -110 26 -6 23 -3 28 17 32 12 3 66 16 118 29 119 30 119 30 126 12z M2736 2889 c-50 -59 -24 -172 45 -194 30 -10 78 14 94 46 58 112 -62 240 -139 148z M2193 2865 c-52 -36 -54 -141 -4 -194 68 -73 159 -11 149 101 -9 88 -84 136 -145 93z M3895 2333 c-87 -17 -125 -56 -125 -128 0 -150 273 -228 351 -101 65 107 -82 256 -226 229z M2522 2308 c-142 -25 -228 -180 -145 -263 82 -81 251 -33 312 88 54 109 -31 199 -167 175z"/></g></svg>';
   // Agent marks (brand/agents/README.md: LobeHub icons, MIT; the marks belong to their owners).
   var MARKS = {
     cc: '<path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z"></path>',
@@ -275,15 +276,16 @@
     (lay.focus || []).forEach(function (x) { if (key(x[0]) === fk) own = x[1]; });
     return own;
   }
-  // As the app draws them: at Out up to 2 px by the links a line stands
-  // for, thinning below the fitted zoom; 1.5 px closer in.
+  // As the app draws them (hippo_view::night::map::STYLE, from the data).
+  var ST = M.style || { line_out: 1, line_out_step: 0.35, line_out_max: 2, line_out_thin: 0.55, line_in: 1.5, corner: 7, arrow: 7, port_from: 0.6, rows_below: 0.39, meta_below: 0.39 };
   function lineWidth(L, l) {
-    if (L !== 'out') return 1.5;
-    return Math.min(2, 1 + 0.35 * Math.log2(Math.max(1, l.links))) * Math.min(1, Math.max(0.55, S.zoom / (S.fitZoom || 1)));
+    if (L !== 'out') return ST.line_in;
+    var w = Math.min(ST.line_out_max, ST.line_out + ST.line_out_step * Math.log2(Math.max(1, l.links)));
+    return w * Math.min(1, Math.max(ST.line_out_thin, S.zoom / (S.fitZoom || 1)));
   }
-  // A polyline with its corners rounded to 7 px on screen.
+  // A polyline with its corners rounded on screen.
   function roundedPath(pts) {
-    var r0 = 7 / S.zoom, v = [];
+    var r0 = ST.corner / S.zoom, v = [];
     pts.forEach(function (q) { var l = v[v.length - 1]; if (!l || Math.abs(l[0] - q[0]) + Math.abs(l[1] - q[1]) > 0.05) v.push(q); });
     var d = 'M' + v[0][0] + ' ' + v[0][1];
     for (var i = 1; i < v.length - 1; i++) {
@@ -297,23 +299,51 @@
     var z = v[v.length - 1];
     return d + 'L' + z[0] + ' ' + z[1];
   }
+  // The selected note's lines in the text colour; a hovered card's in the
+  // accent over them, the selection's faint. An arrowhead where a line
+  // points; a count where a branch of more than one link leaves its trunk.
   function linesSvg(L) {
-    var lay = LY()[L], f = focusOf(L), list = shown(lay, f), lifting = !!S.lifting;
-    var accent = !!S.hover && f && key(S.hover) === key(f);
+    var lay = LY()[L], f = focusOf(L), lifting = !!S.lifting;
+    var sel = selIndex(), selF = sel >= 0 ? sameItem({ note: sel }, L) : null;
+    var sets = [];
+    if (S.hover && f && key(S.hover) === key(f)) {
+      if (selF && key(selF) !== key(f)) sets.push([selF, 'sel', 0.3]);
+      sets.push([f, 'acc', 1]);
+    } else sets.push([f, 'sel', 1]);
     var hot = S.hoverLine ? S.hoverLine.ends : [];
-    var h = '', ends = [];
-    list.forEach(function (l) {
-      var isHot = hot.some(function (e) { return e[0] === key(l.from) && e[1] === key(l.to); });
-      var cls = (accent || isHot ? 'acc' : 'sel') + (lifting ? ' faint' : '');
-      var w = lineWidth(L, l) + (isHot ? 1 : 0), d = roundedPath(l.points);
-      if ((accent || isHot) && !dark() && !lifting) h += '<path class="edge" vector-effect="non-scaling-stroke" style="stroke-width:' + (w + 1) + 'px" d="' + d + '"/>';
-      h += '<path class="' + cls + '" vector-effect="non-scaling-stroke" style="stroke-width:' + w + 'px" d="' + d + '"/>';
-      [l.points[0], l.points[l.points.length - 1]].forEach(function (e) {
-        if (!ends.some(function (q) { return Math.abs(q[0] - e[0]) < 0.5 && Math.abs(q[1] - e[1]) < 0.5; })) ends.push([e[0], e[1], accent ? 'acc' : 'sel']);
+    var h = '', z = S.zoom;
+    sets.forEach(function (set) {
+      var list = shown(lay, set[0]), alpha = lifting ? Math.min(set[2], 0.35) : set[2];
+      var heads = [], badges = {}, order = [];
+      list.forEach(function (l) {
+        var isHot = hot.some(function (e) { return e[0] === key(l.from) && e[1] === key(l.to); });
+        var cls = (isHot && alpha > 0.5 ? 'acc' : set[1]);
+        var w = lineWidth(L, l) + (isHot ? 1 : 0);
+        h += '<path class="' + cls + '" vector-effect="non-scaling-stroke" style="stroke-width:' + w + 'px;opacity:' + alpha + '" d="' + roundedPath(l.points) + '"/>';
+        var n = l.points.length;
+        if (l.out) heads.push([l.points[n - 1], l.points[n - 2]]);
+        if (l.back && !heads.some(function (q) { return q[0][0] === l.points[0][0] && q[0][1] === l.points[0][1]; })) heads.push([l.points[0], l.points[1]]);
+        if (n >= 4) {
+          var foot = l.points[n - 4], k = l.trunk + '|' + Math.round(foot[0]) + '|' + Math.round(foot[1]);
+          if (!badges[k]) { badges[k] = [foot, 0]; order.push(k); }
+          badges[k][1] += l.links;
+        }
+      });
+      if (alpha < 0.5) return;
+      var a = ST.arrow * Math.min(1, Math.max(0.7, z / (S.fitZoom || 1))) / z;
+      heads.forEach(function (hd) {
+        var tip = hd[0], from = hd[1], dx = tip[0] - from[0], dy = tip[1] - from[1], len = Math.max(0.01, Math.hypot(dx, dy));
+        var ux = dx / len, uy = dy / len, bx = tip[0] - ux * a, by = tip[1] - uy * a;
+        h += '<path class="head ' + set[1] + '" d="M' + tip[0] + ' ' + tip[1] + 'L' + (bx - uy * a / 2) + ' ' + (by + ux * a / 2) + 'L' + (bx + uy * a / 2) + ' ' + (by - ux * a / 2) + 'Z"/>';
+      });
+      order.forEach(function (k) {
+        var b = badges[k];
+        if (b[1] < 2) return;
+        var txt = String(b[1]), bw = Math.max(18, txt.length * 7 + 10) / z, bh = 18 / z;
+        h += '<g class="badge ' + set[1] + '"><rect x="' + (b[0][0] - bw / 2) + '" y="' + (b[0][1] - bh / 2) + '" width="' + bw + '" height="' + bh + '" rx="' + bh / 2 + '" vector-effect="non-scaling-stroke"/>' +
+          '<text x="' + b[0][0] + '" y="' + b[0][1] + '" font-size="' + 11 / z + '" text-anchor="middle" dominant-baseline="central">' + txt + '</text></g>';
       });
     });
-    // Ports, close enough in to read.
-    if (S.zoom >= 0.6 && !lifting) ends.forEach(function (e) { h += '<circle class="end ' + e[2] + '" vector-effect="non-scaling-stroke" cx="' + e[0] + '" cy="' + e[1] + '" r="' + (3 / S.zoom) + '"/>'; });
     return h;
   }
   function worldHtml(L) {
@@ -383,43 +413,28 @@
       var el = wrap.querySelector(S.hover.note != null ? '[data-note="' + S.hover.note + '"]' : '[data-folder="' + S.hover.folder + '"]');
       if (el) el.classList.add('hover');
     }
-    var tip = wrap.querySelector('.linktip');
-    if (S.hoverLine) {
-      if (!tip) { tip = document.createElement('div'); tip.className = 'linktip'; wrap.appendChild(tip); }
-      tip.innerHTML = '<span>' + esc(S.hoverLine.from) + '</span>' + ic('right', 13) + '<span>' + esc(S.hoverLine.to) + '</span>';
-      // Beside the pointer, clear of the cards where there is room.
-      var tw = tip.offsetWidth || 220, th = tip.offsetHeight || 28, at = S.hoverLine.at;
-      var lay = LY()[level(S.zoom)], cards = lay.cards.map(function (c) {
-        return [(c.rect.x - S.pan[0]) * S.zoom, (c.rect.y - S.pan[1]) * S.zoom, c.rect.w * S.zoom, c.rect.h * S.zoom];
-      });
-      // Beside the pointer, then a little farther along the line.
-      var spots = [];
-      [16, 48, 96, 160].forEach(function (d) { spots.push([at[0] + 14, at[1] + d], [at[0] + 14, at[1] - d - th], [at[0] - 14 - tw, at[1] + d], [at[0] - 14 - tw, at[1] - d - th]); });
-      var inside = function (q) { return q[0] >= 4 && q[1] >= 4 && q[0] + tw <= wrap.clientWidth - 4 && q[1] + th <= wrap.clientHeight - 4; };
-      var free = function (q) { return !cards.some(function (c) { return q[0] < c[0] + c[2] && c[0] < q[0] + tw && q[1] < c[1] + c[3] && c[1] < q[1] + th; }); };
-      var pick = spots.filter(function (q) { return inside(q) && free(q); })[0] || spots.filter(inside)[0] || spots[0];
-      tip.style.left = pick[0] + 'px'; tip.style.top = pick[1] + 'px';
-    } else if (tip) tip.remove();
+    var slot = app.querySelector('.mslot');
+    if (slot) slot.innerHTML = slotHtml();
   }
-  // A folder whose name band has scrolled above the view keeps its name
-  // at the view's top (Mid and In).
+  // Folders whose name band has scrolled above the view keep their names
+  // in an opaque strip at its top; the cards pass under it (Mid and In).
   function stickies() {
     var wrap = app.querySelector('.mapwrap');
     if (!wrap) return;
-    wrap.querySelectorAll('.sticky').forEach(function (x) { x.remove(); });
-    var L = level(S.zoom);
-    if (L === 'out') return;
-    var lay = LY()[L], vy = S.pan[1], vx0 = S.pan[0], vx1 = S.pan[0] + wrap.clientWidth / S.zoom;
-    lay.frames.forEach(function (fr) {
-      var r = fr[1];
-      if (r.y >= vy || r.y + r.h < vy + 90 / S.zoom || r.x + r.w < vx0 || r.x > vx1) return;
-      var lab = (lay.labels || []).filter(function (l) { return l.kind === 'frame' && l.item.folder === fr[0]; })[0];
-      var el = document.createElement('div');
-      el.className = 'sticky';
-      el.textContent = lab ? lab.lines[0] : '';
-      el.style.left = Math.max(8, (r.x + 14 - S.pan[0]) * S.zoom) + 'px';
-      wrap.appendChild(el);
-    });
+    var strip = wrap.querySelector('.strip');
+    var L = level(S.zoom), names = [];
+    if (L !== 'out') {
+      var lay = LY()[L], vy = S.pan[1], vx0 = S.pan[0], vx1 = S.pan[0] + appView()[0] / S.zoom;
+      lay.frames.forEach(function (fr) {
+        var r = fr[1];
+        if (r.y >= vy || r.y + r.h < vy + 60 / S.zoom || r.x + r.w < vx0 || r.x > vx1) return;
+        var words = function (k) { var l = (lay.labels || []).filter(function (x) { return x.kind === k && x.item.folder === fr[0]; })[0]; return l ? l.lines[0] : ''; };
+        names.push('<span style="left:' + Math.max(12, (r.x + 14 - S.pan[0]) * S.zoom) + 'px"><b>' + esc(words('frame')) + '</b>' + esc(words('count')) + '</span>');
+      });
+    }
+    if (!names.length) { if (strip && strip.parentNode) strip.parentNode.removeChild(strip); return; }
+    if (!strip) { strip = document.createElement('div'); strip.className = 'strip'; wrap.appendChild(strip); }
+    strip.innerHTML = names.join('');
   }
   var drawnLevel = null;
   function placeWorld(force) {
@@ -446,10 +461,10 @@
   function fit() {
     var wrap = app.querySelector('.mapwrap');
     if (!wrap) return;
-    var w = wrap.clientWidth, h = wrap.clientHeight;
-    // Hippo's layout for the app's view at this window size, unless the
-    // person arranged it.
-    if (A) { var v = appView(); S.def = A.viewArrangement(M, v[0], v[1]); }
+    // The app's view at this window size: the same columns and the same
+    // zoom as Hippo.app.
+    var v = appView(), w = v[0], h = v[1];
+    if (A) S.def = A.viewArrangement(M, w, h);
     S.lay = null;
     var f = A ? A.fit(LY(), w, h) : [1, [0, 0]];
     S.zoom = f[0];
@@ -465,7 +480,8 @@
     return S.pan[0] <= 0.5 && S.pan[1] <= 0.5 && S.pan[0] + wrap.clientWidth / S.zoom >= lay.width - 0.5 && S.pan[1] + wrap.clientHeight / S.zoom >= lay.height - 0.5;
   }
   function zoomAt(z, px, py) {
-    z = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
+    // Never further out than the whole map.
+    z = Math.max(S.fitZoom || MIN_ZOOM, Math.min(MAX_ZOOM, z));
     var from = level(S.zoom), to = level(z);
     var m = [S.pan[0] + px / S.zoom, S.pan[1] + py / S.zoom];
     if (from !== to) m = anchor(from, to, m[0], m[1]);
@@ -474,15 +490,21 @@
     placeWorld(false);
   }
   function brain() {
-    // The map's controls sit in the header, never over the map.
+    // The map's controls sit in the header band, never over the map.
     var zoom = '<div class="ctl"><button data-act="zout" aria-label="Zoom out" title="Zoom out">' + ic('minus', 15) + '</button><button data-act="fit" class="pct" title="Fit the map">100%</button><button data-act="zin" aria-label="Zoom in" title="Zoom in">' + ic('plus', 15) + '</button></div>';
-    var undo = S.toastUndo ? '<span class="mtoast" role="status">' + esc(S.toast) + ' <button class="btn second" data-act="undo-layout">' + ic('undo', 14) + 'Undo</button></span>' : '';
-    return '<div class="mhead"><div class="krow"><p class="kicker">' + esc(M.kicker) + '</p>' + undo +
-      (S.arr ? '<button data-act="reset" class="qbtn" title="Back to the layout hippo chooses">' + ic('undo', 14) + 'Reset layout</button>' : '') + zoom +
+    return '<div class="mhead"><div class="krow"><p class="kicker">' + esc(M.kicker) + '</p>' +
+      '<button data-act="reset" class="qbtn' + (S.arr ? '' : ' hidden') + '" title="Back to the layout hippo chooses">' + ic('undo', 14) + 'Reset layout</button>' + zoom +
       '<button data-act="treemap" class="qbtn">' + ic('grid', 14) + 'Treemap</button></div>' +
-      '<h1>' + esc(M.headline) + '</h1><p class="lead">' + esc(M.lead) + '</p></div>' +
-      '<div class="mapwrap"><div class="world"></div><div class="fade t"></div><div class="fade b"></div><div class="fade r"></div></div>' +
+      '<h1>' + esc(M.headline) + '</h1><div class="lrow"><p class="lead">' + esc(M.lead) + '</p><span class="mslot" role="status">' + slotHtml() + '</span></div></div>' +
+      '<div class="mapwrap"><div class="world"></div></div>' +
       '<div class="boardwrap"></div>';
+  }
+  // One slot for what just happened and what the pointer is on: a move
+  // with its Undo, or a line's links.
+  function slotHtml() {
+    if (S.toastUndo) return '<span>' + esc(S.toast) + '</span><button class="qbtn" data-act="undo-layout">' + ic('undo', 14) + 'Undo</button>';
+    if (S.hoverLine) return '<span>' + esc(S.hoverLine.from) + '</span>' + ic('right', 13) + '<span>' + esc(S.hoverLine.to) + '</span>';
+    return '';
   }
   function boardHtml() {
     var sel = selIndex(), near = sel >= 0 ? neighbours(sel) : {};
@@ -500,7 +522,7 @@
     var p = D.notes[S.sel];
     if (!p) return '<p style="color:var(--muted)">Pick a note on the map.</p>';
     var ch = p.chip ? chip(p.chip[0], p.chip[1]) : '';
-    var h = '<div class="row"><span class="tile">' + ic('note') + '</span><span style="color:var(--muted)">' + esc(p.folder || 'Notes') + '</span></div>' +
+    var h = '<div class="row"><span class="tile">' + ic('folder') + '</span><span style="color:var(--muted)">' + esc(p.folder || 'Notes') + '</span></div>' +
       '<h2 style="margin-top:14px">' + esc(p.title) + '</h2><p style="color:var(--muted);margin-top:10px">' + esc(p.summary) + '</p>' +
       '<div class="row" style="margin-top:12px;flex-wrap:wrap">' + ch + chip(p.reads_week ? 'read ' + p.reads_week + '× this week' : 'not read this week') + '</div>' +
       '<div class="stats"><div><b>' + p.reads_week + '</b><span>reads this week</span></div><div><b>' + p.rules_kept + '</b><span>rules kept</span></div><div><b>' + p.changes + '</b><span>changes</span></div></div>';
@@ -528,9 +550,7 @@
       var wrap = app.querySelector('.mapwrap'), board = app.querySelector('.boardwrap');
       if (narrow) { wrap.style.display = 'none'; board.innerHTML = boardHtml(); } else {
         // The map ends above the Ask bar: nothing floats over it.
-        var askEl = app.querySelector('.ask'), wr = wrap.getBoundingClientRect();
-        var askTop = askEl && askEl.getBoundingClientRect ? askEl.getBoundingClientRect().top : window.innerHeight - 74;
-        wrap.style.height = Math.max(240, (askTop || window.innerHeight - 74) - wr.top - 28) + 'px';
+        wrap.style.height = appView()[1] + 'px';
         drawnLevel = null;
         if (!S.fitted) fit(); else placeWorld(true);
         bindMap(wrap);
@@ -721,13 +741,8 @@
       if (moved) { S.prevArr = prev; S.toast = (d.key.indexOf('folder:') === 0 ? (d.key.slice(7) || 'Notes') : d.key.slice(5).replace(/^.*\//, '').replace(/\.md$/, '')) + ' moved.'; S.toastUndo = true; var tw = S.toast; setTimeout(function () { if (S.toast === tw) { S.toast = ''; S.toastUndo = false; render(); } }, 6000); }
       wrap.classList.remove('lifting');
       render();
-      // A view that showed the whole map keeps showing it.
-      var w2 = app.querySelector('.mapwrap');
-      if (whole && w2 && !showsAll()) {
-        var f = A.fit(LY(), w2.clientWidth, w2.clientHeight);
-        S.zoom = f[0]; S.fitZoom = f[0]; S.pan = f[1];
-        placeWorld(true);
-      }
+      // The zoom stays: the cards keep their size under the pointer.
+      void whole;
     }, SETTLE);
   }
   /* Put back: every block flies home, the lifted one too. */
@@ -791,9 +806,16 @@
     else if (act === 'dismiss') { S.rules[id] = 'dismissed'; toast('Dismissed. It comes back only if it recurs in 3 more sessions.'); }
     else if (act === 'edit') { toast('In the app, Edit opens the rule\'s words before Keep writes it.'); }
     else if (act === 'undo') { S.undone[id] = true; toast('Undone. In the app: hippo revert, from the change\'s snapshot.'); }
-    else if (act === 'zin' || act === 'zout') { var wrap = app.querySelector('.mapwrap'); zoomAt(S.zoom * (act === 'zin' ? 1.25 : 0.8), wrap.clientWidth / 2, wrap.clientHeight / 2); }
+    else if (act === 'zin' || act === 'zout') {
+      // About the selected card when it is in view; else the view's middle.
+      var v = appView(), at = [v[0] / 2, v[1] / 2], si = selIndex();
+      var sc = si >= 0 ? cardOf(LY()[level(S.zoom)], sameItem({ note: si }, level(S.zoom))) : null;
+      if (sc) { var cx = (sc.rect.x + sc.rect.w / 2 - S.pan[0]) * S.zoom, cy = (sc.rect.y + Math.min(sc.rect.h, 112) / 2 - S.pan[1]) * S.zoom; if (cx > 0 && cy > 0 && cx < v[0] && cy < v[1]) at = [cx, cy]; }
+      zoomAt(S.zoom * (act === 'zin' ? 1.25 : 0.8), at[0], at[1]);
+    }
     else if (act === 'fit') { fit(); }
     else if (act === 'treemap') { toast('Treemap is in the app.'); }
+    else if (act === 'reset' && !S.arr) { /* nothing to reset */ }
     else if (act === 'reset') { S.prevArr = S.arr; setArr(null); toast('Layout reset to the default.', true); }
     else if (act === 'undo-layout') { setArr(S.prevArr); S.toast = ''; S.toastUndo = false; render(); }
     else if (b.hasAttribute('data-rule')) { S.rule = b.getAttribute('data-rule'); render(); }

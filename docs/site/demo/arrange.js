@@ -6,7 +6,7 @@
    checks this port against a map Rust arranged. Nothing is saved. */
 (function (root) {
   'use strict';
-  var CARD_H = 112, GAP = 12, FRAME_PAD = 14, FRAME_HEAD = 40, FRAME_GAP = 24,
+  var CARD_H = 112, GAP = 12, FRAME_PAD = 14, FRAME_HEAD = 40, FRAME_GAP = 48,
     COL_GAP = 72, CARD_W = 340, COL_W = CARD_W + 2 * FRAME_PAD, OUT_GAP = 72,
     OUT_BELOW = 0.55, OUT_FIT = 0.54, MIN_ZOOM = 0.15, FIT_PAD = 28;
 
@@ -112,7 +112,10 @@
       cols.forEach(function (col, c) {
         if (!col.length) return;
         var d = blocks[col[col.length - 1]], span = L === 'out' ? 1 : d.span, top = 0;
-        for (var cc = c; cc < c + span; cc++) if (foot[cc]) top = Math.max(top, foot[cc][0] + gap(foot[cc][1], d.pinned));
+        // A note read in every session that starts a column sits as low as
+        // a frame's first cards (Mid and In).
+        var first = d.pinned && L !== 'out' ? FRAME_HEAD : 0;
+        for (var cc = c; cc < c + span; cc++) top = Math.max(top, foot[cc] ? foot[cc][0] + gap(foot[cc][1], d.pinned) : first);
         if (!best || top < best[1] - 0.5) best = [c, top];
       });
       if (!best) break;
@@ -148,13 +151,17 @@
       var f = folderOf(M, i);
       return f >= 0 ? { folder: f } : { note: i };
     }
+    // Each pair: its links, and whether they run from its first card to
+    // its second (fwd), the other way (bwd), or both.
     var pairs = [], index = {};
     M.edges.forEach(function (e) {
       var a = lift(e[0]), b = lift(e[1]), ka = itemKey(a), kb = itemKey(b);
       if (ka === kb || !rectOf[ka] || !rectOf[kb]) return;
-      var key = index[kb + '|' + ka] != null ? kb + '|' + ka : ka + '|' + kb;
-      if (index[key] == null) { index[key] = pairs.length; pairs.push({ a: key === ka + '|' + kb ? a : b, b: key === ka + '|' + kb ? b : a, n: 0 }); }
-      pairs[index[key]].n++;
+      var rev = index[kb + '|' + ka] != null, key = rev ? kb + '|' + ka : ka + '|' + kb;
+      if (index[key] == null) { index[key] = pairs.length; pairs.push({ a: a, b: b, n: 0, fwd: false, bwd: false }); }
+      var pr = pairs[index[key]];
+      pr.n++;
+      if (rev) pr.bwd = true; else pr.fwd = true;
     });
     pairs.sort(function (p, q) { return itemCmp(p.a, q.a) || itemCmp(p.b, q.b); });
     var heads = frames.map(function (f) { return { x: f[1].x, y: f[1].y, w: f[1].w, h: FRAME_HEAD }; });
@@ -165,9 +172,9 @@
     list.forEach(function (f) {
       var kf = itemKey(f), ca = colOf(rectOf[kf].x), right = [], left = [];
       pairs.forEach(function (p) {
-        var o = itemKey(p.a) === kf ? p.b : itemKey(p.b) === kf ? p.a : null;
-        if (!o) return;
-        (colOf(rectOf[itemKey(o)].x) >= ca ? right : left).push([o, p.n]);
+        var t = itemKey(p.a) === kf ? [p.b, p.n, p.fwd, p.bwd] : itemKey(p.b) === kf ? [p.a, p.n, p.bwd, p.fwd] : null;
+        if (!t) return;
+        (colOf(rectOf[itemKey(t[0])].x) >= ca ? right : left).push(t);
       });
       var weight = function (g) { return g.reduce(function (s, x) { return s + x[1]; }, 0); };
       var groups = [right, left].filter(function (g) { return g.length; })
@@ -191,7 +198,7 @@
       var ra = rectOf[itemKey(w.a)];
       if (!ra) return;
       var to = [];
-      w.to.forEach(function (t) { var r = rectOf[itemKey(t[0])]; if (r) to.push([t[0], r, t[1]]); });
+      w.to.forEach(function (t) { var r = rectOf[itemKey(t[0])]; if (r) to.push([t[0], r, t[1], t[2], t[3]]); });
       if (!to.length) return;
       var ca = colOf(ra.x);
       paths.push({ a: w.a, ra: ra, to: to, right: to.every(function (t) { return colOf(t[1].x) >= ca; }), trunk: w.trunk, ya: centre(ra), yb: to.map(function (t) { return centre(t[1]); }), stops: [], lanes: [] });
@@ -233,7 +240,7 @@
         if (!best || cost < best[0] - 1e-3 || (cost < best[0] + 1e-3 && near < best[1] - 1e-3)) best = [cost, near, p];
       }
       free.forEach(function (s) { consider((s[0] + s[1]) / 2); });
-      consider(Math.max(want, Math.max(from, 0) + clear));
+      consider(Math.max(want, Math.max(from, 0) + clear * 1.8));
       return best ? best[2] : want;
     }
     paths.forEach(function (p) {
@@ -288,7 +295,7 @@
           var pts = trunk.concat([[x, st[1]], [x, p.yb[j]], [b0, p.yb[j]]]);
           var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
           pts.forEach(function (q) { x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]); });
-          lines.push({ from: p.a, to: t[0], points: pts, bounds: { x: x0 - 6, y: y0 - 6, w: x1 - x0 + 12, h: y1 - y0 + 12 }, links: t[2], trunk: p.trunk });
+          lines.push({ from: p.a, to: t[0], points: pts, bounds: { x: x0 - 6, y: y0 - 6, w: x1 - x0 + 12, h: y1 - y0 + 12 }, links: t[2], trunk: p.trunk, out: t[3], back: t[4] });
         });
         if (st[3] !== st[1]) { trunk.push([x, st[1]]); trunk.push([x, st[3]]); }
       });

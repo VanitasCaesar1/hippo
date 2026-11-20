@@ -29,7 +29,7 @@ use crate::ui::Shell;
 use crate::ui::theme::Look;
 
 /// The header's height above the map, in points.
-pub const HEAD: f32 = 118.;
+pub const HEAD: f32 = 128.;
 /// Zoom steps for the buttons and keys.
 const STEP: f32 = 1.25;
 /// A lifted block is drawn this much larger, raised over the map.
@@ -218,7 +218,7 @@ impl MapView {
     /// Zooms to `zoom` about a point of the view (`(px, py)` in points from
     /// its top left), keeping what is under it there, across levels too.
     pub fn zoom_at(&mut self, map: &NotesMap, zoom: f32, at: (f32, f32)) {
-        let zoom = zoom.clamp(map::MIN_ZOOM, map::MAX_ZOOM);
+        let zoom = zoom.clamp(self.min_zoom(), map::MAX_ZOOM);
         let (from, to) = (self.level(), Level::of(zoom));
         let m = (self.pan.0 + at.0 / self.zoom, self.pan.1 + at.1 / self.zoom);
         let m2 = if from == to {
@@ -228,6 +228,16 @@ impl MapView {
         };
         self.zoom = zoom;
         self.pan = (m2.0 - at.0 / zoom, m2.1 - at.1 / zoom);
+    }
+
+    /// The smallest zoom: the one that shows the whole map. Further out
+    /// the map would only shrink into the middle of an empty view.
+    pub fn min_zoom(&self) -> f32 {
+        if self.fitted {
+            self.fit_zoom.clamp(map::MIN_ZOOM, 1.)
+        } else {
+            map::MIN_ZOOM
+        }
     }
 
     /// Fits the whole map in a `w` × `h` view.
@@ -430,7 +440,7 @@ fn chip(
     let (bg, fg) = tone.colors(&p.t);
     // A plain chip one step up from the card it sits on.
     let bg = if matches!(tone, Tone::Plain) && p.t.dark {
-        p.t.hover
+        p.t.selected
     } else {
         bg
     };
@@ -525,17 +535,6 @@ impl Pose {
     }
 }
 
-/// A line's width in pixels. At Out it shows the links it stands for, up
-/// to 2 points; below the zoom the map was fitted at it thins with the map.
-fn line_width(level: Level, links: usize, z: f32, fit: f32, u: f32) -> f32 {
-    if level == Level::Out {
-        let w = (1. + 0.35 * (links.max(1) as f32).log2()).min(2.);
-        w * u * (z / fit.max(0.01)).clamp(0.55, 1.)
-    } else {
-        1.5 * u
-    }
-}
-
 /// `A`, `A, B`, `A, B, C`, or `4 others`.
 fn names(v: Vec<String>) -> String {
     match v.len() {
@@ -544,6 +543,10 @@ fn names(v: Vec<String>) -> String {
         n => hippo_view::night::count(n, "other", "others"),
     }
 }
+
+/// A branch's count: its trunk and foot (rounded), where to draw it in
+/// pixels, the links it stands for.
+type Badge = ((usize, i64, i64), (f32, f32), usize);
 
 /// A block's name: a folder's, or a note's title.
 fn block_name(m: &NotesMap, item: Item) -> String {
@@ -708,69 +711,118 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
         );
     }
 
-    // The focus's lines, behind the cards: the selected note's in the
-    // text colour, the hovered card's in the accent. While a block is
-    // lifted, where they will run once it lands, faint; none while blocks
-    // move.
+    // Lines, behind the cards. The selected note's in the text colour; a
+    // hovered card's in the accent, over the selection's, which stay faint.
+    // Each line ends in an arrowhead at the card it points to, and a branch
+    // that stands for more than one link carries its count where it leaves
+    // the trunk. While a lifted block's neighbours slide, none; once they
+    // stop, and while a dropped block settles, faint.
     let focus = p.focus;
     let mut drawn_lines = 0;
-    let mut hovered: Vec<&map::Line> = Vec::new();
-    if !moving {
-        let accent = p.hover.is_some() && p.hover == focus;
-        let faint = lift.is_some();
-        for l in lay.shown(focus).iter().filter(|l| l.bounds.meets(&view)) {
-            let hot = p
-                .hover_line
-                .as_ref()
-                .is_some_and(|(ends, _)| ends.contains(&(l.from, l.to)));
-            if hot {
-                hovered.push(l);
-            }
-            let mut color = if accent || hot { t.you } else { t.night };
-            if faint {
-                color = color.opacity(0.35);
-            }
-            let width = line_width(level, l.links, z, p.fit, u) + if hot { 1. * u } else { 0. };
-            let pts: Vec<(f32, f32)> = l.points.iter().map(|q| s(q.0, q.1)).collect();
-            // Lime on a light ground takes a darker edge.
-            if (accent || hot) && !t.dark && !faint {
-                stroke_rounded(
-                    window,
-                    &pts,
-                    width + 1. * u,
-                    7. * u,
-                    t.you_line.opacity(0.6),
-                );
-            }
-            stroke_rounded(window, &pts, width, 7. * u, color);
-            drawn_lines += 1;
+    let style = &p.map.style;
+    let hide = lift.is_some() && moving;
+    let faint_all = lift.is_some() || moving;
+    let accent_c = t.you_stroke();
+    let sel_focus = p.selected.map(|i| p.map.same_item(Item::Note(i), level));
+    let mut sets: Vec<(Option<Item>, Hsla, f32)> = Vec::new();
+    if p.hover.is_some() && p.hover == focus {
+        if sel_focus != focus {
+            sets.push((sel_focus, t.night, 0.3));
         }
-        // Ports, close enough in to read: one at the trunk's start, one
-        // at each card it reaches.
-        if z >= 0.6 && !faint {
-            let mut ends: Vec<((f32, f32), Hsla)> = Vec::new();
-            for l in lay.shown(focus).iter().filter(|l| l.bounds.meets(&view)) {
-                let c = if accent { t.you } else { t.night };
-                for e in [l.points[0], *l.points.last().expect("a line has points")] {
-                    if !ends
-                        .iter()
-                        .any(|(q, _)| (q.0 - e.0).abs() < 0.5 && (q.1 - e.1).abs() < 0.5)
-                    {
-                        ends.push((e, c));
+        sets.push((focus, accent_c, 1.));
+    } else {
+        sets.push((focus, t.night, 1.));
+    }
+    if !hide {
+        for (who, base, alpha) in sets {
+            let lines: Vec<&map::Line> = lay
+                .shown(who)
+                .iter()
+                .filter(|l| l.bounds.meets(&view))
+                .collect();
+            let alpha = if faint_all { alpha.min(0.35) } else { alpha };
+            let color = base.opacity(alpha);
+            let mut heads: Vec<((f32, f32), (f32, f32))> = Vec::new();
+            let mut badges: Vec<Badge> = Vec::new();
+            for l in &lines {
+                // The line under the pointer at Out: a step wider, lime.
+                let hot = p
+                    .hover_line
+                    .as_ref()
+                    .is_some_and(|(ends, _)| ends.contains(&(l.from, l.to)));
+                let width =
+                    style.line(level, l.links, z, p.fit) * u + if hot { 1. * u } else { 0. };
+                let pts: Vec<(f32, f32)> = l.points.iter().map(|q| s(q.0, q.1)).collect();
+                let c = if hot && alpha > 0.5 { accent_c } else { color };
+                stroke_rounded(window, &pts, width, style.corner * u, c);
+                drawn_lines += 1;
+                let n = pts.len();
+                if l.out {
+                    heads.push((pts[n - 1], pts[n - 2]));
+                }
+                if l.back && !heads.iter().any(|h| h.0 == pts[0]) {
+                    heads.push((pts[0], pts[1]));
+                }
+                // The branch's foot: where it leaves the trunk.
+                if n >= 4 {
+                    let foot = l.points[n - 4];
+                    let key = (l.trunk, foot.0.round() as i64, foot.1.round() as i64);
+                    match badges.iter_mut().find(|b| b.0 == key) {
+                        Some(b) => b.2 += l.links,
+                        None => badges.push((key, s(foot.0, foot.1), l.links)),
                     }
                 }
             }
-            for (e, c) in ends {
-                let (x, y) = s(e.0, e.1);
-                let r = 3. * u;
-                window.paint_quad(gpui::quad(
-                    Bounds::new(point(px(x - r), px(y - r)), size(px(2. * r), px(2. * r))),
-                    px(r),
-                    t.canvas,
-                    px(1.5 * u),
-                    c,
-                    gpui::BorderStyle::Solid,
-                ));
+            if alpha < 0.5 {
+                continue;
+            }
+            // Arrowheads: a filled point at the end of the last segment.
+            let a = style.arrow * u * (z / p.fit.max(0.01)).clamp(0.7, 1.);
+            for (tip, from) in heads {
+                let (dx, dy) = (tip.0 - from.0, tip.1 - from.1);
+                let len = (dx * dx + dy * dy).sqrt().max(0.01);
+                let (ux, uy) = (dx / len, dy / len);
+                let base = (tip.0 - ux * a, tip.1 - uy * a);
+                let mut b = gpui::PathBuilder::fill();
+                b.move_to(point(px(tip.0), px(tip.1)));
+                b.line_to(point(px(base.0 - uy * a * 0.5), px(base.1 + ux * a * 0.5)));
+                b.line_to(point(px(base.0 + uy * a * 0.5), px(base.1 - ux * a * 0.5)));
+                b.line_to(point(px(tip.0), px(tip.1)));
+                if let Ok(path) = b.build() {
+                    window.paint_path(path, color);
+                }
+            }
+            // Counts on branches that stand for more than one link.
+            let f = font(&p.family, FontWeight::SEMIBOLD);
+            let size_px = 11. * u;
+            for (_, at, n) in badges.into_iter().filter(|b| b.2 > 1) {
+                let words = n.to_string();
+                let tw = text_width(window, &words, size_px, &f);
+                let (w, h) = ((tw + 10. * u).max(18. * u), 18. * u);
+                let bounds = Bounds::new(
+                    point(px(at.0 - w / 2.), px(at.1 - h / 2.)),
+                    size(px(w), px(h)),
+                );
+                rrect(
+                    window,
+                    bounds,
+                    h / 2.,
+                    t.surface,
+                    color,
+                    (1.2 * u).max(1.),
+                    false,
+                );
+                text(
+                    window,
+                    cx,
+                    &words,
+                    at.0 - tw / 2.,
+                    at.1 - size_px * 1.25 / 2.,
+                    size_px,
+                    t.text,
+                    &f,
+                    tw + 2.,
+                );
             }
         }
     }
@@ -960,191 +1012,69 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
         }
     }
 
-    // A folder whose name band has scrolled above the view keeps its name
-    // at the view's top.
+    // Folders whose name band has scrolled above the view keep their names
+    // in an opaque strip at its top; the cards pass under it.
     if level != Level::Out {
-        for (f, r) in &lay.frames {
-            let item = Item::Folder(*f);
-            if is_lifted(item) || r.y >= view.y || r.bottom() < view.y + 90. / z {
-                continue;
-            }
-            if r.right() < view.x || r.x > view.x + view.w {
-                continue;
-            }
-            let name = lay
-                .labels
-                .iter()
-                .find(|l| l.item == item && l.kind == LabelKind::Frame)
-                .and_then(|l| l.lines.first().cloned())
-                .unwrap_or_default();
-            let f = font(&p.family, FontWeight::SEMIBOLD);
-            let size_px = 12.5 * u;
-            let tw = text_width(window, &name, size_px, &f);
-            let (x, _) = s(r.x + map::FRAME_PAD, 0.);
-            let x = x.max(ox + 8. * u);
-            let bounds = Bounds::new(
-                point(px(x), px(oy + 8. * u)),
-                size(px(tw + 20. * u), px(26. * u)),
-            );
-            rrect(
-                window,
-                bounds,
-                8. * u,
-                t.surface,
-                t.line2,
-                (1. * u).max(1.),
-                false,
-            );
-            text(
-                window,
-                cx,
-                &name,
-                x + 10. * u,
-                oy + 8. * u + (26. * u - size_px * 1.25) / 2.,
-                size_px,
-                t.muted,
-                &f,
-                tw + 4.,
-            );
-        }
-    }
-
-    // The map's edges fade into the ground, so a card or a line cut by the
-    // view's edge does not end in mid-air.
-    let fade = 24. * u;
-    for (bounds, angle) in [
-        (
-            Bounds::new(point(px(ox), px(oy)), size(px(vw), px(fade))),
-            0.,
-        ),
-        (
-            Bounds::new(point(px(ox), px(oy + vh - fade)), size(px(vw), px(fade))),
-            180.,
-        ),
-        (
-            Bounds::new(point(px(ox + vw - fade), px(oy)), size(px(fade), px(vh))),
-            90.,
-        ),
-    ] {
-        window.paint_quad(gpui::fill(
-            bounds,
-            gpui::linear_gradient(
-                angle,
-                gpui::linear_color_stop(t.canvas.opacity(0.), 0.),
-                gpui::linear_color_stop(t.canvas, 1.),
-            ),
-        ));
-    }
-
-    // A line under the pointer at Out: what it stands for, beside the
-    // pointer and clear of the cards where there is room.
-    if let (Some((_, at)), Some(first)) = (p.hover_line.as_ref(), hovered.first()) {
-        let links: usize = hovered.iter().map(|l| l.links).sum();
-        let from = block_name(&p.map, first.from);
-        let to = format!(
-            "{} · {}",
-            names(hovered.iter().map(|l| block_name(&p.map, l.to)).collect()),
-            hippo_view::night::count(links, "link", "links")
-        );
-        let f = font(&p.family, FontWeight::MEDIUM);
-        let size_px = 12.5 * u;
-        let (w1, w2) = (
-            text_width(window, &from, size_px, &f),
-            text_width(window, &to, size_px, &f),
-        );
-        let icon = 13. * u;
-        let (tw, th) = (w1 + 6. * u + icon + 6. * u + w2 + 20. * u, 28. * u);
-        let (px0, py0) = (ox + at.0 * u, oy + at.1 * u);
-        let cards: Vec<map::Rect> = lay
-            .cards
+        let above: Vec<(usize, map::Rect)> = lay
+            .frames
             .iter()
-            .filter(|c| c.rect.meets(&view))
-            .map(|c| {
-                let (x, y) = s(c.rect.x, c.rect.y);
-                map::Rect::new(x, y, c.rect.w * z * u, c.rect.h * z * u)
+            .filter(|(f, r)| {
+                !is_lifted(Item::Folder(*f))
+                    && r.y < view.y
+                    && r.bottom() > view.y + 60. / z
+                    && r.right() > view.x
+                    && r.x < view.x + view.w
             })
-            .collect();
-        let inside = |r: &map::Rect| {
-            r.x >= ox + 4.
-                && r.y >= oy + 4.
-                && r.right() <= ox + vw - 4.
-                && r.bottom() <= oy + vh - 4.
-        };
-        // Beside the pointer, then a little farther along the line.
-        let mut spots = Vec::new();
-        for d in [16., 48., 96., 160.] {
-            spots.push((px0 + 14. * u, py0 + d * u));
-            spots.push((px0 + 14. * u, py0 - d * u - th));
-            spots.push((px0 - 14. * u - tw, py0 + d * u));
-            spots.push((px0 - 14. * u - tw, py0 - d * u - th));
-        }
-        let rects: Vec<map::Rect> = spots
-            .iter()
-            .map(|q| map::Rect::new(q.0, q.1, tw, th))
-            .collect();
-        let pick = rects
-            .iter()
-            .find(|r| inside(r) && !cards.iter().any(|c| c.meets(r)))
-            .or_else(|| rects.iter().find(|r| inside(r)))
             .copied()
-            .unwrap_or(rects[0]);
-        let bounds = Bounds::new(point(px(pick.x), px(pick.y)), size(px(tw), px(th)));
-        window.paint_drop_shadows(
-            bounds,
-            gpui::Corners::all(px(8. * u)),
-            &[gpui::BoxShadow {
-                color: gpui::hsla(0., 0., 0., if t.dark { 0.45 } else { 0.12 }),
-                offset: point(px(0.), px(4. * u)),
-                blur_radius: px(12. * u),
-                spread_radius: px(0.),
-                inset: false,
-            }],
-        );
-        rrect(
-            window,
-            bounds,
-            8. * u,
-            t.surface,
-            t.line2,
-            (1. * u).max(1.),
-            false,
-        );
-        let ty = pick.y + (th - size_px * 1.25) / 2.;
-        text(
-            window,
-            cx,
-            &from,
-            pick.x + 10. * u,
-            ty,
-            size_px,
-            t.text,
-            &f,
-            w1 + 2.,
-        );
-        let ix = pick.x + 10. * u + w1 + 6. * u;
-        let _ = window.paint_svg(
-            Bounds::new(
-                point(px(ix), px(pick.y + (th - icon) / 2.)),
-                size(px(icon), px(icon)),
-            ),
-            "icons/arrow-right.svg".into(),
-            None,
-            gpui::TransformationMatrix::unit(),
-            t.muted,
-            cx,
-        );
-        text(
-            window,
-            cx,
-            &to,
-            ix + icon + 6. * u,
-            ty,
-            size_px,
-            t.text,
-            &f,
-            w2 + 2.,
-        );
+            .collect();
+        if !above.is_empty() {
+            let h = 30. * u;
+            window.paint_quad(gpui::fill(
+                Bounds::new(point(px(ox), px(oy)), size(px(vw), px(h))),
+                t.canvas,
+            ));
+            window.paint_quad(gpui::fill(
+                Bounds::new(point(px(ox), px(oy + h - 1.)), size(px(vw), px(1.))),
+                t.line,
+            ));
+            let name_f = font(&p.family, FontWeight::SEMIBOLD);
+            let count_f = font(&p.family, FontWeight::NORMAL);
+            for (f, r) in above {
+                let item = Item::Folder(f);
+                let words = |k: LabelKind| {
+                    lay.labels
+                        .iter()
+                        .find(|l| l.item == item && l.kind == k)
+                        .and_then(|l| l.lines.first().cloned())
+                        .unwrap_or_default()
+                };
+                let (name, count) = (words(LabelKind::Frame), words(LabelKind::Count));
+                let (x, _) = s(r.x + map::FRAME_PAD, 0.);
+                let x = x.max(ox + 12. * u);
+                let nw = text_width(window, &name, 13. * u, &name_f);
+                let ty = oy + (h - 13. * u * 1.25) / 2.;
+                text(window, cx, &name, x, ty, 13. * u, t.muted, &name_f, nw + 2.);
+                text(
+                    window,
+                    cx,
+                    &count,
+                    x + nw + 10. * u,
+                    ty + 0.5 * u,
+                    12. * u,
+                    t.faint,
+                    &count_f,
+                    200. * u,
+                );
+            }
+        }
     }
+
+    let edge = (1. * u).max(1.);
+    // The map's foot: a hairline where it ends above the Ask bar.
+    window.paint_quad(gpui::fill(
+        Bounds::new(point(px(ox), px(oy + vh - edge)), size(px(vw), px(edge))),
+        t.line,
+    ));
 
     let mut f = p.frames.borrow_mut();
     let now = Instant::now();
@@ -1195,15 +1125,18 @@ fn card_ground(p: &Paint, look: CardLook, radius: f32, b: Bounds<Pixels>, window
             }],
         );
     }
+    // Lifted in dark: a lighter ground and a ring, so it reads as raised.
     let fill = if look.lifted && t.dark {
-        t.raised
+        t.selected
     } else {
         t.surface
     };
     let (border, bw) = if look.sel {
         (t.night, (2. * u).max(1.5))
     } else if look.hover {
-        (t.you_line, (1.5 * u).max(1.))
+        (t.you_stroke(), (1.5 * u).max(1.))
+    } else if look.lifted && t.dark {
+        (t.night_line, (1. * u).max(1.))
     } else if look.lifted {
         (t.line2, (1. * u).max(1.))
     } else {
@@ -1520,6 +1453,9 @@ impl Shell {
         // nothing floats over it.
         let view_w = left_w + super::EDGE;
         let map_h = (view_h - HEAD - super::ASK_CLEAR).max(100.);
+        // The canvas runs on under the panel to its far edge, so nothing is
+        // cut where the map meets it.
+        let canvas_w = view_w + super::PANEL_W;
         if !self.night.map.fitted {
             // Hippo's layout made for this view, then the whole map shown.
             let fit_h = map_h;
@@ -1545,6 +1481,13 @@ impl Shell {
                     );
                 }
                 self.night.map.clamp(&m, view_w, map_h);
+                // The selected card's top stays in the view.
+                if let Some(c) = m.layout(Level::of(zz)).card(item) {
+                    let top = c.rect.y - 24. / zz;
+                    if self.night.map.pan.1 > top {
+                        self.night.map.pan.1 = top;
+                    }
+                }
             }
         }
         // Dev-only: Reset layout pressed before the first frame.
@@ -1569,6 +1512,43 @@ impl Shell {
         let m = self.night.map.map.clone().unwrap_or(m);
         // Dev-only: the pointer resting on the map, for a screenshot.
         if let Some(mut at) = self.night.dev_hover.take() {
+            // `near`: on a card the selected note links to.
+            if at.0.is_nan() && !at.1.is_nan() {
+                let level = self.night.map.level();
+                if let Some(i) = self.brain_selected(&m) {
+                    let sel = m.same_item(Item::Note(i), level);
+                    let lay = m.layout(level);
+                    let z = self.night.map.zoom;
+                    let pan = self.night.map.pan;
+                    let in_view = |c: &&map::Card| {
+                        let (x, y) = ((c.rect.x - pan.0) * z, (c.rect.y - pan.1) * z);
+                        x > 20. && y > 40. && x + 60. < view_w && y + 60. < map_h
+                    };
+                    // A card it links to, else the nearest other card in view.
+                    let linked = lay
+                        .shown(Some(sel))
+                        .iter()
+                        .filter_map(|l| lay.card(l.to))
+                        .find(|c| in_view(c));
+                    let near = || {
+                        let sc = lay.card(sel)?.rect;
+                        lay.cards
+                            .iter()
+                            .filter(|c| c.item != sel)
+                            .filter(in_view)
+                            .min_by(|a, b| {
+                                let d = |r: &map::Rect| (r.x - sc.x).abs() + (r.y - sc.y).abs();
+                                d(&a.rect).total_cmp(&d(&b.rect))
+                            })
+                    };
+                    if let Some(c) = linked.or_else(near) {
+                        at = (
+                            (c.rect.x + c.rect.w / 2. - pan.0) * z,
+                            (c.rect.y + c.rect.h.min(112.) / 2. - pan.1) * z,
+                        );
+                    }
+                }
+            }
             // `line`: on the middle of the focus's longest vertical run.
             if at.0.is_nan() {
                 let level = self.night.map.level();
@@ -1647,11 +1627,44 @@ impl Shell {
                         "brain-undo",
                         Some("undo-2"),
                         "Undo",
-                        Btn::Second,
+                        Btn::Quiet,
                         true,
                     )
                     .on_click(cx.listener(|this, _, _, cx| this.brain_undo_reset(cx)))
                 }))
+        });
+        // A line under the pointer at Out: its cards and links.
+        let line_words = self.night.map.hover_line.as_ref().and_then(|(ends, _)| {
+            let first = ends.first()?;
+            let level = self.night.map.level();
+            let focus = self.night.map.hover.or_else(|| {
+                self.brain_selected(&m)
+                    .map(|i| m.same_item(Item::Note(i), level))
+            });
+            let lay = m.layout(level);
+            let hit: Vec<&map::Line> = lay
+                .shown(focus)
+                .iter()
+                .filter(|l| ends.contains(&(l.from, l.to)))
+                .collect();
+            let links: usize = hit.iter().map(|l| l.links).sum();
+            let to = format!(
+                "{} · {}",
+                names(hit.iter().map(|l| block_name(&m, l.to)).collect()),
+                hippo_view::night::count(links, "link", "links")
+            );
+            Some(
+                div()
+                    .id("brain-line")
+                    .flex()
+                    .items_center()
+                    .gap(look.px(6.))
+                    .text_size(look.text(13.))
+                    .text_color(t.text)
+                    .child(div().truncate().child(block_name(&m, first.0)))
+                    .child(kit::icon(look, "right", 13., t.muted))
+                    .child(div().truncate().child(to)),
+            )
         });
         let zoom = div()
             .flex()
@@ -1702,8 +1715,12 @@ impl Shell {
             .flex()
             .flex_col()
             .gap(look.px(6.))
+            .h(look.px(HEAD))
             .px(look.px(super::morning::PAD))
             .pt(look.px(14.))
+            .bg(t.canvas)
+            .border_b_1()
+            .border_color(t.line)
             .child(
                 div()
                     .flex()
@@ -1719,24 +1736,28 @@ impl Shell {
                             .text_color(t.muted)
                             .child(m.kicker.clone()),
                     )
-                    .children(toast)
-                    .when(m.is_arranged(), |d| {
-                        d.child(
-                            kit::button(
-                                look,
-                                t,
-                                "brain-reset",
-                                Some("undo-2"),
-                                "Reset layout",
-                                Btn::Quiet,
-                                true,
-                            )
-                            .tooltip(crate::ui::tooltip::Tooltip::text(
-                                "Back to the layout hippo chooses",
-                            ))
-                            .on_click(cx.listener(|this, _, _, cx| this.brain_reset_layout(cx))),
+                    // Kept in its place while hidden, so nothing moves when
+                    // it shows.
+                    .child(
+                        kit::button(
+                            look,
+                            t,
+                            "brain-reset",
+                            Some("undo-2"),
+                            "Reset layout",
+                            Btn::Quiet,
+                            true,
                         )
-                    })
+                        .when(!m.is_arranged(), |d| d.invisible())
+                        .tooltip(crate::ui::tooltip::Tooltip::text(
+                            "Back to the layout hippo chooses",
+                        ))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            if this.night.map.map.as_ref().is_some_and(|m| m.is_arranged()) {
+                                this.brain_reset_layout(cx)
+                            }
+                        })),
+                    )
                     .child(zoom)
                     .child(
                         kit::button(
@@ -1762,10 +1783,29 @@ impl Shell {
             )
             .child(
                 div()
-                    .text_size(look.text(15.))
-                    .text_color(t.muted)
-                    .truncate()
-                    .child(m.lead.clone()),
+                    .flex()
+                    .items_center()
+                    .gap(look.px(12.))
+                    .h(look.px(24.))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .text_size(look.text(15.))
+                            .text_color(t.muted)
+                            .truncate()
+                            .child(m.lead.clone()),
+                    )
+                    // One slot for what just happened and what the pointer
+                    // is on: "Runbooks moved. Undo", or a line's links.
+                    .child(
+                        div()
+                            .flex_shrink_0()
+                            .max_w(look.px(420.))
+                            .flex()
+                            .justify_end()
+                            .children(toast.or(line_words)),
+                    ),
             );
         let mapdiv = div()
             .id("brain-map")
@@ -1773,7 +1813,7 @@ impl Shell {
             .absolute()
             .top(look.px(HEAD))
             .left_0()
-            .w(look.px(view_w))
+            .w(look.px(canvas_w))
             .h(look.px(map_h))
             .overflow_hidden()
             .cursor_grab()
@@ -2104,9 +2144,9 @@ impl Shell {
         // A view that showed the whole map keeps showing it; else the
         // dropped block stays in view.
         if let (Some(m2), Some((w, h))) = (self.night.map.map.clone(), self.night.map.view_size) {
-            if whole && !self.brain_shows_all(&m2) {
-                self.night.map.fit(&m2, w, h);
-            } else if let Some(r) = m2.block_rect(l.level, l.block) {
+            // The zoom stays: the cards keep their size under the pointer.
+            let _ = whole;
+            if let Some(r) = m2.block_rect(l.level, l.block) {
                 let z = self.night.map.zoom;
                 let (vw, vh) = (w / z, h / z);
                 let pan = &mut self.night.map.pan;
@@ -2234,9 +2274,29 @@ impl Shell {
             return;
         };
         let unit = f32::from(Look::from_app(cx).px(1.));
-        let (w, h) = self.brain_view_size(unit);
-        let z = self.night.map.zoom * factor;
-        self.night.map.zoom_at(&m, z, (w / 2., h / 2.));
+        let (w, h) = self
+            .night
+            .map
+            .view_size
+            .unwrap_or_else(|| self.brain_view_size(unit));
+        // About the selected card when it is in view, so it stays put; else
+        // about the view's middle.
+        let z0 = self.night.map.zoom;
+        let level = self.night.map.level();
+        let pan = self.night.map.pan;
+        let at = self
+            .brain_selected(&m)
+            .map(|i| m.same_item(Item::Note(i), level))
+            .and_then(|it| m.layout(level).card(it))
+            .map(|c| {
+                (
+                    (c.rect.x + c.rect.w / 2. - pan.0) * z0,
+                    (c.rect.y + c.rect.h.min(112.) / 2. - pan.1) * z0,
+                )
+            })
+            .filter(|(x, y)| *x > 0. && *y > 0. && *x < w && *y < h)
+            .unwrap_or((w / 2., h / 2.));
+        self.night.map.zoom_at(&m, z0 * factor, at);
         cx.notify();
     }
 
@@ -2548,8 +2608,7 @@ impl Shell {
                     .mt(look.px(12.))
                     .p(look.px(14.))
                     .rounded(look.px(12.))
-                    .border(look.fixed(1.5))
-                    .border_dashed()
+                    .border(look.fixed(1.))
                     .border_color(t.you_line)
                     .flex()
                     .flex_col()

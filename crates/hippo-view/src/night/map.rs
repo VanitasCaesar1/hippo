@@ -60,8 +60,10 @@ pub const GAP: f32 = 12.;
 /// A frame's padding and its heading's height.
 pub const FRAME_PAD: f32 = 14.;
 pub const FRAME_HEAD: f32 = 40.;
-/// Between frames in a column.
-pub const FRAME_GAP: f32 = 24.;
+/// Between frames in a column: a channel for lines, as wide as the gap
+/// between columns is for their turns, so a line in it keeps clear of
+/// both frames.
+pub const FRAME_GAP: f32 = 48.;
 /// Between columns: room for the lines' turns.
 pub const COL_GAP: f32 = 72.;
 /// A column's width.
@@ -75,28 +77,28 @@ pub const IN_LINES: usize = 6;
 pub const STALE_DAYS: i64 = 60;
 
 /// An Out card's padding.
-pub const OUT_PAD: f32 = 28.;
+pub const OUT_PAD: f32 = 24.;
 /// An Out card's name: its largest and smallest size, on at most 2 lines.
-pub const OUT_TITLE: f32 = 48.;
-pub const OUT_TITLE_MIN: f32 = 22.;
+pub const OUT_TITLE: f32 = 40.;
 /// The legend's size.
-pub const OUT_META: f32 = 24.;
+pub const OUT_META: f32 = 26.;
 /// A note row in a folder card: its text size and its height.
-pub const OUT_ROW: f32 = 26.;
-pub const OUT_ROW_H: f32 = 44.;
+pub const OUT_ROW: f32 = 28.;
+pub const OUT_ROW_H: f32 = 48.;
 /// At most this many note rows in a folder card; more show as `+ n more`.
 pub const OUT_ROWS: usize = 6;
 /// A mark's diameter.
 pub const OUT_DOT: f32 = 12.;
 /// An Out card's icon, as a share of its name's size.
 pub const OUT_ICON: f32 = 0.8;
-/// Note rows in a folder card on a map of more blocks than
-/// [`OUT_FEW`]: its overview is drawn smaller, so it lists fewer.
-pub const OUT_ROWS_MANY: usize = 3;
-/// Below this zoom an Out card's note rows are too small to read and are
-/// not drawn (about 8 points on screen); below the next, its legend too.
-pub const OUT_ROWS_BELOW: f32 = 0.33;
-pub const OUT_META_BELOW: f32 = 0.27;
+/// Note rows in a folder card on a map of more blocks than [`OUT_FEW`]:
+/// none. Its overview is drawn smaller, so a folder card shows its name
+/// and its counts, in a grid of one height on every card.
+pub const OUT_ROWS_MANY: usize = 0;
+/// Below this zoom an Out card's note rows and counts would be under 11 px
+/// on screen, and are not drawn.
+pub const OUT_ROWS_BELOW: f32 = 11. / OUT_ROW;
+pub const OUT_META_BELOW: f32 = 11. / OUT_META;
 pub const OUT_FEW: usize = 8;
 /// Between Out cards in a column.
 pub const OUT_GAP: f32 = 72.;
@@ -109,6 +111,64 @@ pub const OUT_FIT: f32 = 0.54;
 /// At most this many lines show at once, at any zoom: a level with more
 /// pairs of linked cards draws only the lines of the card in focus.
 pub const LINE_BUDGET: usize = 12;
+
+/// How the map's lines and zoom floors are drawn, in screen pixels and
+/// zoom factors. Hippo.app paints from these and the web demo reads them
+/// from the map's JSON, so both draw the same map.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub struct Style {
+    /// A line at Out: `1 + step × log2(links)` px, at most `max`; below the
+    /// zoom the map was fitted at it thins with the map, down to `thin`.
+    pub line_out: f32,
+    pub line_out_step: f32,
+    pub line_out_max: f32,
+    pub line_out_thin: f32,
+    /// A line at Mid and In, px.
+    pub line_in: f32,
+    /// A line's rounded corners, px.
+    pub corner: f32,
+    /// An arrowhead's length, px.
+    pub arrow: f32,
+    /// Port rings show from this zoom.
+    pub port_from: f32,
+    /// Below these zooms an Out card drops its note rows, then its counts.
+    pub rows_below: f32,
+    pub meta_below: f32,
+    pub out_below: f32,
+    pub in_above: f32,
+    pub out_fit: f32,
+    pub fit_pad: f32,
+}
+
+pub const STYLE: Style = Style {
+    line_out: 1.,
+    line_out_step: 0.35,
+    line_out_max: 2.,
+    line_out_thin: 0.55,
+    line_in: 1.5,
+    corner: 7.,
+    arrow: 7.,
+    port_from: 0.6,
+    rows_below: OUT_ROWS_BELOW,
+    meta_below: OUT_META_BELOW,
+    out_below: OUT_BELOW,
+    in_above: IN_ABOVE,
+    out_fit: OUT_FIT,
+    fit_pad: FIT_PAD,
+};
+
+impl Style {
+    /// A line's width at `level` and zoom `z`, for a map fitted at `fit`.
+    pub fn line(&self, level: Level, links: usize, z: f32, fit: f32) -> f32 {
+        if level == Level::Out {
+            let w = (self.line_out + self.line_out_step * (links.max(1) as f32).log2())
+                .min(self.line_out_max);
+            w * (z / fit.max(0.01)).clamp(self.line_out_thin, 1.)
+        } else {
+            self.line_in
+        }
+    }
+}
 
 /// The zoom level a factor shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
@@ -291,6 +351,10 @@ pub struct Line {
     /// beside their targets' column: they share their points up to there.
     /// A line on its own has a trunk of its own.
     pub trunk: usize,
+    /// Which way its links run: `from` links to `to` (an arrowhead at
+    /// `to`), `to` links to `from` (one at `from`), or both.
+    pub out: bool,
+    pub back: bool,
 }
 
 /// What a label is, which sets its weight and colour.
@@ -440,6 +504,8 @@ pub struct NotesMap {
     /// chooses.
     pub arrangement: Arrangement,
     pub default_arrangement: Arrangement,
+    /// How it is drawn ([`STYLE`]).
+    pub style: Style,
 }
 
 impl NotesMap {
@@ -895,6 +961,7 @@ pub fn build(inp: &Inputs<'_>) -> NotesMap {
         inner,
         default_arrangement: arrangement.clone(),
         arrangement,
+        style: STYLE,
     }
 }
 
@@ -1367,7 +1434,7 @@ fn title_of(c: &Card, notes: &[MapNote]) -> Option<Label> {
         c.rect.y + 16.,
         c.rect.right() - 16. - x,
         16.,
-        12.,
+        16.,
         1,
     ))
 }
@@ -1404,6 +1471,7 @@ fn draw(level: Level, b: Block, notes: &[MapNote], folders: &[Folder], plan: Pla
                 },
                 &n.title,
                 &legend,
+                (1, 0),
                 &[],
                 0,
                 0.,
@@ -1422,7 +1490,7 @@ fn draw(level: Level, b: Block, notes: &[MapNote], folders: &[Folder], plan: Pla
                 vec![(count(f.notes.len(), "note", "notes"), None)];
             for (n, words, tone) in [
                 (f.fixed, ("fixed", "fixed"), "ok"),
-                (f.waiting, ("rule waiting", "rules waiting"), "you"),
+                (f.waiting, ("waiting", "waiting"), "you"),
                 (f.rejected, ("rejected", "rejected"), "bad"),
                 (f.stale, ("stale", "stale"), "faint"),
             ] {
@@ -1434,13 +1502,11 @@ fn draw(level: Level, b: Block, notes: &[MapNote], folders: &[Folder], plan: Pla
                 }
             }
             // A big map's overview is drawn smaller: fewer rows.
-            let most = if folders.len() + pinned_of(notes).len() > OUT_FEW {
-                OUT_ROWS_MANY
-            } else {
-                OUT_ROWS
-            };
-            let shown = if f.notes.len() > most {
-                most - 1
+            let many = folders.len() + pinned_of(notes).len() > OUT_FEW;
+            let shown = if many {
+                0
+            } else if f.notes.len() > OUT_ROWS {
+                OUT_ROWS - 1
             } else {
                 f.notes.len()
             };
@@ -1455,8 +1521,9 @@ fn draw(level: Level, b: Block, notes: &[MapNote], folders: &[Folder], plan: Pla
                 "icon-folder",
                 name,
                 &legend,
+                (2, if many { 3 } else { 0 }),
                 &rows,
-                f.notes.len() - shown,
+                if many { 0 } else { f.notes.len() - shown },
                 0.,
                 0.,
                 &mut d.labels,
@@ -1496,27 +1563,30 @@ fn draw(level: Level, b: Block, notes: &[MapNote], folders: &[Folder], plan: Pla
             }
             let frame = Rect::new(0., 0., w, sub_bottom + FRAME_PAD);
             d.frames.push((fi, frame));
-            // The frame's name on the left, its count on the right.
+            // Every frame's head the same: its name, then its count.
             let item = Item::Folder(fi);
             let count = count(f.notes.len(), "note", "notes");
             let cw = super::fit::width(&count, 13., false);
             let name = if f.name.is_empty() { "Notes" } else { &f.name };
-            d.labels.push(label(
+            let name_w = (w - 2. * FRAME_PAD - cw - 10.).max(10.);
+            let nl = label(
                 item,
                 LabelKind::Frame,
                 name,
                 FRAME_PAD,
                 11.,
-                w - 2. * FRAME_PAD - cw - 16.,
+                super::fit::width(name, 14.5, true).min(name_w),
                 14.5,
-                11.,
+                14.5,
                 1,
-            ));
+            );
+            let cx = nl.rect.right() + 10.;
+            d.labels.push(nl);
             d.labels.push(label(
                 item,
                 LabelKind::Count,
                 &count,
-                w - FRAME_PAD - cw,
+                cx,
                 13.,
                 cw,
                 13.,
@@ -1616,9 +1686,16 @@ fn place(
                 continue;
             };
             let span = if level == Level::Out { 1 } else { d.span };
+            // At Mid and In a note read in every session that starts a
+            // column sits as low as the first cards in a folder's frame.
+            let first = if d.pinned && level != Level::Out {
+                FRAME_HEAD
+            } else {
+                0.
+            };
             let top = foot[c..c + span]
                 .iter()
-                .map(|f| f.map_or(0., |(y, p)| y + gap(p, d.pinned)))
+                .map(|f| f.map_or(first, |(y, p)| y + gap(p, d.pinned)))
                 .fold(0., f32::max);
             if best.is_none_or(|(_, t)| top < t - 0.5) {
                 best = Some((c, top));
@@ -1664,18 +1741,26 @@ fn links(
             .map_or(Item::Note(i), |&f| Item::Folder(f)),
         _ => Item::Note(i),
     };
-    let mut pairs: BTreeMap<(Item, Item), usize> = BTreeMap::new();
+    // Each pair of linked cards: its links, and whether they run from the
+    // pair's first card to its second, the other way, or both.
+    let mut pairs: BTreeMap<(Item, Item), (usize, bool, bool)> = BTreeMap::new();
     for &(a, b) in edges {
         let (ia, ib) = (lift(a), lift(b));
         if ia == ib || !rect_of.contains_key(&ia) || !rect_of.contains_key(&ib) {
             continue;
         }
-        let key = if pairs.contains_key(&(ib, ia)) {
-            (ib, ia)
+        let (key, forward) = if pairs.contains_key(&(ib, ia)) {
+            ((ib, ia), false)
         } else {
-            (ia, ib)
+            ((ia, ib), true)
         };
-        *pairs.entry(key).or_default() += 1;
+        let e = pairs.entry(key).or_default();
+        e.0 += 1;
+        if forward {
+            e.1 = true;
+        } else {
+            e.2 = true;
+        }
     }
     // A frame's name band is in the way of a line as a card is.
     let heads: Vec<Rect> = frames
@@ -1686,27 +1771,28 @@ fn links(
     let mut focus = Vec::new();
     for f in items {
         let ca = col_of(rect_of[&f].x);
-        let mut right: Vec<(Item, usize)> = Vec::new();
-        let mut left: Vec<(Item, usize)> = Vec::new();
-        for (&(a, b), &n) in &pairs {
-            let o = if a == f {
-                b
+        let mut right: Vec<Target> = Vec::new();
+        let mut left: Vec<Target> = Vec::new();
+        for (&(a, b), &(n, fwd, bwd)) in &pairs {
+            // From `f`'s side: out when `f` links to the other card.
+            let (o, out, back) = if a == f {
+                (b, fwd, bwd)
             } else if b == f {
-                a
+                (a, bwd, fwd)
             } else {
                 continue;
             };
             if col_of(rect_of[&o].x) >= ca {
-                right.push((o, n));
+                right.push((o, n, out, back));
             } else {
-                left.push((o, n));
+                left.push((o, n, out, back));
             }
         }
-        let mut groups: Vec<Vec<(Item, usize)>> = [right, left]
+        let mut groups: Vec<Vec<Target>> = [right, left]
             .into_iter()
             .filter(|g| !g.is_empty())
             .collect();
-        let weight = |g: &Vec<(Item, usize)>| g.iter().map(|x| x.1).sum::<usize>();
+        let weight = |g: &Vec<Target>| g.iter().map(|x| x.1).sum::<usize>();
         groups.sort_by_key(|g| std::cmp::Reverse(weight(g)));
         let wants: Vec<Want> = groups
             .into_iter()
@@ -1754,6 +1840,7 @@ fn out_card(
     icon: &'static str,
     title: &str,
     legend: &[(String, Option<&'static str>)],
+    (cols, min_rows): (usize, usize),
     rows: &[(String, &'static str)],
     more: usize,
     x: f32,
@@ -1764,39 +1851,20 @@ fn out_card(
     let iw = COL_W - 2. * OUT_PAD;
     let x0 = x + OUT_PAD;
     let mut cy = y + OUT_PAD;
-    // The name beside its icon: a folder, the entry note's flag, a note.
-    // The icon is sized to the name, so the room it takes depends on the
-    // size the name is set at: fitted once at the largest, then again for
-    // the size that gave.
-    let room = |size: f32| size * OUT_ICON + 12.;
-    let at = |r: f32, max: f32, min: f32| {
-        label(
-            item,
-            LabelKind::Title,
-            title,
-            x0 + r,
-            cy,
-            iw - r,
-            max,
-            min,
-            3,
-        )
-    };
-    let mut t = at(room(OUT_TITLE), OUT_TITLE, OUT_TITLE_MIN);
-    if t.size < OUT_TITLE {
-        let again = at(room(t.size), t.size, OUT_TITLE_MIN);
-        let fits = again
-            .lines
-            .iter()
-            .all(|l| super::fit::width(l, again.size, true) <= iw - room(again.size) + 0.01);
-        if fits && !again.lines.last().is_some_and(|l| l.ends_with('…')) {
-            t = again;
-        }
-    }
-    // A word too long for the card at the floor: smaller still, not cut.
-    if t.lines.last().is_some_and(|l| l.ends_with('…')) {
-        t = at(room(OUT_TITLE_MIN), OUT_TITLE_MIN, 8.);
-    }
+    // The name beside its icon (a folder, the entry note's flag, a note),
+    // at one size on every card: two lines, then cut.
+    let room = OUT_TITLE * OUT_ICON + 12.;
+    let mut t = label(
+        item,
+        LabelKind::Title,
+        title,
+        x0 + room,
+        cy,
+        iw - room,
+        OUT_TITLE,
+        OUT_TITLE,
+        2,
+    );
     let d = t.size * OUT_ICON;
     t.rect.x = x0 + d + 12.;
     marks.push(Mark {
@@ -1809,42 +1877,51 @@ fn out_card(
     });
     cy = t.rect.bottom() + 12.;
     labels.push(t);
-    // The legend flows in lines: a mark and its words per entry.
+    // The legend in a grid of `cols` columns: a mark and its words per
+    // cell, at one size, cut where a cell is too narrow.
+    // A folder's note count heads it on a row of its own.
     let line_h = OUT_META * LEADING;
-    let mut lx = x0;
-    let mut first = true;
-    for (words, tone) in legend {
-        let lead = if tone.is_some() { OUT_DOT + 8. } else { 0. };
-        let w = super::fit::width(words, OUT_META, false);
-        if !first && lx + lead + w > x0 + iw {
-            lx = x0;
-            cy += line_h + 4.;
-        }
+    let cols = cols.max(1);
+    let gap = 10.;
+    let cw = (iw - (cols - 1) as f32 * gap) / cols as f32;
+    let head = usize::from(cols > 1 && legend.first().is_some_and(|l| l.1.is_none()));
+    let rows_of_legend = (head + (legend.len() - head).div_ceil(cols))
+        .max(min_rows)
+        .max(1);
+    for (k, (words, tone)) in legend.iter().enumerate() {
+        let (row, col) = if k < head {
+            (0, 0)
+        } else {
+            (head + (k - head) / cols, (k - head) % cols)
+        };
+        let lx = x0 + col as f32 * (cw + gap);
+        let ly = cy + row as f32 * (line_h + 4.);
+        let lead = if tone.is_some() { OUT_DOT + 6. } else { 0. };
         if let Some(tone) = tone {
             marks.push(Mark {
                 item,
                 x: lx + OUT_DOT / 2.,
-                y: cy + line_h / 2.,
+                y: ly + line_h / 2.,
                 d: OUT_DOT,
                 tone,
                 row: false,
             });
         }
-        let l = label(
+        let room = if k < head { iw } else { cw };
+        let w = super::fit::width(words, OUT_META, false).min(room - lead);
+        labels.push(label(
             item,
             LabelKind::Meta,
             words,
             lx + lead,
-            cy,
-            (x0 + iw - lx - lead).min(w),
+            ly,
+            w,
             OUT_META,
-            14.,
+            OUT_META,
             1,
-        );
-        lx = l.rect.right() + 18.;
-        labels.push(l);
-        first = false;
+        ));
     }
+    cy += (rows_of_legend - 1) as f32 * (line_h + 4.);
     cy += line_h;
     if !rows.is_empty() {
         cy += 14.;
@@ -1867,7 +1944,7 @@ fn out_card(
             cy,
             x0 + iw - rx,
             OUT_ROW,
-            18.,
+            OUT_ROW,
             1,
         );
         l.rect.y = cy + (OUT_ROW_H - l.rect.h) / 2.;
@@ -1883,7 +1960,7 @@ fn out_card(
             cy,
             iw - OUT_DOT - 12.,
             OUT_ROW,
-            18.,
+            OUT_ROW,
             1,
         );
         l.rect.y = cy + (OUT_ROW_H - l.rect.h) / 2.;
@@ -1910,9 +1987,13 @@ fn col_of(x: f32) -> usize {
 /// of `a`: in its column or right of it, or left of it.
 struct Want {
     a: Item,
-    to: Vec<(Item, usize)>,
+    to: Vec<Target>,
     trunk: usize,
 }
+
+/// A line's other card, the links it stands for, and their direction from
+/// the focus: out (the focus links to it), back (it links to the focus).
+type Target = (Item, usize, bool, bool);
 
 /// Routes trunks so none runs through a card or a frame's name band, nor
 /// closer to one than a clearance (20 points at Out, 12 at Mid and In).
@@ -1940,7 +2021,7 @@ fn route(wants: &[Want], rect_of: &HashMap<Item, Rect>, heads: &[Rect], out: boo
     struct Path {
         a: Item,
         ra: Rect,
-        to: Vec<(Item, Rect, usize)>,
+        to: Vec<(Item, Rect, usize, bool, bool)>,
         right: bool,
         trunk: usize,
         ya: f32,
@@ -1955,9 +2036,9 @@ fn route(wants: &[Want], rect_of: &HashMap<Item, Rect>, heads: &[Rect], out: boo
         let Some(&ra) = rect_of.get(&w.a) else {
             continue;
         };
-        let to: Vec<(Item, Rect, usize)> =
+        let to: Vec<(Item, Rect, usize, bool, bool)> =
             w.to.iter()
-                .filter_map(|&(i, n)| rect_of.get(&i).map(|r| (i, *r, n)))
+                .filter_map(|&(i, n, o, b)| rect_of.get(&i).map(|r| (i, *r, n, o, b)))
                 .collect();
         if to.is_empty() {
             continue;
@@ -2052,7 +2133,7 @@ fn route(wants: &[Want], rect_of: &HashMap<Item, Rect>, heads: &[Rect], out: boo
         for (lo, hi) in free {
             consider((lo + hi) / 2.);
         }
-        consider(want.max(from.max(0.) + clear));
+        consider(want.max(from.max(0.) + clear * 1.8));
         best.map_or(want, |b| b.2)
     };
     for p in &mut paths {
@@ -2135,7 +2216,7 @@ fn route(wants: &[Want], rect_of: &HashMap<Item, Rect>, heads: &[Rect], out: boo
         for (s, (_, y, js, to)) in p.stops.iter().enumerate() {
             let x = p.lanes[s];
             for &j in js {
-                let (item, t, links) = p.to[j];
+                let (item, t, links, out, back) = p.to[j];
                 let b0 = if enters_right(p, j) { t.right() } else { t.x };
                 let mut points = trunk.clone();
                 points.push((x, *y));
@@ -2155,6 +2236,8 @@ fn route(wants: &[Want], rect_of: &HashMap<Item, Rect>, heads: &[Rect], out: boo
                     bounds: Rect::new(x0 - 6., y0 - 6., x1 - x0 + 12., y1 - y0 + 12.),
                     links,
                     trunk: p.trunk,
+                    out,
+                    back,
                 });
             }
             if to != y {
@@ -2228,6 +2311,7 @@ pub fn synthetic(n: usize, n_folders: usize, links: usize) -> NotesMap {
         inner,
         default_arrangement: arrangement.clone(),
         arrangement,
+        style: STYLE,
     }
 }
 
@@ -2546,7 +2630,13 @@ mod tests {
             let (z, _) = m.fit(w, h);
             assert!(z < OUT_BELOW, "a big map opens at Out");
             let (fw, fh) = (m.out.width * z / w, m.out.height * z / h);
-            assert!(fw > 0.6 && fh > 0.6, "{w}×{h}: fills {fw:.2} × {fh:.2}");
+            // Fills the view, unless it already shows at the largest zoom
+            // Out has.
+            let capped = z >= OUT_FIT - 1e-3;
+            assert!(
+                (fw > 0.6 && fh > 0.6) || (capped && fw.max(fh) > 0.5),
+                "{w}×{h}: fills {fw:.2} × {fh:.2} at {z}"
+            );
             // A block keeps its column at every zoom.
             assert_eq!(m.arrangement, m.default_arrangement);
             assert!(!m.is_arranged());
@@ -2770,19 +2860,52 @@ mod tests {
     }
 
     #[test]
-    fn out_titles_are_set_large_and_never_cut() {
+    fn every_card_sets_its_words_at_one_size_per_level() {
         for m in maps() {
-            for lab in m.out.labels.iter().filter(|l| l.kind == LabelKind::Title) {
-                // Below the floor only for a word that cannot break.
-                let long_word = lab.lines.iter().any(|l| !l.contains(' '))
-                    && super::super::fit::width(&lab.lines[0], OUT_TITLE_MIN, true)
-                        > COL_W - 2. * OUT_PAD;
-                assert!(lab.size >= OUT_TITLE_MIN || long_word, "{lab:?}");
-                assert!(lab.lines.len() <= 3);
-                assert!(
-                    !lab.lines.iter().any(|l| l.ends_with('…')),
-                    "{lab:?} is cut"
-                );
+            for lab in &m.out.labels {
+                let want = match lab.kind {
+                    LabelKind::Title => OUT_TITLE,
+                    LabelKind::Meta => OUT_META,
+                    LabelKind::Row | LabelKind::More => OUT_ROW,
+                    _ => continue,
+                };
+                assert_eq!(lab.size, want, "{lab:?}");
+                assert!(lab.lines.len() <= 2);
+                // Counts are never cut.
+                if lab.kind == LabelKind::Meta {
+                    assert!(!lab.lines[0].ends_with('…'), "{lab:?}");
+                }
+            }
+            for lab in &m.mid.labels {
+                let want = match lab.kind {
+                    LabelKind::Title => 16.,
+                    LabelKind::Frame => 14.5,
+                    LabelKind::Count => 13.,
+                    _ => continue,
+                };
+                assert_eq!(lab.size, want, "{lab:?}");
+            }
+        }
+    }
+
+    /// Fitted, the overview's smallest words (counts and note rows) are 11
+    /// px or more on screen whenever they are drawn.
+    #[test]
+    fn the_overview_never_sets_words_under_eleven_pixels() {
+        for n in [20usize, 60, 150, 300] {
+            for (w, h) in [(860., 544.), (1220., 690.)] {
+                let m = synthetic(n, 12, n * 3).fitted(w, h);
+                let (z, _) = m.fit(w, h);
+                if Level::of(z) != Level::Out || z < OUT_META_BELOW {
+                    continue;
+                }
+                let rows = z >= OUT_ROWS_BELOW;
+                let small = if rows {
+                    OUT_META.min(OUT_ROW)
+                } else {
+                    OUT_META
+                };
+                assert!(small * z >= 11. - 0.01, "{n} notes at {w}×{h}: {z}");
             }
         }
     }

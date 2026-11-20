@@ -854,7 +854,6 @@ impl Shell {
             })
             .children(panel.map(|p| {
                 div()
-                    .id("night-panel")
                     .absolute()
                     .top(look.px(EDGE))
                     .right(look.px(EDGE))
@@ -865,10 +864,32 @@ impl Shell {
                     .border(look.fixed(1.))
                     .border_color(t.line)
                     .shadow(kit::float_shadow(look, &t))
-                    .overflow_y_scroll()
-                    .track_scroll(&self.night.panel_scroll)
-                    .p(look.px(24.))
-                    .child(p)
+                    .overflow_hidden()
+                    .child(
+                        div()
+                            .id("night-panel")
+                            .size_full()
+                            .overflow_y_scroll()
+                            .track_scroll(&self.night.panel_scroll)
+                            .p(look.px(24.))
+                            .pb(look.px(56.))
+                            .child(p),
+                    )
+                    // What runs on below the panel's foot fades out rather
+                    // than ending in a cut.
+                    .child(
+                        div()
+                            .absolute()
+                            .left_0()
+                            .right_0()
+                            .bottom_0()
+                            .h(look.px(64.))
+                            .bg(gpui::linear_gradient(
+                                180.,
+                                gpui::linear_color_stop(t.surface.opacity(0.), 0.),
+                                gpui::linear_color_stop(t.surface, 0.55),
+                            )),
+                    )
             }))
             .child(
                 div()

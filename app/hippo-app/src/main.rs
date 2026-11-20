@@ -287,6 +287,10 @@ fn main() {
                             if v == "line" {
                                 return Some((f32::NAN, f32::NAN));
                             }
+                            // `near`: on a card the selected note links to.
+                            if v == "near" {
+                                return Some((f32::NAN, 0.));
+                            }
                             let (x, y) = v.split_once(',')?;
                             Some((x.parse().ok()?, y.parse().ok()?))
                         });

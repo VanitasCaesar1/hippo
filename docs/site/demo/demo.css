@@ -6,18 +6,18 @@
    only. */
 
 :root {
-  --canvas: #0A0A0A; --dot: rgba(255, 255, 255, .09); --surface: #121212; --raised: #181818;
+  --canvas: #0A0A0A; --dot: rgba(255, 255, 255, .14); --surface: #121212; --raised: #181818;
   --inset: #0E0E0E; --hover: #1E1E1E; --selected: #242424;
   --line: rgba(255, 255, 255, .09); --line2: rgba(255, 255, 255, .2);
   --text: #EDEDED; --muted: #A1A1A1; --faint: #828282;
-  --you: #C8F031; --you-ink: #0F1400; --you-text: #D9F77A; --you-bg: rgba(200, 240, 49, .11); --you-line: rgba(200, 240, 49, .5); --you-mark: var(--you);
+  --you: #C8F031; --you-ink: #0F1400; --you-text: #D9F77A; --you-bg: rgba(200, 240, 49, .11); --you-line: rgba(200, 240, 49, .5); --you-mark: var(--you); --you-stroke: #C8F031;
   --night: #E5E5E5; --night-bg: rgba(255, 255, 255, .08); --night-line: rgba(255, 255, 255, .45);
   --ok: #4ADE80; --ok-bg: rgba(74, 222, 128, .1);
   --bad: #F87171; --bad-bg: rgba(248, 113, 113, .1);
   --shadow: 0 10px 28px rgba(0, 0, 0, .5); --shadow-s: 0 2px 6px rgba(0, 0, 0, .35);
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
-  --chip-plain: #1E1E1E; --lifted-bg: #181818; --hover-lift: 0 4px 14px rgba(0, 0, 0, .5);
+  --chip-plain: #242424; --lifted-bg: #242424; --lifted-ring: rgba(255, 255, 255, .45); --hover-lift: 0 4px 14px rgba(0, 0, 0, .5);
   --lift: drop-shadow(0 14px 20px rgba(0, 0, 0, .6)) drop-shadow(0 2px 4px rgba(0, 0, 0, .45));
   color-scheme: dark;
 }
@@ -26,11 +26,11 @@
     --canvas: #FAFAFA; --dot: rgba(0, 0, 0, .08); --surface: #FFFFFF; --raised: #FFFFFF; --inset: #F4F4F5;
     --hover: #F4F4F5; --selected: #EDEDEE; --line: rgba(0, 0, 0, .08); --line2: rgba(0, 0, 0, .18);
     --text: #0A0A0A; --muted: #52525B; --faint: #6B6B73;
-    --you: #C8F031; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line);
+    --you: #C8F031; --you-ink: #0F1400; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line); --you-stroke: #65A30D;
     --night: #18181B; --night-bg: rgba(0, 0, 0, .05); --night-line: rgba(0, 0, 0, .42);
     --ok: #15803D; --ok-bg: rgba(21, 128, 61, .08); --bad: #DC2626; --bad-bg: rgba(220, 38, 38, .07);
     --shadow: 0 10px 28px rgba(0, 0, 0, .1); --shadow-s: 0 1px 3px rgba(0, 0, 0, .08);
-    --chip-plain: #F4F4F5; --lifted-bg: #FFFFFF; --hover-lift: 0 4px 14px rgba(0, 0, 0, .1);
+    --chip-plain: #F4F4F5; --lifted-bg: #FFFFFF; --lifted-ring: rgba(0, 0, 0, .18); --hover-lift: 0 4px 14px rgba(0, 0, 0, .1);
     --lift: drop-shadow(0 14px 20px rgba(0, 0, 0, .18)) drop-shadow(0 2px 4px rgba(0, 0, 0, .1));
     color-scheme: light;
   }
@@ -39,11 +39,11 @@
   --canvas: #FAFAFA; --dot: rgba(0, 0, 0, .08); --surface: #FFFFFF; --raised: #FFFFFF; --inset: #F4F4F5;
   --hover: #F4F4F5; --selected: #EDEDEE; --line: rgba(0, 0, 0, .08); --line2: rgba(0, 0, 0, .18);
   --text: #0A0A0A; --muted: #52525B; --faint: #6B6B73;
-  --you: #C8F031; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line);
+  --you: #C8F031; --you-ink: #0F1400; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line); --you-stroke: #65A30D;
   --night: #18181B; --night-bg: rgba(0, 0, 0, .05); --night-line: rgba(0, 0, 0, .42);
   --ok: #15803D; --ok-bg: rgba(21, 128, 61, .08); --bad: #DC2626; --bad-bg: rgba(220, 38, 38, .07);
   --shadow: 0 10px 28px rgba(0, 0, 0, .1); --shadow-s: 0 1px 3px rgba(0, 0, 0, .08);
-  --chip-plain: #F4F4F5; --lifted-bg: #FFFFFF; --hover-lift: 0 4px 14px rgba(0, 0, 0, .1);
+  --chip-plain: #F4F4F5; --lifted-bg: #FFFFFF; --lifted-ring: rgba(0, 0, 0, .18); --hover-lift: 0 4px 14px rgba(0, 0, 0, .1);
   --lift: drop-shadow(0 14px 20px rgba(0, 0, 0, .18)) drop-shadow(0 2px 4px rgba(0, 0, 0, .1));
   color-scheme: light;
 }
@@ -62,7 +62,7 @@ p, h1, h2 { margin: 0; }
 .mono { font-variant-numeric: tabular-nums; }
 
 /* The banner and the top bar. */
-.banner { display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; padding: 8px 16px; background: var(--night-bg); color: var(--text); font-size: 13px; text-align: center; }
+.banner { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9; height: 18px; display: flex; gap: 8px; align-items: center; justify-content: center; color: var(--faint); font-size: 11.5px; white-space: nowrap; overflow: hidden; }
 .banner a { color: var(--night); font-weight: 600; }
 .top { position: sticky; top: 0; z-index: 5; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; height: 56px; padding: 0 16px; background: var(--canvas); border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
@@ -83,7 +83,9 @@ p, h1, h2 { margin: 0; }
 /* The stage and the floating panel. */
 .stage { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; padding: 0 18px 120px 0; }
 .main { padding: 26px 0 0 28px; min-width: 0; }
-.panel { position: sticky; top: 74px; align-self: start; max-height: calc(100vh - 92px); overflow: auto; margin-top: 18px; padding: 24px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.panel { position: sticky; z-index: 8; top: 74px; align-self: start; height: calc(100vh - 92px); overflow: auto; margin-top: 18px; padding: 24px 24px 0; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
+/* What runs on below the panel's foot fades out rather than ending in a cut. */
+.panel::after { content: ""; position: sticky; bottom: 0; display: block; height: 64px; margin: 24px -24px 0; background: linear-gradient(transparent, var(--surface) 55%); pointer-events: none; }
 .kicker { color: var(--muted); font-size: 13.5px; }
 h1 { font-size: 28px; line-height: 1.15; font-weight: 700; margin: 8px 0; }
 h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
@@ -151,23 +153,26 @@ h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
 /* Brain: the same map as Hippo.app (app/hippo-app/src/ui/night/brain.rs).
    Its controls sit in the header; the map runs to the panel and ends above
    the Ask bar, so nothing floats over it. */
-.mhead { height: 118px; margin-top: -12px; display: flex; flex-direction: column; gap: 6px; }
+.mhead { box-sizing: border-box; height: 128px; margin: -26px -18px 0 -28px; padding: 14px 18px 0 28px; display: flex; flex-direction: column; gap: 6px; background: var(--canvas); border-bottom: 1px solid var(--line); position: relative; z-index: 7; }
 .krow { display: flex; align-items: center; gap: 10px; height: 32px; }
 .krow .kicker { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mhead h1 { margin: 0; font-size: 26px; }
-.mhead .lead { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lrow { display: flex; align-items: center; gap: 12px; height: 24px; }
+.lrow .lead { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mslot { flex: none; max-width: 420px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); white-space: nowrap; }
+.mslot svg { color: var(--muted); }
 .qbtn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 8px; font-weight: 600; font-size: 13.5px; }
+.qbtn.hidden { visibility: hidden; }
 .qbtn:hover, .ctl button:hover { background: var(--hover); }
 .ctl { display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 10px; border: 1px solid var(--line); }
 .ctl button { height: 26px; min-width: 28px; padding: 0 6px; border-radius: 7px; display: grid; place-items: center; }
 .ctl .pct { padding: 0 8px; font-weight: 600; font-size: 13.5px; font-variant-numeric: tabular-nums; }
-.mtoast { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
-.mapwrap { position: relative; margin: 0 -18px 0 -28px; overflow: hidden; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+/* The map runs on under the panel and ends in a hairline above the Ask bar. */
+.mapwrap { position: relative; margin: 0 -378px 0 -28px; overflow: hidden; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; border-bottom: 1px solid var(--line); }
 .mapwrap.drag { cursor: grabbing; }
-.mapwrap .fade { position: absolute; pointer-events: none; z-index: 6; }
-.mapwrap .fade.t { left: 0; right: 0; top: 0; height: 24px; background: linear-gradient(var(--canvas), transparent); }
-.mapwrap .fade.b { left: 0; right: 0; bottom: 0; height: 24px; background: linear-gradient(transparent, var(--canvas)); }
-.mapwrap .fade.r { top: 0; bottom: 0; right: 0; width: 24px; background: linear-gradient(90deg, transparent, var(--canvas)); }
+.strip { position: absolute; left: 0; right: 0; top: 0; height: 30px; z-index: 6; background: var(--canvas); border-bottom: 1px solid var(--line); pointer-events: none; }
+.strip span { position: absolute; top: 7px; font-size: 12px; color: var(--faint); white-space: nowrap; }
+.strip b { color: var(--muted); font-weight: 600; font-size: 13px; margin-right: 10px; }
 .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .world .frame { position: absolute; border: 1.2px dashed var(--line2); border-radius: 16px; }
 .world .note, .world .folder, .world .ocard { position: absolute; background: var(--surface); border: 1px solid var(--line); }
@@ -176,7 +181,7 @@ h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
 .world .folder { cursor: zoom-in; }
 /* One resting edge for every card; hover adds an accent edge and a lift;
    the selection ring stays while another card is hovered. */
-.world .hover { border-color: var(--you-line); box-shadow: var(--hover-lift); }
+.world .hover { border-color: var(--you-stroke); box-shadow: var(--hover-lift); }
 .world .note.sel, .world .ocard.sel, .world .folder.sel { border: 2px solid var(--night); }
 .world .note.sel { padding: 15px; }
 .world .note .t { font-weight: 600; font-size: 16px; }
@@ -209,19 +214,20 @@ h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
 .mapwrap.farther .lab.k-meta, .mapwrap.farther .mk:not(.icon) { display: none; }
 .world svg.links { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .world svg.links path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
-.world svg.links .sel { stroke: var(--night); }
-.world svg.links .acc { stroke: var(--you); }
-.world svg.links .edge { stroke: var(--you-line); opacity: .6; }
-.world svg.links .faint { opacity: .35; }
-.world svg.links circle.end { fill: var(--canvas); stroke-width: 1.5px; }
-.world svg.links circle.end.sel { stroke: var(--night); }
-.world svg.links circle.end.acc { stroke: var(--you); }
-.sticky { position: absolute; top: 8px; z-index: 7; padding: 4px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line2); color: var(--muted); font-weight: 600; font-size: 12.5px; pointer-events: none; }
+.world svg.links path.sel { stroke: var(--night); }
+.world svg.links path.acc { stroke: var(--you-stroke); }
+.world svg.links path.head { stroke: none; }
+.world svg.links path.head.sel { fill: var(--night); }
+.world svg.links path.head.acc { fill: var(--you-stroke); }
+.world svg.links .badge rect { fill: var(--surface); stroke-width: 1.2px; }
+.world svg.links .badge.sel rect { stroke: var(--night); }
+.world svg.links .badge.acc rect { stroke: var(--you-stroke); }
+.world svg.links .badge text { fill: var(--text); font-weight: 600; }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 14px 0; }
 .stats div { padding: 12px; border-radius: 10px; background: var(--inset); }
 .stats b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
 .stats span { color: var(--faint); font-size: 12.5px; }
-.pending { margin-top: 12px; padding: 14px; border-radius: 12px; border: 1.5px dashed var(--you-line); }
+.pending { margin-top: 12px; padding: 14px; border-radius: 12px; border: 1px solid var(--you-line); }
 .board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
 .board .card { cursor: pointer; }
 .board .card.near { border: 1.5px dashed var(--night-line); }
@@ -264,10 +270,7 @@ h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
 .world .blk { position: absolute; left: 0; top: 0; }
 .world .blk.lifted { z-index: 5; filter: var(--lift); }
 .world .blk.lifted .frame { background: var(--lifted-bg); border: 1.2px solid var(--line2); }
-.world .blk.lifted .note, .world .blk.lifted .ocard, .world .blk.lifted .folder { background: var(--lifted-bg); border-color: var(--line2); }
+.world .blk.lifted .note, .world .blk.lifted .ocard, .world .blk.lifted .folder { background: var(--lifted-bg); border-color: var(--lifted-ring); }
 .world .slot { position: absolute; border: 1.5px dashed var(--you-line); background: rgba(200, 240, 49, .08); border-radius: 14px; pointer-events: none; }
 .world .slot.round { border-radius: 18px; }
-.linktip { position: absolute; z-index: 10; pointer-events: none; display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line2); box-shadow: var(--shadow); font-size: 12.5px; font-weight: 500; color: var(--text); white-space: nowrap; }
-.linktip svg { color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .world .blk, .world .slot { transition: none !important; } }
-.mtoast .btn { margin-left: 2px; }
