@@ -4,6 +4,23 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-11-20
+
+**Upgrading.** Nothing to migrate. **The colours changed.** Hippo Dark and Hippo Light are now graphite and lime: neutral black and grey with no blue tint, and one lime accent, in Hippo.app, on the site, in the live demo, on the docs and registry pages, and on `hippo card`. The colours keep their meanings: lime is you (your words, a rule waiting on you, the primary action); the night colour (near-white in dark, near-black in light) is what hippo did and the selection; green is confirmed; red is wrong. No theme pack brings back 0.7.1's navy and amber: a pack sets the surfaces and the text, and the four meanings keep Hippo's colours. To keep the old look, keep Hippo.app 0.7.1 (`hippo app install --version 0.7.1`). `hippo view ... --json` no longer has an agent's `short` letters; read `code` and `name`, and an agent hippo does not know has the code `other`.
+
+### Changed
+
+- **Graphite and lime** ([design](docs/designs/app-night-map.md)) in Hippo Dark and Hippo Light, the night map, the landing page, the live demo, the web theme contract (docs, registry pages, the feed, the `large-type` pack) and `hippo card`. Every hard-coded colour in the app is a token: dialog scrims, the switch knob, the six account hues (accounts now take the muted text colour and are told apart by name). Contrast is held by tests: body text 7 to 1 on every surface, muted 4.5, lime text on its ground 4.5.
+- **Claude Code is drawn with Claude's mark** in the app, the demo and the landing page. The demo drew every agent as a terminal icon, because a later variable replaced its mark table; it now draws each agent's own mark. The agents hippo knows are one list (`night::KNOWN`), and an unknown tool no longer borrows a known agent's mark by its first two letters. A test in the app and two in the site build (one runs the demo in Node, dark and light) fail if a known agent is drawn without its mark.
+- **`hippo app install`** shows a progress bar on a terminal, gives up after 15 s with no connection or 30 s with no data, and says why and that running it again retries.
+- **Older views**: the small capital captions use the system font; disclosure and link arrows (`▸ ▾ › →`) are Lucide chevrons and arrows.
+- **Screenshots**: every one is new (README, landing page, docs), taken on the synthetic demo home.
+
+### Fixed
+
+- Brain's zoom buttons drew no − or + (since 0.7.1): their icons had no file. A test now checks every icon the night views name.
+- In the light theme, the "rules waiting" figure and the hollow "waiting" marks were lime on white; they use the darker lime.
+
 ## [0.7.1] - 2026-11-20
 
 **Upgrading.** Nothing to migrate. `hippo app install` adds an `app` key to `~/.hippo/install.json` only when you run it. Hippo.app's agent badges are now the agents' own marks, its Ask bar's runner is a select, and its top bar no longer runs the search field over the nav at 1200–1440 points. The Claude Code plugin's `/hippo:setup` now sets up the notes folder and hooks (after showing the steps) instead of only indexing history. Screenshots of the app on the site and in the README come back with 0.7.2's new colours.
@@ -195,7 +212,8 @@ The first release. hippo reads what your coding agents did, keeps your notes tru
 - **Hippo.app**, a macOS window over the same files. Built from source in `app/`; no binary is released. Checked on synthetic data, not in daily use.
 - **Docs** at [vanitascaesar1.github.io/hippo](https://vanitascaesar1.github.io/hippo/), including [Sharing a brain in a team](docs/site/src/sharing.md), tried with two people and one git remote.
 
-[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.7.2...HEAD
+[0.7.2]: https://github.com/VanitasCaesar1/hippo/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/VanitasCaesar1/hippo/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/VanitasCaesar1/hippo/compare/v0.6.0...v0.6.1
