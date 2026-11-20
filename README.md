@@ -1,129 +1,219 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="brand/hippo-mark-dark.svg">
-    <img src="brand/hippo-mark-light.svg" width="180" alt="hippo">
-  </picture>
-</p>
+<div align="center">
 
-<h1 align="center">hippo</h1>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand/hippo-mark-dark.svg">
+  <img src="brand/hippo-mark-light.svg" width="150" alt="hippo">
+</picture>
 
-<p align="center"><b>Your coding agents learn while you sleep.</b></p>
+# hippo
 
-hippo is short for hippocampus, the part of a brain that turns the day into long-term memory during sleep. Coding agents have none: every session starts from zero, and each agent is an island. Every night hippo goes through the day's Claude Code, Codex, Cursor, Gemini CLI, DeepSeek Harness (`dsh`), OpenCode, Muse Code and Command Code sessions and turns what went wrong into rules. A second model with a fresh context checks each one against what actually happened. Keep a rule, and the next session starts with it.
+**Your coding agents learn while you sleep.**
 
-## A day, a night, the next morning
+hippo reads every session your coding agents leave on your machine, turns what you had to correct into rules a second model checks against what happened, and starts each new session with the notes its task needs.
 
-```text
-day      Claude Code  10:07   you: "no, previews use the staging database, not production"
-         Claude Code  13:32   you: "dont point previews at the production database again, staging only"
-night    03:30  proposed rule  Use the staging database for previews, never production
-                reviewer       confirmed, against turn 3 of both sessions
-                proposed fix   Auth sessions.md: last 7 days -> now 24 hours
-                reviewer       rejected: "nothing in the evidence shows the 24 hour lifetime was deployed"
-morning  Inbox  keep it        (you did not write the rule)
-         Codex  $ hippo brief --task "Run a preview of the album page against the database"
-                rules:
-                - Run previews and manual checks against the staging database (npm run preview -- --db staging), never production.
-```
+[![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-D97757?style=flat-square)](#install)
+[![Codex plugin](https://img.shields.io/badge/Codex-plugin-111?style=flat-square)](#install)
+[![MCP](https://img.shields.io/badge/MCP-server-111?style=flat-square)](docs/mcp.md)
+[![Tests](https://img.shields.io/github/actions/workflow/status/VanitasCaesar1/hippo/ci.yml?branch=main&style=flat-square&label=tests)](https://github.com/VanitasCaesar1/hippo/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/github/v/release/VanitasCaesar1/hippo?style=flat-square&label=version&color=111)](CHANGELOG.md)
+[![License: MIT](https://img.shields.io/badge/license-MIT-111?style=flat-square)](LICENSE)
+[![Runs locally](https://img.shields.io/badge/runs-locally-111?style=flat-square)](docs/is-it-safe.md)
 
-Why this is not a memory file an agent keeps for itself:
+[Install](#install) · [Quick start](#quick-start) · [Compared](#hippo-claude-codes-memory-or-) · [Features](#features) · [How it works](#how-it-works) · [Is it safe?](docs/is-it-safe.md) · [Docs](https://vanitascaesar1.github.io/hippo/) · [FAQ](#faq)
 
-- **Built from what happened.** hippo reads every session on the machine, not what an agent chose to write down. On the maintainer's machine that is 5,078 sessions and 784,867 turns, indexed in 162 seconds.
-- **You never write the rule.** Correct an agent twice and hippo proposes it. You keep it or dismiss it.
-- **It cannot make things up.** A second model must confirm every change against the evidence, and `hippo revert` undoes any change by its receipt. On the repo's eval set with a real model it fixed 3 of 7 planted errors and damaged 0 of 8 correct notes; on the maintainer's own notes it has fixed 7 wrong statements, each checked by hand.
-- **Small.** A session gets about 1.5 KB: the notes that matter to its task, not the whole pile.
+</div>
 
-**Works with** Claude Code, Codex, Cursor, Gemini CLI, OpenCode, DeepSeek Harness, Muse Code and Command Code (their sessions are read), and with any MCP client through `hippo mcp`: Windsurf, Zed, VS Code (Copilot), Claude Desktop and the rest.
+<!-- Screenshot: Hippo.app's Morning on the synthetic demo project (v0.7.2, new palette). -->
+<p align="center"><b><a href="https://vanitascaesar1.github.io/hippo/demo.html">Try the live demo</a></b>: Hippo.app's Morning and Brain in your browser, on made-up data.</p>
 
-| Agent | How it gets the memory |
+## Why hippo
+
+Every session starts from zero, and each agent keeps its own memory, if any. You correct the same mistake on Tuesday that you corrected on Monday, in another agent.
+
+- **If you use one agent:** you stop repeating yourself. Correct it twice and hippo drafts the rule; you keep it or dismiss it, and the next session starts with it.
+- **If you run several agents or accounts:** Claude Code, Codex, Cursor and the rest read the same notes and the same rules, and you can ask whether any of them already solved what you are about to start.
+- **If you work in a team:** the notes are Markdown in your repository, every change has a receipt, and rules can go through a shared Inbox in git that each person keeps or dismisses.
+
+## hippo, Claude Code's memory, or …?
+
+Each of these is worth knowing; they answer different questions.
+
+| | **hippo** | **Built-in agent memory** (Claude Code `CLAUDE.md` and auto-memory, Cursor rules and memories, Codex `AGENTS.md`) | **[claude-mem](https://github.com/thedotmack/claude-mem)** | **[Basic Memory](https://github.com/basicmachines-co/basic-memory)** |
+|---|---|---|---|---|
+| **What it is** | Memory built nightly from every agent's transcripts, kept in your notes folder | A file or store each agent reads at start | A worker that turns each session's tool activity into observations with a second agent | A Markdown knowledge base that AI and people read and write through MCP |
+| **Who writes it** | Drafted from what happened; a second model confirms each change; you keep each rule | You, or the agent when it decides to | The observer agent, as you work | You and the AI, in the same files |
+| **Checked against what happened** | Yes: a fresh-context reviewer must confirm, with cited turns | No | Not described in its README | Not its aim |
+| **Across agents** | Reads 8 agents' history; 6 get the start block; any MCP client can ask | Each agent has its own | Several agents, per its README (Claude Code, Codex, OpenCode, Gemini and more) | Any MCP client |
+| **Where it lives** | `~/.hippo` and your repository's notes, plain files | The agent's own files | `~/.claude-mem` (SQLite), cloud sync opt-in; usage analytics on by default, per its README | Markdown on your disk; cloud optional |
+| **Undo** | A receipt and a snapshot per change, `hippo revert` | git, if committed | Not described in its README | Your files and git |
+| **Cost** | Model calls each night under your own agent login | Nothing extra | An observer model per its setup; a paid observer is offered | Free locally; paid cloud offered |
+
+**Pick hippo** when you want what your agents learn checked before it lands, shared across agents, and undoable. **Pick your agent's built-in memory** when one agent and a hand-kept file are enough. **Pick claude-mem** when you want every session's activity captured and searchable without keeping notes yourself. **Pick Basic Memory** when you want a knowledge base you and the AI write together. They combine: hippo reads whatever notes folder you point it at.
+
+## Features
+
+<table>
+<tr>
+<td width="33%" valign="top"><b>A night pass with a reviewer</b><br>Each night a model reads the day's sessions and drafts note fixes and rules; a second model with a fresh context must confirm each one against the turns it cites.</td>
+<td width="33%" valign="top"><b>An Inbox, not autopilot</b><br>Rules drafted from your corrections and from repeated failures wait for you to keep, edit or dismiss; nothing becomes a rule on its own.</td>
+<td width="33%" valign="top"><b>A start block per task</b><br>A new session gets the entry note, the required notes and the notes its task needs, about 1.5 KB under a hard budget, not the whole pile.</td>
+</tr>
+<tr>
+<td valign="top"><b>Every agent, and MCP</b><br>Reads Claude Code, Codex, Cursor, Gemini CLI, OpenCode, DeepSeek Harness, Muse Code and Command Code; any MCP client can ask through <code>hippo mcp</code>.</td>
+<td valign="top"><b>Guard and secrets</b><br>Flags, by rule and with no model, an agent piping an installer from the internet, reading a credential file or running a fresh clone's code; secrets are redacted before anything is indexed.</td>
+<td valign="top"><b>Receipts and revert</b><br>Every applied change has a receipt and a snapshot; <code>hippo revert &lt;receipt&gt;</code> puts the note back.</td>
+</tr>
+</table>
+
+## See it in action
+
+Screenshots of these come with the next release, taken from the synthetic demo project in this repository (`app/scripts/demo-home.sh`), not anyone's real work. Until then, the [live demo](https://vanitascaesar1.github.io/hippo/demo.html) shows Morning and Brain.
+
+<!--
+Two columns, one line under each (docs/assets/readme/, v0.7.2):
+| brief.png: `hippo brief`, what a new session on a task starts with, and the past sessions that already did part of it | app-inbox.jpg: the Inbox, rules drafted from your corrections and repeated failures, and the team's |
+| night-report.png: a night pass's report, proposals, the reviewer's verdicts and reasons | incidents.png: `hippo incidents`, what went wrong, where, and whether a rule covered it |
+| app-fleet.jpg: Fleet in Hippo.app, who waits on you and which account runs dry | app-brain.jpg: Brain in Hippo.app, the notes as a map |
+-->
+
+| Screen | What it shows |
 |---|---|
-| Claude Code | At session start, through `hippo hooks install` or the plugin. |
-| DeepSeek Harness (`dsh`) | At session start, through [its plugin](plugins/dsh/README.md). |
-| OpenCode | In the system prompt of each request, through [its plugin](plugins/opencode/README.md). |
-| Codex | At session start and first prompt, through `hippo hooks install --agent codex` once you trust the hooks in Codex. |
-| Gemini CLI | At session start and first prompt, through `hippo hooks install --agent gemini`. |
-| Cursor | At chat start, through `hippo hooks install --agent cursor`; the notes for a task through `hippo mcp install --client cursor`. |
-| Any MCP client (Windsurf, Zed, VS Code, Claude Desktop, …) | When the agent asks, through hippo's MCP tools: `hippo mcp install --client <client>` ([docs/mcp.md](docs/mcp.md)). Their own history is not read. |
-| Muse Code | Not given the notes yet. Its sessions are read like the others. |
-| Command Code | Not given the notes yet. Its sessions are read like the others. |
-
-<p align="center"><img src="docs/assets/first-run.gif" width="700" alt="hippo, then hippo start --yes, on synthetic history: what it found, then the last active day"></p>
-
-<p align="center"><sub>The day above and the recording are from synthetic data.</sub></p>
+| `hippo brief` | What a new session on a task starts with, and the past sessions that already did part of it. |
+| The Inbox | Rules drafted from your corrections and repeated failures, and the team's, waiting for you. |
+| A night pass's report | Each proposal, the ones that failed validation, and the reviewer's confirm or reject with its reason. |
+| `hippo incidents` | What went wrong, in which session and at which step, and whether a rule covered it. |
+| Fleet in Hippo.app | Who waits on you, who is working, and which account runs dry before its reset. |
+| Brain in Hippo.app | The notes as a map: what was fixed last night, what waits, what went stale. |
 
 ## Install
 
-macOS (Apple silicon or Intel) or Linux (x86_64 or arm64), one line, no `sudo` (installs to `~/.local/bin`):
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippo/main/install.sh | sh
-```
-
-Inside Claude Code, as a plugin (then run `/hippo:setup`):
+**Claude Code plugin.** In a Claude Code session:
 
 ```text
 /plugin marketplace add VanitasCaesar1/hippo
 /plugin install hippo@hippo
 ```
 
-With Rust 1.89 or later: `cargo install --locked --git https://github.com/VanitasCaesar1/hippo hippo`.
+then `/hippo:setup`. It installs the binary if it is missing (after asking), sets up the notes folder and Claude Code's hooks, indexes your history, and offers the nightly schedule. No terminal needed.
 
-Inside DeepSeek Harness (`dsh`), as a plugin that gives sessions the same start block and lets the model call `hippo ask` and `hippo show day`: `dsh plugin --profile web add "github:VanitasCaesar1/hippo#v0.7.0&path:/plugins/dsh"` ([details](plugins/dsh/README.md)).
-
-Inside OpenCode 2, as a plugin that does the same: add `{ "package": "github:VanitasCaesar1/hippo#v0.7.0::path:plugins/opencode" }` to `plugins` in `~/.config/opencode/opencode.json` ([details](plugins/opencode/README.md)).
-
-## The first two minutes
+**Codex plugin.** In the Codex app: Plugins › Add a marketplace › `VanitasCaesar1/hippo`, then **+** on hippo. Or from a terminal:
 
 ```sh
-hippo                  # lists the agent history it finds; nothing is written yet
-hippo start --yes      # indexes it (history only, nothing sent), then shows your last active day
-hippo card             # that day as a 1200 x 675 PNG to share, and the same lines as text
+codex plugin marketplace add VanitasCaesar1/hippo
+codex plugin add hippo@hippo
 ```
 
-The overview gives the day's sessions and sub-agents, the agents' work time, how long they waited on you, the pull requests they merged, the times you corrected them (the first one quoted), the busiest sessions, and four commands to try next. It reads `~/.claude*/projects`, `~/.codex/sessions` and `~/.dsh/sessions`; `hippo start --add-root <dir>` adds another folder.
+then ask Codex to *set up hippo for this project* (the `$hippo` skill does the same first run).
 
-## What it does
+**One line.** macOS (Apple silicon or Intel) or Linux (x86_64 or arm64), no `sudo`, into `~/.local/bin`, checked against the published sha256:
 
-1. **Search every past session.** `hippo ask --sources-only "<question>"` ranks the past sessions that dealt with it, with the command to resume each; without `--sources-only` it also writes an answer that cites them. `hippo recall "<words>"` searches every indexed turn.
-2. **See the day.** `hippo` shows the last active day; `fleet` today's sessions (live, waiting on you, stopped at a usage limit); `incidents` what went wrong and at which step; `xray <session>` what context a session was given and what it used; `card` the day, or `--week`, as one image.
-3. **A shared brain your agents start from and write back to.** `hippo init --notes-dir notes --entry-note "notes/START HERE.md"` sets up a notes folder; `hippo hooks install` gives every Claude Code session in it the notes at start and keeps a record of each session (`--agent codex` does the same for Codex); `hippo brief --task "<task>"` is the start block for any agent, with the past sessions that already did part of it.
-4. **Kept true at night, with a second reviewer and an undo.** `hippo dream` checks notes against transcripts and folds finished sessions' handoffs into them. A second model run that never sees the first one's reasoning must confirm each change; every applied change has a receipt and a snapshot, and `hippo revert <receipt>` undoes it. `hippo schedule install` runs it nightly.
-5. **Packs you copy and own.** `hippo add <path or git URL>` copies a pack of dreaming passes, prompts and reviewer personas into your workspace after a fresh-context review; it is plain files, never code, and `hippo packs update` merges upstream changes without losing your edits.
+```sh
+curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippo/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/VanitasCaesar1/hippo/main/install.sh | sh -s -- --app   # and Hippo.app, on macOS
+```
 
-## How it differs
+Hippo.app is signed ad hoc, not notarised; `hippo app install` fetches it the way that opens without a prompt ([Install › Hippo.app](docs/site/src/install.md#hippoapp-macos)).
 
-- **Your notes are files.** Plain Markdown in your own folder: read them, edit them, commit them. The index is a local SQLite file you can delete and rebuild.
-- **No change lands without a fresh-context review.** The model that proposes a change never grades it.
-- **Every change can be undone.** A snapshot and a receipt per change, and one command to revert it.
+**Homebrew.** There is no tap yet. Each release carries a filled formula, `hippo.rb`, which you can put in a tap of your own: `brew tap-new $USER/local && curl -fsSL https://github.com/VanitasCaesar1/hippo/releases/latest/download/hippo.rb -o "$(brew --repo $USER/local)/Formula/hippo.rb" && brew install $USER/local/hippo`.
 
-## What leaves your machine
+**Cargo.** `cargo install --locked --git https://github.com/VanitasCaesar1/hippo hippo` (Rust 1.89 or later). DeepSeek Harness and OpenCode have their own plugins: [dsh](plugins/dsh/README.md), [OpenCode](plugins/opencode/README.md); Cursor, Gemini CLI and MCP clients: [Install](docs/site/src/install.md).
 
-hippo's own code makes no network calls: it has no HTTP client. Data leaves only through two kinds of child process it starts:
+## Quick start
 
-- **The model command**, by default `claude -p` under your own login, run by `dream` (also `--dry-run`), `lessons scan`, `ask` without `--sources-only`, the pack review in `add` and `packs update`, `eval --with-model`, `doctor --model`, and the scheduled dream.
-- **Git**, to fetch a pack: `add` from a URL or a registry, `packs update`, and `packs diff` of a git pack.
+1. **Set up the project.** `/hippo:setup` in Claude Code, `$hippo` in Codex, or in a terminal `hippo setup --yes` from the project (it prints the steps first without `--yes`).
+2. **Start a new session.** It begins with hippo's start block. For Codex, trust hippo's hooks when Codex lists them.
+3. **Let it run a night.** `hippo schedule install` indexes every 10 minutes and runs the night pass at 03:30; in the morning, open the Inbox (`hippo lessons`, or Morning in Hippo.app).
 
-Everything else, including `hippo`, `start`, `card`, `recall`, `ask --sources-only`, `fleet`, `incidents` and `xray`, is local. Transcript text is redacted on ingest (keys, tokens, emails and more, by pattern; best effort). Details: [Security and privacy](docs/site/src/security.md).
+### Things to try
 
-## What it does not do yet
+| Ask your agent | Or ask hippo |
+|---|---|
+| "Has any agent already solved the flaky upload test?" | `hippo ask --sources-only "flaky upload test"` |
+| "What did the agents do yesterday?" | `hippo` or `hippo show day 2026-11-19` |
+| "Brief a new session on the album export" | `hippo brief --task "album export"` |
+| "What's waiting in my hippo Inbox?" | `hippo lessons` |
+| "Did any agent do something risky this week?" | `hippo incidents` |
 
-- **Eight agents' history.** Claude Code, Codex, Cursor, Gemini CLI, DeepSeek Harness, OpenCode, Muse Code and Command Code sessions are read; other MCP clients use hippo's tools but their history is not indexed. For OpenCode, only OpenCode 2's database; for Muse Code, what its 1.4.18 logs were seen to hold; for Command Code, version 3 session files; for Cursor, its agent transcripts (no tool results); for Gemini CLI, the format in its source, not yet checked against a real session. Claude Code, Codex and Gemini CLI get the notes at session start through hooks (Claude Code also through its plugin), Cursor the start block through its `sessionStart` hook, a dsh session through [its plugin](plugins/dsh/README.md) and an OpenCode session through [its plugin](plugins/opencode/README.md).
-- **Scheduling** is launchd on macOS. Elsewhere `hippo schedule install` prints cron and systemd lines for you to install.
-- **Linux is tested in CI, not in daily use.** The release has static Linux binaries (x86_64 and arm64) and the test suite passes on Linux in CI, but hippo is used day to day on macOS on Apple silicon (the Intel build passes the first-run check under Rosetta).
-- **The desktop app**, Hippo.app in [`app/`](app/README.md), is macOS only, built from source, and early: checked on synthetic data, not in daily use.
-- **Whether dreaming makes an agent's work better is not measured.** `hippo eval` measures a small, invented question set, not your notes.
-- **No pack by another author exists.** The 26 first-party packs in [`packs/`](packs/) are reviewed and listed in the [registry](registry/README.md); none is by anyone else yet.
-- **Sharing one brain between people is through git.** `hippo init` ignores what is per person, so the notes can be committed with `git add -A`; nothing syncs live, and each person's dreaming learns from their own sessions ([Sharing a brain in a team](docs/site/src/sharing.md)).
+## How it works
 
-## Where it came from
+```mermaid
+flowchart LR
+  A[Agent sessions on disk<br>Claude Code, Codex, Cursor, …] --> B[Index<br>~/.hippo, redacted]
+  B --> C[Night pass<br>drafts fixes and rules]
+  C --> D{Reviewer<br>fresh context}
+  D -- confirmed --> E[Notes and the Inbox<br>with receipts]
+  D -- rejected --> F[Report<br>with the reason]
+  E --> G[Next session's<br>start block]
+  G --> A
+```
 
-I built hippo to keep my own coding agents on the same page. On one day in November 2026 that was 13 threads and 538 sub-agents merging 66 pull requests on one 16 GB Mac, and they needed one memory they could all start from and that something checked. It is one person's project, built in the open from here.
+Ingest reads each agent's transcripts where the agent already writes them and keeps a local SQLite index, with secrets redacted by pattern. The night pass gives a model the day's sessions and your notes, as untrusted data, and asks for changes that cite the turns behind them. A second model, which never sees the first one's reasoning, confirms or rejects each. Confirmed note fixes are applied with a receipt and a snapshot; rules wait in the Inbox for you. A new session's hook asks hippo for the start block. More: [Architecture](docs/site/src/architecture.md).
 
-## Docs, packs, contributing, licence
+## What it adds to your project
 
-- **Docs**: [vanitascaesar1.github.io/hippo](https://vanitascaesar1.github.io/hippo/) (source in [`docs/site/src/`](docs/site/src/SUMMARY.md)): [install](docs/site/src/install.md), [quick start](docs/site/src/quick-start.md), [commands](docs/site/src/commands.md), [concepts](docs/site/src/concepts.md), [limits](docs/site/src/limits.md), [architecture](docs/site/src/architecture.md).
-- **Packs**: [`packs/`](packs/) and the [registry](registry/README.md); [writing a pack](docs/site/src/writing-packs.md).
-- **Contributing**: [`CONTRIBUTING.md`](CONTRIBUTING.md), [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). Security reports go through [private vulnerability reporting](SECURITY.md), not issues.
-- **Licence**: MIT. The card's embedded DejaVu fonts are under their own [licence](crates/hippo/assets/fonts/LICENSE-DejaVu.txt). The hippo mark is © Vanitas Caesar and may be used to refer to this project.
+- `notes/` (or the folder you choose), with `START HERE.md` if you had none: plain Markdown you own.
+- `.hippo/`: the workspace's settings and packs, plus per-person records (sessions, proposals, receipts, snapshots) that its own `.gitignore` keeps out of git.
+- A line in `.gitignore` and one in `.gitattributes` (a union merge for notes). hippo never commits, pushes or adds anything.
+- Claude Code's hooks go in `.claude/settings.local.json`, which is personal and not committed.
 
-[Roadmap](ROADMAP.md) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
+## Privacy
+
+hippo's own code has no HTTP client and sends nothing. Data leaves your machine only through programs you already use: the model command for the night pass and written answers (by default `claude -p`, under your own login, with no tools), git when you fetch a pack, and curl when you install or update. Transcripts are redacted when indexed. Exactly what runs, reads and writes: [Is it safe?](docs/is-it-safe.md).
+
+## Status
+
+One person's project, used daily on macOS on Apple silicon and tested on Linux in CI, not used there day to day. Scheduling is launchd on macOS; elsewhere `hippo schedule install` prints cron and systemd lines. Hippo.app is macOS only and early. Muse Code and Command Code sessions are read but not given the notes. Whether the night pass makes agents' work better is not measured. No pack by another author exists yet. The full list: [Limits and known gaps](docs/site/src/limits.md).
+
+## Documentation
+
+| | |
+|---|---|
+| [Install](docs/site/src/install.md) | Every agent, the plugins, Hippo.app |
+| [Quick start](docs/site/src/quick-start.md) | From nothing to a briefed session |
+| [Commands](docs/site/src/commands.md) | Every command and flag |
+| [Is it safe?](docs/is-it-safe.md) | Hooks, programs, network, checksums |
+| [Concepts](docs/site/src/concepts.md) and [Architecture](docs/site/src/architecture.md) | How it fits together |
+| [Sharing in a team](docs/site/src/sharing.md) | One brain through git |
+| [Packs](docs/site/src/packs.md) | Night-pass passes you copy and own |
+| [Limits](docs/site/src/limits.md) | What it does not do yet |
+
+## FAQ
+
+<details><summary><b>Is it safe?</b></summary>
+
+hippo installs hooks in your agents and runs a model at night, so the full list is written down: every hook and when it fires, what each reads and writes, every program hippo starts, the network, and what it never does, in [docs/is-it-safe.md](docs/is-it-safe.md). A test fails when a new hook, MCP tool, program or outbound host appears without that page changing.
+</details>
+
+<details><summary><b>Does my code leave my computer?</b></summary>
+
+Only through the model command you configure, which for the night pass and written answers is by default your own `claude -p`; it gets session excerpts and notes, with secrets redacted. `hippo ask --sources-only`, `brief`, `incidents`, the hooks and the app send nothing.
+</details>
+
+<details><summary><b>What does it cost?</b></summary>
+
+hippo is free and MIT. The night pass makes model calls under your own agent login, so it counts against that account; how many depends on how many sessions the day had. `hippo dream --dry-run` shows what a pass would propose.
+</details>
+
+<details><summary><b>Will it change or commit my files?</b></summary>
+
+It never commits, pushes or adds to git. A confirmed night-pass change edits a note in your notes folder, with a receipt and a snapshot (`hippo revert` undoes it). A rule lands only when you keep it. Setup writes the files listed under [What it adds to your project](#what-it-adds-to-your-project).
+</details>
+
+<details><summary><b>Does it work with my agent?</b></summary>
+
+Sessions are read from Claude Code, Codex, Cursor, Gemini CLI, OpenCode, DeepSeek Harness, Muse Code and Command Code. Claude Code, Codex, Gemini CLI, Cursor, OpenCode and dsh get the start block; any MCP client (Windsurf, Zed, VS Code, Claude Desktop, …) can ask through `hippo mcp`. See [Install](docs/site/src/install.md).
+</details>
+
+<details><summary><b>Teams?</b></summary>
+
+Through git: the notes and receipts are files in the repository, what your own agents did stays ignored, and a shared Inbox lets each person keep or dismiss a teammate's rule. Nothing syncs live. [Sharing a brain in a team](docs/site/src/sharing.md).
+</details>
+
+<details><summary><b>Does it make agents better?</b></summary>
+
+Not measured. On the repository's eval set with a real model, the night pass fixed 3 of 7 planted errors and damaged 0 of 8 correct notes; on the maintainer's own notes it has fixed 7 wrong statements, each checked by hand. hippo is one person's project, used daily on macOS; Linux is tested in CI.
+</details>
+
+## Contributing and licence
+
+[`CONTRIBUTING.md`](CONTRIBUTING.md) · [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) · security reports through [private vulnerability reporting](SECURITY.md) · [Roadmap](ROADMAP.md) · [Changelog](CHANGELOG.md). MIT. The card's embedded DejaVu fonts are under their own [licence](crates/hippo/assets/fonts/LICENSE-DejaVu.txt). The hippo mark is © Vanitas Caesar and may be used to refer to this project.
