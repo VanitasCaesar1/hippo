@@ -1,13 +1,13 @@
 # Limits and known gaps
 
-hippo is early software at version 0.7.0. This page lists what you should expect to go wrong or be missing.
+hippo is early software at version 0.7.1. This page lists what you should expect to go wrong or be missing.
 
 ## Scope
 
 - **Eight tools.** Only Claude Code and Codex transcripts, DeepSeek Harness (dsh) session logs, OpenCode's database, Muse Code session logs, Command Code sessions, Cursor agent transcripts and Gemini CLI sessions are read. Other agents can use hippo through its [MCP server](mcp.md), but their history is not indexed.
 - **One workspace per configuration.** `config.toml` names one workspace.
 - **Sharing a brain is through git.** Several people can commit one workspace; `hippo init` keeps per-person state out of git. Nothing syncs live, each person's dreaming learns only from their own sessions, and `hippo revert` works only on the machine that dreamed the change (git is the undo elsewhere). See [Sharing a brain in a team](sharing.md).
-- **The desktop app is macOS only and early.** Hippo.app (in `app/`, built from source) has been checked on synthetic data, not in daily use. Everything it shows is also on the command line.
+- **The desktop app is macOS only and early.** Hippo.app (in `app/`; `hippo app install` downloads it, ad-hoc signed and not notarised) has been checked on synthetic data, not in daily use. Everything it shows is also on the command line.
 - **The feed is not live.** The `hippo-feed` crate and its deployment files exist. Nothing is deployed, so there is no feed to sign in to, vote on or read.
 - **Hooks only for Claude Code, Codex and Gemini CLI, and a start hook for Cursor.** dsh, OpenCode, Muse Code, Command Code and Cursor sessions are always derived records: no task, no declared notes, and so is a Codex session that did not run hippo's hooks. Nothing should depend on one being declared. The [dsh plugin](https://github.com/VanitasCaesar1/hippo/tree/main/plugins/dsh) gives a dsh session the start block, and the [OpenCode plugin](https://github.com/VanitasCaesar1/hippo/tree/main/plugins/opencode) an OpenCode session, but neither records anything.
 - **Codex runs hippo's hooks only once you trust them.** `hippo hooks install --agent codex` writes them to `$CODEX_HOME/hooks.json`; Codex lists them for review at its next start, and skips them until you trust them there or with `/hooks`. `codex exec` shows no review. A Codex session started before that is read by ingest as before. Windows is not tried.

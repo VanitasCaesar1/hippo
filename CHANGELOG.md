@@ -4,6 +4,26 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-20
+
+**Upgrading.** Nothing to migrate. `hippo app install` adds an `app` key to `~/.hippo/install.json` only when you run it. Hippo.app's agent badges are now the agents' own marks, its Ask bar's runner is a select, and its top bar no longer runs the search field over the nav at 1200–1440 points. The Claude Code plugin's `/hippo:setup` now sets up the notes folder and hooks (after showing the steps) instead of only indexing history. Screenshots of the app on the site and in the README come back with 0.7.2's new colours.
+
+### Added
+
+- **A Codex plugin** ([design](docs/designs/codex-plugin.md)): the repository is a Codex marketplace (`codex plugin marketplace add VanitasCaesar1/hippo`, or Plugins › Add a marketplace in the Codex app). Its `$hippo` skill sets hippo up, asks past sessions, prints a brief and walks the Inbox. No hooks or MCP server in the plugin.
+- **`hippo setup [--agent claude-code|codex] [--yes]`** ([design](docs/designs/setup.md)): the first run in one command, `init`, the agent's hooks and `ingest`, printed first and run with `--yes`; it schedules nothing. `/hippo:setup` and `$hippo` drive it, with no terminal.
+- **Hippo.app as a download** ([design](docs/designs/app-download.md)): each release carries `Hippo-<version>-macos.tar.gz` (universal, ad-hoc signed, not notarised) and its `.sha256`. `hippo app install|uninstall|status` and `install.sh --app` fetch it with curl, check it and put it in `~/Applications`; `hippo doctor` gains an `app` row.
+- **`docs/is-it-safe.md`**: every hook, MCP tool, program hippo starts, host, file written and checksum, kept true by a test that fails when the code gains one the page does not name.
+- **README** in a new order: why hippo, an honest comparison with built-in agent memory, claude-mem and Basic Memory, features, install for both plugins, quick start, how it works, FAQ.
+
+### Changed
+
+- **Hippo.app** ([design](docs/designs/app-controls.md)): agent marks (LobeHub icons, MIT; `brand/agents/`) instead of two-letter badges; every icon is Lucide, including the keys in shortcuts; controls share one spec (28/32/36 points, focus ring, tab stop, disabled, tooltips with shortcuts); a segmented control in the older views; monospace only for code, paths, commands and receipts.
+- **Brain**: each link has its own port and its own lane, so a note with many links no longer draws one bundle of lines.
+- **Morning**: applied and rejected cards fit their text, and every scrolling view ends clear of the Ask bar.
+- **The Ask bar** names who answers (`Claude Code`, or a command by its program) and switches runner from a menu (`hippo config set role.ask`). `hippo view counts --json` gains `known`; the night model lists `runners`.
+- **The site and the live demo**: agent marks and Lucide icons; the comparison, feature cards and install rows of the README; the app screenshots are out until 0.7.2.
+
 ## [0.7.0] - 2026-11-20
 
 **Upgrading.** Nothing to migrate. Hippo.app opens on Morning, with a top bar of four views in place of the sidebar; the views it replaced (Home, Inbox, Fleet, Incidents, Memory, Manage) are still there, by their keys, the command palette and links from the new views. Hippo Dark and Hippo Light take new colours. New dream reports carry a `started:` line after `status:`; older hippo versions read them as before, and Morning shows no duration for reports written before 0.7.0.
@@ -175,7 +195,8 @@ The first release. hippo reads what your coding agents did, keeps your notes tru
 - **Hippo.app**, a macOS window over the same files. Built from source in `app/`; no binary is released. Checked on synthetic data, not in daily use.
 - **Docs** at [vanitascaesar1.github.io/hippo](https://vanitascaesar1.github.io/hippo/), including [Sharing a brain in a team](docs/site/src/sharing.md), tried with two people and one git remote.
 
-[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/VanitasCaesar1/hippo/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/VanitasCaesar1/hippo/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/VanitasCaesar1/hippo/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/VanitasCaesar1/hippo/compare/v0.5.0...v0.6.0
