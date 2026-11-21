@@ -1,0 +1,117 @@
+/* hippo docs: the rules these pages need beyond hippo.css. Only the web
+   theme contract's custom properties, so a web theme restyles the docs as it
+   restyles the feed and the registry. */
+.hp-main {
+  padding: 0 1em;
+}
+.docs-toc {
+  margin: 0.5em 0;
+  font-size: var(--hp-size-meta);
+  line-height: var(--hp-line);
+}
+.docs-toc summary {
+  cursor: pointer;
+  color: var(--hp-muted);
+}
+.docs-toc ol {
+  margin: 0;
+  padding: 0 0 0 var(--hp-indent);
+  list-style: none;
+}
+.docs-toc > ol {
+  padding: 0;
+}
+.hp-md {
+  line-height: var(--hp-line);
+}
+.hp-md h1,
+.hp-md h2,
+.hp-md h3,
+.hp-md h4 {
+  margin: 1em 0 0.25em;
+  font-size: var(--hp-size-title);
+  line-height: var(--hp-line);
+}
+.hp-md h1 {
+  margin-top: 0;
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid var(--hp-rule);
+}
+.hp-md h2 {
+  padding-bottom: 0.125em;
+  border-bottom: 1px solid var(--hp-rule);
+}
+.hp-md h4 {
+  color: var(--hp-muted);
+}
+.hp-md .header,
+.hp-md .header:visited {
+  color: inherit;
+  text-decoration: none;
+}
+.hp-md ul,
+.hp-md ol {
+  margin: 0 0 0.5em;
+  padding: 0 0 0 var(--hp-indent);
+}
+.hp-md li > p {
+  margin: 0;
+}
+.hp-md pre {
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre;
+  overflow-wrap: normal;
+  font-size: var(--hp-size-text);
+  line-height: var(--hp-line);
+}
+.hp-md pre code {
+  padding: 0;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+.hp-md code {
+  font-size: var(--hp-size-text);
+}
+.hp-md table {
+  width: 100%;
+  margin: 0 0 0.5em;
+  border-collapse: collapse;
+}
+.hp-md th,
+.hp-md td {
+  padding: 0.125em 0.5em;
+  border: 1px solid var(--hp-rule);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: break-word;
+}
+.hp-md .table-wrapper {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.hp-md .table-wrapper table {
+  width: auto;
+  min-width: 100%;
+}
+.hp-md blockquote {
+  margin: 0 0 0.5em;
+  padding: 0 0 0 1em;
+  border-left: 1px solid var(--hp-rule);
+  color: var(--hp-muted);
+}
+.hp-md hr {
+  border: 0;
+  border-top: 1px solid var(--hp-rule);
+}
+.docs-pager {
+  margin: 1em 0 0;
+  padding: 0.5em 0 0;
+  border-top: 1px solid var(--hp-rule);
+  font-size: var(--hp-size-meta);
+}
+.hp-md td code,
+.hp-md th code {
+  overflow-wrap: normal;
+}
