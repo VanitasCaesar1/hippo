@@ -44,7 +44,7 @@ Brain answers "what do my agents know, and what is wrong with it".
 - **Header**: `Brain · 13 notes in ~/code/tern/notes`, `What your agents know about Tern`, and a sentence of counts: fixed last night, a rule waiting, gone stale.
 - **The map.** Required notes and the entry note in a column at the left; then one dashed frame per folder with its note cards stacked inside. A card has the note's title, its first sentence (or its `summary` front-matter field) on one line, and chips: a flag (*fixed last night* green, *rule waiting* lime, *fix rejected* red, *stale, 41 days* grey, *every session* in the night colour for required notes) and *read 14× this week*. Lines are the links between notes (`[[wikilinks]]` and relative Markdown links); a selected note's lines turn indigo and the others fade.
 - **Zoom.** The map zooms: pinch on a trackpad, ⌘-scroll, ⌘+ / ⌘− / ⌘0 (fit), and − / fit / + buttons at its bottom right. Zoom is about the pointer (the point under it stays under it). Scroll and drag pan. Zoom has three levels:
-  - *Out* (below 55 %): each folder is one card with its note count and how many notes carry each flag.
+  - *Out* (below 70 %): each folder is one card with its note count and how many notes carry each flag.
   - *Mid*: note cards as above.
   - *In* (above 160 %): a note card grows to show its kept rules, its pending rules and their quoted evidence.
   Double-click zooms into a folder (to mid) or a note (to in). Zoom and pan are kept per workspace for the session.

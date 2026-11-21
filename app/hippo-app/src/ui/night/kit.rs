@@ -154,7 +154,7 @@ impl Nt {
         if self.dark {
             self.you
         } else {
-            rgba(0x65A30DFF).into()
+            rgba(0x7A9A00FF).into()
         }
     }
 }

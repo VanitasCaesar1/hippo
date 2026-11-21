@@ -1055,8 +1055,8 @@ impl Shell {
             "BrainMoveUp" => self.brain_nudge(hippo_view::night::map::Nudge::Up, cx),
             "BrainMoveDown" => self.brain_nudge(hippo_view::night::map::Nudge::Down, cx),
             "BrainResetLayout" => self.brain_reset_layout(cx),
-            "TextLarger" if self.brain_shown() => self.brain_zoom_step(1.25, cx),
-            "TextSmaller" if self.brain_shown() => self.brain_zoom_step(0.8, cx),
+            "TextLarger" if self.brain_shown() => self.brain_zoom_step(1, cx),
+            "TextSmaller" if self.brain_shown() => self.brain_zoom_step(-1, cx),
             "TextDefault" if self.brain_shown() => self.brain_fit(cx),
             "TextLarger" => self.change_scale(window, cx, |s| s.larger()),
             "TextSmaller" => self.change_scale(window, cx, |s| s.smaller()),
@@ -2070,7 +2070,11 @@ mod tests {
         // ⌘= zooms the map, not the text; ⌘0 fits it.
         dispatch(&mut vcx, window, &actions::TextLarger);
         let (z3, _) = state(&mut vcx);
-        assert!((z3 / z2 - 1.25).abs() < 0.01);
+        // One step of the zoom table the web demo steps through too.
+        let st = hippo_view::night::map::STYLE;
+        let least = root.read_with(&vcx, |s, _| s.night.map.min_zoom());
+        assert!((z3 - st.step(z2, 1, least)).abs() < 1e-4, "{z2} -> {z3}");
+        assert!(st.steps.contains(&z3) || z3 == hippo_view::night::map::MAX_ZOOM);
         assert_eq!(root.read_with(&vcx, |s, _| s.state().scale.percent()), 100);
         dispatch(&mut vcx, window, &actions::TextDefault);
         let fitted = root.read_with(&vcx, |s, _| {
@@ -2781,6 +2785,7 @@ mod tests {
         let tx =
             to as f32 * (hippo_view::night::map::COL_W + hippo_view::night::map::COL_GAP) + 60.;
         let target = on_map(&vcx, &root, tx, -6.);
+        let z_before = root.read_with(&vcx, |s, _| s.night.map.zoom);
         drag(&mut vcx, band, target);
         vcx.simulate_mouse_up(target, gpui::MouseButton::Left, gpui::Modifiers::none());
         vcx.run_until_parked();
@@ -2788,6 +2793,8 @@ mod tests {
             .read_with(&vcx, |s, _| s.night.map.map.clone())
             .unwrap();
         assert!(m2.is_arranged());
+        // A view that was not fitted keeps its zoom.
+        assert_eq!(root.read_with(&vcx, |s, _| s.night.map.zoom), z_before);
         assert_eq!(
             m2.arrangement.find(&key).map(|p| p.0),
             Some(to),
@@ -2866,6 +2873,31 @@ mod tests {
         vcx.run_until_parked();
         root.read_with(&vcx, |s, _| {
             assert_eq!(s.night.map.map.as_ref().unwrap().arrangement, after);
+        });
+
+        // A drop on a fitted view fits the map as it now is.
+        dispatch(&mut vcx, window, &crate::actions::TextDefault);
+        let after = root.update(&mut vcx, |s, cx| {
+            let m = s.night.map.map.clone().unwrap();
+            let (w, h) = s.night.map.view_size.unwrap();
+            assert!((s.night.map.zoom - m.fit(w, h).0).abs() < 1e-4, "fitted");
+            let b = Block::Folder(runbooks);
+            let level = s.night.map.level();
+            let r = m.block_rect(level, b).unwrap();
+            // Into the last column, which changes the map's size.
+            let last = m.arrangement.columns.len();
+            let x = last as f32 * (hippo_view::night::map::COL_W + hippo_view::night::map::COL_GAP)
+                + 40.;
+            s.brain_lift_map(b, (r.w * 0.3, 24.), (x, 30.));
+            s.brain_drop(cx);
+            let m3 = s.night.map.map.clone().unwrap();
+            let fit = m3.fit(w, h).0;
+            assert!(
+                (s.night.map.zoom - fit).abs() < 1e-4,
+                "{} != {fit}",
+                s.night.map.zoom
+            );
+            m3.arrangement.clone()
         });
 
         // A new window brings the saved arrangement back.

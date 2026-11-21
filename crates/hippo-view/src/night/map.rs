@@ -44,7 +44,7 @@ use super::{agent, count, Agent};
 use crate::brain::Brain;
 
 /// Below this zoom the map shows folders as single cards.
-pub const OUT_BELOW: f32 = 0.55;
+pub const OUT_BELOW: f32 = 0.7;
 /// Above this zoom note cards show their rules and evidence.
 pub const IN_ABOVE: f32 = 1.6;
 /// The zoom range.
@@ -65,7 +65,7 @@ pub const FRAME_HEAD: f32 = 40.;
 /// both frames.
 pub const FRAME_GAP: f32 = 48.;
 /// Between columns: room for the lines' turns.
-pub const COL_GAP: f32 = 72.;
+pub const COL_GAP: f32 = 112.;
 /// A column's width.
 pub const COL_W: f32 = CARD_W + 2. * FRAME_PAD;
 /// One line of an In card's extra text.
@@ -90,7 +90,7 @@ pub const OUT_ROWS: usize = 6;
 /// A mark's diameter.
 pub const OUT_DOT: f32 = 12.;
 /// An Out card's icon, as a share of its name's size.
-pub const OUT_ICON: f32 = 0.8;
+pub const OUT_ICON: f32 = 0.7;
 /// Note rows in a folder card on a map of more blocks than [`OUT_FEW`]:
 /// none. Its overview is drawn smaller, so a folder card shows its name
 /// and its counts, in a grid of one height on every card.
@@ -107,28 +107,25 @@ pub const LEADING: f32 = 1.25;
 /// Points around a map fitted to its view.
 pub const FIT_PAD: f32 = 28.;
 /// The largest zoom a map fitted at Out takes: just below Mid.
-pub const OUT_FIT: f32 = 0.54;
+pub const OUT_FIT: f32 = 0.69;
 /// At most this many lines show at once, at any zoom: a level with more
 /// pairs of linked cards draws only the lines of the card in focus.
 pub const LINE_BUDGET: usize = 12;
 
-/// How the map's lines and zoom floors are drawn, in screen pixels and
+/// How the map's lines, badges and zoom are drawn, in screen pixels and
 /// zoom factors. Hippo.app paints from these and the web demo reads them
 /// from the map's JSON, so both draw the same map.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct Style {
-    /// A line at Out: `1 + step × log2(links)` px, at most `max`; below the
-    /// zoom the map was fitted at it thins with the map, down to `thin`.
-    pub line_out: f32,
-    pub line_out_step: f32,
-    pub line_out_max: f32,
-    pub line_out_thin: f32,
-    /// A line at Mid and In, px.
-    pub line_in: f32,
+    /// Every line, at every zoom, px.
+    pub line: f32,
     /// A line's rounded corners, px.
     pub corner: f32,
     /// An arrowhead's length, px.
     pub arrow: f32,
+    /// A count badge's radius, px, and the room it keeps from any card.
+    pub badge: f32,
+    pub badge_room: f32,
     /// Port rings show from this zoom.
     pub port_from: f32,
     /// Below these zooms an Out card drops its note rows, then its counts.
@@ -138,16 +135,16 @@ pub struct Style {
     pub in_above: f32,
     pub out_fit: f32,
     pub fit_pad: f32,
+    /// The zooms + and − step through; the fitted zoom sits between two.
+    pub steps: [f32; 13],
 }
 
 pub const STYLE: Style = Style {
-    line_out: 1.,
-    line_out_step: 0.35,
-    line_out_max: 2.,
-    line_out_thin: 0.55,
-    line_in: 1.5,
+    line: 1.5,
     corner: 7.,
     arrow: 7.,
+    badge: 9.,
+    badge_room: 4.,
     port_from: 0.6,
     rows_below: OUT_ROWS_BELOW,
     meta_below: OUT_META_BELOW,
@@ -155,18 +152,44 @@ pub const STYLE: Style = Style {
     in_above: IN_ABOVE,
     out_fit: OUT_FIT,
     fit_pad: FIT_PAD,
+    steps: [
+        0.15, 0.2, 0.25, 0.33, 0.4, 0.5, 0.6, 0.7, 0.85, 1., 1.25, 2., 3.,
+    ],
 };
 
 impl Style {
-    /// A line's width at `level` and zoom `z`, for a map fitted at `fit`.
-    pub fn line(&self, level: Level, links: usize, z: f32, fit: f32) -> f32 {
-        if level == Level::Out {
-            let w = (self.line_out + self.line_out_step * (links.max(1) as f32).log2())
-                .min(self.line_out_max);
-            w * (z / fit.max(0.01)).clamp(self.line_out_thin, 1.)
+    /// The zoom one step in (`dir` > 0) or out from `z`, between `least`
+    /// (the fitted zoom) and [`MAX_ZOOM`]. A zoom between two steps goes
+    /// to the next one, so every press changes it.
+    pub fn step(&self, z: f32, dir: i32, least: f32) -> f32 {
+        let next = if dir > 0 {
+            self.steps
+                .iter()
+                .copied()
+                .find(|&s| s > z + 0.005)
+                .unwrap_or(MAX_ZOOM)
         } else {
-            self.line_in
-        }
+            self.steps
+                .iter()
+                .rev()
+                .copied()
+                .find(|&s| s < z - 0.005)
+                .unwrap_or(least)
+        };
+        next.clamp(least.min(MAX_ZOOM), MAX_ZOOM)
+    }
+
+    /// Whether a badge at map zoom `z`, `room` map points from the
+    /// nearest card, keeps its radius and room clear of it.
+    pub fn badge_fits(&self, room: f32, z: f32, links: usize) -> bool {
+        room * z >= self.badge_half(links) + self.badge_room
+    }
+
+    /// Half a badge's width, px: a circle for one or two figures, a pill
+    /// for more.
+    pub fn badge_half(&self, links: usize) -> f32 {
+        let digits = links.max(1).to_string().len() as f32;
+        self.badge.max(digits * 3.4 + 5.)
     }
 }
 
@@ -357,6 +380,21 @@ pub struct Line {
     pub back: bool,
 }
 
+/// Where a trunk's branch leaves it for more than one link: a round badge
+/// at the branch's foot gives the count. It sits in a gutter, `room` map
+/// points from the nearest card; Hippo.app and the demo draw it only where
+/// [`Style::badge_fits`].
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Badge {
+    pub x: f32,
+    pub y: f32,
+    pub links: usize,
+    pub trunk: usize,
+    pub room: f32,
+    /// The cards its branch leads to.
+    pub to: Vec<Item>,
+}
+
 /// What a label is, which sets its weight and colour.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -421,6 +459,8 @@ pub struct Layout {
     /// Each linked card's lines, bundled, drawn while it is hovered or
     /// selected; no line is drawn at rest.
     pub focus: Vec<(Item, Vec<Line>)>,
+    /// The count badges drawn with each linked card's lines.
+    pub badges: Vec<(Item, Vec<Badge>)>,
     /// Every word drawn on the map at this level, on top of the cards.
     pub labels: Vec<Label>,
     pub marks: Vec<Mark>,
@@ -448,6 +488,69 @@ impl Layout {
         focus
             .and_then(|f| self.focus.iter().find(|(i, _)| *i == f))
             .map_or(&[], |(_, ls)| ls.as_slice())
+    }
+
+    /// The badges drawn with `focus`'s lines.
+    pub fn badges(&self, focus: Option<Item>) -> &[Badge] {
+        focus
+            .and_then(|f| self.badges.iter().find(|(i, _)| *i == f))
+            .map_or(&[], |(_, bs)| bs.as_slice())
+    }
+
+    /// The lines of `focus` under a map point, within `tol` map points of
+    /// one: a badge (within its radius) stands for the lines of its branch,
+    /// a run for every line drawn along it. What a status line counts.
+    pub fn lines_at(
+        &self,
+        focus: Option<Item>,
+        x: f32,
+        y: f32,
+        tol: f32,
+        badge: f32,
+    ) -> Vec<&Line> {
+        let lines = self.shown(focus);
+        if let Some(b) = self
+            .badges(focus)
+            .iter()
+            .find(|b| (b.x - x).hypot(b.y - y) <= badge)
+        {
+            return lines
+                .iter()
+                .filter(|l| l.trunk == b.trunk && b.to.contains(&l.to))
+                .collect();
+        }
+        // The lines nearest the point: lines that run together are as near
+        // as each other, so a shared run gives every line along it.
+        let dist = |l: &Line| {
+            l.points
+                .windows(2)
+                .map(|w| {
+                    let px = x.clamp(w[0].0.min(w[1].0), w[0].0.max(w[1].0));
+                    let py = y.clamp(w[0].1.min(w[1].1), w[0].1.max(w[1].1));
+                    (px - x).hypot(py - y)
+                })
+                .fold(f32::MAX, f32::min)
+        };
+        let hit: Vec<(f32, &Line)> = lines
+            .iter()
+            .map(|l| (dist(l), l))
+            .filter(|h| h.0 <= tol)
+            .collect();
+        let best = hit.iter().map(|h| h.0).fold(f32::MAX, f32::min);
+        hit.into_iter()
+            .filter(|h| h.0 <= best + 0.5)
+            .map(|h| h.1)
+            .collect()
+    }
+
+    /// The links lines stand for, once per card they reach.
+    pub fn links_of(lines: &[&Line]) -> usize {
+        let mut seen = BTreeSet::new();
+        lines
+            .iter()
+            .filter(|l| seen.insert(l.to))
+            .map(|l| l.links)
+            .sum()
     }
 
     /// How many lines the eye sees with `focus`: a trunk and its branches
@@ -1010,8 +1113,53 @@ fn folders(notes: &[MapNote]) -> Vec<Folder> {
             }
         })
         .collect();
-    out.sort_by(|a, b| b.notes.len().cmp(&a.notes.len()).then(a.name.cmp(&b.name)));
+    out.sort_by(|a, b| {
+        b.notes
+            .len()
+            .cmp(&a.notes.len())
+            .then(natural(&a.name, &b.name))
+    });
     out
+}
+
+/// Names in the order a person counts: `Folder 2` before `Folder 10`.
+fn natural(a: &str, b: &str) -> std::cmp::Ordering {
+    let (mut x, mut y) = (a.chars().peekable(), b.chars().peekable());
+    loop {
+        match (x.peek().copied(), y.peek().copied()) {
+            (None, None) => return std::cmp::Ordering::Equal,
+            (None, _) => return std::cmp::Ordering::Less,
+            (_, None) => return std::cmp::Ordering::Greater,
+            (Some(c), Some(d)) if c.is_ascii_digit() && d.is_ascii_digit() => {
+                let take = |it: &mut std::iter::Peekable<std::str::Chars>| {
+                    let mut n = String::new();
+                    while let Some(c) = it.peek().copied().filter(char::is_ascii_digit) {
+                        n.push(c);
+                        it.next();
+                    }
+                    n
+                };
+                let (p, q) = (take(&mut x), take(&mut y));
+                let (p0, q0) = (p.trim_start_matches('0'), q.trim_start_matches('0'));
+                let o = p0
+                    .len()
+                    .cmp(&q0.len())
+                    .then(p0.cmp(q0))
+                    .then(p.len().cmp(&q.len()));
+                if o.is_ne() {
+                    return o;
+                }
+            }
+            (Some(c), Some(d)) => {
+                let o = c.cmp(&d);
+                if o.is_ne() {
+                    return o;
+                }
+                x.next();
+                y.next();
+            }
+        }
+    }
 }
 
 /// An In card's words, wrapped to its width: the summary, each rule and
@@ -1027,7 +1175,7 @@ pub struct InText {
 pub const IN_SUMMARY: f32 = 50.;
 pub const IN_ROW_GAP: f32 = 4.;
 /// An In card's summary and row sizes.
-pub const IN_SUMMARY_SIZE: f32 = 13.5;
+pub const IN_SUMMARY_SIZE: f32 = 14.;
 pub const IN_ROW_SIZE: f32 = 13.;
 
 /// An In card's words, wrapped.
@@ -1486,6 +1634,8 @@ fn draw(level: Level, b: Block, notes: &[MapNote], folders: &[Folder], plan: Pla
         }
         (Level::Out, Block::Folder(fi)) => {
             let f = &folders[fi];
+            // A big map's overview is drawn smaller: fewer rows.
+            let many = folders.len() + pinned_of(notes).len() > OUT_FEW;
             let mut legend: Vec<(String, Option<&'static str>)> =
                 vec![(count(f.notes.len(), "note", "notes"), None)];
             for (n, words, tone) in [
@@ -1494,15 +1644,16 @@ fn draw(level: Level, b: Block, notes: &[MapNote], folders: &[Folder], plan: Pla
                 (f.rejected, ("rejected", "rejected"), "bad"),
                 (f.stale, ("stale", "stale"), "faint"),
             ] {
-                if n > 0 {
+                // On a big map's overview every card keeps all four in
+                // their places, a zero as a hollow mark, so no grid has a
+                // hole.
+                if n > 0 || many {
                     legend.push((
                         format!("{n} {}", if n == 1 { words.0 } else { words.1 }),
-                        Some(tone),
+                        Some(if n > 0 { tone } else { "zero" }),
                     ));
                 }
             }
-            // A big map's overview is drawn smaller: fewer rows.
-            let many = folders.len() + pinned_of(notes).len() > OUT_FEW;
             let shown = if many {
                 0
             } else if f.notes.len() > OUT_ROWS {
@@ -1630,9 +1781,10 @@ fn pack(
     let (frames, cards, labels, marks) = place(level, notes, folders, arr, &|b| {
         draw(level, b, notes, folders, plan)
     });
-    let focus = links(level, folders, edges, &frames, &cards);
+    let (focus, badges) = links(level, folders, edges, &frames, &cards);
     let mut lay = finish(frames, cards, labels, marks);
     lay.focus = focus;
+    lay.badges = badges;
     lay
 }
 
@@ -1728,7 +1880,7 @@ fn links(
     edges: &[(usize, usize)],
     frames: &[(usize, Rect)],
     cards: &[Card],
-) -> Vec<(Item, Vec<Line>)> {
+) -> Focus {
     let rect_of: HashMap<Item, Rect> = cards.iter().map(|c| (c.item, c.rect)).collect();
     let folder_of: HashMap<usize, usize> = folders
         .iter()
@@ -1769,6 +1921,7 @@ fn links(
         .collect();
     let items: BTreeSet<Item> = pairs.keys().flat_map(|&(a, b)| [a, b]).collect();
     let mut focus = Vec::new();
+    let mut badges = Vec::new();
     for f in items {
         let ca = col_of(rect_of[&f].x);
         let mut right: Vec<Target> = Vec::new();
@@ -1799,10 +1952,17 @@ fn links(
             .enumerate()
             .map(|(k, to)| Want { a: f, to, trunk: k })
             .collect();
-        focus.push((f, route(&wants, &rect_of, &heads, level == Level::Out)));
+        let (lines, bs) = route(&wants, &rect_of, &heads, level == Level::Out);
+        focus.push((f, lines));
+        if !bs.is_empty() {
+            badges.push((f, bs));
+        }
     }
-    focus
+    (focus, badges)
 }
+
+/// Each linked card's lines and badges.
+type Focus = (Vec<(Item, Vec<Line>)>, Vec<(Item, Vec<Badge>)>);
 
 /// The layout's size around what it holds.
 fn finish(
@@ -1828,6 +1988,7 @@ fn finish(
         frames,
         cards,
         focus: Vec::new(),
+        badges: Vec::new(),
         labels,
         marks,
     }
@@ -2006,7 +2167,12 @@ type Target = (Item, usize, bool, bool);
 /// drops a branch to them, on the same vertical as any turn it makes there,
 /// so each gap holds one vertical per trunk. Lines that leave one edge of a
 /// card are spread along it, ordered by where their other ends sit.
-fn route(wants: &[Want], rect_of: &HashMap<Item, Rect>, heads: &[Rect], out: bool) -> Vec<Line> {
+fn route(
+    wants: &[Want],
+    rect_of: &HashMap<Item, Rect>,
+    heads: &[Rect],
+    out: bool,
+) -> (Vec<Line>, Vec<Badge>) {
     let clear = if out { 20f32 } else { 12f32 };
     // A note card's lines meet it by its title; an Out card's, by its
     // middle, spread wider.
@@ -2016,6 +2182,13 @@ fn route(wants: &[Want], rect_of: &HashMap<Item, Rect>, heads: &[Rect], out: boo
         } else {
             r.y + r.h.min(CARD_H) / 2.
         }
+    };
+    // Where an edge's lines meet it: a left edge a little above the
+    // middle, a right edge a little below, so lines into two cards across
+    // a gutter never meet head to head.
+    let port = |r: &Rect, right: bool| {
+        let d = if out { r.h * 0.12 } else { 10. };
+        centre(r) + if right { d } else { -d }
     };
     let spread = if out { 24f32 } else { 14f32 };
     struct Path {
@@ -2077,7 +2250,9 @@ fn route(wants: &[Want], rect_of: &HashMap<Item, Rect>, heads: &[Rect], out: boo
                 .push((centre(&p.ra), k, j));
         }
     }
-    for ((item, _), mut list) in ends {
+    // An end that is alone on its edge, for snapping.
+    let alone: HashMap<(Item, bool), bool> = ends.iter().map(|(k, v)| (*k, v.len() == 1)).collect();
+    for ((item, edge), mut list) in ends {
         let Some(r) = rect_of.get(&item) else {
             continue;
         };
@@ -2090,13 +2265,36 @@ fn route(wants: &[Want], rect_of: &HashMap<Item, Rect>, heads: &[Rect], out: boo
             spread.min((hi - lo) / (n - 1) as f32)
         };
         let half = step * (n.saturating_sub(1)) as f32 / 2.;
-        let mid = centre(r).clamp(lo + half, (hi - half).max(lo + half));
+        let mid = port(r, edge).clamp(lo + half, (hi - half).max(lo + half));
         for (k, (_, path, j)) in list.into_iter().enumerate() {
             let y = mid - half + k as f32 * step;
             if j == usize::MAX {
                 paths[path].ya = y;
             } else {
                 paths[path].yb[j] = y;
+            }
+        }
+    }
+    // A line alone at both its ends between neighbouring columns (or in one
+    // column) runs straight when its ends are within 16 points: no
+    // dog-leg.
+    for p in &mut paths {
+        if p.to.len() != 1 {
+            continue;
+        }
+        let (t, r) = (p.to[0].0, p.to[0].1);
+        let (ca, tc) = (col_of(p.ra.x), col_of(r.x));
+        let near = tc == ca || tc == ca + 1 || tc + 1 == ca;
+        let er = !p.right || tc == ca;
+        if !near || !alone[&(p.a, p.right)] || !alone[&(t, er)] {
+            continue;
+        }
+        let (ya, yb) = (p.ya, p.yb[0]);
+        if (ya - yb).abs() < 16. {
+            if ya > r.y + 10. && ya < r.bottom() - 10. {
+                p.yb[0] = ya;
+            } else if yb > p.ra.y + 10. && yb < p.ra.bottom() - 10. {
+                p.ya = yb;
             }
         }
     }
@@ -2210,11 +2408,24 @@ fn route(wants: &[Want], rect_of: &HashMap<Item, Rect>, heads: &[Rect], out: boo
         }
     }
     let mut lines = Vec::new();
+    let mut badges = Vec::new();
     for p in &paths {
         let a0 = if p.right { p.ra.right() } else { p.ra.x };
         let mut trunk = vec![(a0, p.ya)];
         for (s, (_, y, js, to)) in p.stops.iter().enumerate() {
             let x = p.lanes[s];
+            let links: usize = js.iter().map(|&j| p.to[j].2).sum();
+            if links >= 2 {
+                let (gl, gr) = (col_x(p.stops[s].0) - COL_GAP, col_x(p.stops[s].0));
+                badges.push(Badge {
+                    x,
+                    y: *y,
+                    links,
+                    trunk: p.trunk,
+                    room: (x - gl).min(gr - x),
+                    to: js.iter().map(|&j| p.to[j].0).collect(),
+                });
+            }
             for &j in js {
                 let (item, t, links, out, back) = p.to[j];
                 let b0 = if enters_right(p, j) { t.right() } else { t.x };
@@ -2222,6 +2433,7 @@ fn route(wants: &[Want], rect_of: &HashMap<Item, Rect>, heads: &[Rect], out: boo
                 points.push((x, *y));
                 points.push((x, p.yb[j]));
                 points.push((b0, p.yb[j]));
+                let points = straight(points);
                 let (mut x0, mut y0, mut x1, mut y1) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
                 for &(px, py) in &points {
                     x0 = x0.min(px);
@@ -2246,7 +2458,30 @@ fn route(wants: &[Want], rect_of: &HashMap<Item, Rect>, heads: &[Rect], out: boo
             }
         }
     }
-    lines
+    (lines, badges)
+}
+
+/// A polyline without repeated points or points in the middle of a
+/// straight run: every point it keeps is a corner or an end.
+fn straight(points: Vec<(f32, f32)>) -> Vec<(f32, f32)> {
+    let mut v: Vec<(f32, f32)> = Vec::with_capacity(points.len());
+    for q in points {
+        if v.last()
+            .is_some_and(|l: &(f32, f32)| (l.0 - q.0).abs() < 0.01 && (l.1 - q.1).abs() < 0.01)
+        {
+            continue;
+        }
+        if v.len() >= 2 {
+            let (a, b) = (v[v.len() - 2], v[v.len() - 1]);
+            let level = (a.1 - b.1).abs() < 0.01 && (b.1 - q.1).abs() < 0.01;
+            let plumb = (a.0 - b.0).abs() < 0.01 && (b.0 - q.0).abs() < 0.01;
+            if level || plumb {
+                v.pop();
+            }
+        }
+        v.push(q);
+    }
+    v
 }
 
 /// A synthetic map of `n` notes in `folders` folders with `links` links,
@@ -2564,9 +2799,16 @@ mod tests {
                         m.mid.card(b.to).unwrap().rect,
                     );
                     if col_of(ra.x) == col_of(rb.x) {
-                        let n = a.points.len();
-                        assert_eq!(n, b.points.len());
-                        assert_eq!(a.points[..n - 2], b.points[..n - 2]);
+                        // Up to the foot: a straight run may have taken
+                        // the foot's corner away.
+                        let n = a.points.len().min(b.points.len());
+                        let same = a
+                            .points
+                            .iter()
+                            .zip(&b.points)
+                            .take_while(|(p, q)| p == q)
+                            .count();
+                        assert!(same + 2 >= n, "{a:?} {b:?}");
                     }
                 }
             }
@@ -2602,7 +2844,7 @@ mod tests {
         for m in maps() {
             for l in [&m.out, &m.mid, &m.inner] {
                 for line in all_lines(l) {
-                    assert!(line.points.len() >= 4, "{line:?}");
+                    assert!(line.points.len() >= 2, "{line:?}");
                     for w in line.points.windows(2) {
                         let (a, b) = (w[0], w[1]);
                         assert!(a.0 == b.0 || a.1 == b.1, "{a:?} {b:?}");
@@ -2696,6 +2938,213 @@ mod tests {
             assert_eq!(m.out.card(Item::Note(i)).unwrap().rect.x, 0.);
         }
         assert!(m.out.frames.is_empty());
+    }
+
+    #[test]
+    fn folders_sort_as_a_person_counts() {
+        let mut v = vec!["Folder 10", "Folder 2", "Folder 1", "Alpha", "Folder 02"];
+        v.sort_by(|a, b| natural(a, b));
+        assert_eq!(
+            v,
+            ["Alpha", "Folder 1", "Folder 2", "Folder 02", "Folder 10"]
+        );
+        let m = synthetic(300, 12, 1000);
+        let names: Vec<&str> = m.folders.iter().map(|f| f.name.as_str()).collect();
+        let at = |n: &str| names.iter().position(|x| *x == n).unwrap();
+        // Equal sizes keep counting order.
+        if m.folders[at("Folder 2")].notes.len() == m.folders[at("Folder 10")].notes.len() {
+            assert!(at("Folder 2") < at("Folder 10"));
+        }
+    }
+
+    #[test]
+    fn start_here_takes_one_line() {
+        let mut m = demo_shaped();
+        m.notes[0].title = "START HERE".into();
+        let m = relaid(m);
+        let t = m
+            .out
+            .labels
+            .iter()
+            .find(|l| l.item == Item::Note(0) && l.kind == LabelKind::Title)
+            .unwrap();
+        assert_eq!(t.lines, ["START HERE"]);
+    }
+
+    #[test]
+    fn a_big_overview_keeps_every_count_in_its_place() {
+        let m = synthetic(300, 12, 1000);
+        for f in 0..m.folders.len() {
+            let n = m
+                .out
+                .labels
+                .iter()
+                .filter(|l| l.item == Item::Folder(f) && l.kind == LabelKind::Meta)
+                .count();
+            assert_eq!(n, 5, "folder {f}");
+        }
+    }
+
+    /// How far a point is from a rectangle; 0 inside it.
+    fn dist(x: f32, y: f32, r: &Rect) -> f32 {
+        let dx = (r.x - x).max(0.).max(x - r.right());
+        let dy = (r.y - y).max(0.).max(y - r.bottom());
+        dx.hypot(dy)
+    }
+
+    #[test]
+    fn no_badge_overlaps_a_card() {
+        for m in maps() {
+            for (lv, l) in [("out", &m.out), ("mid", &m.mid), ("in", &m.inner)] {
+                for (f, bs) in &l.badges {
+                    for b in bs {
+                        assert!(b.links >= 2, "{lv}: a badge for one link");
+                        assert!(b.room > 0., "{lv}: {b:?}");
+                        let heads = l
+                            .frames
+                            .iter()
+                            .map(|f| Rect::new(f.1.x, f.1.y, f.1.w, FRAME_HEAD));
+                        for r in l.cards.iter().map(|c| c.rect).chain(heads) {
+                            assert!(
+                                dist(b.x, b.y, &r) >= b.room - 0.5,
+                                "{lv}: {f:?}'s badge {b:?} is {} from {r:?}",
+                                dist(b.x, b.y, &r)
+                            );
+                        }
+                        // Drawn only where its radius and room fit.
+                        for z in STYLE.steps {
+                            if STYLE.badge_fits(b.room, z, b.links) {
+                                assert!(b.room * z >= STYLE.badge_half(b.links) + STYLE.badge_room);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Badges show on the 300-note overview at its fitted zoom.
+        let (w, h) = (1220., 690.);
+        let m = synthetic(300, 12, 1000).fitted(w, h);
+        let (z, _) = m.fit(w, h);
+        let shown = m
+            .out
+            .badges
+            .iter()
+            .flat_map(|(_, bs)| bs)
+            .filter(|b| STYLE.badge_fits(b.room, z, b.links))
+            .count();
+        assert!(shown > 0, "no badge fits at {z}");
+    }
+
+    #[test]
+    fn every_line_drawn_ends_in_a_head() {
+        for m in maps() {
+            for (lv, l) in [("out", &m.out), ("mid", &m.mid), ("in", &m.inner)] {
+                let z = match lv {
+                    "out" => MIN_ZOOM,
+                    "mid" => OUT_BELOW,
+                    _ => IN_ABOVE,
+                };
+                for line in all_lines(l) {
+                    assert!(line.out || line.back, "{lv}: a line with no way");
+                    let n = line.points.len();
+                    let (a, b) = (line.points[n - 2], line.points[n - 1]);
+                    let r = l.card(line.to).unwrap().rect;
+                    // It meets its card's edge level, with room for a head.
+                    assert_eq!(a.1, b.1, "{lv}: {line:?} ends on a turn");
+                    assert!(
+                        b.0 == r.x || b.0 == r.right(),
+                        "{lv}: {line:?} misses {r:?}"
+                    );
+                    assert!(b.1 > r.y && b.1 < r.bottom(), "{lv}: {line:?}");
+                    assert!(
+                        (a.0 - b.0).abs() * z >= STYLE.arrow,
+                        "{lv}: no room for a head: {line:?}"
+                    );
+                    if line.back {
+                        let (p, q) = (line.points[0], line.points[1]);
+                        let r = l.card(line.from).unwrap().rect;
+                        assert_eq!(p.1, q.1);
+                        assert!(p.0 == r.x || p.0 == r.right());
+                        assert!((p.0 - q.0).abs() * z >= STYLE.arrow, "{lv}: {line:?}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_badge_counts_what_the_status_says() {
+        for m in maps() {
+            for l in [&m.out, &m.mid, &m.inner] {
+                for (f, bs) in &l.badges {
+                    for b in bs {
+                        let under = l.lines_at(Some(*f), b.x, b.y, 4., 6.);
+                        assert_eq!(Layout::links_of(&under), b.links, "{f:?} {b:?}");
+                    }
+                }
+                // Along a line, the status counts the lines drawn there.
+                for (f, ls) in &l.focus {
+                    for line in ls.iter().take(3) {
+                        let n = line.points.len();
+                        let (a, c) = (line.points[n - 2], line.points[n - 1]);
+                        let under = l.lines_at(Some(*f), (a.0 + c.0) / 2., a.1, 1., 0.);
+                        assert!(under.iter().any(|u| u.to == line.to), "{f:?}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn zoom_steps_are_one_table() {
+        let st = &STYLE;
+        assert!(st.steps.windows(2).all(|w| w[0] < w[1]));
+        assert_eq!(st.steps[0], MIN_ZOOM);
+        assert_eq!(*st.steps.last().unwrap(), MAX_ZOOM);
+        // Mid and In each have a step that reads.
+        assert!(st.steps.iter().any(|&s| Level::of(s) == Level::Mid));
+        assert!(st.steps.iter().any(|&s| Level::of(s) == Level::In));
+        // From a fitted zoom between two steps, + and − go to the next
+        // step and never below the fit.
+        let fit = 0.44;
+        assert_eq!(st.step(fit, 1, fit), 0.5);
+        assert_eq!(st.step(fit, -1, fit), fit);
+        assert_eq!(st.step(1., 1, fit), 1.25);
+        assert_eq!(st.step(1., -1, fit), 0.85);
+        assert_eq!(st.step(3., 1, fit), 3.);
+        // The JSON carries the table, so the demo steps through the same.
+        let json = serde_json::to_value(STYLE).unwrap();
+        assert_eq!(json["steps"].as_array().unwrap().len(), st.steps.len());
+    }
+
+    #[test]
+    fn heads_never_meet_across_a_gutter() {
+        // Lines into the cards either side of a gutter meet them at
+        // different heights, so no two arrowheads sit back to back.
+        let m = synthetic(300, 12, 1000).fitted(1220., 690.);
+        for l in [&m.out, &m.mid] {
+            for (f, ls) in &l.focus {
+                let ends: Vec<(f32, f32, f32)> = ls
+                    .iter()
+                    .map(|x| {
+                        let n = x.points.len();
+                        (x.points[n - 1].0, x.points[n - 2].0, x.points[n - 1].1)
+                    })
+                    .collect();
+                for a in &ends {
+                    for b in &ends {
+                        // Facing: heads pointing at each other in one gap.
+                        let facing = (a.0 - b.0).abs() <= COL_GAP + 0.5
+                            && (a.0 - b.0).abs() > 0.5
+                            && (a.1 - b.1).abs() < 0.5
+                            && ((a.0 < a.1) != (b.0 < b.1));
+                        if facing {
+                            assert!((a.2 - b.2).abs() >= 8., "{f:?}: heads meet at {a:?} {b:?}");
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Maps to check every level of: small and large, short and long

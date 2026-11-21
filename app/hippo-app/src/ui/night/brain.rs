@@ -30,10 +30,8 @@ use crate::ui::theme::Look;
 
 /// The header's height above the map, in points.
 pub const HEAD: f32 = 128.;
-/// Zoom steps for the buttons and keys.
-const STEP: f32 = 1.25;
 /// A lifted block is drawn this much larger, raised over the map.
-const LIFT_SCALE: f32 = 1.03;
+const LIFT_SCALE: f32 = 1.04;
 /// How long blocks take to slide aside, a dropped block to settle, and a
 /// block put back to fly home, in milliseconds.
 const SLIDE_MS: f32 = 150.;
@@ -77,8 +75,41 @@ pub struct MapView {
     /// The map view's size when it was last fitted: a reloaded map is laid
     /// out for it.
     pub view_size: Option<(f32, f32)>,
-    /// The zoom the map was last fitted at: lines thin below it.
+    /// The zoom the map was last fitted at: the smallest.
     pub fit_zoom: f32,
+    /// The view moving to `zoom` and `pan` from where it was: a refit
+    /// after a drop.
+    pub camera: Option<Camera>,
+}
+
+/// Where the view was when it started moving, and for how long it moves.
+#[derive(Clone, Copy)]
+pub struct Camera {
+    pub zoom: f32,
+    pub pan: (f32, f32),
+    pub start: Instant,
+    pub ms: f32,
+}
+
+impl Camera {
+    /// The zoom and pan drawn now, on the way to `(zoom, pan)`; whether
+    /// it is still moving.
+    fn now(&self, zoom: f32, pan: (f32, f32)) -> (f32, (f32, f32), bool) {
+        let t = if let Some(p) = dev_progress() {
+            p
+        } else if self.ms <= 0. {
+            1.
+        } else {
+            (self.start.elapsed().as_secs_f32() * 1000. / self.ms).min(1.)
+        };
+        let e = 1. - (1. - t).powi(3);
+        let l = |a: f32, b: f32| a + (b - a) * e;
+        (
+            l(self.zoom, zoom),
+            (l(self.pan.0, pan.0), l(self.pan.1, pan.1)),
+            t < 1.,
+        )
+    }
 }
 
 /// Blocks sliding to their places in `lay`: each one's offset from there
@@ -173,6 +204,7 @@ impl Default for MapView {
             slide: None,
             view_size: None,
             fit_zoom: 1.,
+            camera: None,
         }
     }
 }
@@ -320,8 +352,6 @@ struct Paint {
     zoom: f32,
     pan: (f32, f32),
     selected: Option<usize>,
-    /// The zoom the map was fitted at.
-    fit: f32,
     t: Nt,
     unit: f32,
     family: SharedString,
@@ -334,6 +364,63 @@ struct Paint {
     hover: Option<Item>,
     hover_line: Option<HoverLine>,
     slide: Option<Slide>,
+    camera: Option<Camera>,
+}
+
+/// `a` laid over `b` at `k`, as one opaque colour: lines that run together
+/// draw as one, never brighter where they overlap.
+fn mix(a: Hsla, b: Hsla, k: f32) -> Hsla {
+    let (a, b) = (gpui::Rgba::from(a), gpui::Rgba::from(b));
+    let k = (k * a.a).clamp(0., 1.);
+    Hsla::from(gpui::Rgba {
+        r: a.r * k + b.r * (1. - k),
+        g: a.g * k + b.g * (1. - k),
+        b: a.b * k + b.b * (1. - k),
+        a: 1.,
+    })
+}
+
+/// `s` broken at spaces into lines no wider than `max` pixels as the font
+/// sets them, at most `most` lines, the last cut with `…`.
+fn wrap_px(
+    window: &mut Window,
+    s: &str,
+    size_px: f32,
+    f: &Font,
+    max: f32,
+    most: usize,
+) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    for w in s.split_whitespace() {
+        let next = if cur.is_empty() {
+            w.to_owned()
+        } else {
+            format!("{cur} {w}")
+        };
+        if cur.is_empty() || text_width(window, &next, size_px, f) <= max {
+            cur = next;
+        } else {
+            out.push(std::mem::replace(&mut cur, w.to_owned()));
+        }
+    }
+    if !cur.is_empty() {
+        out.push(cur);
+    }
+    if out.len() > most.max(1) {
+        out.truncate(most.max(1));
+        let last = out.last_mut().expect("one line");
+        while !last.is_empty() && text_width(window, &format!("{last}…"), size_px, f) > max {
+            match last.rfind(' ') {
+                Some(i) => last.truncate(i),
+                None => {
+                    last.pop();
+                }
+            }
+        }
+        last.push('…');
+    }
+    out
 }
 
 fn font(family: &SharedString, weight: FontWeight) -> Font {
@@ -544,9 +631,8 @@ fn names(v: Vec<String>) -> String {
     }
 }
 
-/// A branch's count: its trunk and foot (rounded), where to draw it in
-/// pixels, the links it stands for.
-type Badge = ((usize, i64, i64), (f32, f32), usize);
+/// An arrowhead: its tip, the point before it, its colour (pixels).
+type Head = ((f32, f32), (f32, f32), Hsla);
 
 /// A block's name: a folder's, or a note's title.
 fn block_name(m: &NotesMap, item: Item) -> String {
@@ -600,11 +686,18 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
     let (ox, oy) = (f32::from(b.origin.x), f32::from(b.origin.y));
     let (vw, vh) = (f32::from(b.size.width), f32::from(b.size.height));
     p.view.set((ox, oy, vw, vh));
-    let z = p.zoom;
+    // A refit after a drop moves the view there.
+    let (z, pan, flying) = match &p.camera {
+        Some(c) => c.now(p.zoom, p.pan),
+        None => (p.zoom, p.pan, false),
+    };
+    if flying {
+        window.request_animation_frame();
+    }
     let u = p.unit;
-    let s = |mx: f32, my: f32| (ox + (mx - p.pan.0) * z * u, oy + (my - p.pan.1) * z * u);
+    let s = |mx: f32, my: f32| (ox + (mx - pan.0) * z * u, oy + (my - pan.1) * z * u);
     let level = Level::of(z);
-    let view = map::Rect::new(p.pan.0, p.pan.1, vw / (z * u), vh / (z * u));
+    let view = map::Rect::new(pan.0, pan.1, vw / (z * u), vh / (z * u));
     let t = &p.t;
     // What is drawn: while a block is lifted, or blocks still slide, the
     // layout they slide to; else the map's.
@@ -673,8 +766,8 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
         step *= 2.;
     }
     let d = (2. * u).max(1.);
-    let gx = (-p.pan.0 * z * u).rem_euclid(step);
-    let gy = (-p.pan.1 * z * u).rem_euclid(step);
+    let gx = (-pan.0 * z * u).rem_euclid(step);
+    let gy = (-pan.1 * z * u).rem_euclid(step);
     let mut y = gy;
     while y < vh {
         let mut x = gx;
@@ -700,132 +793,87 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
                 14.
             }) * z
                 * u,
-            t.you.opacity(0.08),
+            t.you.opacity(if t.dark { 0.12 } else { 0.08 }),
             if t.dark {
-                t.you_line
+                t.you.opacity(0.75)
             } else {
-                t.you_line.opacity(0.8)
+                t.you_line
             },
             (1.5 * u).max(1.),
             true,
         );
     }
 
-    // Lines, behind the cards. The selected note's in the text colour; a
-    // hovered card's in the accent, over the selection's, which stay faint.
-    // Each line ends in an arrowhead at the card it points to, and a branch
-    // that stands for more than one link carries its count where it leaves
-    // the trunk. While a lifted block's neighbours slide, none; once they
-    // stop, and while a dropped block settles, faint.
+    // Lines, behind the cards, one weight at every zoom: the selected
+    // note's in a quiet neutral; a hovered card's in lime over them, the
+    // selection's still drawn. Lines under the pointer turn lime. While a
+    // block is lifted or blocks slide, every line shows faint where it will
+    // run. Arrowheads and count badges go over the cards, below.
     let focus = p.focus;
     let mut drawn_lines = 0;
     let style = &p.map.style;
-    let hide = lift.is_some() && moving;
-    let faint_all = lift.is_some() || moving;
-    let accent_c = t.you_stroke();
+    let faint = if lift.is_some() || moving { 0.35 } else { 1. };
+    let neutral = mix(t.night, t.canvas, 0.55 * faint);
+    let lime = mix(t.you_stroke(), t.canvas, faint);
     let sel_focus = p.selected.map(|i| p.map.same_item(Item::Note(i), level));
-    let mut sets: Vec<(Option<Item>, Hsla, f32)> = Vec::new();
+    let mut sets: Vec<(Option<Item>, Hsla)> = Vec::new();
     if p.hover.is_some() && p.hover == focus {
         if sel_focus != focus {
-            sets.push((sel_focus, t.night, 0.3));
+            sets.push((sel_focus, neutral));
         }
-        sets.push((focus, accent_c, 1.));
+        sets.push((focus, lime));
     } else {
-        sets.push((focus, t.night, 1.));
+        sets.push((focus, neutral));
     }
-    if !hide {
-        for (who, base, alpha) in sets {
-            let lines: Vec<&map::Line> = lay
-                .shown(who)
-                .iter()
-                .filter(|l| l.bounds.meets(&view))
-                .collect();
-            let alpha = if faint_all { alpha.min(0.35) } else { alpha };
-            let color = base.opacity(alpha);
-            let mut heads: Vec<((f32, f32), (f32, f32))> = Vec::new();
-            let mut badges: Vec<Badge> = Vec::new();
-            for l in &lines {
-                // The line under the pointer at Out: a step wider, lime.
-                let hot = p
-                    .hover_line
-                    .as_ref()
-                    .is_some_and(|(ends, _)| ends.contains(&(l.from, l.to)));
-                let width =
-                    style.line(level, l.links, z, p.fit) * u + if hot { 1. * u } else { 0. };
-                let pts: Vec<(f32, f32)> = l.points.iter().map(|q| s(q.0, q.1)).collect();
-                let c = if hot && alpha > 0.5 { accent_c } else { color };
-                stroke_rounded(window, &pts, width, style.corner * u, c);
-                drawn_lines += 1;
-                let n = pts.len();
-                if l.out {
-                    heads.push((pts[n - 1], pts[n - 2]));
-                }
-                if l.back && !heads.iter().any(|h| h.0 == pts[0]) {
-                    heads.push((pts[0], pts[1]));
-                }
-                // The branch's foot: where it leaves the trunk.
-                if n >= 4 {
-                    let foot = l.points[n - 4];
-                    let key = (l.trunk, foot.0.round() as i64, foot.1.round() as i64);
-                    match badges.iter_mut().find(|b| b.0 == key) {
-                        Some(b) => b.2 += l.links,
-                        None => badges.push((key, s(foot.0, foot.1), l.links)),
-                    }
-                }
+    let width = style.line * u;
+    // Heads: tip, the point before it, colour. Badges: centre, count,
+    // colour.
+    let mut heads: Vec<Head> = Vec::new();
+    let mut badges: Vec<((f32, f32), usize, Hsla)> = Vec::new();
+    for (who, color) in &sets {
+        let mut hot: Vec<&map::Line> = Vec::new();
+        let mut cold: Vec<&map::Line> = Vec::new();
+        for l in lay.shown(*who).iter().filter(|l| l.bounds.meets(&view)) {
+            let under = p
+                .hover_line
+                .as_ref()
+                .is_some_and(|(ends, _)| ends.contains(&(l.from, l.to)));
+            if under { hot.push(l) } else { cold.push(l) }
+        }
+        let hot_c = mix(t.you_stroke(), t.canvas, faint);
+        for (l, c) in cold
+            .iter()
+            .map(|l| (l, *color))
+            .chain(hot.iter().map(|l| (l, hot_c)))
+        {
+            let pts: Vec<(f32, f32)> = l.points.iter().map(|q| s(q.0, q.1)).collect();
+            stroke_rounded(window, &pts, width, style.corner * u, c);
+            drawn_lines += 1;
+            let n = pts.len();
+            if l.out {
+                heads.push((pts[n - 1], pts[n - 2], c));
             }
-            if alpha < 0.5 {
-                continue;
+            if l.back {
+                heads.push((pts[0], pts[1], c));
             }
-            // Arrowheads: a filled point at the end of the last segment.
-            let a = style.arrow * u * (z / p.fit.max(0.01)).clamp(0.7, 1.);
-            for (tip, from) in heads {
-                let (dx, dy) = (tip.0 - from.0, tip.1 - from.1);
-                let len = (dx * dx + dy * dy).sqrt().max(0.01);
-                let (ux, uy) = (dx / len, dy / len);
-                let base = (tip.0 - ux * a, tip.1 - uy * a);
-                let mut b = gpui::PathBuilder::fill();
-                b.move_to(point(px(tip.0), px(tip.1)));
-                b.line_to(point(px(base.0 - uy * a * 0.5), px(base.1 + ux * a * 0.5)));
-                b.line_to(point(px(base.0 + uy * a * 0.5), px(base.1 - ux * a * 0.5)));
-                b.line_to(point(px(tip.0), px(tip.1)));
-                if let Ok(path) = b.build() {
-                    window.paint_path(path, color);
-                }
-            }
-            // Counts on branches that stand for more than one link.
-            let f = font(&p.family, FontWeight::SEMIBOLD);
-            let size_px = 11. * u;
-            for (_, at, n) in badges.into_iter().filter(|b| b.2 > 1) {
-                let words = n.to_string();
-                let tw = text_width(window, &words, size_px, &f);
-                let (w, h) = ((tw + 10. * u).max(18. * u), 18. * u);
-                let bounds = Bounds::new(
-                    point(px(at.0 - w / 2.), px(at.1 - h / 2.)),
-                    size(px(w), px(h)),
-                );
-                rrect(
-                    window,
-                    bounds,
-                    h / 2.,
-                    t.surface,
-                    color,
-                    (1.2 * u).max(1.),
-                    false,
-                );
-                text(
-                    window,
-                    cx,
-                    &words,
-                    at.0 - tw / 2.,
-                    at.1 - size_px * 1.25 / 2.,
-                    size_px,
-                    t.text,
-                    &f,
-                    tw + 2.,
-                );
+        }
+        for bd in lay.badges(*who) {
+            if style.badge_fits(bd.room, z, bd.links) && view.contains(bd.x, bd.y) {
+                badges.push((s(bd.x, bd.y), bd.links, *color));
             }
         }
     }
+    // The last head drawn at a point wins: a lime one over a neutral one.
+    let mut tips: Vec<(i64, i64)> = Vec::new();
+    heads.reverse();
+    heads.retain(|h| {
+        let k = (h.0.0.round() as i64, h.0.1.round() as i64);
+        !tips.contains(&k) && {
+            tips.push(k);
+            true
+        }
+    });
+    heads.reverse();
 
     // Far out a folder card keeps its name and its counts; further out,
     // its name.
@@ -992,7 +1040,6 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
             let fill = match m.tone {
                 "ok" => Some(t.ok),
                 "bad" => Some(t.bad),
-                "you" => Some(t.you_mark()),
                 "faint" => Some(t.faint),
                 "night" => Some(t.night),
                 _ => None,
@@ -1000,14 +1047,81 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
             match fill {
                 Some(c) => window.paint_quad(gpui::fill(b, c).corner_radii(px(d / 2.))),
                 // No flag: a ring, so the row still reads as a note.
+                // A rule waiting: a lime ring, so it never reads as the
+                // fixed mark's filled green.
+                None if m.tone == "you" => window.paint_quad(gpui::quad(
+                    b,
+                    px(d / 2.),
+                    gpui::transparent_black(),
+                    px((2. * u).max(1.5)),
+                    t.you_mark(),
+                    gpui::BorderStyle::Solid,
+                )),
+                // No flag, or none of a count: a ring, so the row still
+                // reads as a note.
                 None => window.paint_quad(gpui::quad(
                     b,
                     px(d / 2.),
                     gpui::transparent_black(),
                     px((1.5 * u).max(1.)),
-                    t.line2,
+                    if m.tone == "zero" || t.dark {
+                        t.line2
+                    } else {
+                        t.faint
+                    },
                     gpui::BorderStyle::Solid,
                 )),
+            }
+        }
+        // Over the resting blocks (under a lifted one): every line's
+        // arrowhead, and the badges where a branch stands for more than
+        // one link.
+        if !pass {
+            let a = style.arrow * u;
+            for &(tip, from, c) in &heads {
+                let (dx, dy) = (tip.0 - from.0, tip.1 - from.1);
+                let len = (dx * dx + dy * dy).sqrt().max(0.01);
+                let (ux, uy) = (dx / len, dy / len);
+                let base = (tip.0 - ux * a, tip.1 - uy * a);
+                let mut b = gpui::PathBuilder::fill();
+                b.move_to(point(px(tip.0), px(tip.1)));
+                b.line_to(point(px(base.0 - uy * a * 0.5), px(base.1 + ux * a * 0.5)));
+                b.line_to(point(px(base.0 + uy * a * 0.5), px(base.1 - ux * a * 0.5)));
+                b.line_to(point(px(tip.0), px(tip.1)));
+                if let Ok(path) = b.build() {
+                    window.paint_path(path, c);
+                }
+            }
+            let f = font(&p.family, FontWeight::SEMIBOLD);
+            let size_px = 11. * u;
+            for &(at, n, c) in &badges {
+                let words = n.to_string();
+                let tw = text_width(window, &words, size_px, &f);
+                let (w, h) = (2. * style.badge_half(n) * u, 2. * style.badge * u);
+                let bounds = Bounds::new(
+                    point(px(at.0 - w / 2.), px(at.1 - h / 2.)),
+                    size(px(w), px(h)),
+                );
+                rrect(
+                    window,
+                    bounds,
+                    h / 2.,
+                    t.surface,
+                    c,
+                    (1.2 * u).max(1.),
+                    false,
+                );
+                text(
+                    window,
+                    cx,
+                    &words,
+                    at.0 - tw / 2.,
+                    at.1 - size_px * 1.25 / 2.,
+                    size_px,
+                    t.text,
+                    &f,
+                    tw + 2.,
+                );
             }
         }
     }
@@ -1070,9 +1184,14 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
     }
 
     let edge = (1. * u).max(1.);
-    // The map's foot: a hairline where it ends above the Ask bar.
+    // The map's foot: a hairline where it ends above the Ask bar; and its
+    // right edge, where it ends before the panel.
     window.paint_quad(gpui::fill(
         Bounds::new(point(px(ox), px(oy + vh - edge)), size(px(vw), px(edge))),
+        t.line,
+    ));
+    window.paint_quad(gpui::fill(
+        Bounds::new(point(px(ox + vw - edge), px(oy)), size(px(edge), px(vh))),
         t.line,
     ));
 
@@ -1136,7 +1255,7 @@ fn card_ground(p: &Paint, look: CardLook, radius: f32, b: Bounds<Pixels>, window
     } else if look.hover {
         (t.you_stroke(), (1.5 * u).max(1.))
     } else if look.lifted && t.dark {
-        (t.night_line, (1. * u).max(1.))
+        (t.night_line, (1.5 * u).max(1.))
     } else if look.lifted {
         (t.line2, (1. * u).max(1.))
     } else {
@@ -1282,12 +1401,18 @@ fn paint_note(
         cx,
     );
     // The title is a label, drawn after the cards. Closer in the words
-    // wrap ([`map::in_text`]); at Mid the summary is one line.
+    // wrap to the card's inner width as the font sets them, on no more
+    // lines than [`map::in_text`] made room for; at Mid the summary is one
+    // line. Nothing is set under 11 points: at Mid a summary or chip that
+    // would be goes.
     let body = font(&p.family, FontWeight::NORMAL);
     let wrapped = inner.then(|| map::in_text(n));
+    let inner_w = w - 2. * pad;
+    let sum_px = map::IN_SUMMARY_SIZE * u;
     let summary: Vec<String> = match &wrapped {
-        Some(it) => it.summary.clone(),
-        None => vec![n.summary.clone()],
+        Some(it) => wrap_px(window, &n.summary, sum_px, &body, inner_w, it.summary.len()),
+        None if map::IN_SUMMARY_SIZE * z >= 11. => vec![n.summary.clone()],
+        None => Vec::new(),
     };
     for (k, line) in summary.iter().enumerate() {
         text(
@@ -1303,6 +1428,9 @@ fn paint_note(
         );
     }
     let cy = y + wrapped.as_ref().map_or(CARD_H - 38., map::in_chips_y) * u;
+    if !inner && 12. * z < 11. {
+        return;
+    }
     let mut cx0 = x + pad;
     if let Some((words, tone)) = n.flags.chip() {
         cx0 += chip(
@@ -1335,7 +1463,16 @@ fn paint_note(
     // ground), rules kept (a quiet dot).
     let mut ly = cy + (22. + 14.) * u;
     let tx = x + pad + 18. * u;
-    for (lines, kind) in &it.rows {
+    let row_px = map::IN_ROW_SIZE * u;
+    for (est, kind) in &it.rows {
+        let lines = &wrap_px(
+            window,
+            &est.join(" "),
+            row_px,
+            &body,
+            x + w - pad - tx,
+            est.len(),
+        );
         let h = lines.len() as f32 * IN_LINE * u;
         match *kind {
             "said" => window.paint_quad(
@@ -1349,21 +1486,24 @@ fn paint_note(
                 .corner_radii(px(4. * u)),
             ),
             k => {
-                let d = 6. * u;
-                window.paint_quad(
-                    gpui::fill(
-                        Bounds::new(
-                            point(px(x + pad + 2. * u), px(ly + (IN_LINE * u - d) / 2.)),
-                            size(px(d), px(d)),
-                        ),
-                        if k == "waiting" {
-                            t.you_mark()
-                        } else {
-                            t.faint
-                        },
-                    )
-                    .corner_radii(px(d / 2.)),
+                let d = 7. * u;
+                let b = Bounds::new(
+                    point(px(x + pad + 2. * u), px(ly + (IN_LINE * u - d) / 2.)),
+                    size(px(d), px(d)),
                 );
+                // A rule waiting: a lime ring; one kept: a quiet dot.
+                if k == "waiting" {
+                    window.paint_quad(gpui::quad(
+                        b,
+                        px(d / 2.),
+                        gpui::transparent_black(),
+                        px((1.5 * u).max(1.)),
+                        t.you_mark(),
+                        gpui::BorderStyle::Solid,
+                    ));
+                } else {
+                    window.paint_quad(gpui::fill(b, t.faint).corner_radii(px(d / 2.)));
+                }
             }
         }
         for (k, line) in lines.iter().enumerate() {
@@ -1376,7 +1516,7 @@ fn paint_note(
                 map::IN_ROW_SIZE * u,
                 if *kind == "said" { t.you_text } else { t.text },
                 &body,
-                x + w - pad - tx,
+                x + w - pad - tx + 2.,
             );
         }
         ly += h + map::IN_ROW_GAP * u;
@@ -1449,13 +1589,12 @@ impl Shell {
             return self.render_brain_board(look, t, &m, cx);
         }
         let unit = f32::from(look.px(1.));
-        // The map runs to the panel's edge and ends above the Ask bar:
-        // nothing floats over it.
-        let view_w = left_w + super::EDGE;
+        // The map ends a gutter short of the panel, a docked column, and
+        // above the Ask bar: nothing floats over it, and fitting and
+        // centring use the map's own edges.
+        let view_w = left_w;
         let map_h = (view_h - HEAD - super::ASK_CLEAR).max(100.);
-        // The canvas runs on under the panel to its far edge, so nothing is
-        // cut where the map meets it.
-        let canvas_w = view_w + super::PANEL_W;
+        let canvas_w = view_w;
         if !self.night.map.fitted {
             // Hippo's layout made for this view, then the whole map shown.
             let fit_h = map_h;
@@ -1481,9 +1620,10 @@ impl Shell {
                     );
                 }
                 self.night.map.clamp(&m, view_w, map_h);
-                // The selected card's top stays in the view.
+                // The selected card's top stays in the view, clear of the
+                // strip of folder names.
                 if let Some(c) = m.layout(Level::of(zz)).card(item) {
-                    let top = c.rect.y - 24. / zz;
+                    let top = c.rect.y - 56. / zz;
                     if self.night.map.pan.1 > top {
                         self.night.map.pan.1 = top;
                     }
@@ -1512,6 +1652,25 @@ impl Shell {
         let m = self.night.map.map.clone().unwrap_or(m);
         // Dev-only: the pointer resting on the map, for a screenshot.
         if let Some(mut at) = self.night.dev_hover.take() {
+            // `badge`: on the selected card's biggest badge drawn.
+            if at.0.is_nan() && at.1 == -1. {
+                let level = self.night.map.level();
+                let z = self.night.map.zoom;
+                let pan = self.night.map.pan;
+                let focus = self
+                    .brain_selected(&m)
+                    .map(|i| m.same_item(Item::Note(i), level));
+                at = (f32::NAN, f32::NAN);
+                if let Some(b) = m
+                    .layout(level)
+                    .badges(focus)
+                    .iter()
+                    .filter(|b| m.style.badge_fits(b.room, z, b.links))
+                    .max_by_key(|b| b.links)
+                {
+                    at = ((b.x - pan.0) * z, (b.y - pan.1) * z);
+                }
+            }
             // `near`: on a card the selected note links to.
             if at.0.is_nan() && !at.1.is_nan() {
                 let level = self.night.map.level();
@@ -1586,7 +1745,6 @@ impl Shell {
             zoom: self.night.map.zoom,
             pan: self.night.map.pan,
             selected,
-            fit: self.night.map.fit_zoom,
             t: *t,
             unit,
             family: look
@@ -1601,6 +1759,7 @@ impl Shell {
             hover: self.night.map.hover,
             hover_line: self.night.map.hover_line.clone(),
             slide: self.night.map.slide.clone(),
+            camera: self.night.map.camera,
         };
         let canvas_el = canvas(
             |_, _, _| {},
@@ -1647,7 +1806,9 @@ impl Shell {
                 .iter()
                 .filter(|l| ends.contains(&(l.from, l.to)))
                 .collect();
-            let links: usize = hit.iter().map(|l| l.links).sum();
+            // One number for the badge and the status: the links of the
+            // cards these lines reach.
+            let links = Layout::links_of(&hit);
             let to = format!(
                 "{} · {}",
                 names(hit.iter().map(|l| block_name(&m, l.to)).collect()),
@@ -1689,7 +1850,7 @@ impl Shell {
                     Some("⌘−"),
                     kit::Size::Sm,
                 )
-                .on_click(cx.listener(|this, _, _, cx| this.brain_zoom_step(1. / STEP, cx))),
+                .on_click(cx.listener(|this, _, _, cx| this.brain_zoom_step(-1, cx))),
             )
             .child(
                 kit::button(look, t, "zoom-fit", None, pct, Btn::Quiet, true)
@@ -1709,7 +1870,7 @@ impl Shell {
                     Some("⌘="),
                     kit::Size::Sm,
                 )
-                .on_click(cx.listener(|this, _, _, cx| this.brain_zoom_step(STEP, cx))),
+                .on_click(cx.listener(|this, _, _, cx| this.brain_zoom_step(1, cx))),
             );
         let head = div()
             .flex()
@@ -1774,38 +1935,42 @@ impl Shell {
                         })),
                     ),
             )
-            .child(
-                div()
-                    .text_size(look.text(26.))
-                    .font_weight(FontWeight::BOLD)
-                    .text_color(t.text)
-                    .child(m.headline.clone()),
-            )
+            // The headline, and a slot of its own at its right for what just
+            // happened and what the pointer is on: "Runbooks moved. Undo",
+            // or a line's links. The lead below keeps its whole width.
             .child(
                 div()
                     .flex()
                     .items_center()
-                    .gap(look.px(12.))
-                    .h(look.px(24.))
+                    .gap(look.px(16.))
+                    .h(look.px(34.))
                     .child(
                         div()
                             .flex_1()
                             .min_w_0()
-                            .text_size(look.text(15.))
-                            .text_color(t.muted)
                             .truncate()
-                            .child(m.lead.clone()),
+                            .text_size(look.text(26.))
+                            .font_weight(FontWeight::BOLD)
+                            .text_color(t.text)
+                            .child(m.headline.clone()),
                     )
-                    // One slot for what just happened and what the pointer
-                    // is on: "Runbooks moved. Undo", or a line's links.
                     .child(
                         div()
+                            .id("brain-status")
                             .flex_shrink_0()
-                            .max_w(look.px(420.))
+                            .max_w(look.px((view_w * 0.5).min(460.)))
                             .flex()
                             .justify_end()
                             .children(toast.or(line_words)),
                     ),
+            )
+            .child(
+                div()
+                    .h(look.px(24.))
+                    .text_size(look.text(15.))
+                    .text_color(t.muted)
+                    .truncate()
+                    .child(m.lead.clone()),
             );
         let mapdiv = div()
             .id("brain-map")
@@ -2129,7 +2294,9 @@ impl Shell {
         };
         let arr = m.arrangement.move_to(&l.key, l.drop.col, l.drop.at);
         let held = self.brain_lifted_at(&l);
-        let whole = self.brain_shows_all(&m);
+        // Fitted: the whole map shown at its fit zoom.
+        let fitted = self.brain_shows_all(&m)
+            && (self.night.map.zoom - self.night.map.fit_zoom).abs() < 0.005;
         let before = m.arrangement.clone();
         let moved = arr != before;
         self.brain_set_arrangement(Some(arr), cx);
@@ -2141,12 +2308,23 @@ impl Shell {
             };
             self.brain_toast(format!("{} moved.", block_name(&m, name)), before, cx);
         }
-        // A view that showed the whole map keeps showing it; else the
-        // dropped block stays in view.
+        // A fitted view is fitted again to the map as it now is, moving
+        // there; any other keeps its zoom, so cards keep their size under
+        // the pointer, and pans only as far as keeps the dropped block in
+        // view.
         if let (Some(m2), Some((w, h))) = (self.night.map.map.clone(), self.night.map.view_size) {
-            // The zoom stays: the cards keep their size under the pointer.
-            let _ = whole;
-            if let Some(r) = m2.block_rect(l.level, l.block) {
+            if fitted {
+                let from = Camera {
+                    zoom: self.night.map.zoom,
+                    pan: self.night.map.pan,
+                    start: Instant::now(),
+                    ms: motion_ms(SETTLE_MS),
+                };
+                self.night.map.fit(&m2, w, h);
+                if from.ms > 0. {
+                    self.night.map.camera = Some(from);
+                }
+            } else if let Some(r) = m2.block_rect(l.level, l.block) {
                 let z = self.night.map.zoom;
                 let (vw, vh) = (w / z, h / z);
                 let pan = &mut self.night.map.pan;
@@ -2269,7 +2447,9 @@ impl Shell {
         (w / unit, h / unit)
     }
 
-    pub(crate) fn brain_zoom_step(&mut self, factor: f32, cx: &mut Context<Self>) {
+    /// One step in (`dir` > 0) or out of the zoom table the map's style
+    /// holds, the one the web demo steps through.
+    pub(crate) fn brain_zoom_step(&mut self, dir: i32, cx: &mut Context<Self>) {
         let Some(m) = self.night.map.map.clone() else {
             return;
         };
@@ -2296,7 +2476,23 @@ impl Shell {
             })
             .filter(|(x, y)| *x > 0. && *y > 0. && *x < w && *y < h)
             .unwrap_or((w / 2., h / 2.));
-        self.night.map.zoom_at(&m, z0 * factor, at);
+        let z = m.style.step(z0, dir, self.night.map.min_zoom());
+        self.night.map.zoom_at(&m, z, at);
+        // The selected card's top stays clear of the strip of folder names.
+        let level = self.night.map.level();
+        if level != Level::Out
+            && let Some(c) = self
+                .brain_selected(&m)
+                .map(|i| m.same_item(Item::Note(i), level))
+                .and_then(|it| m.layout(level).card(it))
+        {
+            let top = c.rect.y - 46. / z;
+            let (_, pan1) = self.night.map.pan;
+            if pan1 > top && (c.rect.y - pan1) * z < h {
+                self.night.map.pan.1 = top;
+            }
+        }
+        self.night.map.camera = None;
         cx.notify();
     }
 
@@ -2340,27 +2536,13 @@ impl Shell {
                 self.brain_selected(&m)
                     .map(|i| m.same_item(Item::Note(i), level))
             });
-            let tol = 6. / self.night.map.zoom;
-            let mut hits: Vec<(f32, Item, Item)> = Vec::new();
-            for l in lay.shown(focus) {
-                let d = l
-                    .points
-                    .windows(2)
-                    .map(|w| {
-                        let x = mx.clamp(w[0].0.min(w[1].0), w[0].0.max(w[1].0));
-                        let y = my.clamp(w[0].1.min(w[1].1), w[0].1.max(w[1].1));
-                        ((x - mx).powi(2) + (y - my).powi(2)).sqrt()
-                    })
-                    .fold(f32::MAX, f32::min);
-                if d <= tol {
-                    hits.push((d, l.from, l.to));
-                }
-            }
-            let best = hits.iter().map(|h| h.0).fold(f32::MAX, f32::min);
-            ends = hits
-                .into_iter()
-                .filter(|h| h.0 <= best + 0.5)
-                .map(|h| (h.1, h.2))
+            let z = self.night.map.zoom;
+            // What the status counts is what the map says is here: a badge
+            // stands for its branch, a run for the lines along it.
+            ends = lay
+                .lines_at(focus, mx, my, 6. / z, m.style.badge / z)
+                .iter()
+                .map(|l| (l.from, l.to))
                 .collect();
         }
         let hover = card.or(if ends.is_empty() {
@@ -2568,7 +2750,7 @@ impl Shell {
                     .mt(look.px(14.))
                     .flex()
                     .gap(look.px(8.))
-                    .child(stat(p.reads_week.to_string(), "reads this week"))
+                    .child(stat(p.reads_week.to_string(), "weekly reads"))
                     .child(stat(p.rules_kept.to_string(), "rules kept"))
                     .child(stat(p.changes.to_string(), "changes")),
             );

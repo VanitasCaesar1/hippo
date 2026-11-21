@@ -190,6 +190,48 @@ for (const view of ['morning', 'brain']) {
   }
 }
 
+// The demo steps through the zoom table hippo's style holds, as Hippo.app
+// does (hippo_view::night::map::Style::step), and its badges count what its
+// status says.
+{
+  const ctx = { globalThis: {}, window: {} };
+  ctx.globalThis = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(dataJs, ctx, { filename: 'data.js' });
+  vm.runInContext(arrangeJs, ctx, { filename: 'arrange.js' });
+  const D = ctx.window.HIPPO_DEMO, A = ctx.window.HippoArrange, st = D && D.map && D.map.style;
+  if (!st || !Array.isArray(st.steps)) {
+    errors.push('zoom: the map has no zoom table (style.steps)');
+  } else {
+    const fit = 0.44;
+    const want = [[fit, 1, 0.5], [fit, -1, fit], [1, 1, 1.25], [1, -1, 0.85], [3, 1, 3]];
+    for (const [z, dir, to] of want) {
+      const got = A.step(st, z, dir, fit);
+      if (Math.abs(got - to) > 1e-6) errors.push(`zoom: one step ${dir > 0 ? 'in' : 'out'} from ${z} goes to ${got}, Hippo.app to ${to}`);
+    }
+    if (!/HippoArrange\.step\(/.test(demoJs) || /\* \(act === 'zin' \? 1\.25/.test(demoJs)) {
+      errors.push('zoom: demo.js does not step with HippoArrange.step');
+    }
+    for (const L of ['out', 'mid', 'in']) {
+      const lay = D.map[L];
+      for (const [f, bs] of lay.badges || []) {
+        for (const b of bs) {
+          const n = A.linksOf(A.linesAt(lay, f, b.x, b.y, 4, 6));
+          if (n !== b.links) errors.push(`badge: ${L} badge says ${b.links}, its lines ${n}`);
+          for (const c of lay.cards) {
+            const r = c.rect;
+            const dx = Math.max(r.x - b.x, 0, b.x - r.x - r.w), dy = Math.max(r.y - b.y, 0, b.y - r.y - r.h);
+            if (Math.hypot(dx, dy) < b.room - 0.5) errors.push(`badge: ${L} badge at ${b.x},${b.y} is in a card`);
+          }
+        }
+      }
+      for (const [, ls] of lay.focus) {
+        for (const l of ls) if (!l.out && !l.back) errors.push(`line: ${L} line without a head`);
+      }
+    }
+  }
+}
+
 if (errors.length) {
   for (const e of [...new Set(errors)]) console.error(`error: ${e}`);
   process.exit(1);

@@ -291,6 +291,10 @@ fn main() {
                             if v == "near" {
                                 return Some((f32::NAN, 0.));
                             }
+                            // `badge`: on the selected card's biggest badge.
+                            if v == "badge" {
+                                return Some((f32::NAN, -1.));
+                            }
                             let (x, y) = v.split_once(',')?;
                             Some((x.parse().ok()?, y.parse().ok()?))
                         });

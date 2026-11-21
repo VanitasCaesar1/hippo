@@ -7,8 +7,8 @@
 (function (root) {
   'use strict';
   var CARD_H = 112, GAP = 12, FRAME_PAD = 14, FRAME_HEAD = 40, FRAME_GAP = 48,
-    COL_GAP = 72, CARD_W = 340, COL_W = CARD_W + 2 * FRAME_PAD, OUT_GAP = 72,
-    OUT_BELOW = 0.55, OUT_FIT = 0.54, MIN_ZOOM = 0.15, FIT_PAD = 28;
+    COL_GAP = 112, CARD_W = 340, COL_W = CARD_W + 2 * FRAME_PAD, OUT_GAP = 72,
+    OUT_BELOW = 0.7, OUT_FIT = 0.69, MIN_ZOOM = 0.15, MAX_ZOOM = 3, FIT_PAD = 28;
 
   function colX(c) { return c * (COL_W + COL_GAP); }
   function right(r) { return r.x + r.w; }
@@ -137,8 +137,8 @@
   }
 
   function pack(M, L, arr, blocks) {
-    var p = place(M, L, arr, blocks), wh = size(p);
-    return { width: wh[0], height: wh[1], frames: p.frames, cards: p.cards, focus: links(M, L, p.frames, p.cards), labels: p.labels, marks: p.marks };
+    var p = place(M, L, arr, blocks), wh = size(p), lk = links(M, L, p.frames, p.cards);
+    return { width: wh[0], height: wh[1], frames: p.frames, cards: p.cards, focus: lk.focus, badges: lk.badges, labels: p.labels, marks: p.marks };
   }
 
   /* Each linked card's lines (Rust: links): one trunk each way, right
@@ -168,7 +168,7 @@
     var items = {}, list = [];
     pairs.forEach(function (p) { [p.a, p.b].forEach(function (it) { var k = itemKey(it); if (!items[k]) { items[k] = 1; list.push(it); } }); });
     list.sort(itemCmp);
-    var focus = [];
+    var focus = [], badges = [];
     list.forEach(function (f) {
       var kf = itemKey(f), ca = colOf(rectOf[kf].x), right = [], left = [];
       pairs.forEach(function (p) {
@@ -181,9 +181,11 @@
         .map(function (g, i) { return [g, i]; })
         .sort(function (x, y) { return weight(y[0]) - weight(x[0]) || x[1] - y[1]; })
         .map(function (x) { return x[0]; });
-      focus.push([f, route(groups.map(function (g, k) { return { a: f, to: g, trunk: k }; }), rectOf, heads, L === 'out')]);
+      var r = route(groups.map(function (g, k) { return { a: f, to: g, trunk: k }; }), rectOf, heads, L === 'out');
+      focus.push([f, r.lines]);
+      if (r.badges.length) badges.push([f, r.badges]);
     });
-    return focus;
+    return { focus: focus, badges: badges };
   }
 
   function colOf(x) { return Math.max(0, Math.floor(x / (COL_W + COL_GAP))); }
@@ -193,6 +195,9 @@
   function route(wants, rectOf, heads, out) {
     var clear = out ? 20 : 12, spread = out ? 24 : 14;
     function centre(r) { return out ? r.y + r.h / 2 : r.y + Math.min(r.h, CARD_H) / 2; }
+    // A left edge's lines meet it a little above the middle, a right
+    // edge's a little below: no two heads back to back across a gutter.
+    function port(r, rt) { var d = out ? r.h * 0.12 : 10; return centre(r) + (rt ? d : -d); }
     var paths = [];
     wants.forEach(function (w) {
       var ra = rectOf[itemKey(w.a)];
@@ -221,8 +226,22 @@
       var lo = r.y + 10, hi = bottom(r) - 10;
       var step = n <= 1 ? 0 : Math.min(spread, (hi - lo) / (n - 1));
       var half = step * Math.max(0, n - 1) / 2;
-      var mid = Math.min(Math.max(centre(r), lo + half), Math.max(hi - half, lo + half));
+      var mid = Math.min(Math.max(port(r, key.charAt(key.length - 1) === 'R'), lo + half), Math.max(hi - half, lo + half));
       list.forEach(function (x, k) { var y = mid - half + k * step; if (x[2] === MAXJ) paths[x[1]].ya = y; else paths[x[1]].yb[x[2]] = y; });
+    });
+    // A line alone at both ends between neighbouring columns runs straight
+    // when its ends are within 16 points.
+    function alone(key) { return ends[key] && ends[key].list.length === 1; }
+    paths.forEach(function (p) {
+      if (p.to.length !== 1) return;
+      var t = p.to[0][0], r = p.to[0][1], ca = colOf(p.ra.x), tc = colOf(r.x);
+      var near = tc === ca || tc === ca + 1 || tc + 1 === ca, er = !p.right || tc === ca;
+      if (!near || !alone(itemKey(p.a) + (p.right ? 'R' : 'L')) || !alone(itemKey(t) + (er ? 'R' : 'L'))) return;
+      var ya = p.ya, yb = p.yb[0];
+      if (Math.abs(ya - yb) < 16) {
+        if (ya > r.y + 10 && ya < bottom(r) - 10) p.yb[0] = ya;
+        else if (yb > p.ra.y + 10 && yb < bottom(p.ra) - 10) p.ya = yb;
+      }
     });
     var blocked = {};
     function block(c) { return blocked[c] || (blocked[c] = []); }
@@ -285,14 +304,16 @@
       var start = (sp[0] + sp[1]) / 2 - step * Math.max(0, n - 1) / 2;
       members.forEach(function (m, k) { paths[m[0]].lanes[m[1]] = start + k * step; });
     });
-    var lines = [];
+    var lines = [], badges = [];
     paths.forEach(function (p) {
       var trunk = [[p.right ? right(p.ra) : p.ra.x, p.ya]];
       p.stops.forEach(function (st, s) {
         var x = p.lanes[s];
+        var n = st[2].reduce(function (a, j) { return a + p.to[j][2]; }, 0);
+        if (n >= 2) badges.push({ x: x, y: st[1], links: n, trunk: p.trunk, room: Math.min(x - (colX(st[0]) - COL_GAP), colX(st[0]) - x), to: st[2].map(function (j) { return p.to[j][0]; }) });
         st[2].forEach(function (j) {
           var t = p.to[j], b0 = entersRight(p, j) ? right(t[1]) : t[1].x;
-          var pts = trunk.concat([[x, st[1]], [x, p.yb[j]], [b0, p.yb[j]]]);
+          var pts = straight(trunk.concat([[x, st[1]], [x, p.yb[j]], [b0, p.yb[j]]]));
           var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
           pts.forEach(function (q) { x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]); });
           lines.push({ from: p.a, to: t[0], points: pts, bounds: { x: x0 - 6, y: y0 - 6, w: x1 - x0 + 12, h: y1 - y0 + 12 }, links: t[2], trunk: p.trunk, out: t[3], back: t[4] });
@@ -300,8 +321,70 @@
         if (st[3] !== st[1]) { trunk.push([x, st[1]]); trunk.push([x, st[3]]); }
       });
     });
-    return lines;
+    return { lines: lines, badges: badges };
   }
+
+  /* Rust: straight. Only corners and ends. */
+  function straight(pts) {
+    var v = [];
+    pts.forEach(function (q) {
+      var l = v[v.length - 1];
+      if (l && Math.abs(l[0] - q[0]) < 0.01 && Math.abs(l[1] - q[1]) < 0.01) return;
+      if (v.length >= 2) {
+        var a = v[v.length - 2], b = v[v.length - 1];
+        var level = Math.abs(a[1] - b[1]) < 0.01 && Math.abs(b[1] - q[1]) < 0.01;
+        var plumb = Math.abs(a[0] - b[0]) < 0.01 && Math.abs(b[0] - q[0]) < 0.01;
+        if (level || plumb) v.pop();
+      }
+      v.push(q);
+    });
+    return v;
+  }
+
+  /* The lines of `focus` under map point (x, y) (Rust: Layout::lines_at):
+     a badge within `badge` stands for its branch, else the nearest run's
+     lines. */
+  function linesAt(lay, focus, x, y, tol, badge) {
+    if (!focus) return [];
+    var fk = itemKey(focus), lines = [], bs = [];
+    (lay.focus || []).forEach(function (f) { if (itemKey(f[0]) === fk) lines = f[1]; });
+    (lay.badges || []).forEach(function (f) { if (itemKey(f[0]) === fk) bs = f[1]; });
+    for (var i = 0; i < bs.length; i++) {
+      var b = bs[i];
+      if (Math.hypot(b.x - x, b.y - y) <= badge) {
+        var to = b.to.map(itemKey);
+        return lines.filter(function (l) { return l.trunk === b.trunk && to.indexOf(itemKey(l.to)) >= 0; });
+      }
+    }
+    var hit = [];
+    lines.forEach(function (l) {
+      var d = Infinity;
+      for (var k = 1; k < l.points.length; k++) {
+        var a = l.points[k - 1], c = l.points[k];
+        var px = Math.min(Math.max(x, Math.min(a[0], c[0])), Math.max(a[0], c[0]));
+        var py = Math.min(Math.max(y, Math.min(a[1], c[1])), Math.max(a[1], c[1]));
+        d = Math.min(d, Math.hypot(px - x, py - y));
+      }
+      if (d <= tol) hit.push([d, l]);
+    });
+    var best = hit.reduce(function (m, h) { return Math.min(m, h[0]); }, Infinity);
+    return hit.filter(function (h) { return h[0] <= best + 0.5; }).map(function (h) { return h[1]; });
+  }
+  /* The links lines stand for, once per card they reach (Rust: links_of). */
+  function linksOf(lines) {
+    var seen = {}, n = 0;
+    lines.forEach(function (l) { var k = itemKey(l.to); if (!seen[k]) { seen[k] = 1; n += l.links; } });
+    return n;
+  }
+  /* One step in or out of the style's zoom table (Rust: Style::step). */
+  function step(st, z, dir, least) {
+    var s = st.steps, next = null, i;
+    if (dir > 0) { for (i = 0; i < s.length; i++) if (s[i] > z + 0.005) { next = s[i]; break; } if (next == null) next = MAX_ZOOM; }
+    else { for (i = s.length - 1; i >= 0; i--) if (s[i] < z - 0.005) { next = s[i]; break; } if (next == null) next = least; }
+    return Math.min(Math.max(next, Math.min(least, MAX_ZOOM)), MAX_ZOOM);
+  }
+  function badgeHalf(st, n) { return Math.max(st.badge, String(Math.max(1, n)).length * 3.4 + 5); }
+  function badgeFits(st, room, z, n) { return room * z >= badgeHalf(st, n) + st.badge_room; }
 
   /* The map's three layouts from `arr`, settled first. */
   function layout(M, arr) {
@@ -413,6 +496,7 @@
   root.HippoArrange = {
     layout: layout, settle: settle, moveTo: moveTo, nudge: nudge, same: same, find: find,
     blockKey: blockKey, handleAt: handleAt, blockRect: blockRect, dropAt: dropAt,
-    preview: preview, viewArrangement: viewArrangement, fit: fit
+    preview: preview, viewArrangement: viewArrangement, fit: fit,
+    linesAt: linesAt, linksOf: linksOf, step: step, badgeHalf: badgeHalf, badgeFits: badgeFits
   };
 })(typeof window !== 'undefined' ? window : globalThis);
