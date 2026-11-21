@@ -2893,6 +2893,14 @@ mod tests {
             s.brain_drop(cx);
             let m3 = s.night.map.map.clone().unwrap();
             assert_eq!(s.night.map.zoom, z0, "the zoom stays");
+            // The floor is the new map's fit: zooming out reaches all of it.
+            assert!((s.night.map.fit_zoom - m3.fit(w, h).0).abs() < 1e-4);
+            assert!(
+                (s.night.map.min_zoom()
+                    - m3.fit(w, h).0.clamp(hippo_view::night::map::MIN_ZOOM, 1.))
+                .abs()
+                    < 1e-4
+            );
             m3.arrangement.clone()
         });
 

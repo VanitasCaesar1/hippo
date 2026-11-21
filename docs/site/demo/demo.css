@@ -26,7 +26,7 @@
     --canvas: #FAFAFA; --dot: rgba(0, 0, 0, .08); --surface: #FFFFFF; --raised: #FFFFFF; --inset: #F4F4F5;
     --hover: #F4F4F5; --selected: #EDEDEE; --line: rgba(0, 0, 0, .08); --line2: rgba(0, 0, 0, .18);
     --text: #0A0A0A; --muted: #52525B; --faint: #6B6B73;
-    --you: #C8F031; --you-ink: #0F1400; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line); --you-stroke: #3F3F46;
+    --you: #C8F031; --you-ink: #0F1400; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line); --you-stroke: #5E8C00;
     --night: #18181B; --night-bg: rgba(0, 0, 0, .05); --night-line: rgba(0, 0, 0, .42);
     --ok: #15803D; --ok-bg: rgba(21, 128, 61, .08); --bad: #DC2626; --bad-bg: rgba(220, 38, 38, .07);
     --shadow: 0 10px 28px rgba(0, 0, 0, .1); --shadow-s: 0 1px 3px rgba(0, 0, 0, .08);
@@ -39,7 +39,7 @@
   --canvas: #FAFAFA; --dot: rgba(0, 0, 0, .08); --surface: #FFFFFF; --raised: #FFFFFF; --inset: #F4F4F5;
   --hover: #F4F4F5; --selected: #EDEDEE; --line: rgba(0, 0, 0, .08); --line2: rgba(0, 0, 0, .18);
   --text: #0A0A0A; --muted: #52525B; --faint: #6B6B73;
-  --you: #C8F031; --you-ink: #0F1400; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line); --you-stroke: #3F3F46;
+  --you: #C8F031; --you-ink: #0F1400; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line); --you-stroke: #5E8C00;
   --night: #18181B; --night-bg: rgba(0, 0, 0, .05); --night-line: rgba(0, 0, 0, .42);
   --ok: #15803D; --ok-bg: rgba(21, 128, 61, .08); --bad: #DC2626; --bad-bg: rgba(220, 38, 38, .07);
   --shadow: 0 10px 28px rgba(0, 0, 0, .1); --shadow-s: 0 1px 3px rgba(0, 0, 0, .08);
@@ -62,8 +62,8 @@ p, h1, h2 { margin: 0; }
 .mono { font-variant-numeric: tabular-nums; }
 
 /* The banner and the top bar. */
-.banner { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9; height: 28px; background: var(--canvas); border-top: 1px solid var(--line); display: flex; gap: 8px; align-items: center; justify-content: center; color: var(--faint); font-size: 11.5px; white-space: nowrap; overflow: hidden; }
-.banner a { color: var(--night); font-weight: 600; }
+.replica { margin-left: 6px; color: var(--faint); font-size: 12px; font-weight: 400; white-space: nowrap; }
+.replica a { color: var(--muted); font-weight: 500; text-decoration: underline; text-underline-offset: 2px; }
 .top { position: sticky; top: 0; z-index: 5; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; height: 56px; padding: 0 16px; background: var(--canvas); border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
 .brand svg { width: 26px; height: 26px; }
@@ -73,7 +73,7 @@ p, h1, h2 { margin: 0; }
 .nav button[aria-current="page"] { background: var(--selected); color: var(--text); font-weight: 600; }
 .nav button:disabled { opacity: .45; cursor: default; }
 .count.bad { background: var(--bad); color: #fff; }
-.ws svg { margin-left: 6px; color: var(--faint); }
+.ws svg { margin-left: 6px; color: var(--faint); width: 12px; height: 12px; }
 .icon-btn.boxed { width: 32px; height: 32px; border: 1px solid var(--line2); }
 .waitnote { color: var(--faint); font-size: 13px; margin-left: 4px; }
 .said.block { display: block; margin-top: 6px; padding: 3px 6px; line-height: 1.45; }
@@ -88,7 +88,7 @@ p, h1, h2 { margin: 0; }
 /* The stage and the floating panel. */
 .stage { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; padding: 0 18px 120px 0; }
 .main { padding: 26px 0 0 28px; min-width: 0; }
-.panel { position: sticky; z-index: 8; top: 74px; align-self: start; height: calc(100vh - 120px); overflow: auto; margin-top: 18px; padding: 24px 24px 0; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.panel { position: sticky; z-index: 8; top: 74px; align-self: start; height: calc(100vh - 92px); overflow: auto; margin-top: 18px; padding: 24px 24px 0; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
 /* What runs on below the panel's foot fades out rather than ending in a cut. */
 .panel::after { content: ""; position: sticky; bottom: 0; display: block; height: 64px; margin: 24px -24px 0; background: linear-gradient(transparent, var(--surface) 55%); pointer-events: none; }
 .kicker { color: var(--muted); font-size: 13.5px; }
@@ -259,7 +259,7 @@ h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
 .board .card.near { border: 1.5px dashed var(--night-line); }
 
 /* The Ask bar (the replica says it cannot answer). */
-.ask { position: fixed; left: 50%; bottom: 46px; transform: translateX(calc(-50% - 189px)); width: min(880px, calc(100vw - 460px)); height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 20px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line2); box-shadow: var(--shadow); color: var(--faint); font-size: 15px; }
+.ask { position: fixed; left: 50%; bottom: 18px; transform: translateX(calc(-50% - 189px)); width: min(880px, calc(100vw - 460px)); height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 20px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line2); box-shadow: var(--shadow); color: var(--faint); font-size: 15px; }
 .ask .who { display: flex; align-items: center; gap: 8px; color: var(--text); height: 34px; padding: 0 10px; border-radius: 10px; background: var(--inset); color: var(--text); font-size: 13.5px; }
 .ask .send { width: 40px; height: 40px; border-radius: 12px; background: var(--you); color: var(--you-ink); display: grid; place-items: center; }
 .toast { position: fixed; left: 50%; bottom: 86px; transform: translateX(-50%); padding: 10px 14px; border-radius: 12px; background: var(--raised); border: 1px solid var(--line2); box-shadow: var(--shadow); font-size: 13.5px; }
@@ -273,7 +273,7 @@ h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
   .flow svg.wires, .evs.wide { display: none; }
   .flow .col { margin-bottom: 18px; }
   .figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .nav button span.name, .idx, .brand b { display: none; }
+  .nav button span.name, .idx, .brand b, .replica { display: none; }
   .ask { left: 16px; right: 16px; width: auto; transform: none; }
   .ask .who { display: none; }
   h1 { font-size: 24px; }
@@ -300,3 +300,28 @@ h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
 .world .slot { position: absolute; border: 1.5px dashed var(--slot-line); background: var(--slot-bg); border-radius: 14px; pointer-events: none; }
 .world .slot.round { border-radius: 18px; }
 @media (prefers-reduced-motion: reduce) { .world .blk, .world .slot { transition: none !important; } }
+
+/* The panel at Hippo.app's sizes (app/hippo-app/src/ui/night/brain.rs, render_note_panel). */
+.panel { font-size: 14px; line-height: 1.5; }
+.panel h2 { font-size: 22px; line-height: 27px; }
+.panel .pending p { font-size: 14.5px; line-height: 21px; }
+.panel .said.block { font-size: 13px; line-height: 19px; }
+.panel .mono { font-size: 12.5px; }
+.panel .stats b { font-size: 20px; }
+/* A Mid card's words where the app sets them: summary at 50, chips at 74. */
+.world .note:not(.inner) { padding: 0; }
+.world .note:not(.inner) > .row:first-child { position: absolute; left: 16px; right: 16px; top: 16px; }
+.world .note:not(.inner) .s { position: absolute; left: 16px; right: 16px; top: 50px; margin: 0; }
+.world .note:not(.inner) .chips { position: absolute; left: 16px; right: 16px; top: 74px; flex-wrap: nowrap; overflow: hidden; }
+.world .note.sel:not(.inner) { padding: 0; }
+.world svg.links rect.halo { fill: var(--canvas); stroke: none; }
+/* Edge chips: where lines leave the view. */
+.mapwrap .chips { position: absolute; inset: 0; pointer-events: none; z-index: 7; }
+.mapwrap.lifting .chips { display: none; }
+.edgechip { position: absolute; pointer-events: auto; display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px 0 10px; border-radius: 11px; background: var(--surface); border: 1.2px solid var(--line2); color: var(--text); font-size: 11.5px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+.edgechip svg { color: var(--muted); }
+.edgechip.acc { border-color: var(--you-stroke); }
+.edgechip.s-r { transform: translate(-100%, -50%); }
+.edgechip.s-l { transform: translate(0, -50%); }
+.edgechip.s-b { transform: translate(-50%, -100%); }
+.edgechip.s-t { transform: translate(-50%, 0); }

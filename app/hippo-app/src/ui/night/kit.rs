@@ -149,13 +149,13 @@ impl Nt {
     }
 
     /// The hover stroke: a line or an edge. Lime on dark; on a light
-    /// ground lime is too faint and a darker lime reads as the fixed mark's
-    /// green, so graphite (brand/tokens.json `you-stroke`).
+    /// ground a darker lime (`#5E8C00`, 4:1 on white), yellower than the
+    /// fixed mark's green (brand/tokens.json `you-stroke`).
     pub fn you_stroke(&self) -> Hsla {
         if self.dark {
             self.you
         } else {
-            rgba(0x3F3F46FF).into()
+            rgba(0x5E8C00FF).into()
         }
     }
 }

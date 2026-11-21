@@ -7,7 +7,7 @@
 (function (root) {
   'use strict';
   var CARD_H = 112, GAP = 12, FRAME_PAD = 14, FRAME_HEAD = 40, FRAME_GAP = 48,
-    COL_GAP = 112, CARD_W = 340, COL_W = CARD_W + 2 * FRAME_PAD, OUT_GAP = 72,
+    COL_GAP = 128, CARD_W = 340, COL_W = CARD_W + 2 * FRAME_PAD, OUT_GAP = 72,
     OUT_BELOW = 0.7, OUT_FIT = 0.69, MIN_ZOOM = 0.15, MAX_ZOOM = 3, FIT_PAD = 28;
 
   function colX(c) { return c * (COL_W + COL_GAP); }
@@ -151,17 +151,16 @@
       var f = folderOf(M, i);
       return f >= 0 ? { folder: f } : { note: i };
     }
-    // Each pair: its links, and whether they run from its first card to
-    // its second (fwd), the other way (bwd), or both.
+    // Each pair: the links from its first card to its second (fwd), and
+    // the other way (bwd).
     var pairs = [], index = {};
     M.edges.forEach(function (e) {
       var a = lift(e[0]), b = lift(e[1]), ka = itemKey(a), kb = itemKey(b);
       if (ka === kb || !rectOf[ka] || !rectOf[kb]) return;
       var rev = index[kb + '|' + ka] != null, key = rev ? kb + '|' + ka : ka + '|' + kb;
-      if (index[key] == null) { index[key] = pairs.length; pairs.push({ a: a, b: b, n: 0, fwd: false, bwd: false }); }
+      if (index[key] == null) { index[key] = pairs.length; pairs.push({ a: a, b: b, fwd: 0, bwd: 0 }); }
       var pr = pairs[index[key]];
-      pr.n++;
-      if (rev) pr.bwd = true; else pr.fwd = true;
+      if (rev) pr.bwd++; else pr.fwd++;
     });
     pairs.sort(function (p, q) { return itemCmp(p.a, q.a) || itemCmp(p.b, q.b); });
     var heads = frames.map(function (f) { return { x: f[1].x, y: f[1].y, w: f[1].w, h: FRAME_HEAD }; });
@@ -170,14 +169,18 @@
     list.sort(itemCmp);
     var focus = [], badges = [], hovered = [], hoveredBadges = [];
     list.forEach(function (f) {
-      var kf = itemKey(f), ca = colOf(rectOf[kf].x), right = [], left = [];
+      // Up to four trunks (Rust: links): out to the right, in from the
+      // right, out to the left, in from the left.
+      var kf = itemKey(f), ca = colOf(rectOf[kf].x), sides = [[], [], [], []];
       pairs.forEach(function (p) {
-        var t = itemKey(p.a) === kf ? [p.b, p.n, p.fwd, p.bwd] : itemKey(p.b) === kf ? [p.a, p.n, p.bwd, p.fwd] : null;
+        var t = itemKey(p.a) === kf ? [p.b, p.fwd, p.bwd] : itemKey(p.b) === kf ? [p.a, p.bwd, p.fwd] : null;
         if (!t) return;
-        (colOf(rectOf[itemKey(t[0])].x) >= ca ? right : left).push(t);
+        var side = colOf(rectOf[itemKey(t[0])].x) >= ca ? 0 : 2;
+        if (t[1] > 0) sides[side].push([t[0], t[1], true, false]);
+        if (t[2] > 0) sides[side + 1].push([t[0], t[2], false, true]);
       });
-      var weight = function (g) { return g.reduce(function (s, x) { return s + x[1]; }, 0); };
-      var groups = [right, left].filter(function (g) { return g.length; })
+      var weight = function (g) { return g.reduce(function (s2, x) { return s2 + x[1]; }, 0); };
+      var groups = sides.filter(function (g) { return g.length; })
         .map(function (g, i) { return [g, i]; })
         .sort(function (x, y) { return weight(y[0]) - weight(x[0]) || x[1] - y[1]; })
         .map(function (x) { return x[0]; });
@@ -199,10 +202,8 @@
   function route(wants, rectOf, heads, out, hovered) {
     var clear = out ? 20 : 12, spread = out ? 24 : 14;
     // Hovered lines run beside the selection's (Rust: route's shifts).
-    var laneShift = !hovered ? 0 : out ? 20 : 14, chanShift = !hovered ? 0 : out ? 10 : 6, rootShift = !hovered ? 0 : out ? 14 : 8;
+    var chanShift = !hovered ? 0 : out ? 10 : 6, rootShift = !hovered ? 0 : out ? 14 : 8;
     function centre(r) { return out ? r.y + r.h / 2 : r.y + Math.min(r.h, CARD_H) / 2; }
-    // A left edge's lines meet it a little above the middle, a right
-    // edge's a little below: no two heads back to back across a gutter.
     function port(r, rt) { var d = out ? r.h * 0.12 : 10; return centre(r) + (rt ? d : -d); }
     var paths = [];
     wants.forEach(function (w) {
@@ -221,25 +222,24 @@
       ends[key].list.push(e);
     }
     paths.forEach(function (p, k) {
-      var mean = p.to.reduce(function (s, t) { return s + centre(t[1]); }, 0) / p.to.length;
+      var mean = p.to.reduce(function (s2, t) { return s2 + centre(t[1]); }, 0) / p.to.length;
       end(itemKey(p.a) + (p.right ? 'R' : 'L'), p.a, [mean, k, MAXJ]);
       p.to.forEach(function (t, j) { end(itemKey(t[0]) + (entersRight(p, j) ? 'R' : 'L'), t[0], [centre(p.ra), k, j]); });
     });
+    function alone(key) { return !!ends[key] && ends[key].list.length === 1; }
     order.forEach(function (key) {
       var en = ends[key], r = rectOf[itemKey(en.item)];
       if (!r) return;
       var list = en.list.sort(function (x, y) { return x[0] - y[0] || x[1] - y[1] || x[2] - y[2]; }), n = list.length;
       var lo = r.y + 10, hi = bottom(r) - 10;
       var step = n <= 1 ? 0 : Math.min(spread, (hi - lo) / (n - 1));
-      var half = step * Math.max(0, n - 1) / 2;
       var own = list.some(function (x) { return x[2] === MAXJ; });
+      if (own && n > 1) step = Math.min(Math.max(r.h * 0.3, step), (hi - lo) / (n - 1));
+      var half = step * Math.max(0, n - 1) / 2;
       var at = own ? centre(r) + rootShift : port(r, key.charAt(key.length - 1) === 'R');
       var mid = Math.min(Math.max(at, lo + half), Math.max(hi - half, lo + half));
       list.forEach(function (x, k) { var y = mid - half + k * step; if (x[2] === MAXJ) paths[x[1]].ya = y; else paths[x[1]].yb[x[2]] = y; });
     });
-    // A line alone at both ends between neighbouring columns runs straight
-    // when its ends are within 16 points.
-    function alone(key) { return ends[key] && ends[key].list.length === 1; }
     paths.forEach(function (p) {
       if (p.to.length !== 1) return;
       var t = p.to[0][0], r = p.to[0][1], ca = colOf(p.ra.x), tc = colOf(r.x);
@@ -256,17 +256,17 @@
     Object.keys(rectOf).map(function (k) { return rectOf[k]; }).concat(heads).forEach(function (r) {
       for (var c = colOf(r.x); c <= colOf(right(r) - 1); c++) block(c).push([r.y, bottom(r)]);
     });
-    function ok(no, y) { return !no.some(function (s) { return s[0] - clear < y && y < s[1] + clear; }); }
+    function ok(no, y) { return !no.some(function (s2) { return s2[0] - clear < y && y < s2[1] + clear; }); }
     function pick(no, y, want) {
       no.sort(function (a, b) { return a[0] - b[0]; });
       var free = [], from = -Infinity;
-      no.forEach(function (s) { if (from > -Infinity && s[0] - from >= 2 * clear) free.push([from, s[0]]); from = Math.max(from, s[1]); });
+      no.forEach(function (s2) { if (from > -Infinity && s2[0] - from >= 2 * clear) free.push([from, s2[0]]); from = Math.max(from, s2[1]); });
       var best = null;
       function consider(p) {
         var cost = Math.abs(p - y) + Math.abs(p - want), near = Math.abs(p - want);
         if (!best || cost < best[0] - 1e-3 || (cost < best[0] + 1e-3 && near < best[1] - 1e-3)) best = [cost, near, p];
       }
-      free.forEach(function (s) { consider((s[0] + s[1]) / 2 + Math.min(chanShift, (s[1] - s[0]) / 2 - clear)); });
+      free.forEach(function (s2) { consider((s2[0] + s2[1]) / 2 + Math.min(chanShift, (s2[1] - s2[0]) / 2 - clear)); });
       consider(Math.max(want, Math.max(from, 0) + clear * 1.8) + chanShift);
       return best ? best[2] : want;
     }
@@ -287,7 +287,7 @@
         if (c != null) {
           var past = [];
           tcol.forEach(function (t, j) { if (p.right ? t > c : t < c) past.push(j); });
-          var want = past.reduce(function (s, j) { return s + p.yb[j]; }, 0) / Math.max(1, past.length);
+          var want = past.reduce(function (s2, j) { return s2 + p.yb[j]; }, 0) / Math.max(1, past.length);
           if (!ok(block(c), y)) to = pick(block(c).slice(), y, want);
           block(c).push([to, to]);
         }
@@ -296,30 +296,36 @@
       });
       p.lanes = p.stops.map(function () { return 0; });
     });
-    var byGap = {};
-    paths.forEach(function (p, k) {
-      p.stops.forEach(function (st, s) {
-        var lo = Infinity, hi = -Infinity;
-        st[2].map(function (j) { return p.yb[j]; }).concat([st[1], st[3]]).forEach(function (v) { lo = Math.min(lo, v); hi = Math.max(hi, v); });
-        (byGap[st[0]] = byGap[st[0]] || []).push([k, s, hi - lo]);
+    // A target within 16 points of the trunk's height, alone on its edge,
+    // is met level (Rust: route).
+    paths.forEach(function (p) {
+      p.stops.forEach(function (st) {
+        var y = st[1];
+        st[2].forEach(function (j) {
+          var t = p.to[j][0], r = p.to[j][1], er = !p.right || colOf(r.x) === colOf(p.ra.x);
+          if (Math.abs(p.yb[j] - y) < 16 && alone(itemKey(t) + (er ? 'R' : 'L')) && y > r.y + 10 && y < bottom(r) - 10) p.yb[j] = y;
+        });
       });
     });
-    var laneStep = out ? 24 : 16;
-    Object.keys(byGap).forEach(function (g) {
-      var members = byGap[g].sort(function (x, y) { return y[2] - x[2] || x[0] - y[0] || x[1] - y[1]; });
-      var sp = gapSpan(+g), n = members.length;
-      var step = n <= 1 ? 0 : Math.min(laneStep, (sp[1] - sp[0]) / (n - 1));
-      var start = (sp[0] + sp[1]) / 2 - step * Math.max(0, n - 1) / 2;
-      members.forEach(function (m, k) { paths[m[0]].lanes[m[1]] = Math.min(start + k * step + laneShift, sp[1]); });
+    // Fixed lane slots (Rust: route): selected out nearest the card, in
+    // just past the middle; hovered in the two outer slots.
+    var inner = out ? 11 : 8, outer = out ? 33 : 24;
+    paths.forEach(function (p) {
+      var isIn = p.to.every(function (t) { return !t[3]; });
+      var slot = !hovered ? (isIn ? inner : -inner) : (isIn ? -outer : outer);
+      var toward = p.right ? 1 : -1;
+      p.stops.forEach(function (st, k) {
+        var sp = gapSpan(st[0]);
+        p.lanes[k] = Math.min(Math.max((sp[0] + sp[1]) / 2 + toward * slot, sp[0]), sp[1]);
+      });
     });
     var lines = [], badges = [];
     paths.forEach(function (p) {
       var a0 = p.right ? right(p.ra) : p.ra.x, trunk = [[a0, p.ya]];
-      // One badge per trunk, on its root (Rust: route).
       var n = p.to.reduce(function (a, t) { return a + t[2]; }, 0);
-      if (n >= 2 && p.lanes.length) {
+      if (n >= 2 && p.lanes.length && p.to.every(function (t) { return t[3]; })) {
         var room = Math.min(Math.abs(p.lanes[0] - a0), COL_GAP / 2);
-        badges.push({ x0: a0, x1: a0 + Math.sign(p.lanes[0] - a0) * room, y: p.ya, links: n, trunk: p.trunk, to: p.to.map(function (t) { return t[0]; }) });
+        badges.push({ x0: a0, x1: a0 + Math.sign(p.lanes[0] - a0) * room, y: p.ya, links: n, trunk: p.trunk, to: p.to.map(function (t) { return t[0]; }), near: [] });
       }
       p.stops.forEach(function (st, s) {
         var x = p.lanes[s];
@@ -331,6 +337,18 @@
           lines.push({ from: p.a, to: t[0], points: pts, bounds: { x: x0 - 6, y: y0 - 6, w: x1 - x0 + 12, h: y1 - y0 + 12 }, links: t[2], trunk: p.trunk, out: t[3], back: t[4] });
         });
         if (st[3] !== st[1]) { trunk.push([x, st[1]]); trunk.push([x, st[3]]); }
+      });
+    });
+    badges.forEach(function (b) {
+      var bx0 = Math.min(b.x0, b.x1), bx1 = Math.max(b.x0, b.x1), seen = {};
+      lines.forEach(function (l) {
+        if (l.trunk === b.trunk) return;
+        for (var k = 1; k < l.points.length; k++) {
+          var seg = [l.points[k - 1][0], l.points[k - 1][1], l.points[k][0], l.points[k][1]];
+          var x0 = Math.min(seg[0], seg[2]), x1 = Math.max(seg[0], seg[2]), y0 = Math.min(seg[1], seg[3]), y1 = Math.max(seg[1], seg[3]);
+          var key = seg.join(',');
+          if (x1 >= bx0 - COL_GAP && x0 <= bx1 + COL_GAP && y1 >= b.y - COL_GAP && y0 <= b.y + COL_GAP && !seen[key]) { seen[key] = 1; b.near.push(seg); }
+        }
       });
     });
     return { lines: lines, badges: badges };
@@ -387,35 +405,92 @@
     var best = hit.reduce(function (m, h) { return Math.min(m, h[0]); }, Infinity);
     return hit.filter(function (h) { return h[0] <= best + 0.5; }).map(function (h) { return h[1]; });
   }
-  /* Every end of `lines` that meets a card (Rust: ends): a head where
-     links arrive, else a dot; lit only at the targets of `hot` lines. */
-  function ends(lines, hot) {
+  /* A line as the pointer names it (Rust: Line::hot). */
+  function hot(l) { return itemKey(l.from) + '|' + itemKey(l.to) + '|' + (l.out ? 1 : 0); }
+  /* The heads of `lines` (Rust: ends): at the card for a line of links
+     out, at the focus for a line of links in; lit for `hotKeys` lines. */
+  function ends(lines, hotKeys) {
     var out = [];
     function key(p) { return Math.round(p[0] * 2) + '|' + Math.round(p[1] * 2); }
     function put(e) {
-      for (var i = 0; i < out.length; i++) {
-        if (key(out[i].tip) === key(e.tip)) {
-          out[i].head = out[i].head || e.head;
-          out[i].lit = out[i].lit || e.lit;
-          if (e.head) out[i].from = e.from;
-          return;
-        }
-      }
+      for (var i = 0; i < out.length; i++) if (key(out[i].tip) === key(e.tip)) { out[i].lit = out[i].lit || e.lit; return; }
       out.push(e);
     }
     lines.forEach(function (l) {
       var n = l.points.length;
       if (n < 2) return;
-      var lit = hot.some(function (h) { return h[0] === itemKey(l.from) && h[1] === itemKey(l.to); });
-      put({ tip: l.points[n - 1], from: l.points[n - 2], head: !!l.out, lit: lit });
-      put({ tip: l.points[0], from: l.points[1], head: !!l.back, lit: false });
+      var lit = hotKeys.indexOf(hot(l)) >= 0;
+      if (l.out) put({ tip: l.points[n - 1], from: l.points[n - 2], lit: lit });
+      if (l.back) put({ tip: l.points[0], from: l.points[1], lit: lit });
     });
     return out;
+  }
+  function segIn(a, b, v) {
+    return Math.max(a[0], b[0]) >= v.x && Math.min(a[0], b[0]) <= v.x + v.w && Math.max(a[1], b[1]) >= v.y && Math.min(a[1], b[1]) <= v.y + v.h;
+  }
+  /* Whether a line shows in view v (Rust: shows). */
+  function shows(l, v) {
+    for (var k = 1; k < l.points.length; k++) if (segIn(l.points[k - 1], l.points[k], v)) return true;
+    return false;
+  }
+  /* Where lines leave the view toward cards out of it (Rust: exits). */
+  function exits(lines, v, inset, near) {
+    var out = [];
+    function inside(p) { return p[0] >= v.x && p[0] <= v.x + v.w && p[1] >= v.y && p[1] <= v.y + v.h; }
+    lines.forEach(function (l) {
+      var n = l.points.length;
+      if (n < 2 || !shows(l, v) || inside(l.points[n - 1])) return;
+      var at = null;
+      for (var k = 1; k < n; k++) {
+        var a = l.points[k - 1], b = l.points[k];
+        if (!segIn(a, b, v) || inside(b)) continue;
+        if (a[1] === b[1]) at = b[0] > v.x + v.w ? [v.x + v.w, a[1], 'r'] : [v.x, a[1], 'l'];
+        else at = b[1] > v.y + v.h ? [a[0], v.y + v.h, 'b'] : [a[0], v.y, 't'];
+      }
+      if (!at) return;
+      var x = at[0], y = at[1], side = at[2];
+      if (side === 'r') x -= inset; else if (side === 'l') x += inset; else if (side === 'b') y -= inset; else y += inset;
+      var e = null;
+      for (var i = 0; i < out.length; i++) {
+        var o = out[i];
+        if (o.side === side && ((side === 'l' || side === 'r') ? Math.abs(o.y - y) <= near : Math.abs(o.x - x) <= near)) { e = o; break; }
+      }
+      if (e) {
+        if (!e.to.some(function (t) { return itemKey(t) === itemKey(l.to); })) e.to.push(l.to);
+        e.links += l.links;
+      } else out.push({ x: x, y: y, side: side, to: [l.to], links: l.links });
+    });
+    return out;
+  }
+  /* Whether two segments run along each other (Rust: along). */
+  function along(a0, a1, b0, b1, gap) {
+    if (Math.abs(a0[1] - a1[1]) < 0.01 && Math.abs(b0[1] - b1[1]) < 0.01 && Math.abs(a0[1] - b0[1]) < gap) {
+      return Math.min(Math.max(a0[0], a1[0]), Math.max(b0[0], b1[0])) - Math.max(Math.min(a0[0], a1[0]), Math.min(b0[0], b1[0])) > 1;
+    }
+    if (Math.abs(a0[0] - a1[0]) < 0.01 && Math.abs(b0[0] - b1[0]) < 0.01 && Math.abs(a0[0] - b0[0]) < gap) {
+      return Math.min(Math.max(a0[1], a1[1]), Math.max(b0[1], b1[1])) - Math.max(Math.min(a0[1], a1[1]), Math.min(b0[1], b1[1])) > 1;
+    }
+    return false;
+  }
+  /* The selection's lines drawn while `card` is hovered (Rust: beside). */
+  function beside(sel, hov, card) {
+    var ck = itemKey(card);
+    return sel.filter(function (l) {
+      if (itemKey(l.to) === ck || itemKey(l.from) === ck) return false;
+      for (var i = 1; i < l.points.length; i++) {
+        for (var h = 0; h < hov.length; h++) {
+          for (var j = 1; j < hov[h].points.length; j++) {
+            if (along(l.points[i - 1], l.points[i], hov[h].points[j - 1], hov[h].points[j], 3)) return false;
+          }
+        }
+      }
+      return true;
+    });
   }
   /* The links lines stand for, once per card they reach (Rust: links_of). */
   function linksOf(lines) {
     var seen = {}, n = 0;
-    lines.forEach(function (l) { var k = itemKey(l.to); if (!seen[k]) { seen[k] = 1; n += l.links; } });
+    lines.forEach(function (l) { var k = itemKey(l.to) + (l.out ? '>' : '<'); if (!seen[k]) { seen[k] = 1; n += l.links; } });
     return n;
   }
   /* One step in or out of the style's zoom table (Rust: Style::step). */
@@ -430,7 +505,11 @@
   function badgeAt(st, b, z) {
     var need = (badgeHalf(st, b.links) + st.badge_room) / Math.max(0.01, z), len = Math.abs(b.x1 - b.x0);
     if (len < need) return null;
-    return [b.x0 + Math.sign(b.x1 - b.x0) * need, b.y];
+    var c = [b.x0 + Math.sign(b.x1 - b.x0) * need, b.y], hw = (badgeHalf(st, b.links) + 1) / Math.max(0.01, z), hh = (st.badge + 1) / Math.max(0.01, z);
+    var touches = (b.near || []).some(function (s2) {
+      return Math.max(s2[0], s2[2]) >= c[0] - hw && Math.min(s2[0], s2[2]) <= c[0] + hw && Math.max(s2[1], s2[3]) >= c[1] - hh && Math.min(s2[1], s2[3]) <= c[1] + hh;
+    });
+    return touches ? null : c;
   }
 
   /* The map's three layouts from `arr`, settled first. */
@@ -544,6 +623,7 @@
     layout: layout, settle: settle, moveTo: moveTo, nudge: nudge, same: same, find: find,
     blockKey: blockKey, handleAt: handleAt, blockRect: blockRect, dropAt: dropAt,
     preview: preview, viewArrangement: viewArrangement, fit: fit,
-    linesAt: linesAt, linksOf: linksOf, step: step, badgeHalf: badgeHalf, badgeAt: badgeAt, set: set, ends: ends, itemKey: itemKey
+    linesAt: linesAt, linksOf: linksOf, step: step, badgeHalf: badgeHalf, badgeAt: badgeAt, set: set, ends: ends, itemKey: itemKey,
+    hot: hot, shows: shows, exits: exits, beside: beside
   };
 })(typeof window !== 'undefined' ? window : globalThis);

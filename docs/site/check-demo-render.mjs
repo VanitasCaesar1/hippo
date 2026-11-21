@@ -239,7 +239,26 @@ for (const view of ['morning', 'brain']) {
         }
       }
       for (const [, ls] of lay.focus) {
-        for (const l of ls) if (!l.out && !l.back) errors.push(`line: ${L} line without a head`);
+        for (const l of ls) if (l.out === l.back) errors.push(`line: ${L} line with no one way (out or in)`);
+      }
+      // Every line that leaves a view ends in an edge chip, at every zoom of
+      // the level, in views centred on a few cards.
+      for (const z of zs) {
+        const [w, h] = [860 / z, 600 / z];
+        for (const card of lay.cards.filter((_, i) => i % 4 === 0)) {
+          const v = { x: card.rect.x + card.rect.w / 2 - w / 2, y: card.rect.y + Math.min(card.rect.h, 112) / 2 - h / 2, w, h };
+          for (const [f, ls] of lay.focus) {
+            const shown = ls.filter((l) => A.shows(l, v));
+            const chips = A.exits(shown, v, 8 / z, 28 / z);
+            for (const l of shown) {
+              const e = l.points[l.points.length - 1];
+              const out = e[0] < v.x || e[0] > v.x + v.w || e[1] < v.y || e[1] > v.y + v.h;
+              if (out && !chips.some((c) => c.to.some((t) => A.itemKey(t) === A.itemKey(l.to)))) {
+                errors.push(`chip: ${L} at ${z}, a line from ${A.itemKey(f)} leaves the view with no chip`);
+              }
+            }
+          }
+        }
       }
     }
   }

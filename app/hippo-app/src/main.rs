@@ -66,6 +66,8 @@ fn alias(name: &str) -> &str {
         "n-moon" => "moon",
         "n-terminal" => "terminal",
         "n-right" => "arrow-right",
+        "n-left" => "arrow-left",
+        "n-arrow-down" => "arrow-down",
         "n-script" => "file-terminal",
         "n-key" => "key-round",
         "n-tomodel" => "send",
