@@ -26,7 +26,7 @@
     --canvas: #FAFAFA; --dot: rgba(0, 0, 0, .08); --surface: #FFFFFF; --raised: #FFFFFF; --inset: #F4F4F5;
     --hover: #F4F4F5; --selected: #EDEDEE; --line: rgba(0, 0, 0, .08); --line2: rgba(0, 0, 0, .18);
     --text: #0A0A0A; --muted: #52525B; --faint: #6B6B73;
-    --you: #C8F031; --you-ink: #0F1400; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line); --you-stroke: #5E8C00;
+    --you: #C8F031; --you-ink: #0F1400; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line); --you-stroke: #3F3F46;
     --night: #18181B; --night-bg: rgba(0, 0, 0, .05); --night-line: rgba(0, 0, 0, .42);
     --ok: #15803D; --ok-bg: rgba(21, 128, 61, .08); --bad: #DC2626; --bad-bg: rgba(220, 38, 38, .07);
     --shadow: 0 10px 28px rgba(0, 0, 0, .1); --shadow-s: 0 1px 3px rgba(0, 0, 0, .08);
@@ -39,7 +39,7 @@
   --canvas: #FAFAFA; --dot: rgba(0, 0, 0, .08); --surface: #FFFFFF; --raised: #FFFFFF; --inset: #F4F4F5;
   --hover: #F4F4F5; --selected: #EDEDEE; --line: rgba(0, 0, 0, .08); --line2: rgba(0, 0, 0, .18);
   --text: #0A0A0A; --muted: #52525B; --faint: #6B6B73;
-  --you: #C8F031; --you-ink: #0F1400; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line); --you-stroke: #5E8C00;
+  --you: #C8F031; --you-ink: #0F1400; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line); --you-stroke: #3F3F46;
   --night: #18181B; --night-bg: rgba(0, 0, 0, .05); --night-line: rgba(0, 0, 0, .42);
   --ok: #15803D; --ok-bg: rgba(21, 128, 61, .08); --bad: #DC2626; --bad-bg: rgba(220, 38, 38, .07);
   --shadow: 0 10px 28px rgba(0, 0, 0, .1); --shadow-s: 0 1px 3px rgba(0, 0, 0, .08);
@@ -90,7 +90,7 @@ p, h1, h2 { margin: 0; }
 .main { padding: 26px 0 0 28px; min-width: 0; }
 .panel { position: sticky; z-index: 8; top: 74px; align-self: start; height: calc(100vh - 92px); overflow: auto; margin-top: 18px; padding: 24px 24px 0; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
 /* What runs on below the panel's foot fades out rather than ending in a cut. */
-.panel::after { content: ""; position: sticky; bottom: 0; display: block; height: 64px; margin: 24px -24px 0; background: linear-gradient(transparent, var(--surface) 55%); pointer-events: none; }
+.panel::after { content: ""; position: sticky; bottom: 0; display: block; height: 80px; margin: 24px -24px 0; background: linear-gradient(transparent, var(--surface) 40%); pointer-events: none; }
 .kicker { color: var(--muted); font-size: 13.5px; }
 h1 { font-size: 28px; line-height: 1.15; font-weight: 700; margin: 8px 0; }
 h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
@@ -187,7 +187,7 @@ h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
 .world .folder { cursor: zoom-in; }
 /* One resting edge for every card; hover adds an accent edge and a lift;
    the selection ring stays while another card is hovered. */
-.world .hover { border-color: var(--you-stroke); box-shadow: var(--hover-lift); }
+.world .hover { border-color: var(--you); box-shadow: var(--hover-lift); }
 .world .note.sel, .world .ocard.sel, .world .folder.sel { border: 2px solid var(--night); }
 .world .note.sel { padding: 15px; }
 .world .note .t { font-weight: 600; font-size: 16px; }
@@ -235,7 +235,8 @@ h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
 .world svg.links path.head.acc.faint { fill: var(--l-acc-f); }
 .world svg.links .badge rect { fill: var(--surface); stroke-width: 1.2px; }
 .world svg.links .badge.sel rect { stroke: var(--l-sel); }
-.world svg.links .badge.acc rect { stroke: var(--l-acc); }
+.world svg.links .badge.acc rect { stroke: var(--you); fill: var(--you); }
+.world svg.links .badge.acc text { fill: var(--you-ink); }
 .world svg.over { z-index: 3; }
 .world .note .s { font-size: max(14px, var(--min11, 14px)); line-height: 1.36; }
 .world .note .chip { font-size: max(12px, var(--min11, 12px)); height: max(22px, calc(var(--min11, 12px) * 1.83)); }
@@ -314,7 +315,6 @@ h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
 .world .note:not(.inner) .s { position: absolute; left: 16px; right: 16px; top: 50px; margin: 0; }
 .world .note:not(.inner) .chips { position: absolute; left: 16px; right: 16px; top: 74px; flex-wrap: nowrap; overflow: hidden; }
 .world .note.sel:not(.inner) { padding: 0; }
-.world svg.links rect.halo { fill: var(--canvas); stroke: none; }
 
 .world svg.links path.fade { stroke: var(--canvas); fill: none; }
 /* Cards pass under the strip of folder names fading, never hard-cut. */

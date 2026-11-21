@@ -8,7 +8,7 @@
   'use strict';
   var CARD_H = 112, GAP = 12, FRAME_PAD = 14, FRAME_HEAD = 40, FRAME_GAP = 48,
     COL_GAP = 128, CARD_W = 340, COL_W = CARD_W + 2 * FRAME_PAD, OUT_GAP = 72,
-    OUT_BELOW = 0.7, OUT_FIT = 0.69, MIN_ZOOM = 0.15, MAX_ZOOM = 3, FIT_PAD = 28;
+    OUT_BELOW = 0.7, OUT_FIT = 0.69, MIN_ZOOM = 0.15, MAX_ZOOM = 3, FIT_PAD = 36;
 
   function colX(c) { return c * (COL_W + COL_GAP); }
   function right(r) { return r.x + r.w; }
@@ -196,8 +196,9 @@
      other, turn only in gaps, and branch beside each column they reach. */
   function route(wants, rectOf, heads, out) {
     var clear = out ? 20 : 12, spread = out ? 24 : 14;
-    function centre(r) { return out ? r.y + r.h / 2 : r.y + Math.min(r.h, CARD_H) / 2; }
-    function port(r, rt) { var d = out ? r.h * 0.12 : 10; return centre(r) + (rt ? d : -d); }
+    // Level with a card's title (Rust: route).
+    function centre(r) { return out ? r.y + Math.min(50, r.h / 2) : r.y + Math.min(r.h, CARD_H) / 2; }
+    function port(r, rt) { var d = out ? 12 : 10; return centre(r) + (rt ? d : -d); }
     var paths = [];
     wants.forEach(function (w) {
       var ra = rectOf[itemKey(w.a)];
@@ -296,21 +297,23 @@
         var y = st[1];
         st[2].forEach(function (j) {
           var t = p.to[j][0], r = p.to[j][1], er = !p.right || colOf(r.x) === colOf(p.ra.x);
-          if (Math.abs(p.yb[j] - y) < 16 && alone(itemKey(t) + (er ? 'R' : 'L')) && y > r.y + 10 && y < bottom(r) - 10) p.yb[j] = y;
+          var dd = Math.abs(p.yb[j] - y), fits = y > r.y + 10 && y < bottom(r) - 10;
+          if (fits && (dd < 3 || (dd < 16 && alone(itemKey(t) + (er ? 'R' : 'L'))))) p.yb[j] = y;
         });
       });
     });
-    // One lane per trunk in each gap, down its middle (Rust: route).
+    // One lane per trunk in each gap, 70 % across from the card's side
+    // (Rust: route).
     paths.forEach(function (p) {
-      p.stops.forEach(function (st, k) { var sp = gapSpan(st[0]); p.lanes[k] = (sp[0] + sp[1]) / 2; });
+      var away = p.right ? 1 : -1;
+      p.stops.forEach(function (st, k) { var sp = gapSpan(st[0]); p.lanes[k] = (sp[0] + sp[1]) / 2 + away * 0.2 * COL_GAP; });
     });
     var lines = [], badges = [];
     paths.forEach(function (p) {
       var a0 = p.right ? right(p.ra) : p.ra.x, trunk = [[a0, p.ya]];
       var n = p.to.reduce(function (a, t) { return a + t[2]; }, 0);
       if (n >= 2 && p.lanes.length) {
-        var room = Math.min(Math.abs(p.lanes[0] - a0), COL_GAP / 2);
-        badges.push({ x0: a0, x1: a0 + Math.sign(p.lanes[0] - a0) * room, y: p.ya, links: n, trunk: p.trunk, to: p.to.map(function (t) { return t[0]; }), near: [] });
+        badges.push({ x0: a0, x1: p.lanes[0], y: p.ya, links: n, trunk: p.trunk, to: p.to.map(function (t) { return t[0]; }), near: [] });
       }
       p.stops.forEach(function (st, s) {
         var x = p.lanes[s];
@@ -392,21 +395,28 @@
   }
   /* A line as the pointer names it (Rust: Line::hot). */
   function hot(l) { return itemKey(l.from) + '|' + itemKey(l.to) + '|' + (l.out ? 1 : 0); }
-  /* The heads of `lines` (Rust: ends): at the card for a line of links
-     out, at the focus for a line of links in; lit for `hotKeys` lines. */
-  function ends(lines, hotKeys) {
+  /* The marks of `lines` (Rust: ends): a head where links arrive; on a lit
+     line (allLit, or one of hotKeys) a dot where they leave and none arrive. */
+  function ends(lines, hotKeys, allLit) {
     var out = [];
     function key(p) { return Math.round(p[0] * 2) + '|' + Math.round(p[1] * 2); }
     function put(e) {
-      for (var i = 0; i < out.length; i++) if (key(out[i].tip) === key(e.tip)) { out[i].lit = out[i].lit || e.lit; return; }
+      for (var i = 0; i < out.length; i++) {
+        if (key(out[i].tip) !== key(e.tip)) continue;
+        if (e.head && !out[i].head) out[i] = e;
+        else if (e.head === out[i].head) out[i].lit = out[i].lit || e.lit;
+        return;
+      }
       out.push(e);
     }
     lines.forEach(function (l) {
       var n = l.points.length;
       if (n < 2) return;
-      var lit = hotKeys.indexOf(hot(l)) >= 0;
-      if (l.out) put({ tip: l.points[n - 1], from: l.points[n - 2], lit: lit });
-      if (l.back) put({ tip: l.points[0], from: l.points[1], lit: lit });
+      var lit = !!allLit || hotKeys.indexOf(hot(l)) >= 0;
+      if (l.out) put({ tip: l.points[n - 1], from: l.points[n - 2], lit: lit, head: true });
+      else if (lit) put({ tip: l.points[n - 1], from: l.points[n - 2], lit: lit, head: false });
+      if (l.back) put({ tip: l.points[0], from: l.points[1], lit: lit, head: true });
+      else if (lit) put({ tip: l.points[0], from: l.points[1], lit: lit, head: false });
     });
     return out;
   }
@@ -466,6 +476,21 @@
     }
     return out;
   }
+  /* The part of a line past its exit (Rust: past). */
+  function past(l, v) {
+    var end = exit(l, v);
+    if (!end) return [];
+    var out = [], on = false;
+    for (var k = 1; k < l.points.length; k++) {
+      var a = l.points[k - 1], b = l.points[k];
+      if (!on) {
+        var hit = (Math.abs(a[0] - b[0]) < 0.01 && Math.abs(end[0] - a[0]) < 0.01 && end[1] >= Math.min(a[1], b[1]) && end[1] <= Math.max(a[1], b[1])) ||
+          (Math.abs(a[1] - b[1]) < 0.01 && Math.abs(end[1] - a[1]) < 0.01 && end[0] >= Math.min(a[0], b[0]) && end[0] <= Math.max(a[0], b[0]));
+        if (hit && !inView(b, v)) { on = true; out.push(end, b); }
+      } else out.push(b);
+    }
+    return out;
+  }
   /* Of the lines under the pointer, the nearest card out of view they
      reach (Rust: nearest_out). */
   function nearestOut(lines, v, at, cardRect) {
@@ -478,28 +503,6 @@
       if (!best || d < best[0]) best = [d, l.to];
     });
     return best ? best[1] : null;
-  }
-  /* How far to pan so no block is cut at the view's edge (Rust: unsliver). */
-  function unsliver(blocks, v, keep, margin) {
-    function axis(lo, size, v0, vs) {
-      function cut(d) {
-        return blocks.filter(function (r) { return size(r) < vs - 2 * margin; }).filter(function (r) {
-          var a = lo(r), b = lo(r) + size(r);
-          return a < v0 + d + vs && b > v0 + d && (a < v0 + d || b > v0 + d + vs);
-        }).length;
-      }
-      function kept(d) { return lo(keep) >= v0 + d && lo(keep) + Math.min(size(keep), vs) <= v0 + d + vs; }
-      var cands = [0];
-      blocks.forEach(function (r) { var a = lo(r), b = lo(r) + size(r); cands.push(b - (v0 + vs) + margin, a - (v0 + vs) - margin, a - v0 - margin, b - v0 + margin); });
-      var best = null;
-      cands.forEach(function (d) {
-        if (!kept(d)) return;
-        var c = cut(d);
-        if (!best || c < best[0] || (c === best[0] && Math.abs(d) < Math.abs(best[1]))) best = [c, d];
-      });
-      return best ? best[1] : 0;
-    }
-    return [axis(function (r) { return r.x; }, function (r) { return r.w; }, v.x, v.w), axis(function (r) { return r.y; }, function (r) { return r.h; }, v.y, v.h)];
   }
   /* The gaps a line runs in, down or across (Rust: gutters_of). */
   function guttersOf(l) {
@@ -556,11 +559,11 @@
     else { for (i = s.length - 1; i >= 0; i--) if (s[i] < z - 0.005) { next = s[i]; break; } if (next == null) next = least; }
     return Math.min(Math.max(next, Math.min(least, MAX_ZOOM)), MAX_ZOOM);
   }
-  function badgeHalf(st, n) { return Math.max(st.badge, String(Math.max(1, n)).length * 3.4 + 5.5); }
+  function badgeHalf(st, n) { return Math.max(st.badge, String(Math.max(1, n)).length * 3.3 + 4); }
   /* Where a badge is drawn at zoom z (Rust: Style::badge_at), or null. */
   function badgeAt(st, b, z) {
     var need = (badgeHalf(st, b.links) + st.badge_room) / Math.max(0.01, z), len = Math.abs(b.x1 - b.x0);
-    if (len < need) return null;
+    if (len < need + (badgeHalf(st, b.links) + 2) / Math.max(0.01, z)) return null;
     var c = [b.x0 + Math.sign(b.x1 - b.x0) * need, b.y], hw = (badgeHalf(st, b.links) + 1) / Math.max(0.01, z), hh = (st.badge + 1) / Math.max(0.01, z);
     var touches = (b.near || []).some(function (s2) {
       return Math.max(s2[0], s2[2]) >= c[0] - hw && Math.min(s2[0], s2[2]) <= c[0] + hw && Math.max(s2[1], s2[3]) >= c[1] - hh && Math.min(s2[1], s2[3]) <= c[1] + hh;
@@ -680,6 +683,6 @@
     blockKey: blockKey, handleAt: handleAt, blockRect: blockRect, dropAt: dropAt,
     preview: preview, viewArrangement: viewArrangement, fit: fit,
     linesAt: linesAt, linksOf: linksOf, step: step, badgeHalf: badgeHalf, badgeAt: badgeAt, set: set, ends: ends, itemKey: itemKey,
-    hot: hot, shows: shows, exit: exit, fade: fade, nearestOut: nearestOut, unsliver: unsliver, beside: beside
+    hot: hot, shows: shows, exit: exit, fade: fade, past: past, nearestOut: nearestOut, beside: beside
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -2752,6 +2752,18 @@ mod tests {
         let (c0, _) = m.arrangement.find(&key).unwrap();
         let r = m.block_rect(Level::Mid, Block::Folder(runbooks)).unwrap();
 
+        // A note with links selected, so lines are drawn.
+        let linked = m.edges.first().map(|e| e.0).expect("a link");
+        root.update(&mut vcx, |s, cx| {
+            s.night.brain = Some(m.notes[linked].path.clone());
+            cx.notify();
+        });
+        vcx.run_until_parked();
+        assert!(
+            root.read_with(&vcx, |s, _| s.night.map.frames.borrow().drawn.1) > 0,
+            "no line at rest"
+        );
+
         // Escape during a lift puts it back.
         let band = on_map(&vcx, &root, r.x + 40., r.y + 12.);
         let away = on_map(&vcx, &root, r.x + 40. + 440., r.y + 60.);
@@ -2769,7 +2781,19 @@ mod tests {
             let slot = m.block_rect_in(&sl.lay, l.block).unwrap();
             assert!((slot.x - l.drop.x).abs() < 1., "{slot:?} {:?}", l.drop);
         });
+        // Lines stay drawn while the block is held.
+        vcx.run_until_parked();
+        assert!(
+            root.read_with(&vcx, |s, _| s.night.map.frames.borrow().drawn.1) > 0,
+            "no line while held"
+        );
         vcx.simulate_keystrokes("escape");
+        // ... and while every block flies back.
+        vcx.run_until_parked();
+        assert!(
+            root.read_with(&vcx, |s, _| s.night.map.frames.borrow().drawn.1) > 0,
+            "no line in the fly-back"
+        );
         // Escape: every block flies back, none is waiting to land.
         root.read_with(&vcx, |s, _| {
             assert!(s.night.map.lift.is_none());
@@ -2790,16 +2814,27 @@ mod tests {
         let tx =
             to as f32 * (hippo_view::night::map::COL_W + hippo_view::night::map::COL_GAP) + 60.;
         let target = on_map(&vcx, &root, tx, -6.);
-        let z_before = root.read_with(&vcx, |s, _| s.night.map.zoom);
         drag(&mut vcx, band, target);
+        // Lines stay drawn through the slide.
+        vcx.run_until_parked();
+        let lines_in_slide = root.read_with(&vcx, |s, _| s.night.map.frames.borrow().drawn.1);
+        assert!(lines_in_slide > 0, "no line drawn while blocks slide");
+        // The view as the block is released (a drag near the edge scrolls).
+        let view_before = root.read_with(&vcx, |s, _| (s.night.map.zoom, s.night.map.pan));
         vcx.simulate_mouse_up(target, gpui::MouseButton::Left, gpui::Modifiers::none());
         vcx.run_until_parked();
+        // ... and through the settle.
+        let lines_in_settle = root.read_with(&vcx, |s, _| s.night.map.frames.borrow().drawn.1);
+        assert!(lines_in_settle > 0, "no line drawn while the block settles");
         let m2 = root
             .read_with(&vcx, |s, _| s.night.map.map.clone())
             .unwrap();
         assert!(m2.is_arranged());
-        // A view that was not fitted keeps its zoom.
-        assert_eq!(root.read_with(&vcx, |s, _| s.night.map.zoom), z_before);
+        // A view that was not fitted keeps its zoom and pan exactly.
+        assert_eq!(
+            root.read_with(&vcx, |s, _| (s.night.map.zoom, s.night.map.pan)),
+            view_before
+        );
         assert_eq!(
             m2.arrangement.find(&key).map(|p| p.0),
             Some(to),
@@ -2880,12 +2915,12 @@ mod tests {
             assert_eq!(s.night.map.map.as_ref().unwrap().arrangement, after);
         });
 
-        // A drop never rescales, even on a fitted view.
+        // A drop from the fitted view fits the map as it now is.
         dispatch(&mut vcx, window, &crate::actions::TextDefault);
         let after = root.update(&mut vcx, |s, cx| {
             let m = s.night.map.map.clone().unwrap();
             let (w, h) = s.night.map.view_size.unwrap();
-            assert!((s.night.map.zoom - m.fit(w, h).0).abs() < 1e-4, "fitted");
+            assert!(s.night.map.at_fit(), "fitted");
             let b = Block::Folder(runbooks);
             let level = s.night.map.level();
             let r = m.block_rect(level, b).unwrap();
@@ -2893,35 +2928,40 @@ mod tests {
             let last = m.arrangement.columns.len();
             let x = last as f32 * (hippo_view::night::map::COL_W + hippo_view::night::map::COL_GAP)
                 + 40.;
-            let z0 = s.night.map.zoom;
             s.brain_lift_map(b, (r.w * 0.3, 24.), (x, 30.));
             s.brain_drop(cx);
             let m3 = s.night.map.map.clone().unwrap();
-            assert_eq!(s.night.map.zoom, z0, "the zoom stays");
-            // No block left as a sliver: each wholly in view or wholly out.
-            let z = s.night.map.zoom;
-            let pan = s.night.map.pan;
-            let v = hippo_view::night::map::Rect::new(pan.0, pan.1, w / z, h / z);
-            let lay = m3.layout(level);
-            for k in m3.arrangement.keys() {
-                let r = m3.block(k).and_then(|b| m3.block_rect_in(lay, b)).unwrap();
-                if r.h >= v.h - 30. / z || r.w >= v.w - 30. / z {
-                    continue;
-                }
-                let whole_in =
-                    r.x >= v.x && r.right() <= v.right() && r.y >= v.y && r.bottom() <= v.bottom();
-                let whole_out = !r.meets(&v);
-                assert!(whole_in || whole_out, "{k} cut by the view after a drop");
-            }
-            // The floor is the new map's fit: zooming out reaches all of it.
-            assert!((s.night.map.fit_zoom - m3.fit(w, h).0).abs() < 1e-4);
-            assert!(
-                (s.night.map.min_zoom()
-                    - m3.fit(w, h).0.clamp(hippo_view::night::map::MIN_ZOOM, 1.))
-                .abs()
-                    < 1e-4
-            );
+            let (fz, fp) = m3.fit(w, h);
+            assert!((s.night.map.zoom - fz).abs() < 1e-4, "refitted");
+            assert!((s.night.map.pan.0 - fp.0).abs() + (s.night.map.pan.1 - fp.1).abs() < 1e-3);
+            assert!(s.night.map.at_fit());
             m3.arrangement.clone()
+        });
+
+        // Centring on a card never leaves empty ground the map could fill.
+        root.update(&mut vcx, |s, _| {
+            let m = s.night.map.map.clone().unwrap();
+            let (w, h) = s.night.map.view_size.unwrap();
+            for c in m.inner.cards.iter().take(6) {
+                s.night.map.zoom_into(&m, c.item, w, h);
+                let z = s.night.map.zoom;
+                let lay = m.layout(s.night.map.level());
+                let pad = hippo_view::night::map::FIT_PAD / z;
+                let (vw, vh) = (w / z, h / z);
+                let pan = s.night.map.pan;
+                if lay.width + 2. * pad > vw {
+                    assert!(
+                        pan.0 >= -pad - 0.01 && pan.0 <= lay.width + pad - vw + 0.01,
+                        "x {pan:?}"
+                    );
+                }
+                if lay.height + 2. * pad > vh {
+                    assert!(
+                        pan.1 >= -pad - 0.01 && pan.1 <= lay.height + pad - vh + 0.01,
+                        "y {pan:?}"
+                    );
+                }
+            }
         });
 
         // A new window brings the saved arrangement back.

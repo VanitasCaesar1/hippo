@@ -105,7 +105,7 @@ pub const OUT_GAP: f32 = 72.;
 /// A line of text is this many times its size high.
 pub const LEADING: f32 = 1.25;
 /// Points around a map fitted to its view.
-pub const FIT_PAD: f32 = 28.;
+pub const FIT_PAD: f32 = 36.;
 /// The largest zoom a map fitted at Out takes: just below Mid.
 pub const OUT_FIT: f32 = 0.69;
 /// At most this many lines show at once, at any zoom: a level with more
@@ -179,15 +179,13 @@ impl Style {
         next.clamp(least.min(MAX_ZOOM), MAX_ZOOM)
     }
 
-    /// Whether a badge at map zoom `z`, `room` map points from the
-    /// nearest card, keeps its radius and room clear of it.
     /// Where a badge is drawn at zoom `z`: on its trunk's root, its edge
-    /// [`Style::badge_room`] px clear of the card; none when the root is too
-    /// short to hold it before the trunk's first turn.
+    /// [`Style::badge_room`] px clear of the card and 2 px clear of the
+    /// junction where the trunk turns; none when the root is too short.
     pub fn badge_at(&self, b: &Badge, z: f32) -> Option<(f32, f32)> {
         let need = (self.badge_half(b.links) + self.badge_room) / z.max(0.01);
         let len = (b.x1 - b.x0).abs();
-        if len < need {
+        if len < need + (self.badge_half(b.links) + 2.) / z.max(0.01) {
             return None;
         }
         let c = (b.x0 + (b.x1 - b.x0).signum() * need, b.y);
@@ -206,7 +204,7 @@ impl Style {
     /// Half a badge's width, px: a circle for one figure, a pill for more.
     pub fn badge_half(&self, links: usize) -> f32 {
         let digits = links.max(1).to_string().len() as f32;
-        self.badge.max(digits * 3.4 + 5.5)
+        self.badge.max(digits * 3.3 + 4.)
     }
 }
 
@@ -418,22 +416,24 @@ pub struct Badge {
     pub near: Vec<[f32; 4]>,
 }
 
-/// An arrowhead where a drawn line's links arrive: at the card the focus
-/// links to, or at the focus where a card links to it. `lit` when it is at
-/// a target the pointer's line names. Pixels or map points, as the points
-/// it was made from.
+/// A mark at a drawn line's end: an arrowhead where its links arrive (at
+/// the card the focus links to, or at the focus where a card links to it),
+/// or, on a lit line, a dot where they leave. `lit` when the line is lit.
+/// Pixels or map points, as the points it was made from.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct End {
     pub tip: (f32, f32),
     /// The point before the tip, for the head's direction.
     pub from: (f32, f32),
     pub lit: bool,
+    pub head: bool,
 }
 
-/// The heads of `lines`, once per point: a line of links out has one at
-/// its card, a line of links in one at the focus; a line's start is bare.
-/// Only the heads of `hot` lines are lit, where their links arrive.
-pub fn ends(lines: &[&Line], hot: &[Hot]) -> Vec<End> {
+/// The marks of `lines`, once per point: a head where links arrive (at
+/// the line's card for links out, at the focus for links in, both for
+/// both); on a lit line (`all_lit`, or one of `hot`) a dot where links
+/// leave and none arrive. A head wins over a dot at one point.
+pub fn ends(lines: &[&Line], hot: &[Hot], all_lit: bool) -> Vec<End> {
     let mut out: Vec<End> = Vec::new();
     let key = |p: (f32, f32)| ((p.0 * 2.).round() as i64, (p.1 * 2.).round() as i64);
     for l in lines {
@@ -441,23 +441,47 @@ pub fn ends(lines: &[&Line], hot: &[Hot]) -> Vec<End> {
         if n < 2 {
             continue;
         }
-        let lit = hot.contains(&l.hot());
+        let lit = all_lit || hot.contains(&l.hot());
+        // A head's lit comes from the lines arriving there; a dot never
+        // lights a head.
         let mut put = |e: End| match out.iter_mut().find(|o| key(o.tip) == key(e.tip)) {
-            Some(o) => o.lit |= e.lit,
+            Some(o) if e.head && !o.head => *o = e,
+            Some(o) if e.head == o.head => o.lit |= e.lit,
+            Some(_) => {}
             None => out.push(e),
         };
+        let (start, end) = (
+            (l.points[0], l.points[1]),
+            (l.points[n - 1], l.points[n - 2]),
+        );
         if l.out {
             put(End {
-                tip: l.points[n - 1],
-                from: l.points[n - 2],
+                tip: end.0,
+                from: end.1,
                 lit,
+                head: true,
+            });
+        } else if lit {
+            put(End {
+                tip: end.0,
+                from: end.1,
+                lit,
+                head: false,
             });
         }
         if l.back {
             put(End {
-                tip: l.points[0],
-                from: l.points[1],
+                tip: start.0,
+                from: start.1,
                 lit,
+                head: true,
+            });
+        } else if lit {
+            put(End {
+                tip: start.0,
+                from: start.1,
+                lit,
+                head: false,
             });
         }
     }
@@ -591,6 +615,37 @@ pub fn fade(l: &Line, view: &Rect, len: f32, n: usize) -> Vec<(Vec<(f32, f32)>, 
             (piece, (i + 1) as f32 / n as f32)
         })
         .collect()
+}
+
+/// The part of a line past the point where it leaves `view`: covered by
+/// the ground, so nothing of it shows past the fade.
+pub fn past(l: &Line, view: &Rect) -> Vec<(f32, f32)> {
+    let Some(end) = exit(l, view) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    let mut on = false;
+    for w in l.points.windows(2) {
+        let (a, b) = (w[0], w[1]);
+        if !on {
+            let hit = ((a.0 - b.0).abs() < 0.01
+                && (end.0 - a.0).abs() < 0.01
+                && end.1 >= a.1.min(b.1)
+                && end.1 <= a.1.max(b.1))
+                || ((a.1 - b.1).abs() < 0.01
+                    && (end.1 - a.1).abs() < 0.01
+                    && end.0 >= a.0.min(b.0)
+                    && end.0 <= a.0.max(b.0));
+            if hit && !seg_in(b, b, view) {
+                on = true;
+                out.push(end);
+                out.push(b);
+            }
+        } else {
+            out.push(b);
+        }
+    }
+    out
 }
 
 /// Of the lines under the pointer, the one to pan to: the nearest card
@@ -2387,11 +2442,11 @@ fn route(
     out: bool,
 ) -> (Vec<Line>, Vec<Badge>) {
     let clear = if out { 20f32 } else { 12f32 };
-    // A note card's lines meet it by its title; an Out card's, by its
-    // middle, spread wider.
+    // A card's lines meet it level with its title, at one height on every
+    // card of a level.
     let centre = |r: &Rect| {
         if out {
-            r.y + r.h / 2.
+            r.y + 50f32.min(r.h / 2.)
         } else {
             r.y + r.h.min(CARD_H) / 2.
         }
@@ -2400,7 +2455,7 @@ fn route(
     // middle, a right edge a little below, so lines into two cards across
     // a gutter never meet head to head.
     let port = |r: &Rect, right: bool| {
-        let d = if out { r.h * 0.12 } else { 10. };
+        let d = if out { 12. } else { 10. };
         centre(r) + if right { d } else { -d }
     };
     let spread = if out { 24f32 } else { 14f32 };
@@ -2611,22 +2666,25 @@ fn route(
             for j in p.stops[s].2.clone() {
                 let (t, r) = (p.to[j].0, p.to[j].1);
                 let er = !p.right || col_of(r.x) == col_of(p.ra.x);
-                if (p.yb[j] - y).abs() < 16.
-                    && alone.get(&(t, er)).copied().unwrap_or(false)
-                    && y > r.y + 10.
-                    && y < r.bottom() - 10.
-                {
+                let d = (p.yb[j] - y).abs();
+                let fits = y > r.y + 10. && y < r.bottom() - 10.;
+                // Within 16 points and alone on its edge, or within 3 (a
+                // jog no one would read): met level.
+                if fits && (d < 3. || (d < 16. && alone.get(&(t, er)).copied().unwrap_or(false))) {
                     p.yb[j] = y;
                 }
             }
         }
     }
-    // Lanes: one vertical per trunk in each gap it uses, down the gap's
-    // middle (a card's trunks to the right and left never share a gap).
+    // Lanes: one vertical per trunk in each gap it uses, 70 % of the way
+    // across it from the card's side, so the root holds its badge clear of
+    // the junction (a card's trunks to the right and left never share a
+    // gap).
     for p in &mut paths {
+        let away = if p.right { 1. } else { -1. };
         for (s, (g, ..)) in p.stops.iter().enumerate() {
             let (lo, hi) = gap_span(*g);
-            p.lanes[s] = (lo + hi) / 2.;
+            p.lanes[s] = (lo + hi) / 2. + away * 0.2 * COL_GAP;
         }
     }
     let mut lines = Vec::new();
@@ -2638,10 +2696,7 @@ fn route(
         // trunk's first turn, which all its lines share.
         let links: usize = p.to.iter().map(|t| t.2).sum();
         if links >= 2 && !p.lanes.is_empty() {
-            // On the near half of the gap, so it keeps as far from the next
-            // column as from its own card.
-            let room = (p.lanes[0] - a0).abs().min(COL_GAP / 2.);
-            let x1 = a0 + (p.lanes[0] - a0).signum() * room;
+            let x1 = p.lanes[0];
             badges.push(Badge {
                 x0: a0,
                 x1,
@@ -2709,44 +2764,6 @@ fn route(
         b.near = near;
     }
     (lines, badges)
-}
-
-/// How far to pan a `view` so that no block is cut at its edge: each block
-/// is wholly in view or wholly out of it (a block bigger than the view is
-/// left as it is), with `keep` in view and `margin` map points to spare.
-/// Of the pans that leave the fewest blocks cut, the smallest.
-pub fn unsliver(blocks: &[Rect], view: &Rect, keep: &Rect, margin: f32) -> (f32, f32) {
-    let axis = |lo: &dyn Fn(&Rect) -> f32, size: &dyn Fn(&Rect) -> f32, v0: f32, vs: f32| {
-        let cut = |d: f32| {
-            blocks
-                .iter()
-                .filter(|r| size(r) < vs - 2. * margin)
-                .filter(|r| {
-                    let (a, b) = (lo(r), lo(r) + size(r));
-                    a < v0 + d + vs && b > v0 + d && (a < v0 + d || b > v0 + d + vs)
-                })
-                .count()
-        };
-        let kept = |d: f32| lo(keep) >= v0 + d && lo(keep) + size(keep).min(vs) <= v0 + d + vs;
-        let mut cands = vec![0f32];
-        for r in blocks {
-            let (a, b) = (lo(r), lo(r) + size(r));
-            cands.extend([
-                b - (v0 + vs) + margin,
-                a - (v0 + vs) - margin,
-                a - v0 - margin,
-                b - v0 + margin,
-            ]);
-        }
-        cands
-            .into_iter()
-            .filter(|&d| kept(d))
-            .min_by(|&x, &y| cut(x).cmp(&cut(y)).then(x.abs().total_cmp(&y.abs())))
-            .unwrap_or(0.)
-    };
-    let dx = axis(&|r: &Rect| r.x, &|r: &Rect| r.w, view.x, view.w);
-    let dy = axis(&|r: &Rect| r.y, &|r: &Rect| r.h, view.y, view.h);
-    (dx, dy)
 }
 
 /// The selection's lines drawn while another card is hovered: none to or
@@ -3498,7 +3515,7 @@ mod tests {
             for (lv, l) in [("out", &m.out), ("mid", &m.mid), ("in", &m.inner)] {
                 for (f, _, ls, _) in both(l) {
                     let all: Vec<&Line> = ls.iter().collect();
-                    let heads = ends(&all, &[]);
+                    let heads = ends(&all, &[], false);
                     for x in &all {
                         assert!(x.out || x.back, "{lv} {f:?}: a line with no way");
                         if x.out {
@@ -3542,11 +3559,32 @@ mod tests {
                         let hot: Vec<Hot> = under.iter().map(|u| u.hot()).collect();
                         let key =
                             |p: (f32, f32)| ((p.0 * 2.).round() as i64, (p.1 * 2.).round() as i64);
-                        let lit: BTreeSet<(i64, i64)> = ends(&all, &hot)
+                        let marks = ends(&all, &hot, false);
+                        let lit: BTreeSet<(i64, i64)> = marks
                             .iter()
-                            .filter(|e| e.lit)
+                            .filter(|e| e.lit && e.head)
                             .map(|e| key(e.tip))
                             .collect();
+                        // A lit line's source end has a dot unless links
+                        // arrive there too.
+                        for u in &under {
+                            let n = u.points.len();
+                            let src = if u.out && !u.back {
+                                Some(u.points[0])
+                            } else if u.back && !u.out {
+                                Some(u.points[n - 1])
+                            } else {
+                                None
+                            };
+                            if let Some(p) = src {
+                                assert!(
+                                    marks
+                                        .iter()
+                                        .any(|e| key(e.tip) == key(p) && (e.head || e.lit)),
+                                    "{lv} {f:?}: no dot where a lit line leaves"
+                                );
+                            }
+                        }
                         let mut want: BTreeSet<(i64, i64)> = BTreeSet::new();
                         for u in &under {
                             if u.out {
@@ -3558,6 +3596,50 @@ mod tests {
                         }
                         assert_eq!(lit, want, "{lv} {f:?}");
                     }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn every_trunk_shows_its_badge_at_the_fit_clear_of_the_junction() {
+        for (m, (w, h)) in [
+            (synthetic(300, 12, 1000).fitted(1220., 690.), (1220., 690.)),
+            // Hippo.app's map view in a 1280 × 820 window.
+            (synthetic(300, 12, 1000).fitted(884., 534.), (884., 534.)),
+            (demo_shaped().fitted(860., 600.), (860., 600.)),
+            (demo_shaped().fitted(884., 534.), (884., 534.)),
+        ] {
+            let (z, pan) = m.fit(w, h);
+            let l = m.layout(Level::of(z));
+            let view = Rect::new(pan.0, pan.1, w / z, h / z);
+            for (f, ls) in &l.focus {
+                let trunks: BTreeSet<usize> = ls.iter().map(|x| x.trunk).collect();
+                for t in trunks {
+                    let mine: Vec<&Line> = ls.iter().filter(|x| x.trunk == t).collect();
+                    let bs: Vec<&Badge> =
+                        l.badges(Some(*f)).iter().filter(|b| b.trunk == t).collect();
+                    if Layout::links_of(&mine) < 2 {
+                        assert!(bs.is_empty());
+                        continue;
+                    }
+                    assert_eq!(bs.len(), 1, "{f:?} trunk {t}: one badge");
+                    let b = bs[0];
+                    let c = STYLE
+                        .badge_at(b, z)
+                        .unwrap_or_else(|| panic!("{f:?} trunk {t}: no badge at the fit {z}"));
+                    // Clear of the junction where the trunk turns.
+                    let far = (c.0 - b.x0).abs() + STYLE.badge_half(b.links) / z;
+                    assert!(
+                        far + 2. / z <= (b.x1 - b.x0).abs() + 0.01,
+                        "{f:?}: badge on the junction"
+                    );
+                    // In the view, 8 px inside it.
+                    let m8 = 8. / z;
+                    assert!(
+                        c.0 > view.x + m8 && c.0 < view.right() - m8,
+                        "{f:?}: badge at the canvas edge"
+                    );
                 }
             }
         }
@@ -3696,26 +3778,6 @@ mod tests {
                 }
             }
         }
-    }
-
-    #[test]
-    fn a_pan_after_a_drop_leaves_no_block_cut() {
-        let blocks = [
-            Rect::new(0., 0., 300., 120.),
-            Rect::new(0., 200., 300., 120.),
-            Rect::new(0., 380., 300., 120.),
-            Rect::new(400., 0., 300., 900.),
-        ];
-        let view = Rect::new(-20., -20., 800., 450.);
-        let keep = Rect::new(0., 0., 300., 120.);
-        let (dx, dy) = unsliver(&blocks, &view, &keep, 10.);
-        let v = Rect::new(view.x + dx, view.y + dy, view.w, view.h);
-        for r in &blocks[..3] {
-            let whole_in = r.y >= v.y && r.bottom() <= v.bottom();
-            let whole_out = r.bottom() <= v.y || r.y >= v.bottom();
-            assert!(whole_in || whole_out, "{r:?} cut by {v:?}");
-        }
-        assert!(keep.y >= v.y && keep.bottom() <= v.bottom());
     }
 
     #[test]

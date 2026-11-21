@@ -318,44 +318,76 @@
     return d + 'L' + z[0] + ' ' + z[1];
   }
   // Lines as Hippo.app draws them (docs/designs/brain-links.md › Lines):
-  // one trunk per card per gutter, heads where links arrive. The selected
-  // note's in a quiet neutral; while another card is hovered its lines
-  // replace the selection's in every gutter they share, in lime. Lines
-  // under the pointer last, in lime, their heads lit. A line to a card out
-  // of view runs to the edge and fades over its last 24 px. No line is
-  // drawn to a block on the move (S.moving). Returns the lines (under the
-  // cards) and the heads and badges (over them).
+  // one trunk per card per gutter, heads where links arrive and, on a lit
+  // line, a dot where they leave. The selected note's in a quiet neutral;
+  // while another card is hovered its lines replace the selection's in
+  // every gutter they share, lit. A line to a card out of view (or within
+  // 8 px of the edge) fades out over its last 24 px. While blocks move,
+  // every line stays drawn, faint, its ends moving with their cards (read
+  // from each block's transform), and no badge shows.
+  function blockPoses() {
+    var out = {}, wrap = app.querySelector('.mapwrap');
+    if (!wrap || !window.getComputedStyle) return out;
+    wrap.querySelectorAll('.world .blk').forEach(function (b) {
+      if (!b.style.transform) return;
+      var cs = getComputedStyle(b), m = /matrix\(([^)]+)\)/.exec(cs.transform || '');
+      if (!m) return;
+      var v = m[1].split(',').map(Number), o = (cs.transformOrigin || '0px 0px').split(' ').map(parseFloat);
+      out[b.getAttribute('data-key')] = { a: v[0], e: v[4], f: v[5], ox: o[0] || 0, oy: o[1] || 0 };
+    });
+    return out;
+  }
+  function moving() { return !!S.lifting || (S.animUntil || 0) > Date.now(); }
   function linesSvg(L, view) {
-    var lay = LY()[L], f = focusOf(L), faint = S.lifting ? ' faint' : '';
+    var lay = LY()[L], f = focusOf(L), motion = moving(), faint = motion ? ' faint' : '';
     var sel = selIndex(), selF = sel >= 0 ? sameItem({ note: sel }, L) : null;
     var other = !!(S.hover && f && key(S.hover) === key(f) && selF && key(selF) !== key(f));
     var sets = [];
     if (other) { sets.push([selF, 'sel back', false]); sets.push([f, 'acc', true]); }
     else if (S.hover && f && key(S.hover) === key(f)) sets.push([f, 'acc', true]);
-    else sets.push([f, 'sel', true]);
+    else sets.push([f, 'sel', false]);
     var hot = S.hoverLine ? S.hoverLine.ends : [];
     var under = '', over = '', heads = [], badges = [], z = S.zoom;
     view = view || viewRect();
-    var strip = L === 'out' ? 0 : 30 / z, moving = S.moving || {};
-    function still(l) { return !moving[A.blockKey(M, l.from)] && !moving[A.blockKey(M, l.to)]; }
+    var m8 = 8 / z, inner = { x: view.x + m8, y: view.y + m8, w: view.w - 2 * m8, h: view.h - 2 * m8 };
+    var strip = L === 'out' ? 0 : 30 / z, poses = motion ? blockPoses() : {};
+    function at(ps, p) { return ps ? [ps.ox + ps.a * (p[0] - ps.ox) + ps.e, ps.oy + ps.a * (p[1] - ps.oy) + ps.f] : p; }
+    // A line drawn where its cards are now (Rust app: posed).
+    function posed(l) {
+      var a = poses[A.blockKey(M, l.from)], b = poses[A.blockKey(M, l.to)];
+      if (!a && !b) return l;
+      var pts = l.points.map(function (q) { return q.slice(); }), n = pts.length;
+      var p0 = at(a, pts[0]), pn = at(b, pts[n - 1]), d0 = p0[1] - pts[0][1], dn = pn[1] - pts[n - 1][1];
+      pts[0] = p0; pts[n - 1] = pn;
+      if (n > 2) pts[n - 2][1] += dn;
+      if (n > 3) pts[1][1] += d0;
+      return { from: l.from, to: l.to, points: pts, bounds: l.bounds, links: l.links, trunk: l.trunk, out: l.out, back: l.back };
+    }
     var hovLines = other ? A.set(lay, f)[0].filter(function (l) { return A.shows(l, view); }) : [];
     sets.forEach(function (set) {
       var sb = A.set(lay, set[0]);
-      var shown = sb[0].filter(function (l) { return A.shows(l, view) && still(l); });
+      var shown = sb[0].filter(function (l) { return A.shows(l, view); });
       if (other && set[0] && key(set[0]) !== key(f)) shown = A.beside(shown, hovLines, f);
+      var drawn = motion ? shown.map(posed) : shown;
       var isHot = function (l) { return hot.indexOf(A.hot(l)) >= 0; };
-      shown.filter(function (l) { return !isHot(l); }).map(function (l) { return [l, set[1]]; })
-        .concat(shown.filter(isHot).map(function (l) { return [l, 'acc']; }))
+      drawn.filter(function (l) { return !isHot(l); }).map(function (l) { return [l, set[1]]; })
+        .concat(drawn.filter(isHot).map(function (l) { return [l, 'acc']; }))
         .forEach(function (x) {
           under += '<path class="' + x[1] + faint + '" vector-effect="non-scaling-stroke" style="stroke-width:' + ST.line + 'px" d="' + roundedPath(x[0].points) + '"/>';
-          // Out of view: the ground covers its last 24 px, more and more.
-          A.fade(x[0], view, 24 / z, 6).forEach(function (pc) {
-            var d = 'M' + pc[0].map(function (q) { return q[0] + ' ' + q[1]; }).join('L');
-            under += '<path class="fade" vector-effect="non-scaling-stroke" style="stroke-width:' + (ST.line + 1) + 'px;stroke-opacity:' + pc[1] + '" d="' + d + '"/>';
+          // Past the inner view: the ground covers its last 24 px, more and
+          // more, and everything after.
+          A.fade(x[0], inner, 24 / z, 6).forEach(function (pc) {
+            under += '<path class="fade" vector-effect="non-scaling-stroke" style="stroke-width:' + (ST.line + 1) + 'px;stroke-opacity:' + pc[1] + '" d="M' + pc[0].map(function (q) { return q[0] + ' ' + q[1]; }).join('L') + '"/>';
           });
+          var rest = A.past(x[0], inner);
+          if (rest.length > 1) under += '<path class="fade" vector-effect="non-scaling-stroke" style="stroke-width:' + (ST.line + 2) + 'px" d="M' + rest.map(function (q) { return q[0] + ' ' + q[1]; }).join('L') + '"/>';
         });
-      A.ends(shown, hot).forEach(function (e) { heads.push([e, e.lit ? 'acc' : set[1]]); });
-      if (!set[2]) return;
+      A.ends(drawn, hot, set[2]).forEach(function (e) {
+        var t = e.tip;
+        if (t[0] < inner.x || t[0] > inner.x + inner.w || t[1] < inner.y || t[1] > inner.y + inner.h) return;
+        heads.push([e, e.lit ? 'acc' : set[1]]);
+      });
+      if (motion || set[1] === 'sel back') return;
       var mg = 8 / z;
       sb[1].forEach(function (b) {
         // A badge only on a trunk that is drawn.
@@ -367,21 +399,42 @@
         badges.push([b, c, set[1]]);
       });
     });
-    var a = ST.arrow / z;
+    var a = ST.arrow / z, dot = (2 * ST.line + 1.5) / z;
     heads.forEach(function (m) {
       var e = m[0], cls = m[1] + faint, tip = e.tip, from = e.from;
+      if (!e.head) { over += '<circle class="dot ' + cls + '" cx="' + tip[0] + '" cy="' + tip[1] + '" r="' + dot / 2 + '"/>'; return; }
       var dx = tip[0] - from[0], dy = tip[1] - from[1], len = Math.max(0.01, Math.hypot(dx, dy));
       var ux = dx / len, uy = dy / len, bx = tip[0] - ux * a, by = tip[1] - uy * a;
       over += '<path class="head ' + cls + '" d="M' + tip[0] + ' ' + tip[1] + 'L' + (bx - uy * a / 2) + ' ' + (by + ux * a / 2) + 'L' + (bx + uy * a / 2) + ' ' + (by - ux * a / 2) + 'Z"/>';
     });
     badges.forEach(function (x) {
-      var b = x[0], c = x[1], txt = String(b.links), bw = 2 * A.badgeHalf(ST, b.links) / z, bh = 2 * ST.badge / z, g = 6 / z;
-      // A halo of ground breaks any guide behind the badge.
-      over += '<rect class="halo" x="' + (c[0] - (bw + g) / 2) + '" y="' + (c[1] - (bh + g) / 2) + '" width="' + (bw + g) + '" height="' + (bh + g) + '" rx="' + (bh + g) / 2 + '"/>' +
-        '<g class="badge ' + x[2] + faint + '"><rect x="' + (c[0] - bw / 2) + '" y="' + (c[1] - bh / 2) + '" width="' + bw + '" height="' + bh + '" rx="' + bh / 2 + '" vector-effect="non-scaling-stroke"/>' +
+      var b = x[0], c = x[1], txt = String(b.links), bw = 2 * A.badgeHalf(ST, b.links) / z, bh = 2 * ST.badge / z;
+      over += '<g class="badge ' + x[2] + '"><rect x="' + (c[0] - bw / 2) + '" y="' + (c[1] - bh / 2) + '" width="' + bw + '" height="' + bh + '" rx="' + bh / 2 + '" vector-effect="non-scaling-stroke"/>' +
         '<text x="' + c[0] + '" y="' + c[1] + '" font-size="' + 11 / z + '" text-anchor="middle" dominant-baseline="central">' + txt + '</text></g>';
     });
     return { under: under, over: over };
+  }
+  // Redraws the lines every frame while blocks move, so their ends follow.
+  function animateLines(ms) {
+    S.animUntil = Math.max(S.animUntil || 0, Date.now() + ms + 40);
+    if (S.animRaf) return;
+    var tick = function () {
+      redrawLines();
+      if (Date.now() < S.animUntil) S.animRaf = requestAnimationFrame(tick);
+      else { S.animRaf = null; redrawLines(); }
+    };
+    S.animRaf = requestAnimationFrame(tick);
+  }
+  // The view shows the map exactly as fitted.
+  function atFit() {
+    return !!S.fitPan && Math.abs(S.zoom - S.fitZoom) < 1e-3 && Math.abs(S.pan[0] - S.fitPan[0]) + Math.abs(S.pan[1] - S.fitPan[1]) < 1;
+  }
+  // Every centring is clamped to the map's bounds: no empty ground past an
+  // edge the map could fill; a map smaller than the view is centred.
+  function clampPan() {
+    var lay = LY()[level(S.zoom)], v = appView(), z = S.zoom, pad = ST.fit_pad / z, vw = v[0] / z, vh = v[1] / z;
+    function axis(p, size, view) { return size + 2 * pad <= view ? -(view - size) / 2 : Math.min(Math.max(p, -pad), size + pad - view); }
+    S.pan = [axis(S.pan[0], lay.width, vw), axis(S.pan[1], lay.height, vh)];
   }
   // The map rectangle the view shows.
   function viewRect() {
@@ -677,7 +730,7 @@
         var under = A.linesAt(lay, focusOf(L), m[0], m[1], 6 / S.zoom, S.zoom, ST);
         var to = A.nearestOut(under, v, m, function (it) { var c = cardOf(lay, it); return c && c.rect; });
         var c = to && cardOf(lay, to), vv = appView();
-        if (c) { S.pan = [c.rect.x + c.rect.w / 2 - vv[0] / 2 / S.zoom, c.rect.y + Math.min(c.rect.h, 224) / 2 - vv[1] / 2 / S.zoom]; placeWorld(false); }
+        if (c) { S.pan = [c.rect.x + c.rect.w / 2 - vv[0] / 2 / S.zoom, c.rect.y + Math.min(c.rect.h, 224) / 2 - vv[1] / 2 / S.zoom]; clampPan(); placeWorld(false); }
       }
     });
     wrap.addEventListener('dblclick', function (e) {
@@ -727,10 +780,9 @@
       d.grab = [m[0] - r.x, m[1] - r.y];
       S.hover = null; S.hoverLine = null;
       S.lifting = true;
-      // No line is drawn to the lifted block while it is held.
-      S.moving = {}; S.moving[d.key] = 1;
+      // Whether the view was fitted as the drag began: a drop then refits.
+      S.liftFitted = atFit();
       wrap.classList.add('lifting');
-      redrawLines();
     }
     var arr = A.settle(M, S.arr || S.def || M.default_arrangement);
     var t = A.dropAt(M, lay, arr, d.key, m[0], m[1]);
@@ -759,16 +811,8 @@
       slot.style.opacity = '1';
       slot.classList.toggle('round', d.L === 'out' || d.key.indexOf('folder:') === 0);
       d.slot = s2;
-      // Faint, where the focus's lines will run once it lands.
-      var svg = world.querySelector('svg.links:not(.over)'), top = world.querySelector('svg.over');
-      if (svg) {
-        var keep = S.lay;
-        S.lay = { out: pv, mid: pv, in: pv };
-        var ls = linesSvg(d.L);
-        S.lay = keep;
-        svg.innerHTML = ls.under;
-        if (top) top.innerHTML = ls.over;
-      }
+      // The lines follow the blocks as they slide.
+      animateLines(SLIDE);
     }
     var me = world.querySelector('.blk[data-key="' + cssq(d.key) + '"]');
     if (me) {
@@ -778,6 +822,8 @@
       me.style.transform = 'translate(' + (m[0] - r.x - d.grab[0]) + 'px,' + (m[1] - r.y - d.grab[1]) + 'px) scale(1.04)';
       d.lay = lay; d.r = r;
     }
+    // The held block's lines follow it.
+    redrawLines();
   }
   function cssq(s) { return String(s).replace(/["\\]/g, '\\$&'); }
   /* Dropped: the card settles into its slot, then the map is laid out. */
@@ -788,6 +834,8 @@
       me.style.transition = 'transform ' + SETTLE + 'ms cubic-bezier(.2,.8,.2,1)';
       me.style.transform = 'translate(' + (d.slot.x - d.r.x) + 'px,' + (d.slot.y - d.r.y) + 'px) scale(1)';
     }
+    animateLines(SETTLE);
+    var fitted = !!S.liftFitted;
     setTimeout(function () {
       S.lifting = false;
       // A move is undone, not confirmed.
@@ -796,27 +844,20 @@
       if (moved) { S.prevArr = prev; S.toast = (d.key.indexOf('folder:') === 0 ? (d.key.slice(7) || 'Notes') : d.key.slice(5).replace(/^.*\//, '').replace(/\.md$/, '')) + ' moved.'; S.toastUndo = true; var tw = S.toast; setTimeout(function () { if (S.toast === tw) { S.toast = ''; S.toastUndo = false; render(); } }, 6000); }
       wrap.classList.remove('lifting');
       render();
-      // A drop never rescales: the zoom stays, so cards keep their size
-      // under the pointer, and the view pans only as far as keeps the
-      // dropped block in it. Only the zoom control and Reset refit.
-      var v = appView(), Lv = level(S.zoom), lay = LY()[Lv], r = A.blockRect(M, lay, d.key);
-      // The smallest zoom is the new map's fit, so zooming out (or Fit)
-      // always reaches the whole map.
-      var nf = A.fit(LY(), v[0], v[1]);
+      // A drop from the fitted view fits the map as it now is, moving there
+      // briefly (the zoom label follows); any other keeps its zoom and pan
+      // exactly. Never a recentring on the selection.
+      var v = appView(), nf = A.fit(LY(), v[0], v[1]);
       S.fitZoom = nf[0]; S.fitPan = nf[1].slice();
-      S.moving = {};
-      if (r) {
-        // Only the block's head need show, clear of the strip of names,
-        // and no block is left as a sliver (Rust: unsliver).
-        var z = S.zoom, vw = v[0] / z, vh = v[1] / z, top = (Lv === 'out' ? 20 : 50) / z;
-        var hw = Math.min(r.w, vw - 40 / z), hh = Math.min(r.h, 112 + 40);
-        S.pan[0] = Math.max(Math.min(S.pan[0], r.x - 20 / z), r.x + hw + 20 / z - vw);
-        S.pan[1] = Math.max(Math.min(S.pan[1], r.y - top), r.y + hh + 20 / z - vh);
-        var blocks = A.settle(M, S.arr || S.def || M.default_arrangement).columns.reduce(function (a, c) { return a.concat(c); }, [])
-          .map(function (k) { return A.blockRect(M, lay, k); }).filter(Boolean);
-        var dd = A.unsliver(blocks, { x: S.pan[0], y: S.pan[1], w: vw, h: vh }, { x: r.x, y: r.y, w: hw, h: hh }, 12 / z);
-        S.pan[0] += dd[0]; S.pan[1] += dd[1];
-        placeWorld(false);
+      if (fitted) {
+        var w2 = app.querySelector('.world');
+        S.zoom = nf[0]; S.pan = nf[1].slice();
+        if (w2 && SETTLE) {
+          w2.getBoundingClientRect();
+          w2.style.transition = 'transform ' + SETTLE + 'ms cubic-bezier(.2,.8,.2,1)';
+          setTimeout(function () { w2.style.transition = ''; }, SETTLE + 20);
+        }
+        placeWorld(true);
       }
     }, SETTLE);
   }
@@ -829,11 +870,9 @@
     });
     var slot = world.querySelector('.slot');
     if (slot) slot.remove();
-    // While blocks fly home, no line is drawn to a block on its way.
-    S.moving = {};
-    world.querySelectorAll('.blk').forEach(function (b) { S.moving[b.getAttribute('data-key')] = 1; });
-    redrawLines();
-    setTimeout(function () { S.moving = {}; clearLift(wrap); redrawLines(); }, BACK);
+    // The lines follow the blocks home.
+    animateLines(BACK);
+    setTimeout(function () { clearLift(wrap); redrawLines(); }, BACK);
   }
   function clearLift(wrap) {
     S.lifting = false;
@@ -869,6 +908,7 @@
     var z = item.folder != null ? Math.max(OUT_BELOW + 0.05, Math.min(target, (w - 80) / r.w, (h - 80) / r.h)) : target;
     S.zoom = z;
     S.pan = [r.x + r.w / 2 - w / 2 / z, r.y + r.h / 2 - h / 2 / z];
+    clampPan();
     placeWorld(false);
   }
   app.addEventListener('click', function (e) {
