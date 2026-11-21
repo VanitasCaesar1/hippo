@@ -4,6 +4,17 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-11-21
+
+Brain's counts say what you see.
+
+**Upgrading.** Nothing to run or migrate. In `hippo view map --json` each badge gains `lines`, the number it shows; `links` is still the links those lines stand for. Design: [brain-links.md](docs/designs/brain-links.md).
+
+### Fixed
+
+- **A count says how many lines you can see.** The small count where a card's links leave it now counts the lines drawn there, one per card they reach, and pointing at it highlights that many. The links those lines stand for are in the line at the top, as before (`START HERE → 5 others · 15 links`). In 0.8.3 the count added up links, so it could say 13 over two lines.
+- **An arrow is never hidden under a count.** The count now sits a little further from its card, so an arrow arriving at that card shows in front of it.
+
 ## [0.8.3] - 2026-11-21
 
 Brain, done properly: drag the real card, see the links of the card you point at, and the whole map fills the window.
