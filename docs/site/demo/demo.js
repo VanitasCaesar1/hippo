@@ -14,6 +14,16 @@
   var STY = D.map.style, OUT_BELOW = STY.out_below, IN_ABOVE = STY.in_above,
     MIN_ZOOM = STY.steps[0], MAX_ZOOM = STY.steps[STY.steps.length - 1];
 
+  // A command's flags never break across lines: `--db` keeps its
+  // hyphens (non-breaking) and a bare `--` stays with the flag after it.
+  function flags(s) {
+    var t = String(s == null ? '' : s).split(' '), out = '';
+    t.forEach(function (w, i) {
+      var f = /^-+[^\s]*$/.test(w) ? w.replace(/-/g, '\u2011') : w;
+      out += (i ? (/^-+$/.test(t[i - 1]) ? '\u00A0' : ' ') : '') + f;
+    });
+    return out;
+  }
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -304,55 +314,67 @@
     var z = v[v.length - 1];
     return d + 'L' + z[0] + ' ' + z[1];
   }
-  // Lines, one weight at every zoom: the selected note's in a quiet
-  // neutral; a hovered card's in lime over them, the selection's still
-  // drawn; lines under the pointer in lime. While a block is lifted, all
-  // faint. Returns the lines (under the cards) and every line's arrowhead
-  // with the count badges (over them), as Hippo.app draws them.
-  function linesSvg(L) {
+  // Lines as Hippo.app draws them (docs/designs/brain-links.md › Lines):
+  // the selected note's in a quiet neutral; while another card is hovered
+  // the selection's step back and the hovered card's are drawn in lime in
+  // lanes of their own; lines under the pointer last, in lime, and only the
+  // heads at the cards they name light up. At Mid and In a line shows only
+  // while its card is in view. Returns the lines (under the cards) and the
+  // heads, end dots and badges (over them).
+  function linesSvg(L, view) {
     var lay = LY()[L], f = focusOf(L), faint = S.lifting ? ' faint' : '';
     var sel = selIndex(), selF = sel >= 0 ? sameItem({ note: sel }, L) : null;
     var sets = [];
     if (S.hover && f && key(S.hover) === key(f)) {
-      if (selF && key(selF) !== key(f)) sets.push([selF, 'sel']);
-      sets.push([f, 'acc']);
-    } else sets.push([f, 'sel']);
+      if (selF && key(selF) !== key(f)) { sets.push([selF, false, 'sel back']); sets.push([f, true, 'acc']); }
+      else sets.push([f, false, 'acc']);
+    } else sets.push([f, false, 'sel']);
     var hot = S.hoverLine ? S.hoverLine.ends : [];
-    var under = '', heads = [], badges = [], z = S.zoom, bs;
+    var under = '', over = '', marks = [], badges = [], z = S.zoom;
+    view = view || viewRect();
+    function meets(r) { return r.x < view.x + view.w && r.x + r.w > view.x && r.y < view.y + view.h && r.y + r.h > view.y; }
     sets.forEach(function (set) {
-      var list = shown(lay, set[0]), cold = [], warm = [];
-      list.forEach(function (l) {
-        var isHot = hot.some(function (e) { return e[0] === key(l.from) && e[1] === key(l.to); });
-        (isHot ? warm : cold).push(l);
+      var sb = A.set(lay, set[0], set[1]);
+      var shown = sb[0].filter(function (l) {
+        if (!meets(l.bounds)) return false;
+        if (L === 'out') return true;
+        var c = cardOf(lay, l.to);
+        return c && meets(c.rect);
       });
-      cold.map(function (l) { return [l, set[1]]; }).concat(warm.map(function (l) { return [l, 'acc']; })).forEach(function (x) {
-        var l = x[0], cls = x[1] + faint, n = l.points.length;
-        under += '<path class="' + cls + '" vector-effect="non-scaling-stroke" style="stroke-width:' + ST.line + 'px" d="' + roundedPath(l.points) + '"/>';
-        if (l.out) heads.push([l.points[n - 1], l.points[n - 2], cls]);
-        if (l.back) heads.push([l.points[0], l.points[1], cls]);
+      var isHot = function (l) { return hot.some(function (e) { return e[0] === key(l.from) && e[1] === key(l.to); }); };
+      shown.filter(function (l) { return !isHot(l); }).map(function (l) { return [l, set[2]]; })
+        .concat(shown.filter(isHot).map(function (l) { return [l, 'acc']; }))
+        .forEach(function (x) {
+          under += '<path class="' + x[1] + faint + '" vector-effect="non-scaling-stroke" style="stroke-width:' + ST.line + 'px" d="' + roundedPath(x[0].points) + '"/>';
+        });
+      A.ends(shown, hot).forEach(function (e) { marks.push([e, e.lit ? 'acc' : set[2]]); });
+      sb[1].forEach(function (b) {
+        var c = A.badgeAt(ST, b, z);
+        if (!c) return;
+        var hw = A.badgeHalf(ST, b.links) / z, hh = ST.badge / z;
+        if (c[0] - hw < view.x || c[0] + hw > view.x + view.w || c[1] - hh < view.y || c[1] + hh > view.y + view.h) return;
+        badges.push([b, c, set[2]]);
       });
-      bs = [];
-      (lay.badges || []).forEach(function (x) { if (set[0] && key(x[0]) === key(set[0])) bs = x[1]; });
-      bs.forEach(function (b) { if (A.badgeFits(ST, b.room, z, b.links)) badges.push([b, set[1] + faint]); });
     });
-    // The last head drawn at a point wins: a lime one over a neutral one.
-    var seen = {}, keep = [];
-    for (var i = heads.length - 1; i >= 0; i--) {
-      var k = Math.round(heads[i][0][0]) + '|' + Math.round(heads[i][0][1]);
-      if (!seen[k]) { seen[k] = 1; keep.unshift(heads[i]); }
-    }
-    var over = '', a = ST.arrow / z;
-    keep.forEach(function (hd) {
-      var tip = hd[0], from = hd[1], dx = tip[0] - from[0], dy = tip[1] - from[1], len = Math.max(0.01, Math.hypot(dx, dy));
+    var a = ST.arrow / z, d = Math.max(3, 5) / z;
+    marks.forEach(function (m) {
+      var e = m[0], cls = m[1] + faint, tip = e.tip, from = e.from;
+      if (!e.head) { over += '<circle class="dot ' + cls + '" cx="' + tip[0] + '" cy="' + tip[1] + '" r="' + d / 2 + '"/>'; return; }
+      var dx = tip[0] - from[0], dy = tip[1] - from[1], len = Math.max(0.01, Math.hypot(dx, dy));
       var ux = dx / len, uy = dy / len, bx = tip[0] - ux * a, by = tip[1] - uy * a;
-      over += '<path class="head ' + hd[2] + '" d="M' + tip[0] + ' ' + tip[1] + 'L' + (bx - uy * a / 2) + ' ' + (by + ux * a / 2) + 'L' + (bx + uy * a / 2) + ' ' + (by - ux * a / 2) + 'Z"/>';
+      over += '<path class="head ' + cls + '" d="M' + tip[0] + ' ' + tip[1] + 'L' + (bx - uy * a / 2) + ' ' + (by + ux * a / 2) + 'L' + (bx + uy * a / 2) + ' ' + (by - ux * a / 2) + 'Z"/>';
     });
     badges.forEach(function (x) {
-      var b = x[0], txt = String(b.links), bw = 2 * A.badgeHalf(ST, b.links) / z, bh = 2 * ST.badge / z;
-      over += '<g class="badge ' + x[1] + '"><rect x="' + (b.x - bw / 2) + '" y="' + (b.y - bh / 2) + '" width="' + bw + '" height="' + bh + '" rx="' + bh / 2 + '" vector-effect="non-scaling-stroke"/>' +
-        '<text x="' + b.x + '" y="' + b.y + '" font-size="' + 11 / z + '" text-anchor="middle" dominant-baseline="central">' + txt + '</text></g>';
+      var b = x[0], c = x[1], txt = String(b.links), bw = 2 * A.badgeHalf(ST, b.links) / z, bh = 2 * ST.badge / z;
+      over += '<g class="badge ' + x[2] + faint + '"><rect x="' + (c[0] - bw / 2) + '" y="' + (c[1] - bh / 2) + '" width="' + bw + '" height="' + bh + '" rx="' + bh / 2 + '" vector-effect="non-scaling-stroke"/>' +
+        '<text x="' + c[0] + '" y="' + c[1] + '" font-size="' + 11 / z + '" text-anchor="middle" dominant-baseline="central">' + txt + '</text></g>';
     });
     return { under: under, over: over };
+  }
+  // The map rectangle the view shows.
+  function viewRect() {
+    var v = appView();
+    return { x: S.pan[0], y: S.pan[1], w: v[0] / S.zoom, h: v[1] / S.zoom };
   }
   function worldHtml(L) {
     var lay = LY()[L], sel = selIndex(), selItem = sel >= 0 ? key(sameItem({ note: sel }, L)) : null;
@@ -385,9 +407,9 @@
       var ch = fl.rejected ? chip('fix rejected', 'bad') : fl.waiting ? chip(fl.waiting === 1 ? 'rule waiting' : fl.waiting + ' rules waiting', 'you') : fl.fixed ? chip('fixed last night', 'ok') : fl.stale_days != null ? chip('stale, ' + fl.stale_days + ' days') : (fl.required || fl.entry) ? chip('every session', 'night') : '';
       var inner = '';
       if (L === 'in') {
-        inner = '<div class="in">' + n.pending.map(function (p) { return '<p class="wait">' + esc(p) + '</p>'; }).join('') +
+        inner = '<div class="in">' + n.pending.map(function (p) { return '<p class="wait">' + esc(flags(p)) + '</p>'; }).join('') +
           n.evidence.map(function (e) { return '<p class="said"><span>' + esc(e) + '</span></p>'; }).join('') +
-          n.rules.map(function (p) { return '<p class="kept">' + esc(p) + '</p>'; }).join('') + '</div>';
+          n.rules.map(function (p) { return '<p class="kept">' + esc(flags(p)) + '</p>'; }).join('') + '</div>';
       }
       into(c.item, '<div class="note' + isSel + (L === 'in' ? ' inner' : '') + '" data-note="' + i + '" style="' + st + '"><div class="row">' + ic(fl.entry ? 'start' : 'note') + '<span class="t"' + (tl ? ' style="font-size:' + tl.size + 'px"' : '') + '>' + esc(tl ? tl.lines[0] : n.title) + '</span></div>' +
         '<p class="s">' + esc(n.summary) + '</p><div class="row chips">' + ch + chip(n.reads_week ? 'read ' + n.reads_week + '× this week' : 'not read this week') + '</div>' + inner + '</div>');
@@ -461,12 +483,12 @@
     }
     world.style.transform = 'translate(' + (-S.pan[0] * S.zoom) + 'px,' + (-S.pan[1] * S.zoom) + 'px) scale(' + S.zoom + ')';
     // Nothing under 11 px: far out a folder card keeps its name and counts,
-    // further out its name; at Mid a note card drops its chips, then its
-    // summary.
+    // further out its name.
     wrap.classList.toggle('far', L === 'out' && S.zoom < ST.rows_below);
     wrap.classList.toggle('farther', L === 'out' && S.zoom < ST.meta_below);
-    wrap.classList.toggle('nochips', L === 'mid' && 12 * S.zoom < 11);
-    wrap.classList.toggle('nosum', L === 'mid' && 14 * S.zoom < 11);
+    // At Mid a summary or chip is never set under 11 px on screen: it keeps
+    // 11 and is cut with an ellipsis.
+    if (wrap.style.setProperty) wrap.style.setProperty('--min11', (11 / S.zoom) + 'px');
     stickies();
     var pct = app.querySelector('[data-act="fit"]');
     if (pct) pct.textContent = Math.round(S.zoom * 100) + '%';
@@ -542,7 +564,7 @@
     if (p.rules.length) h += '<p class="group-label">Rules</p>' + p.rules.map(function (r) { return '<p class="bullet">' + esc(r.rule) + ' <span style="color:var(--faint)">' + esc(r.kept) + '</span></p>'; }).join('');
     p.pending.forEach(function (r) {
       var st = S.rules[r.id];
-      h += '<div class="pending"><p>' + esc(r.rule) + '</p><div class="row" style="margin-top:10px">' + (st ? '<span style="color:var(--muted)">' + (st === 'kept' ? 'Kept' : 'Dismissed') + '</span>' : '<button class="btn go" data-act="keep" data-id="' + r.id + '">Keep</button><button class="btn quiet" data-act="dismiss" data-id="' + r.id + '">Dismiss</button><span class="waitnote">waiting for you</span>') + '</div></div>';
+      h += '<div class="pending"><p>' + esc(flags(r.rule)) + '</p><div class="row" style="margin-top:10px">' + (st ? '<span style="color:var(--muted)">' + (st === 'kept' ? 'Kept' : 'Dismissed') + '</span>' : '<button class="btn go" data-act="keep" data-id="' + r.id + '">Keep</button><button class="btn quiet" data-act="dismiss" data-id="' + r.id + '">Dismiss</button><span class="waitnote">waiting for you</span>') + '</div></div>';
       if (r.evidence.length) h += '<p class="group-label">Evidence: what you said</p>' + r.evidence.slice(0, 4).map(function (e) { return '<div style="margin-bottom:10px"><div class="row">' + badge(e.agent) + '<span class="mono" style="color:var(--faint)">' + esc(e.when) + '</span></div><span class="said block">' + esc(e.said) + '</span></div>'; }).join('');
     });
     var links = function (label, l) { return l.length ? '<p class="group-label">' + label + '</p>' + l.slice(0, 6).map(function (x) { return '<div class="row-note">' + ic('note', 14) + '<span class="t clamp1">' + esc(x[1]) + '</span></div>'; }).join('') : ''; };
@@ -648,7 +670,11 @@
     var c = cardAt(lay, m[0], m[1]), hits = [];
     // What the status counts is what the map says is here: a badge stands
     // for its branch, a run for the lines along it.
-    if (!c) hits = A.linesAt(lay, focusOf(L), m[0], m[1], 6 / S.zoom, ST.badge / S.zoom);
+    if (!c) {
+      var sel = selIndex(), selF = sel >= 0 ? sameItem({ note: sel }, L) : null;
+      var f = focusOf(L), hov = !!(S.hover && (!selF || key(selF) !== key(S.hover)));
+      hits = A.linesAt(lay, f, hov, m[0], m[1], 6 / S.zoom, S.zoom, ST);
+    }
     var hover = c ? c.item : hits.length ? S.hover : null;
     var line = null;
     if (L === 'out' && hits.length) {
@@ -732,7 +758,6 @@
       me.style.transition = 'transform ' + SETTLE + 'ms cubic-bezier(.2,.8,.2,1)';
       me.style.transform = 'translate(' + (d.slot.x - d.r.x) + 'px,' + (d.slot.y - d.r.y) + 'px) scale(1)';
     }
-    var fitted = showsAll() && Math.abs(S.zoom - (S.fitZoom || 0)) < 0.005;
     setTimeout(function () {
       S.lifting = false;
       // A move is undone, not confirmed.
@@ -741,28 +766,15 @@
       if (moved) { S.prevArr = prev; S.toast = (d.key.indexOf('folder:') === 0 ? (d.key.slice(7) || 'Notes') : d.key.slice(5).replace(/^.*\//, '').replace(/\.md$/, '')) + ' moved.'; S.toastUndo = true; var tw = S.toast; setTimeout(function () { if (S.toast === tw) { S.toast = ''; S.toastUndo = false; render(); } }, 6000); }
       wrap.classList.remove('lifting');
       render();
-      var v = appView(), lay = LY()[level(S.zoom)];
-      if (fitted) {
-        // A fitted view is fitted again to the map as it now is, moving
-        // there.
-        var f = A.fit(LY(), v[0], v[1]), w2 = app.querySelector('.world');
-        S.zoom = f[0]; S.fitZoom = f[0]; S.pan = f[1];
-        if (w2 && SETTLE) {
-          w2.getBoundingClientRect();
-          w2.style.transition = 'transform ' + SETTLE + 'ms cubic-bezier(.2,.8,.2,1)';
-          setTimeout(function () { w2.style.transition = ''; }, SETTLE + 20);
-        }
-        placeWorld(true);
-      } else {
-        // Any other view keeps its zoom, so cards keep their size under the
-        // pointer, and pans only as far as keeps the dropped block in view.
-        var r = A.blockRect(M, lay, d.key);
-        if (r) {
-          var vw = v[0] / S.zoom, vh = v[1] / S.zoom;
-          S.pan[0] = Math.max(Math.min(S.pan[0], r.x - 20), r.x + r.w + 20 - vw);
-          S.pan[1] = Math.max(Math.min(S.pan[1], r.y - 20), Math.min(r.y + r.h + 20 - vh, r.y - 20));
-          placeWorld(false);
-        }
+      // A drop never rescales: the zoom stays, so cards keep their size
+      // under the pointer, and the view pans only as far as keeps the
+      // dropped block in it. Only the zoom control and Reset refit.
+      var v = appView(), lay = LY()[level(S.zoom)], r = A.blockRect(M, lay, d.key);
+      if (r) {
+        var vw = v[0] / S.zoom, vh = v[1] / S.zoom;
+        S.pan[0] = Math.max(Math.min(S.pan[0], r.x - 20), r.x + r.w + 20 - vw);
+        S.pan[1] = Math.max(Math.min(S.pan[1], r.y - 20), Math.min(r.y + r.h + 20 - vh, r.y - 20));
+        placeWorld(false);
       }
     }, SETTLE);
   }
@@ -775,6 +787,8 @@
     });
     var slot = world.querySelector('.slot');
     if (slot) slot.remove();
+    // The lines go back to where they run now, faint, while blocks fly.
+    redrawLines();
     setTimeout(function () { clearLift(wrap); redrawLines(); }, BACK);
   }
   function clearLift(wrap) {

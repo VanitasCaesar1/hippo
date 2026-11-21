@@ -2875,7 +2875,7 @@ mod tests {
             assert_eq!(s.night.map.map.as_ref().unwrap().arrangement, after);
         });
 
-        // A drop on a fitted view fits the map as it now is.
+        // A drop never rescales, even on a fitted view.
         dispatch(&mut vcx, window, &crate::actions::TextDefault);
         let after = root.update(&mut vcx, |s, cx| {
             let m = s.night.map.map.clone().unwrap();
@@ -2888,15 +2888,11 @@ mod tests {
             let last = m.arrangement.columns.len();
             let x = last as f32 * (hippo_view::night::map::COL_W + hippo_view::night::map::COL_GAP)
                 + 40.;
+            let z0 = s.night.map.zoom;
             s.brain_lift_map(b, (r.w * 0.3, 24.), (x, 30.));
             s.brain_drop(cx);
             let m3 = s.night.map.map.clone().unwrap();
-            let fit = m3.fit(w, h).0;
-            assert!(
-                (s.night.map.zoom - fit).abs() < 1e-4,
-                "{} != {fit}",
-                s.night.map.zoom
-            );
+            assert_eq!(s.night.map.zoom, z0, "the zoom stays");
             m3.arrangement.clone()
         });
 

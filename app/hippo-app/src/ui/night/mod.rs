@@ -865,30 +865,28 @@ impl Shell {
                     .border_color(t.line)
                     .shadow(kit::float_shadow(look, &t))
                     .overflow_hidden()
+                    .flex()
+                    .flex_col()
+                    // What runs on below the scroll area ends at a hairline
+                    // above a solid foot: a clean edge, never a fade over
+                    // half a line.
                     .child(
                         div()
                             .id("night-panel")
-                            .size_full()
+                            .flex_1()
+                            .min_h_0()
                             .overflow_y_scroll()
                             .track_scroll(&self.night.panel_scroll)
                             .p(look.px(24.))
-                            .pb(look.px(56.))
+                            .pb(look.px(16.))
                             .child(p),
                     )
-                    // What runs on below the panel's foot fades out rather
-                    // than ending in a cut.
                     .child(
                         div()
-                            .absolute()
-                            .left_0()
-                            .right_0()
-                            .bottom_0()
-                            .h(look.px(64.))
-                            .bg(gpui::linear_gradient(
-                                180.,
-                                gpui::linear_color_stop(t.surface.opacity(0.), 0.),
-                                gpui::linear_color_stop(t.surface, 0.55),
-                            )),
+                            .flex_shrink_0()
+                            .h(look.px(14.))
+                            .border_t_1()
+                            .border_color(t.line),
                     )
             }))
             .child(

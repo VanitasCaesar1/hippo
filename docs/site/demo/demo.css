@@ -26,7 +26,7 @@
     --canvas: #FAFAFA; --dot: rgba(0, 0, 0, .08); --surface: #FFFFFF; --raised: #FFFFFF; --inset: #F4F4F5;
     --hover: #F4F4F5; --selected: #EDEDEE; --line: rgba(0, 0, 0, .08); --line2: rgba(0, 0, 0, .18);
     --text: #0A0A0A; --muted: #52525B; --faint: #6B6B73;
-    --you: #C8F031; --you-ink: #0F1400; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line); --you-stroke: #7A9A00;
+    --you: #C8F031; --you-ink: #0F1400; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line); --you-stroke: #3F3F46;
     --night: #18181B; --night-bg: rgba(0, 0, 0, .05); --night-line: rgba(0, 0, 0, .42);
     --ok: #15803D; --ok-bg: rgba(21, 128, 61, .08); --bad: #DC2626; --bad-bg: rgba(220, 38, 38, .07);
     --shadow: 0 10px 28px rgba(0, 0, 0, .1); --shadow-s: 0 1px 3px rgba(0, 0, 0, .08);
@@ -39,7 +39,7 @@
   --canvas: #FAFAFA; --dot: rgba(0, 0, 0, .08); --surface: #FFFFFF; --raised: #FFFFFF; --inset: #F4F4F5;
   --hover: #F4F4F5; --selected: #EDEDEE; --line: rgba(0, 0, 0, .08); --line2: rgba(0, 0, 0, .18);
   --text: #0A0A0A; --muted: #52525B; --faint: #6B6B73;
-  --you: #C8F031; --you-ink: #0F1400; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line); --you-stroke: #7A9A00;
+  --you: #C8F031; --you-ink: #0F1400; --you-text: #3F5A00; --you-bg: #EEF9C8; --you-line: #8DB31A; --you-mark: var(--you-line); --you-stroke: #3F3F46;
   --night: #18181B; --night-bg: rgba(0, 0, 0, .05); --night-line: rgba(0, 0, 0, .42);
   --ok: #15803D; --ok-bg: rgba(21, 128, 61, .08); --bad: #DC2626; --bad-bg: rgba(220, 38, 38, .07);
   --shadow: 0 10px 28px rgba(0, 0, 0, .1); --shadow-s: 0 1px 3px rgba(0, 0, 0, .08);
@@ -223,7 +223,7 @@ h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
 .world svg.links path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 /* One opaque colour per kind, so lines that run together never draw
    brighter where they overlap (Hippo.app mixes them the same way). */
-.world svg.links { --l-sel: color-mix(in srgb, var(--night) 55%, var(--canvas)); --l-acc: var(--you-stroke); --l-sel-f: color-mix(in srgb, var(--night) 19%, var(--canvas)); --l-acc-f: color-mix(in srgb, var(--you-stroke) 35%, var(--canvas)); }
+.world svg.links { --l-back: color-mix(in srgb, var(--night) 30%, var(--canvas)); --l-sel: color-mix(in srgb, var(--night) 55%, var(--canvas)); --l-acc: var(--you-stroke); --l-sel-f: color-mix(in srgb, var(--night) 19%, var(--canvas)); --l-acc-f: color-mix(in srgb, var(--you-stroke) 35%, var(--canvas)); }
 .world svg.links path.sel { stroke: var(--l-sel); }
 .world svg.links path.acc { stroke: var(--l-acc); }
 .world svg.links path.sel.faint { stroke: var(--l-sel-f); }
@@ -237,7 +237,17 @@ h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
 .world svg.links .badge.sel rect { stroke: var(--l-sel); }
 .world svg.links .badge.acc rect { stroke: var(--l-acc); }
 .world svg.over { z-index: 3; }
-.mapwrap.nochips .world .note:not(.inner) .chips, .mapwrap.nosum .world .note:not(.inner) .s { visibility: hidden; }
+.world .note .s { font-size: max(14px, var(--min11, 14px)); line-height: 1.36; }
+.world .note .chip { font-size: max(12px, var(--min11, 12px)); height: max(22px, calc(var(--min11, 12px) * 1.83)); }
+.world .lab.k-frame, .world .lab.k-count { width: auto !important; background: var(--canvas); padding: 0 4px; margin-left: -4px; }
+.world svg.links path.sel.back { stroke: var(--l-back); }
+.world svg.links path.head.sel.back, .world svg.links circle.dot.sel.back { fill: var(--l-back); stroke: none; }
+.world svg.links circle.dot { stroke: none; }
+.world svg.links circle.dot.sel { fill: var(--l-sel); }
+.world svg.links circle.dot.acc { fill: var(--l-acc); }
+.world svg.links circle.dot.sel.faint { fill: var(--l-sel-f); }
+.world svg.links circle.dot.acc.faint { fill: var(--l-acc-f); }
+.world svg.links .badge.sel.back rect { stroke: var(--l-back); }
 .world svg.links .badge text { fill: var(--text); font-weight: 600; }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 14px 0; }
 .stats div { padding: 10px; min-width: 0; border-radius: 10px; background: var(--inset); }

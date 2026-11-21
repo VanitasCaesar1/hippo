@@ -181,15 +181,22 @@ impl Style {
 
     /// Whether a badge at map zoom `z`, `room` map points from the
     /// nearest card, keeps its radius and room clear of it.
-    pub fn badge_fits(&self, room: f32, z: f32, links: usize) -> bool {
-        room * z >= self.badge_half(links) + self.badge_room
+    /// Where a badge is drawn at zoom `z`: on its trunk's root, its edge
+    /// [`Style::badge_room`] px clear of the card; none when the root is too
+    /// short to hold it before the trunk's first turn.
+    pub fn badge_at(&self, b: &Badge, z: f32) -> Option<(f32, f32)> {
+        let need = (self.badge_half(b.links) + self.badge_room) / z.max(0.01);
+        let len = (b.x1 - b.x0).abs();
+        if len < need {
+            return None;
+        }
+        Some((b.x0 + (b.x1 - b.x0).signum() * need, b.y))
     }
 
-    /// Half a badge's width, px: a circle for one or two figures, a pill
-    /// for more.
+    /// Half a badge's width, px: a circle for one figure, a pill for more.
     pub fn badge_half(&self, links: usize) -> f32 {
         let digits = links.max(1).to_string().len() as f32;
-        self.badge.max(digits * 3.4 + 5.)
+        self.badge.max(digits * 3.4 + 5.5)
     }
 }
 
@@ -386,13 +393,69 @@ pub struct Line {
 /// [`Style::badge_fits`].
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Badge {
-    pub x: f32,
+    /// The trunk's root: from the card's edge `x0` to its first turn `x1`,
+    /// level at `y`. Every line of the trunk runs along it.
+    pub x0: f32,
+    pub x1: f32,
     pub y: f32,
+    /// The links the whole trunk stands for.
     pub links: usize,
     pub trunk: usize,
-    pub room: f32,
-    /// The cards its branch leads to.
+    /// The cards the trunk leads to.
     pub to: Vec<Item>,
+}
+
+/// One end of a drawn line where it meets a card: an arrowhead where its
+/// links arrive, else a dot. `lit` when it is a target the pointer's line
+/// names. Pixels or map points, as the points it was made from.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct End {
+    pub tip: (f32, f32),
+    /// The point before the tip, for the head's direction.
+    pub from: (f32, f32),
+    pub head: bool,
+    pub lit: bool,
+}
+
+/// Every end of `lines` that meets a card, once per point: a head where
+/// links arrive (at the target when the focus links to it, at the focus
+/// when it links back), a dot where none arrive. Only the target ends of
+/// `hot` lines are lit; a head wins over a dot, a lit end over an unlit one.
+pub fn ends(lines: &[&Line], hot: &[(Item, Item)]) -> Vec<End> {
+    let mut out: Vec<End> = Vec::new();
+    let mut put = |e: End| {
+        let key = |p: (f32, f32)| ((p.0 * 2.).round() as i64, (p.1 * 2.).round() as i64);
+        match out.iter_mut().find(|o| key(o.tip) == key(e.tip)) {
+            Some(o) => {
+                o.head |= e.head;
+                o.lit |= e.lit;
+                if e.head {
+                    o.from = e.from;
+                }
+            }
+            None => out.push(e),
+        }
+    };
+    for l in lines {
+        let n = l.points.len();
+        if n < 2 {
+            continue;
+        }
+        let lit = hot.contains(&(l.from, l.to));
+        put(End {
+            tip: l.points[n - 1],
+            from: l.points[n - 2],
+            head: l.out,
+            lit,
+        });
+        put(End {
+            tip: l.points[0],
+            from: l.points[1],
+            head: l.back,
+            lit: false,
+        });
+    }
+    out
 }
 
 /// What a label is, which sets its weight and colour.
@@ -461,6 +524,11 @@ pub struct Layout {
     pub focus: Vec<(Item, Vec<Line>)>,
     /// The count badges drawn with each linked card's lines.
     pub badges: Vec<(Item, Vec<Badge>)>,
+    /// Each linked card's lines and badges as drawn while it is hovered and
+    /// another card is selected: in lanes and channels of their own, so
+    /// they never run along the selection's.
+    pub hovered: Vec<(Item, Vec<Line>)>,
+    pub hovered_badges: Vec<(Item, Vec<Badge>)>,
     /// Every word drawn on the map at this level, on top of the cards.
     pub labels: Vec<Label>,
     pub marks: Vec<Mark>,
@@ -497,23 +565,48 @@ impl Layout {
             .map_or(&[], |(_, bs)| bs.as_slice())
     }
 
-    /// The lines of `focus` under a map point, within `tol` map points of
-    /// one: a badge (within its radius) stands for the lines of its branch,
-    /// a run for every line drawn along it. What a status line counts.
+    /// `item`'s lines as drawn while it is hovered and another card is
+    /// selected.
+    pub fn shown_hovered(&self, item: Option<Item>) -> &[Line] {
+        item.and_then(|f| self.hovered.iter().find(|(i, _)| *i == f))
+            .map_or(&[], |(_, ls)| ls.as_slice())
+    }
+
+    pub fn badges_hovered(&self, item: Option<Item>) -> &[Badge] {
+        item.and_then(|f| self.hovered_badges.iter().find(|(i, _)| *i == f))
+            .map_or(&[], |(_, bs)| bs.as_slice())
+    }
+
+    /// The lines and badges drawn for `focus`: as hovered (in lanes of their
+    /// own) or as selected.
+    pub fn set(&self, focus: Option<Item>, hovered: bool) -> (&[Line], &[Badge]) {
+        if hovered {
+            (self.shown_hovered(focus), self.badges_hovered(focus))
+        } else {
+            (self.shown(focus), self.badges(focus))
+        }
+    }
+
+    /// The lines of `focus` (drawn as hovered or not) under a map point at
+    /// zoom `z`: a badge (within its radius) stands for its trunk, a run
+    /// within `tol` map points for every line drawn along it. What a status
+    /// line counts, so a badge and the run under it give one number.
     pub fn lines_at(
         &self,
         focus: Option<Item>,
+        hovered: bool,
         x: f32,
         y: f32,
         tol: f32,
-        badge: f32,
+        z: f32,
     ) -> Vec<&Line> {
-        let lines = self.shown(focus);
-        if let Some(b) = self
-            .badges(focus)
-            .iter()
-            .find(|b| (b.x - x).hypot(b.y - y) <= badge)
-        {
+        let (lines, badges) = self.set(focus, hovered);
+        let r = STYLE.badge / z.max(0.01);
+        if let Some(b) = badges.iter().find(|b| {
+            STYLE.badge_at(b, z).is_some_and(|c| {
+                (c.0 - x).abs() <= STYLE.badge_half(b.links) / z && (c.1 - y).abs() <= r
+            })
+        }) {
             return lines
                 .iter()
                 .filter(|l| l.trunk == b.trunk && b.to.contains(&l.to))
@@ -1781,10 +1874,12 @@ fn pack(
     let (frames, cards, labels, marks) = place(level, notes, folders, arr, &|b| {
         draw(level, b, notes, folders, plan)
     });
-    let (focus, badges) = links(level, folders, edges, &frames, &cards);
+    let lk = links(level, folders, edges, &frames, &cards);
     let mut lay = finish(frames, cards, labels, marks);
-    lay.focus = focus;
-    lay.badges = badges;
+    lay.focus = lk.focus;
+    lay.badges = lk.badges;
+    lay.hovered = lk.hovered;
+    lay.hovered_badges = lk.hovered_badges;
     lay
 }
 
@@ -1922,6 +2017,8 @@ fn links(
     let items: BTreeSet<Item> = pairs.keys().flat_map(|&(a, b)| [a, b]).collect();
     let mut focus = Vec::new();
     let mut badges = Vec::new();
+    let mut hovered = Vec::new();
+    let mut hovered_badges = Vec::new();
     for f in items {
         let ca = col_of(rect_of[&f].x);
         let mut right: Vec<Target> = Vec::new();
@@ -1952,17 +2049,32 @@ fn links(
             .enumerate()
             .map(|(k, to)| Want { a: f, to, trunk: k })
             .collect();
-        let (lines, bs) = route(&wants, &rect_of, &heads, level == Level::Out);
+        let (lines, bs) = route(&wants, &rect_of, &heads, level == Level::Out, false);
         focus.push((f, lines));
         if !bs.is_empty() {
             badges.push((f, bs));
         }
+        let (lines, bs) = route(&wants, &rect_of, &heads, level == Level::Out, true);
+        hovered.push((f, lines));
+        if !bs.is_empty() {
+            hovered_badges.push((f, bs));
+        }
     }
-    (focus, badges)
+    Focus {
+        focus,
+        badges,
+        hovered,
+        hovered_badges,
+    }
 }
 
-/// Each linked card's lines and badges.
-type Focus = (Vec<(Item, Vec<Line>)>, Vec<(Item, Vec<Badge>)>);
+/// Each linked card's lines and badges, as selected and as hovered.
+struct Focus {
+    focus: Vec<(Item, Vec<Line>)>,
+    badges: Vec<(Item, Vec<Badge>)>,
+    hovered: Vec<(Item, Vec<Line>)>,
+    hovered_badges: Vec<(Item, Vec<Badge>)>,
+}
 
 /// The layout's size around what it holds.
 fn finish(
@@ -1989,6 +2101,8 @@ fn finish(
         cards,
         focus: Vec::new(),
         badges: Vec::new(),
+        hovered: Vec::new(),
+        hovered_badges: Vec::new(),
         labels,
         marks,
     }
@@ -2172,8 +2286,18 @@ fn route(
     rect_of: &HashMap<Item, Rect>,
     heads: &[Rect],
     out: bool,
+    hovered: bool,
 ) -> (Vec<Line>, Vec<Badge>) {
     let clear = if out { 20f32 } else { 12f32 };
+    // Hovered lines run beside the selection's: their trunk leaves a little
+    // lower, their lanes and channels sit a little to one side.
+    let (lane_shift, chan_shift, root_shift) = if !hovered {
+        (0f32, 0f32, 0f32)
+    } else if out {
+        (20., 10., 14.)
+    } else {
+        (14., 6., 8.)
+    };
     // A note card's lines meet it by its title; an Out card's, by its
     // middle, spread wider.
     let centre = |r: &Rect| {
@@ -2265,7 +2389,15 @@ fn route(
             spread.min((hi - lo) / (n - 1) as f32)
         };
         let half = step * (n.saturating_sub(1)) as f32 / 2.;
-        let mid = port(r, edge).clamp(lo + half, (hi - half).max(lo + half));
+        // A card's own trunk leaves it at its middle (lower while hovered);
+        // lines into a card meet it at its edge's anchor.
+        let own = list.iter().any(|e| e.2 == usize::MAX);
+        let at = if own {
+            centre(r) + root_shift
+        } else {
+            port(r, edge)
+        };
+        let mid = at.clamp(lo + half, (hi - half).max(lo + half));
         for (k, (_, path, j)) in list.into_iter().enumerate() {
             let y = mid - half + k as f32 * step;
             if j == usize::MAX {
@@ -2329,9 +2461,9 @@ fn route(
             }
         };
         for (lo, hi) in free {
-            consider((lo + hi) / 2.);
+            consider((lo + hi) / 2. + chan_shift.min((hi - lo) / 2. - clear));
         }
-        consider(want.max(from.max(0.) + clear * 1.8));
+        consider(want.max(from.max(0.) + clear * 1.8) + chan_shift);
         best.map_or(want, |b| b.2)
     };
     for p in &mut paths {
@@ -2404,7 +2536,7 @@ fn route(
         };
         let start = (lo + hi) / 2. - step * (n.saturating_sub(1)) as f32 / 2.;
         for (k, (m, s, _)) in members.into_iter().enumerate() {
-            paths[m].lanes[s] = start + k as f32 * step;
+            paths[m].lanes[s] = (start + k as f32 * step + lane_shift).min(hi);
         }
     }
     let mut lines = Vec::new();
@@ -2412,20 +2544,24 @@ fn route(
     for p in &paths {
         let a0 = if p.right { p.ra.right() } else { p.ra.x };
         let mut trunk = vec![(a0, p.ya)];
+        // One badge per trunk, on its root: the stretch from the card to the
+        // trunk's first turn, which all its lines share.
+        let links: usize = p.to.iter().map(|t| t.2).sum();
+        if links >= 2 && !p.lanes.is_empty() {
+            // On the near half of the gap, so it keeps as far from the next
+            // column as from its own card.
+            let room = (p.lanes[0] - a0).abs().min(COL_GAP / 2.);
+            badges.push(Badge {
+                x0: a0,
+                x1: a0 + (p.lanes[0] - a0).signum() * room,
+                y: p.ya,
+                links,
+                trunk: p.trunk,
+                to: p.to.iter().map(|t| t.0).collect(),
+            });
+        }
         for (s, (_, y, js, to)) in p.stops.iter().enumerate() {
             let x = p.lanes[s];
-            let links: usize = js.iter().map(|&j| p.to[j].2).sum();
-            if links >= 2 {
-                let (gl, gr) = (col_x(p.stops[s].0) - COL_GAP, col_x(p.stops[s].0));
-                badges.push(Badge {
-                    x,
-                    y: *y,
-                    links,
-                    trunk: p.trunk,
-                    room: (x - gl).min(gr - x),
-                    to: js.iter().map(|&j| p.to[j].0).collect(),
-                });
-            }
             for &j in js {
                 let (item, t, links, out, back) = p.to[j];
                 let b0 = if enters_right(p, j) { t.right() } else { t.x };
@@ -2916,7 +3052,7 @@ mod tests {
     #[test]
     fn lanes_stay_in_their_gap() {
         let m = synthetic(300, 12, 1000);
-        for l in all_lines(&m.mid) {
+        for l in all_lines(&m.mid).into_iter().filter(|l| l.points.len() > 2) {
             let x = l.points[1].0;
             // Never inside a column of cards.
             let c = (x / (COL_W + COL_GAP)).floor();
@@ -2992,29 +3128,73 @@ mod tests {
         dx.hypot(dy)
     }
 
+    /// Both ways a level draws each card's lines: as selected, as hovered.
+    fn both(l: &Layout) -> Vec<(Item, bool, &[Line], &[Badge])> {
+        let mut v = Vec::new();
+        for (f, _) in &l.focus {
+            for h in [false, true] {
+                let (ls, bs) = l.set(Some(*f), h);
+                v.push((*f, h, ls, bs));
+            }
+        }
+        v
+    }
+
+    /// The zooms a level is drawn at, from the table.
+    fn zooms(lv: Level) -> Vec<f32> {
+        STYLE
+            .steps
+            .iter()
+            .copied()
+            .filter(|&z| Level::of(z) == lv)
+            .collect()
+    }
+
     #[test]
-    fn no_badge_overlaps_a_card() {
+    fn one_badge_per_trunk_on_the_run_it_counts() {
         for m in maps() {
-            for (lv, l) in [("out", &m.out), ("mid", &m.mid), ("in", &m.inner)] {
-                for (f, bs) in &l.badges {
+            for (lv, l) in [
+                (Level::Out, &m.out),
+                (Level::Mid, &m.mid),
+                (Level::In, &m.inner),
+            ] {
+                let heads: Vec<Rect> = l
+                    .frames
+                    .iter()
+                    .map(|f| Rect::new(f.1.x, f.1.y, f.1.w, FRAME_HEAD))
+                    .collect();
+                for (f, h, ls, bs) in both(l) {
+                    let trunks: BTreeSet<usize> = bs.iter().map(|b| b.trunk).collect();
+                    assert_eq!(
+                        trunks.len(),
+                        bs.len(),
+                        "{lv:?} {f:?}: two badges on one trunk"
+                    );
                     for b in bs {
-                        assert!(b.links >= 2, "{lv}: a badge for one link");
-                        assert!(b.room > 0., "{lv}: {b:?}");
-                        let heads = l
-                            .frames
-                            .iter()
-                            .map(|f| Rect::new(f.1.x, f.1.y, f.1.w, FRAME_HEAD));
-                        for r in l.cards.iter().map(|c| c.rect).chain(heads) {
-                            assert!(
-                                dist(b.x, b.y, &r) >= b.room - 0.5,
-                                "{lv}: {f:?}'s badge {b:?} is {} from {r:?}",
-                                dist(b.x, b.y, &r)
-                            );
+                        let mine: Vec<&Line> = ls.iter().filter(|x| x.trunk == b.trunk).collect();
+                        assert_eq!(Layout::links_of(&mine), b.links, "{lv:?} {f:?} {h}");
+                        assert!(b.links >= 2);
+                        // Every line of the trunk runs along the whole root;
+                        // no line of the other trunk does.
+                        for x in ls {
+                            let (p, q) = (x.points[0], x.points[1]);
+                            let along = p == (b.x0, b.y)
+                                && q.1 == b.y
+                                && (q.0 - p.0).abs() >= (b.x1 - b.x0).abs() - 0.01;
+                            assert_eq!(along, x.trunk == b.trunk, "{lv:?} {f:?} {h}: {x:?} {b:?}");
                         }
-                        // Drawn only where its radius and room fit.
-                        for z in STYLE.steps {
-                            if STYLE.badge_fits(b.room, z, b.links) {
-                                assert!(b.room * z >= STYLE.badge_half(b.links) + STYLE.badge_room);
+                        // Where drawn, clear of every card and name band.
+                        for z in zooms(lv) {
+                            let Some(c) = STYLE.badge_at(b, z) else {
+                                continue;
+                            };
+                            let need = (STYLE.badge_half(b.links) + STYLE.badge_room) / z;
+                            for r in l.cards.iter().map(|c| c.rect).chain(heads.iter().copied()) {
+                                let d = dist(c.0, c.1, &r);
+                                assert!(
+                                    d >= need - 0.5,
+                                    "{lv:?} {f:?} at {z}: badge {c:?} is {d} from {r:?}"
+                                );
                             }
                         }
                     }
@@ -3030,42 +3210,53 @@ mod tests {
             .badges
             .iter()
             .flat_map(|(_, bs)| bs)
-            .filter(|b| STYLE.badge_fits(b.room, z, b.links))
+            .filter(|b| STYLE.badge_at(b, z).is_some())
             .count();
         assert!(shown > 0, "no badge fits at {z}");
     }
 
     #[test]
-    fn every_line_drawn_ends_in_a_head() {
+    fn a_badge_and_its_line_give_one_number() {
         for m in maps() {
-            for (lv, l) in [("out", &m.out), ("mid", &m.mid), ("in", &m.inner)] {
-                let z = match lv {
-                    "out" => MIN_ZOOM,
-                    "mid" => OUT_BELOW,
-                    _ => IN_ABOVE,
-                };
-                for line in all_lines(l) {
-                    assert!(line.out || line.back, "{lv}: a line with no way");
-                    let n = line.points.len();
-                    let (a, b) = (line.points[n - 2], line.points[n - 1]);
-                    let r = l.card(line.to).unwrap().rect;
-                    // It meets its card's edge level, with room for a head.
-                    assert_eq!(a.1, b.1, "{lv}: {line:?} ends on a turn");
-                    assert!(
-                        b.0 == r.x || b.0 == r.right(),
-                        "{lv}: {line:?} misses {r:?}"
-                    );
-                    assert!(b.1 > r.y && b.1 < r.bottom(), "{lv}: {line:?}");
-                    assert!(
-                        (a.0 - b.0).abs() * z >= STYLE.arrow,
-                        "{lv}: no room for a head: {line:?}"
-                    );
-                    if line.back {
-                        let (p, q) = (line.points[0], line.points[1]);
-                        let r = l.card(line.from).unwrap().rect;
-                        assert_eq!(p.1, q.1);
-                        assert!(p.0 == r.x || p.0 == r.right());
-                        assert!((p.0 - q.0).abs() * z >= STYLE.arrow, "{lv}: {line:?}");
+            for (lv, l) in [
+                (Level::Out, &m.out),
+                (Level::Mid, &m.mid),
+                (Level::In, &m.inner),
+            ] {
+                for (f, h, ls, bs) in both(l) {
+                    for b in bs {
+                        for z in zooms(lv) {
+                            let Some(c) = STYLE.badge_at(b, z) else {
+                                continue;
+                            };
+                            // On the badge.
+                            let on = l.lines_at(Some(f), h, c.0, c.1, 6. / z, z);
+                            // On the line beside it, outside the badge.
+                            let beside: Vec<&Line> = ls
+                                .iter()
+                                .filter(|x| {
+                                    x.points.windows(2).any(|w| {
+                                        w[0].1 == c.1
+                                            && w[1].1 == c.1
+                                            && c.0 >= w[0].0.min(w[1].0) - 0.01
+                                            && c.0 <= w[0].0.max(w[1].0) + 0.01
+                                    })
+                                })
+                                .collect();
+                            assert_eq!(Layout::links_of(&on), b.links, "{lv:?} {f:?} {h} at {z}");
+                            assert_eq!(
+                                Layout::links_of(&beside),
+                                b.links,
+                                "{lv:?} {f:?} {h} at {z}"
+                            );
+                        }
+                    }
+                    // Along a line's last stub, the status names its card.
+                    for x in ls.iter().take(4) {
+                        let n = x.points.len();
+                        let (a, c) = (x.points[n - 2], x.points[n - 1]);
+                        let under = l.lines_at(Some(f), h, (a.0 + c.0) / 2., a.1, 1., 1.);
+                        assert!(under.iter().any(|u| u.to == x.to), "{lv:?} {f:?}");
                     }
                 }
             }
@@ -3073,22 +3264,178 @@ mod tests {
     }
 
     #[test]
-    fn a_badge_counts_what_the_status_says() {
+    fn only_the_target_heads_light_up_and_every_end_is_marked() {
         for m in maps() {
-            for l in [&m.out, &m.mid, &m.inner] {
-                for (f, bs) in &l.badges {
-                    for b in bs {
-                        let under = l.lines_at(Some(*f), b.x, b.y, 4., 6.);
-                        assert_eq!(Layout::links_of(&under), b.links, "{f:?} {b:?}");
+            for (lv, l) in [("out", &m.out), ("mid", &m.mid), ("in", &m.inner)] {
+                for (f, h, ls, _) in both(l) {
+                    let all: Vec<&Line> = ls.iter().collect();
+                    // Every end that meets a card has a mark.
+                    let marks = ends(&all, &[]);
+                    for x in &all {
+                        for p in [x.points[0], *x.points.last().unwrap()] {
+                            assert!(
+                                marks.iter().any(|e| e.tip == p),
+                                "{lv} {f:?}: {p:?} unmarked"
+                            );
+                        }
+                        let tip = *x.points.last().unwrap();
+                        let e = marks.iter().find(|e| e.tip == tip).unwrap();
+                        assert_eq!(
+                            e.head,
+                            x.out || all.iter().any(|y| y.points.last() == Some(&tip) && y.out)
+                        );
+                    }
+                    assert!(marks.iter().all(|e| !e.lit));
+                    // The pointer on one line: only the heads at the cards it
+                    // names light up, never the one into the focus.
+                    let Some(x) = all.first() else { continue };
+                    let under = l.lines_at(Some(f), h, x.points[0].0 + 0.5, x.points[0].1, 1., 1.);
+                    let hot: Vec<(Item, Item)> = under.iter().map(|u| (u.from, u.to)).collect();
+                    let lit: Vec<(f32, f32)> = ends(&all, &hot)
+                        .iter()
+                        .filter(|e| e.lit)
+                        .map(|e| e.tip)
+                        .collect();
+                    let want: BTreeSet<(i64, i64)> = under
+                        .iter()
+                        .map(|u| {
+                            let t = *u.points.last().unwrap();
+                            ((t.0 * 2.).round() as i64, (t.1 * 2.).round() as i64)
+                        })
+                        .collect();
+                    let got: BTreeSet<(i64, i64)> = lit
+                        .iter()
+                        .map(|t| ((t.0 * 2.).round() as i64, (t.1 * 2.).round() as i64))
+                        .collect();
+                    assert_eq!(got, want, "{lv} {f:?} {h}");
+                    let ports: Vec<(f32, f32)> = all.iter().map(|u| u.points[0]).collect();
+                    assert!(
+                        lit.iter().all(|t| !ports.contains(t)),
+                        "{lv} {f:?}: a head into the focus lit"
+                    );
+                }
+            }
+        }
+    }
+
+    /// Whether two segments run along each other for more than a point.
+    fn overlap(a: ((f32, f32), (f32, f32)), b: ((f32, f32), (f32, f32))) -> bool {
+        let level = |s: ((f32, f32), (f32, f32))| (s.0 .1 - s.1 .1).abs() < 0.01;
+        let plumb = |s: ((f32, f32), (f32, f32))| (s.0 .0 - s.1 .0).abs() < 0.01;
+        let span = |p: f32, q: f32| (p.min(q), p.max(q));
+        if level(a) && level(b) && (a.0 .1 - b.0 .1).abs() < 0.5 {
+            let (a0, a1) = span(a.0 .0, a.1 .0);
+            let (b0, b1) = span(b.0 .0, b.1 .0);
+            return a1.min(b1) - a0.max(b0) > 1.;
+        }
+        if plumb(a) && plumb(b) && (a.0 .0 - b.0 .0).abs() < 0.5 {
+            let (a0, a1) = span(a.0 .1, a.1 .1);
+            let (b0, b1) = span(b.0 .1, b.1 .1);
+            return a1.min(b1) - a0.max(b0) > 1.;
+        }
+        false
+    }
+
+    #[test]
+    fn a_hovered_cards_lines_never_run_along_the_selections() {
+        let small = [
+            demo_shaped(),
+            synthetic(20, 4, 24),
+            synthetic(40, 5, 60).fitted(1220., 690.),
+        ];
+        let big = synthetic(300, 12, 1000).fitted(1220., 690.);
+        let mut cases: Vec<&Layout> = Vec::new();
+        for m in &small {
+            cases.extend([&m.out, &m.mid, &m.inner]);
+        }
+        cases.push(&big.out);
+        for l in cases {
+            for (a, _) in &l.focus {
+                let hov = l.shown_hovered(Some(*a));
+                for (b, sel) in &l.focus {
+                    if a == b {
+                        continue;
+                    }
+                    for x in hov {
+                        for y in sel {
+                            // Two lines into one card share its anchor.
+                            let same_end = x.to == y.to || x.to == y.from;
+                            for (i, s) in x.points.windows(2).enumerate() {
+                                for (j, t) in y.points.windows(2).enumerate() {
+                                    let last_x = i + 2 == x.points.len();
+                                    let end_y = j + 2 == y.points.len() || j == 0;
+                                    if same_end && last_x && end_y {
+                                        continue;
+                                    }
+                                    assert!(
+                                        !overlap((s[0], s[1]), (t[0], t[1])),
+                                        "hovered {a:?} runs along selected {b:?}: {s:?} {t:?}"
+                                    );
+                                }
+                            }
+                        }
                     }
                 }
-                // Along a line, the status counts the lines drawn there.
-                for (f, ls) in &l.focus {
-                    for line in ls.iter().take(3) {
+            }
+        }
+    }
+
+    #[test]
+    fn a_card_counts_the_same_at_every_zoom() {
+        for m in [
+            demo_shaped(),
+            synthetic(40, 5, 60),
+            synthetic(300, 12, 1000),
+        ] {
+            let pinned: Vec<usize> = (0..m.notes.len()).filter(|&i| m.pinned(i)).collect();
+            for i in pinned {
+                let per_side = |l: &Layout| {
+                    let it = Item::Note(i);
+                    let own = l.card(it).map(|c| c.rect);
+                    let mut v: BTreeMap<bool, usize> = BTreeMap::new();
+                    for b in l.badges(Some(it)) {
+                        *v.entry(b.x1 > b.x0).or_default() += b.links;
+                    }
+                    (own.is_some(), v)
+                };
+                let (o, m1, n) = (per_side(&m.out), per_side(&m.mid), per_side(&m.inner));
+                assert!(o.0 && m1.0 && n.0);
+                assert_eq!(o.1, m1.1, "note {i}: Out and Mid count differently");
+                assert_eq!(m1.1, n.1, "note {i}: Mid and In count differently");
+            }
+        }
+    }
+
+    #[test]
+    fn every_line_drawn_ends_with_room_for_a_head() {
+        for m in maps() {
+            for (lv, l) in [("out", &m.out), ("mid", &m.mid), ("in", &m.inner)] {
+                let z = match lv {
+                    "out" => STYLE.steps[2],
+                    "mid" => OUT_BELOW,
+                    _ => IN_ABOVE,
+                };
+                for (_, _, ls, _) in both(l) {
+                    for line in ls {
+                        assert!(line.out || line.back, "{lv}: a line with no way");
                         let n = line.points.len();
-                        let (a, c) = (line.points[n - 2], line.points[n - 1]);
-                        let under = l.lines_at(Some(*f), (a.0 + c.0) / 2., a.1, 1., 0.);
-                        assert!(under.iter().any(|u| u.to == line.to), "{f:?}");
+                        let (a, b) = (line.points[n - 2], line.points[n - 1]);
+                        let r = l.card(line.to).unwrap().rect;
+                        assert_eq!(a.1, b.1, "{lv}: {line:?} ends on a turn");
+                        assert!(
+                            b.0 == r.x || b.0 == r.right(),
+                            "{lv}: {line:?} misses {r:?}"
+                        );
+                        assert!(b.1 > r.y && b.1 < r.bottom(), "{lv}: {line:?}");
+                        assert!(
+                            (a.0 - b.0).abs() * z >= STYLE.arrow,
+                            "{lv}: no room for a head: {line:?}"
+                        );
+                        let (p, q) = (line.points[0], line.points[1]);
+                        let r = l.card(line.from).unwrap().rect;
+                        assert_eq!(p.1, q.1);
+                        assert!(p.0 == r.x || p.0 == r.right());
+                        assert!((p.0 - q.0).abs() * z >= STYLE.arrow, "{lv}: {line:?}");
                     }
                 }
             }

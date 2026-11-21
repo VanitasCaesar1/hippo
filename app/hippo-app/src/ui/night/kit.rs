@@ -148,13 +148,14 @@ impl Nt {
         if self.dark { self.you } else { self.you_line }
     }
 
-    /// Lime as a stroke: a line or an edge. On a light ground the fill is
-    /// too faint, so a darker lime (brand/tokens.json `you-stroke`).
+    /// The hover stroke: a line or an edge. Lime on dark; on a light
+    /// ground lime is too faint and a darker lime reads as the fixed mark's
+    /// green, so graphite (brand/tokens.json `you-stroke`).
     pub fn you_stroke(&self) -> Hsla {
         if self.dark {
             self.you
         } else {
-            rgba(0x7A9A00FF).into()
+            rgba(0x3F3F46FF).into()
         }
     }
 }

@@ -214,14 +214,27 @@ for (const view of ['morning', 'brain']) {
     }
     for (const L of ['out', 'mid', 'in']) {
       const lay = D.map[L];
-      for (const [f, bs] of lay.badges || []) {
-        for (const b of bs) {
-          const n = A.linksOf(A.linesAt(lay, f, b.x, b.y, 4, 6));
-          if (n !== b.links) errors.push(`badge: ${L} badge says ${b.links}, its lines ${n}`);
-          for (const c of lay.cards) {
-            const r = c.rect;
-            const dx = Math.max(r.x - b.x, 0, b.x - r.x - r.w), dy = Math.max(r.y - b.y, 0, b.y - r.y - r.h);
-            if (Math.hypot(dx, dy) < b.room - 0.5) errors.push(`badge: ${L} badge at ${b.x},${b.y} is in a card`);
+      // One badge per trunk, on its root; the badge and the run under it
+      // give one number, at every zoom of the level.
+      const zs = st.steps.filter((z) => (L === 'out' ? z < st.out_below : L === 'in' ? z > st.in_above : z >= st.out_below && z <= st.in_above));
+      for (const hovered of [false, true]) {
+        for (const [f, bs] of (hovered ? lay.hovered_badges : lay.badges) || []) {
+          const [lines] = A.set(lay, f, hovered);
+          for (const b of bs) {
+            const mine = lines.filter((l) => l.trunk === b.trunk);
+            if (A.linksOf(mine) !== b.links) errors.push(`badge: ${L} badge says ${b.links}, its trunk ${A.linksOf(mine)}`);
+            for (const z of zs) {
+              const c = A.badgeAt(st, b, z);
+              if (!c) continue;
+              const n = A.linksOf(A.linesAt(lay, f, hovered, c[0], c[1], 6 / z, z, st));
+              if (n !== b.links) errors.push(`badge: ${L} badge says ${b.links}, hovering it ${n}`);
+              const need = (A.badgeHalf(st, b.links) + st.badge_room) / z;
+              for (const card of lay.cards) {
+                const r = card.rect;
+                const dx = Math.max(r.x - c[0], 0, c[0] - r.x - r.w), dy = Math.max(r.y - c[1], 0, c[1] - r.y - r.h);
+                if (Math.hypot(dx, dy) < need - 0.5) errors.push(`badge: ${L} badge at ${c} is in a card at ${z}`);
+              }
+            }
           }
         }
       }
