@@ -1,6 +1,6 @@
 {
   "name": "hippo",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "Your coding agents learn while you sleep. hippo indexes what your agents did on this machine, keeps your notes true overnight with a second model checking every change, and starts each new session with the notes its task needs. This plugin adds the $hippo skill: set hippo up, ask what an earlier session found, brief a new task, and go through the Inbox.",
   "author": {
     "name": "VanitasCaesar1",

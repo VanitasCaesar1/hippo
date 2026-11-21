@@ -80,7 +80,7 @@ Taken from the synthetic demo project in this repository (`app/scripts/demo-home
 </tr>
 <tr>
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/app-agents-light.jpg"><img src="docs/assets/readme/app-agents-dark.jpg" alt="Agents in Hippo.app: accounts with their usage meters, and the sessions waiting on you" width="100%"></picture><br>Agents in Hippo.app: who waits on you, who is working, and which account runs dry before its reset.</td>
-<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: light)" srcset="docs/assets/app-brain-light.jpg"><img src="docs/assets/app-brain-dark.jpg" alt="Brain in Hippo.app: the notes as a map" width="100%"></picture><br>Brain in Hippo.app: the notes as a map, with what was fixed last night, what waits and what went stale.</td>
+<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: light)" srcset="docs/assets/app-brain-light.jpg"><img src="docs/assets/app-brain-dark.jpg" alt="Brain in Hippo.app: the notes as a map" width="100%"></picture><br>Brain in Hippo.app: the notes as a map, with what was fixed last night, what waits and what went stale, and the selected note's links.</td>
 </tr>
 </table>
 

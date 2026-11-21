@@ -4,6 +4,21 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-11-21
+
+Brain, done properly: drag the real card, see the links of the card you point at, and the whole map fills the window.
+
+**Upgrading.** Nothing to run or migrate; your saved layouts carry over. `hippo view map --json` no longer has a `lines` list: each card's lines are in `focus`, with `badges` for their counts and `style` for how they are drawn. Design: [brain-links.md](docs/designs/brain-links.md).
+
+### Changed
+
+- **Dragging moves the real card.** The card you drag follows the pointer, a little raised, and the other blocks slide aside to open the slot where it will land. Release to drop it, Escape to send everything back. With Reduce Motion on, nothing slides.
+- **Links show for the card you point at, or the one you select**, not all at once. Each card's links leave it as one line per side and branch to each card they reach. Arrows show which way a link runs: a head where it arrives, and on the highlighted line a dot where it leaves. A small count says how many links a line stands for, and pointing at a line names the cards it joins. A link to a card off screen fades out at the edge; click it to go there.
+- **The overview fills the window.** Brain opens with the whole map as large as it fits, and zooming out never shrinks it below that. The + and − buttons and ⌘= and ⌘− step through the same zooms as the live demo.
+- **Menus and panels never cover the map.** The header, the side panel and the Ask bar each have their own space; the map sits between them.
+- **A drop never moves your view** unless you were looking at the whole map; then the map refits to show all of it again.
+- Zoomed in, a card keeps its summary and its labels readable instead of hiding them, and the live demo draws the same map as Hippo.app.
+
 ## [0.8.2] - 2026-11-20
 
 Arrange Brain your way; links go around cards at every zoom.
