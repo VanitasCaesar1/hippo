@@ -390,13 +390,15 @@
       if (motion || set[1] === 'sel back') return;
       var mg = 8 / z;
       sb[1].forEach(function (b) {
-        // A badge only on a trunk that is drawn.
-        if (!shown.some(function (l) { return l.trunk === b.trunk; })) return;
+        // The lines drawn along the trunk, one per card: a badge only
+        // where there are two or more.
+        var n = A.badgeCount(b, shown);
+        if (n < 2) return;
         var c = A.badgeAt(ST, b, z);
         if (!c) return;
-        var hw = A.badgeHalf(ST, b.links) / z, hh = ST.badge / z;
+        var hw = A.badgeHalf(ST, b.lines) / z, hh = ST.badge / z;
         if (c[0] - hw < view.x + mg || c[0] + hw > view.x + view.w - mg || c[1] - hh < view.y + strip + mg || c[1] + hh > view.y + view.h - mg) return;
-        badges.push([b, c, set[1]]);
+        badges.push([b, c, set[1], n]);
       });
     });
     var a = ST.arrow / z, dot = (2 * ST.line + 1.5) / z;
@@ -408,7 +410,7 @@
       over += '<path class="head ' + cls + '" d="M' + tip[0] + ' ' + tip[1] + 'L' + (bx - uy * a / 2) + ' ' + (by + ux * a / 2) + 'L' + (bx + uy * a / 2) + ' ' + (by - ux * a / 2) + 'Z"/>';
     });
     badges.forEach(function (x) {
-      var b = x[0], c = x[1], txt = String(b.links), bw = 2 * A.badgeHalf(ST, b.links) / z, bh = 2 * ST.badge / z;
+      var c = x[1], txt = String(x[3]), bw = 2 * A.badgeHalf(ST, x[3]) / z, bh = 2 * ST.badge / z;
       over += '<g class="badge ' + x[2] + '"><rect x="' + (c[0] - bw / 2) + '" y="' + (c[1] - bh / 2) + '" width="' + bw + '" height="' + bh + '" rx="' + bh / 2 + '" vector-effect="non-scaling-stroke"/>' +
         '<text x="' + c[0] + '" y="' + c[1] + '" font-size="' + 11 / z + '" text-anchor="middle" dominant-baseline="central">' + txt + '</text></g>';
     });

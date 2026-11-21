@@ -2725,6 +2725,67 @@ mod tests {
         vcx.run_until_parked();
     }
 
+    /// Brain with a card hovered: every badge drawn says how many lines it
+    /// lights, and no arrowhead is drawn under a badge.
+    #[gpui::test]
+    fn brain_badges_count_what_they_light_and_cover_no_head(cx: &mut TestAppContext) {
+        use hippo_view::night::map::Level;
+        setup_globals(cx);
+        let (dir, home) = arranged_home();
+        let notes = dir.path().join("ws/notes");
+        for (p, body) in [
+            (
+                "index.md",
+                "# Start\n\nThe entry note. See [[Runbooks/Deploy]], [[Decisions/Postgres]], [[Upload]] and [[Auth]].\n",
+            ),
+            (
+                "Upload.md",
+                "# Upload\n\nSee [[Runbooks/Deploy]] and [[Decisions/Postgres]].\n",
+            ),
+            (
+                "Runbooks/Restore.md",
+                "# Restore\n\nFrom a backup. Start at [[index]].\n",
+            ),
+            (
+                "Decisions/Postgres.md",
+                "# Postgres\n\nWhy Postgres. Back to [[index]].\n",
+            ),
+        ] {
+            std::fs::write(notes.join(p), body).unwrap();
+        }
+        let (window, mut vcx) = open(cx, &home);
+        let root = window.root(&mut vcx).unwrap();
+        brain_at(&mut vcx, &root, 0.6);
+        let m = root
+            .read_with(&vcx, |s, _| s.night.map.map.clone())
+            .expect("a map");
+        assert_eq!(Level::of(0.6), Level::Out);
+        let cards: Vec<_> = m.out.cards.iter().map(|c| c.rect).collect();
+        let mut lit_badges = 0;
+        for r in cards {
+            let at = on_map(&vcx, &root, r.x + r.w / 2., r.y + r.h.min(40.) / 2.);
+            vcx.simulate_mouse_move(at, None, gpui::Modifiers::none());
+            vcx.run_until_parked();
+            root.read_with(&vcx, |s, _| {
+                let f = s.night.map.frames.borrow();
+                for (b, n, lit, lit_lines) in &f.badges {
+                    if *lit {
+                        lit_badges += 1;
+                        assert_eq!(n, lit_lines, "a badge says {n}, {lit_lines} lines lit");
+                    }
+                    for h in &f.heads {
+                        let apart = h.right() <= b.x + 0.01
+                            || b.right() <= h.x + 0.01
+                            || h.bottom() <= b.y + 0.01
+                            || b.bottom() <= h.y + 0.01;
+                        assert!(apart, "a head {h:?} under the badge {n} at {b:?}");
+                    }
+                }
+            });
+        }
+        assert!(lit_badges > 0, "no hovered card showed a badge");
+    }
+
     /// Brain arranged by hand: a folder dragged by its name band lands in
     /// another column and is saved; a press on a note in a folder pans;
     /// Escape puts a lifted block back; the keys move a block; Reset

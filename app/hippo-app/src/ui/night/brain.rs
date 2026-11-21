@@ -246,6 +246,10 @@ pub struct Frames {
     pub last: Option<Instant>,
     /// Cards and lines drawn in the last paint.
     pub drawn: (usize, usize),
+    /// The last paint's badges (bounds in window px, the number, lit) and
+    /// the lines lit along each; and its arrowheads' bounds.
+    pub badges: Vec<(map::Rect, usize, bool, usize)>,
+    pub heads: Vec<map::Rect>,
 }
 
 impl MapView {
@@ -898,7 +902,9 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
     let inner = map::Rect::new(view.x + m8, view.y + m8, view.w - 2. * m8, view.h - 2. * m8);
     // Marks (heads and dots) and badges, drawn over the cards.
     let mut marks: Vec<(map::End, Hsla)> = Vec::new();
-    let mut badges: Vec<((f32, f32), usize, bool)> = Vec::new();
+    let mut badges: Vec<((f32, f32), usize, bool, usize)> = Vec::new();
+    let mut painted_heads: Vec<map::Rect> = Vec::new();
+    let mut painted_badges: Vec<(map::Rect, usize, bool, usize)> = Vec::new();
     let strip = if level == Level::Out { 0. } else { 30. / z };
     for &(who, color, lit_set, with_badges) in &sets {
         let mut shown: Vec<&map::Line> = lay
@@ -961,18 +967,25 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
         if with_badges && !motion {
             let margin = 8. / z;
             for bd in lay.badges(who) {
-                // A badge only on a trunk that is drawn.
-                if !shown.iter().any(|l| l.trunk == bd.trunk) {
+                // The lines drawn along the trunk, one per card: a badge
+                // only where there are two or more.
+                let n = map::badge_count(bd, &shown);
+                if n < 2 {
                     continue;
                 }
                 if let Some(c) = style.badge_at(bd, z) {
-                    let (hw, hh) = (style.badge_half(bd.links) / z, style.badge / z);
+                    let (hw, hh) = (style.badge_half(bd.lines) / z, style.badge / z);
                     let inside = c.0 - hw >= view.x + margin
                         && c.0 + hw <= view.x + view.w - margin
                         && c.1 - hh >= view.y + strip + margin
                         && c.1 + hh <= view.y + view.h - margin;
                     if inside {
-                        badges.push((s(c.0, c.1), bd.links, lit_set));
+                        let lit = if lit_set {
+                            shown.iter().filter(|l| l.trunk == bd.trunk).count()
+                        } else {
+                            0
+                        };
+                        badges.push((s(c.0, c.1), n, lit_set, lit));
                     }
                 }
             }
@@ -1231,6 +1244,18 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
                 let len = (dx * dx + dy * dy).sqrt().max(0.01);
                 let (ux, uy) = (dx / len, dy / len);
                 let base = (tip.0 - ux * a, tip.1 - uy * a);
+                let corners = [
+                    tip,
+                    (base.0 - uy * a * 0.5, base.1 + ux * a * 0.5),
+                    (base.0 + uy * a * 0.5, base.1 - ux * a * 0.5),
+                ];
+                let (x0, y0) = corners
+                    .iter()
+                    .fold((f32::MAX, f32::MAX), |m, q| (m.0.min(q.0), m.1.min(q.1)));
+                let (x1, y1) = corners
+                    .iter()
+                    .fold((f32::MIN, f32::MIN), |m, q| (m.0.max(q.0), m.1.max(q.1)));
+                painted_heads.push(map::Rect::new(x0, y0, x1 - x0, y1 - y0));
                 let mut b = gpui::PathBuilder::fill();
                 b.move_to(point(px(tip.0), px(tip.1)));
                 b.line_to(point(px(base.0 - uy * a * 0.5), px(base.1 + ux * a * 0.5)));
@@ -1244,10 +1269,16 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
             // selection's a quiet ring.
             let f = font(&p.family, FontWeight::SEMIBOLD);
             let size_px = 11. * u;
-            for &(at, n, lit) in &badges {
+            for &(at, n, lit, lit_lines) in &badges {
                 let words = n.to_string();
                 let tw = text_width(window, &words, size_px, &f);
                 let (w, h) = (2. * style.badge_half(n) * u, 2. * style.badge * u);
+                painted_badges.push((
+                    map::Rect::new(at.0 - w / 2., at.1 - h / 2., w, h),
+                    n,
+                    lit,
+                    lit_lines,
+                ));
                 let bounds = Bounds::new(
                     point(px(at.0 - w / 2.), px(at.1 - h / 2.)),
                     size(px(w), px(h)),
@@ -1360,6 +1391,8 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
     let ms = started.elapsed().as_secs_f32() * 1000.;
     f.paint_ms.push(ms);
     f.drawn = (drawn, drawn_lines);
+    f.heads = painted_heads;
+    f.badges = painted_badges;
     // Dev-only: one line per paint on stderr, for the frame-time check.
     if std::env::var_os("HIPPO_APP_DEV_FRAMES").is_some() {
         eprintln!(
@@ -1809,8 +1842,10 @@ impl Shell {
             }
         }
         let m = self.night.map.map.clone().unwrap_or(m);
-        // Dev-only: the pointer resting on the map, for a screenshot.
-        if let Some(mut at) = self.night.dev_hover.take() {
+        // Dev-only: the pointer resting on the map, for a screenshot; placed
+        // again on every render, so it rests where it was asked to once the
+        // window has its size.
+        if let Some(mut at) = self.night.dev_hover {
             // `badge`: on the selected card's biggest badge drawn.
             if at.0.is_nan() && at.1 == -1. {
                 let level = self.night.map.level();
@@ -1824,7 +1859,7 @@ impl Shell {
                     .layout(level)
                     .badges(focus)
                     .iter()
-                    .filter_map(|b| Some((b.links, m.style.badge_at(b, z)?)))
+                    .filter_map(|b| Some(((b.lines, b.links), m.style.badge_at(b, z)?)))
                     .max_by_key(|b| b.0)
                     .map(|b| b.1)
                 {

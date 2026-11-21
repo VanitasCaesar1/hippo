@@ -312,8 +312,9 @@
     paths.forEach(function (p) {
       var a0 = p.right ? right(p.ra) : p.ra.x, trunk = [[a0, p.ya]];
       var n = p.to.reduce(function (a, t) { return a + t[2]; }, 0);
-      if (n >= 2 && p.lanes.length) {
-        badges.push({ x0: a0, x1: p.lanes[0], y: p.ya, links: n, trunk: p.trunk, to: p.to.map(function (t) { return t[0]; }), near: [] });
+      // One badge per trunk of two lines or more (Rust: links).
+      if (p.to.length >= 2 && p.lanes.length) {
+        badges.push({ x0: a0, x1: p.lanes[0], y: p.ya, lines: p.to.length, links: n, trunk: p.trunk, to: p.to.map(function (t) { return t[0]; }), near: [] });
       }
       p.stops.forEach(function (st, s) {
         var x = p.lanes[s];
@@ -374,7 +375,7 @@
     var sb = set(lay, focus), lines = sb[0], bs = sb[1], r = st.badge / Math.max(0.01, z);
     for (var i = 0; i < bs.length; i++) {
       var b = bs[i], c = badgeAt(st, b, z);
-      if (c && Math.abs(c[0] - x) <= badgeHalf(st, b.links) / z && Math.abs(c[1] - y) <= r) {
+      if (c && Math.abs(c[0] - x) <= badgeHalf(st, b.lines) / z && Math.abs(c[1] - y) <= r) {
         var to = b.to.map(itemKey);
         return lines.filter(function (l) { return l.trunk === b.trunk && to.indexOf(itemKey(l.to)) >= 0; });
       }
@@ -561,10 +562,20 @@
   }
   function badgeHalf(st, n) { return Math.max(st.badge, String(Math.max(1, n)).length * 3.3 + 4); }
   /* Where a badge is drawn at zoom z (Rust: Style::badge_at), or null. */
+  /* How far a badge's edge keeps from its card, px (Rust: Style::badge_clear):
+     an arrowhead's length and the room, so no head sits under it. */
+  function badgeClear(st) { return st.arrow + st.badge_room; }
+  /* The number a badge shows (Rust: badge_count): the drawn lines along its
+     trunk, one per card they reach. */
+  function badgeCount(b, drawn) {
+    var to = b.to.map(itemKey), seen = {};
+    drawn.forEach(function (l) { var k = itemKey(l.to); if (l.trunk === b.trunk && to.indexOf(k) >= 0) seen[k] = 1; });
+    return Object.keys(seen).length;
+  }
   function badgeAt(st, b, z) {
-    var need = (badgeHalf(st, b.links) + st.badge_room) / Math.max(0.01, z), len = Math.abs(b.x1 - b.x0);
-    if (len < need + (badgeHalf(st, b.links) + 2) / Math.max(0.01, z)) return null;
-    var c = [b.x0 + Math.sign(b.x1 - b.x0) * need, b.y], hw = (badgeHalf(st, b.links) + 1) / Math.max(0.01, z), hh = (st.badge + 1) / Math.max(0.01, z);
+    var need = (badgeHalf(st, b.lines) + badgeClear(st)) / Math.max(0.01, z), len = Math.abs(b.x1 - b.x0);
+    if (len < need + (badgeHalf(st, b.lines) + 2) / Math.max(0.01, z)) return null;
+    var c = [b.x0 + Math.sign(b.x1 - b.x0) * need, b.y], hw = (badgeHalf(st, b.lines) + 1) / Math.max(0.01, z), hh = (st.badge + 1) / Math.max(0.01, z);
     var touches = (b.near || []).some(function (s2) {
       return Math.max(s2[0], s2[2]) >= c[0] - hw && Math.min(s2[0], s2[2]) <= c[0] + hw && Math.max(s2[1], s2[3]) >= c[1] - hh && Math.min(s2[1], s2[3]) <= c[1] + hh;
     });
@@ -682,7 +693,7 @@
     layout: layout, settle: settle, moveTo: moveTo, nudge: nudge, same: same, find: find,
     blockKey: blockKey, handleAt: handleAt, blockRect: blockRect, dropAt: dropAt,
     preview: preview, viewArrangement: viewArrangement, fit: fit,
-    linesAt: linesAt, linksOf: linksOf, step: step, badgeHalf: badgeHalf, badgeAt: badgeAt, set: set, ends: ends, itemKey: itemKey,
+    linesAt: linesAt, linksOf: linksOf, step: step, badgeHalf: badgeHalf, badgeAt: badgeAt, badgeClear: badgeClear, badgeCount: badgeCount, set: set, ends: ends, itemKey: itemKey,
     hot: hot, shows: shows, exit: exit, fade: fade, past: past, nearestOut: nearestOut, beside: beside
   };
 })(typeof window !== 'undefined' ? window : globalThis);

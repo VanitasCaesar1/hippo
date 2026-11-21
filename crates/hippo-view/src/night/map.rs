@@ -179,18 +179,25 @@ impl Style {
         next.clamp(least.min(MAX_ZOOM), MAX_ZOOM)
     }
 
+    /// How far a badge's edge keeps from its card, px: an arrowhead's
+    /// length and [`Style::badge_room`], so a head arriving at the card
+    /// along the root never sits under the badge.
+    pub fn badge_clear(&self) -> f32 {
+        self.arrow + self.badge_room
+    }
+
     /// Where a badge is drawn at zoom `z`: on its trunk's root, its edge
-    /// [`Style::badge_room`] px clear of the card and 2 px clear of the
+    /// [`Style::badge_clear`] px from the card and 2 px clear of the
     /// junction where the trunk turns; none when the root is too short.
     pub fn badge_at(&self, b: &Badge, z: f32) -> Option<(f32, f32)> {
-        let need = (self.badge_half(b.links) + self.badge_room) / z.max(0.01);
+        let need = (self.badge_half(b.lines) + self.badge_clear()) / z.max(0.01);
         let len = (b.x1 - b.x0).abs();
-        if len < need + (self.badge_half(b.links) + 2.) / z.max(0.01) {
+        if len < need + (self.badge_half(b.lines) + 2.) / z.max(0.01) {
             return None;
         }
         let c = (b.x0 + (b.x1 - b.x0).signum() * need, b.y);
         let (hw, hh) = (
-            (self.badge_half(b.links) + 1.) / z.max(0.01),
+            (self.badge_half(b.lines) + 1.) / z.max(0.01),
             (self.badge + 1.) / z.max(0.01),
         );
         let touches = b.near.iter().any(|s| {
@@ -202,8 +209,8 @@ impl Style {
     }
 
     /// Half a badge's width, px: a circle for one figure, a pill for more.
-    pub fn badge_half(&self, links: usize) -> f32 {
-        let digits = links.max(1).to_string().len() as f32;
+    pub fn badge_half(&self, n: usize) -> f32 {
+        let digits = n.max(1).to_string().len() as f32;
         self.badge.max(digits * 3.3 + 4.)
     }
 }
@@ -395,10 +402,10 @@ pub struct Line {
     pub back: bool,
 }
 
-/// Where a trunk's branch leaves it for more than one link: a round badge
-/// at the branch's foot gives the count. It sits in a gutter, `room` map
-/// points from the nearest card; Hippo.app and the demo draw it only where
-/// [`Style::badge_fits`].
+/// A trunk that carries more than one line: a round badge on its root
+/// gives the number of lines drawn along it, one per card it reaches at
+/// this zoom ([`badge_count`]), so the number is what the eye can count.
+/// Hippo.app and the demo draw it only where [`Style::badge_at`] places it.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Badge {
     /// The trunk's root: from the card's edge `x0` to its first turn `x1`,
@@ -406,7 +413,9 @@ pub struct Badge {
     pub x0: f32,
     pub x1: f32,
     pub y: f32,
-    /// The links the whole trunk stands for.
+    /// The lines along the trunk, one per card it reaches.
+    pub lines: usize,
+    /// The links those lines stand for (what the status line adds).
     pub links: usize,
     pub trunk: usize,
     /// The cards the trunk leads to.
@@ -427,6 +436,20 @@ pub struct End {
     pub from: (f32, f32),
     pub lit: bool,
     pub head: bool,
+}
+
+/// The number a badge shows: the lines of `drawn` along its trunk, one per
+/// card they reach. Lines out of view are not drawn, so they are not
+/// counted; a badge showing fewer than 2 is not drawn.
+pub fn badge_count(b: &Badge, drawn: &[&Line]) -> usize {
+    let mut to: Vec<Item> = drawn
+        .iter()
+        .filter(|l| l.trunk == b.trunk && b.to.contains(&l.to))
+        .map(|l| l.to)
+        .collect();
+    to.sort();
+    to.dedup();
+    to.len()
 }
 
 /// The marks of `lines`, once per point: a head where links arrive (at
@@ -778,7 +801,7 @@ impl Layout {
         let r = STYLE.badge / z.max(0.01);
         if let Some(b) = badges.iter().find(|b| {
             STYLE.badge_at(b, z).is_some_and(|c| {
-                (c.0 - x).abs() <= STYLE.badge_half(b.links) / z && (c.1 - y).abs() <= r
+                (c.0 - x).abs() <= STYLE.badge_half(b.lines) / z && (c.1 - y).abs() <= r
             })
         }) {
             return lines
@@ -2692,15 +2715,17 @@ fn route(
     for p in &paths {
         let a0 = if p.right { p.ra.right() } else { p.ra.x };
         let mut trunk = vec![(a0, p.ya)];
-        // One badge per trunk, on its root: the stretch from the card to the
-        // trunk's first turn, which all its lines share.
+        // One badge per trunk of two lines or more, on its root: the
+        // stretch from the card to the trunk's first turn, which all its
+        // lines share.
         let links: usize = p.to.iter().map(|t| t.2).sum();
-        if links >= 2 && !p.lanes.is_empty() {
+        if p.to.len() >= 2 && !p.lanes.is_empty() {
             let x1 = p.lanes[0];
             badges.push(Badge {
                 x0: a0,
                 x1,
                 y: p.ya,
+                lines: p.to.len(),
                 links,
                 trunk: p.trunk,
                 to: p.to.iter().map(|t| t.0).collect(),
@@ -3419,7 +3444,8 @@ mod tests {
                     for b in bs {
                         let mine: Vec<&Line> = ls.iter().filter(|x| x.trunk == b.trunk).collect();
                         assert_eq!(Layout::links_of(&mine), b.links, "{lv:?} {f:?} {h}");
-                        assert!(b.links >= 2);
+                        assert_eq!(badge_count(b, &mine), b.lines, "{lv:?} {f:?} {h}");
+                        assert!(b.lines >= 2);
                         // Every line of the trunk runs along the whole root;
                         // no line of the other trunk does.
                         for x in ls {
@@ -3434,7 +3460,7 @@ mod tests {
                             let Some(c) = STYLE.badge_at(b, z) else {
                                 continue;
                             };
-                            let need = (STYLE.badge_half(b.links) + STYLE.badge_room) / z;
+                            let need = (STYLE.badge_half(b.lines) + STYLE.badge_clear()) / z;
                             for r in l.cards.iter().map(|c| c.rect).chain(heads.iter().copied()) {
                                 let d = dist(c.0, c.1, &r);
                                 assert!(
@@ -3619,7 +3645,8 @@ mod tests {
                     let mine: Vec<&Line> = ls.iter().filter(|x| x.trunk == t).collect();
                     let bs: Vec<&Badge> =
                         l.badges(Some(*f)).iter().filter(|b| b.trunk == t).collect();
-                    if Layout::links_of(&mine) < 2 {
+                    let cards: BTreeSet<Item> = mine.iter().map(|x| x.to).collect();
+                    if cards.len() < 2 {
                         assert!(bs.is_empty());
                         continue;
                     }
@@ -3629,7 +3656,7 @@ mod tests {
                         .badge_at(b, z)
                         .unwrap_or_else(|| panic!("{f:?} trunk {t}: no badge at the fit {z}"));
                     // Clear of the junction where the trunk turns.
-                    let far = (c.0 - b.x0).abs() + STYLE.badge_half(b.links) / z;
+                    let far = (c.0 - b.x0).abs() + STYLE.badge_half(b.lines) / z;
                     assert!(
                         far + 2. / z <= (b.x1 - b.x0).abs() + 0.01,
                         "{f:?}: badge on the junction"
@@ -3756,7 +3783,7 @@ mod tests {
                             let Some(c) = STYLE.badge_at(b, z) else {
                                 continue;
                             };
-                            let (hw, hh) = (STYLE.badge_half(b.links) / z, STYLE.badge / z);
+                            let (hw, hh) = (STYLE.badge_half(b.lines) / z, STYLE.badge / z);
                             let inside = c.0 - hw >= v.x + margin
                                 && c.0 + hw <= v.right() - margin
                                 && c.1 - hh >= v.y + margin
@@ -3833,10 +3860,16 @@ mod tests {
                 let per_side = |l: &Layout| {
                     let it = Item::Note(i);
                     let own = l.card(it).map(|c| c.rect);
-                    let mut v: BTreeMap<bool, usize> = BTreeMap::new();
-                    for b in l.badges(Some(it)) {
-                        *v.entry(b.x1 > b.x0).or_default() += b.links;
+                    // The links each side's lines carry (what the status
+                    // says); the badges count lines, which change with zoom.
+                    let mut v: BTreeMap<bool, Vec<&Line>> = BTreeMap::new();
+                    for x in l.shown(Some(it)) {
+                        v.entry(x.points[1].0 > x.points[0].0).or_default().push(x);
                     }
+                    let v: BTreeMap<bool, usize> = v
+                        .into_iter()
+                        .map(|(k, ls)| (k, Layout::links_of(&ls)))
+                        .collect();
                     (own.is_some(), v)
                 };
                 let (o, m1, n) = (per_side(&m.out), per_side(&m.mid), per_side(&m.inner));
@@ -3903,6 +3936,143 @@ mod tests {
         // The JSON carries the table, so the demo steps through the same.
         let json = serde_json::to_value(STYLE).unwrap();
         assert_eq!(json["steps"].as_array().unwrap().len(), st.steps.len());
+    }
+
+    /// A head's footprint at zoom `z`, in map points: from its tip back an
+    /// arrowhead's length, half that wide each side (as Hippo.app paints it).
+    fn head_rect(e: &End, z: f32) -> Rect {
+        let a = STYLE.arrow / z;
+        let (dx, dy) = (e.tip.0 - e.from.0, e.tip.1 - e.from.1);
+        let len = dx.hypot(dy).max(0.0001);
+        let (ux, uy) = (dx / len, dy / len);
+        let base = (e.tip.0 - ux * a, e.tip.1 - uy * a);
+        let pts = [
+            e.tip,
+            (base.0 - uy * a * 0.5, base.1 + ux * a * 0.5),
+            (base.0 + uy * a * 0.5, base.1 - ux * a * 0.5),
+        ];
+        let x0 = pts.iter().map(|p| p.0).fold(f32::MAX, f32::min);
+        let y0 = pts.iter().map(|p| p.1).fold(f32::MAX, f32::min);
+        let x1 = pts.iter().map(|p| p.0).fold(f32::MIN, f32::max);
+        let y1 = pts.iter().map(|p| p.1).fold(f32::MIN, f32::max);
+        Rect::new(x0, y0, x1 - x0, y1 - y0)
+    }
+
+    /// The badges drawn with `drawn` at zoom `z`, as rectangles, with the
+    /// number each shows.
+    fn badge_rects(bs: &[Badge], drawn: &[&Line], z: f32) -> Vec<(Rect, usize, (f32, f32))> {
+        bs.iter()
+            .filter_map(|b| {
+                let n = badge_count(b, drawn);
+                let c = STYLE.badge_at(b, z).filter(|_| n >= 2)?;
+                let (hw, hh) = (STYLE.badge_half(b.lines) / z, STYLE.badge / z);
+                Some((Rect::new(c.0 - hw, c.1 - hh, 2. * hw, 2. * hh), n, c))
+            })
+            .collect()
+    }
+
+    fn overlap(a: &Rect, b: &Rect) -> bool {
+        a.x < b.right() - 0.01
+            && b.x < a.right() - 0.01
+            && a.y < b.bottom() - 0.01
+            && b.y < a.bottom() - 0.01
+    }
+
+    #[test]
+    fn no_arrowhead_sits_under_a_badge() {
+        // At every zoom, on maps of 3 to 300 notes in random arrangements:
+        // the heads of a card's lines, and of the selection's lines drawn
+        // beside them while the card is hovered, never touch its badges.
+        for m in maps() {
+            for (lv, l) in [
+                (Level::Out, &m.out),
+                (Level::Mid, &m.mid),
+                (Level::In, &m.inner),
+            ] {
+                let items: Vec<Item> = l.focus.iter().map(|(f, _)| *f).collect();
+                let stride = (items.len() / 12).max(1);
+                for z in zooms(lv) {
+                    for &f in &items {
+                        let mine: Vec<&Line> = l.shown(Some(f)).iter().collect();
+                        let boxes = badge_rects(l.badges(Some(f)), &mine, z);
+                        if boxes.is_empty() {
+                            continue;
+                        }
+                        let mut heads: Vec<End> = ends(&mine, &[], true);
+                        for &s in items.iter().step_by(stride).filter(|&&s| s != f) {
+                            let sel: Vec<&Line> = l.shown(Some(s)).iter().collect();
+                            heads.extend(ends(&beside(&sel, &mine, f), &[], false));
+                        }
+                        for e in heads.iter().filter(|e| e.head) {
+                            let r = head_rect(e, z);
+                            for (b, n, _) in &boxes {
+                                assert!(
+                                    !overlap(&r, b),
+                                    "{lv:?} {f:?} at {z}: a head at {:?} under badge {n} {b:?}",
+                                    e.tip
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_badge_shows_the_lines_drawn_with_it() {
+        // The hovered card's badge says how many lines leave along its
+        // root, and pointing at it lights exactly that many: the number is
+        // what the eye counts, in any view.
+        for m in maps() {
+            for (lv, l) in [
+                (Level::Out, &m.out),
+                (Level::Mid, &m.mid),
+                (Level::In, &m.inner),
+            ] {
+                for z in zooms(lv) {
+                    for v in views(l, z) {
+                        for (f, ls) in &l.focus {
+                            let drawn: Vec<&Line> = ls.iter().filter(|x| shows(x, &v)).collect();
+                            for (_, n, c) in badge_rects(l.badges(Some(*f)), &drawn, z) {
+                                // Drawn along the badge's root, one per card.
+                                let along: BTreeSet<Item> = drawn
+                                    .iter()
+                                    .filter(|x| {
+                                        x.points.windows(2).any(|w| {
+                                            w[0].1 == c.1
+                                                && w[1].1 == c.1
+                                                && c.0 >= w[0].0.min(w[1].0) - 0.01
+                                                && c.0 <= w[0].0.max(w[1].0) + 0.01
+                                        })
+                                    })
+                                    .map(|x| x.to)
+                                    .collect();
+                                assert_eq!(
+                                    n,
+                                    along.len(),
+                                    "{lv:?} {f:?} at {z}: badge {n}, lines {}",
+                                    along.len()
+                                );
+                                // Lit by pointing at the badge, and drawn.
+                                let lit: BTreeSet<Item> = l
+                                    .lines_at(Some(*f), c.0, c.1, 6. / z, z)
+                                    .into_iter()
+                                    .filter(|x| shows(x, &v))
+                                    .map(|x| x.to)
+                                    .collect();
+                                assert_eq!(
+                                    n,
+                                    lit.len(),
+                                    "{lv:?} {f:?} at {z}: badge {n}, lit {}",
+                                    lit.len()
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     #[test]

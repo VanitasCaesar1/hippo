@@ -221,13 +221,24 @@ for (const view of ['morning', 'brain']) {
         const [lines] = A.set(lay, f);
         for (const b of bs) {
           const mine = lines.filter((l) => l.trunk === b.trunk);
-          if (A.linksOf(mine) !== b.links) errors.push(`badge: ${L} badge says ${b.links}, its trunk ${A.linksOf(mine)}`);
+          if (A.linksOf(mine) !== b.links) errors.push(`badge: ${L} badge stands for ${b.links} links, its trunk ${A.linksOf(mine)}`);
+          if (A.badgeCount(b, mine) !== b.lines || b.lines < 2) errors.push(`badge: ${L} badge says ${b.lines}, its trunk draws ${A.badgeCount(b, mine)} lines`);
           for (const z of zs) {
             const c = A.badgeAt(st, b, z);
             if (!c) continue;
-            const n = A.linksOf(A.linesAt(lay, f, c[0], c[1], 6 / z, z, st));
-            if (n !== b.links) errors.push(`badge: ${L} badge says ${b.links}, hovering it ${n}`);
-            const need = (A.badgeHalf(st, b.links) + st.badge_room) / z;
+            const n = A.badgeCount(b, A.linesAt(lay, f, c[0], c[1], 6 / z, z, st));
+            if (n !== b.lines) errors.push(`badge: ${L} badge says ${b.lines}, hovering it lights ${n}`);
+            // No arrowhead of the card's lines under the badge.
+            const hw = A.badgeHalf(st, b.lines) / z, hh = st.badge / z, a = st.arrow / z;
+            for (const e of A.ends(lines, [], true)) {
+              if (!e.head) continue;
+              const dx = e.tip[0] - e.from[0], dy = e.tip[1] - e.from[1], len = Math.max(1e-4, Math.hypot(dx, dy));
+              const ux = dx / len, uy = dy / len, bx = e.tip[0] - ux * a, by = e.tip[1] - uy * a;
+              const xs = [e.tip[0], bx - uy * a / 2, bx + uy * a / 2], ys = [e.tip[1], by + ux * a / 2, by - ux * a / 2];
+              const apart = Math.max(...xs) <= c[0] - hw + 0.01 || Math.min(...xs) >= c[0] + hw - 0.01 || Math.max(...ys) <= c[1] - hh + 0.01 || Math.min(...ys) >= c[1] + hh - 0.01;
+              if (!apart) errors.push(`badge: ${L} a head at ${e.tip} under the badge at ${c}, zoom ${z}`);
+            }
+            const need = (A.badgeHalf(st, b.lines) + A.badgeClear(st)) / z;
             for (const card of lay.cards) {
               const r = card.rect;
               const dx = Math.max(r.x - c[0], 0, c[0] - r.x - r.w), dy = Math.max(r.y - c[1], 0, c[1] - r.y - r.h);
