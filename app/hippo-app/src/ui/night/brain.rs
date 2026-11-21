@@ -2667,7 +2667,7 @@ impl Shell {
             div()
                 .flex_1()
                 .min_w_0()
-                .p(look.px(12.))
+                .p(look.px(10.))
                 .rounded(look.px(10.))
                 .bg(t.inset)
                 .flex()
@@ -2681,9 +2681,11 @@ impl Shell {
                         .child(n),
                 )
                 .child(
+                    // One line: a label that wraps reads as two.
                     div()
                         .text_size(look.text(12.5))
                         .text_color(t.faint)
+                        .truncate()
                         .child(words.to_owned()),
                 )
         };
