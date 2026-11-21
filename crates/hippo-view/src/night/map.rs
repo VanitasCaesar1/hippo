@@ -474,18 +474,6 @@ impl Line {
     }
 }
 
-/// Where lines leave the view toward cards out of it: a chip on the view's
-/// border, inset `inset` map points, naming the cards and the links.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Exit {
-    pub x: f32,
-    pub y: f32,
-    /// Which border: 'l', 'r', 't' or 'b'.
-    pub side: char,
-    pub to: Vec<Item>,
-    pub links: usize,
-}
-
 /// Whether a line has any part inside `view`.
 pub fn shows(l: &Line, view: &Rect) -> bool {
     l.points.windows(2).any(|w| seg_in(w[0], w[1], view))
@@ -497,73 +485,131 @@ fn seg_in(a: (f32, f32), b: (f32, f32), v: &Rect) -> bool {
     x1 >= v.x && x0 <= v.right() && y1 >= v.y && y0 <= v.bottom()
 }
 
-/// Every line of `lines` that shows in `view` but ends outside it leaves
-/// through one point of its border; lines that leave through one point
-/// share a chip, and chips on one side within `near` map points of each
-/// other merge.
-pub fn exits(lines: &[&Line], view: &Rect, inset: f32, near: f32) -> Vec<Exit> {
+/// Where a line that shows in `view` last leaves it on the way to its
+/// card, when its card's end is outside the view.
+pub fn exit(l: &Line, view: &Rect) -> Option<(f32, f32)> {
     let inside = |p: (f32, f32)| {
         p.0 >= view.x && p.0 <= view.right() && p.1 >= view.y && p.1 <= view.bottom()
     };
-    let mut out: Vec<Exit> = Vec::new();
-    for l in lines {
-        let n = l.points.len();
-        if n < 2 || !shows(l, view) || inside(l.points[n - 1]) {
+    let n = l.points.len();
+    if n < 2 || !shows(l, view) || inside(l.points[n - 1]) {
+        return None;
+    }
+    let mut at = None;
+    for w in l.points.windows(2) {
+        let (a, b) = (w[0], w[1]);
+        if !seg_in(a, b, view) || inside(b) {
             continue;
         }
-        // The last crossing of the border on the way to the line's card.
-        let mut at: Option<(f32, f32, char)> = None;
-        for w in l.points.windows(2) {
-            let (a, b) = (w[0], w[1]);
-            if !seg_in(a, b, view) || inside(b) {
-                continue;
-            }
-            // The segment runs from inside (or across) to outside: where it
-            // passes the border toward `b`.
-            let p = if a.1 == b.1 {
+        at = Some(if a.1 == b.1 {
+            (
                 if b.0 > view.right() {
-                    (view.right(), a.1, 'r')
+                    view.right()
                 } else {
-                    (view.x, a.1, 'l')
-                }
-            } else if b.1 > view.bottom() {
-                (a.0, view.bottom(), 'b')
-            } else {
-                (a.0, view.y, 't')
-            };
-            at = Some(p);
-        }
-        let Some((x, y, side)) = at else { continue };
-        let (x, y) = match side {
-            'r' => (x - inset, y),
-            'l' => (x + inset, y),
-            'b' => (x, y - inset),
-            _ => (x, y + inset),
-        };
-        match out.iter_mut().find(|e| {
-            e.side == side
-                && if side == 'l' || side == 'r' {
-                    (e.y - y).abs() <= near
+                    view.x
+                },
+                a.1,
+            )
+        } else {
+            (
+                a.0,
+                if b.1 > view.bottom() {
+                    view.bottom()
                 } else {
-                    (e.x - x).abs() <= near
-                }
-        }) {
-            Some(e) => {
-                if !e.to.contains(&l.to) {
-                    e.to.push(l.to);
-                }
-                e.links += l.links;
-            }
-            None => out.push(Exit {
-                x,
-                y,
-                side,
-                to: vec![l.to],
-                links: l.links,
-            }),
+                    view.y
+                },
+            )
+        });
+    }
+    at
+}
+
+/// The last `len` map points of a line before it leaves `view`, in `n`
+/// pieces from the inside out, each with how much of the ground covers it
+/// (rising to 1 at the border): a renderer draws them over the line so it
+/// fades out at the canvas edge.
+pub fn fade(l: &Line, view: &Rect, len: f32, n: usize) -> Vec<(Vec<(f32, f32)>, f32)> {
+    let Some(end) = exit(l, view) else {
+        return Vec::new();
+    };
+    // The polyline up to the exit point.
+    let mut pts: Vec<(f32, f32)> = Vec::new();
+    for w in l.points.windows(2) {
+        let (a, b) = (w[0], w[1]);
+        pts.push(a);
+        let on = (a.0 - b.0).abs() < 0.01
+            && (end.0 - a.0).abs() < 0.01
+            && end.1 >= a.1.min(b.1)
+            && end.1 <= a.1.max(b.1)
+            || (a.1 - b.1).abs() < 0.01
+                && (end.1 - a.1).abs() < 0.01
+                && end.0 >= a.0.min(b.0)
+                && end.0 <= a.0.max(b.0);
+        if on && !seg_in(b, b, view) {
+            pts.push(end);
+            break;
         }
     }
-    out
+    // Walk back `len` from the end, then cut into `n` pieces.
+    let dist = |a: (f32, f32), b: (f32, f32)| (a.0 - b.0).abs() + (a.1 - b.1).abs();
+    let total: f32 = pts.windows(2).map(|w| dist(w[0], w[1])).sum();
+    let start = (total - len).max(0.);
+    let at = |d: f32| {
+        let mut run = 0.;
+        for w in pts.windows(2) {
+            let s = dist(w[0], w[1]);
+            if run + s >= d {
+                let k = if s > 0. { (d - run) / s } else { 0. };
+                return (
+                    w[0].0 + (w[1].0 - w[0].0) * k,
+                    w[0].1 + (w[1].1 - w[0].1) * k,
+                );
+            }
+            run += s;
+        }
+        *pts.last().unwrap_or(&end)
+    };
+    let corners: Vec<(f32, (f32, f32))> = {
+        let mut run = 0.;
+        let mut v = vec![(0., pts[0])];
+        for w in pts.windows(2) {
+            run += dist(w[0], w[1]);
+            v.push((run, w[1]));
+        }
+        v
+    };
+    let n = n.max(1);
+    (0..n)
+        .map(|i| {
+            let (d0, d1) = (
+                start + (total - start) * i as f32 / n as f32,
+                start + (total - start) * (i + 1) as f32 / n as f32,
+            );
+            let mut piece = vec![at(d0)];
+            piece.extend(corners.iter().filter(|c| c.0 > d0 && c.0 < d1).map(|c| c.1));
+            piece.push(at(d1));
+            (piece, (i + 1) as f32 / n as f32)
+        })
+        .collect()
+}
+
+/// Of the lines under the pointer, the one to pan to: the nearest card
+/// out of `view` they reach.
+pub fn nearest_out(
+    lines: &[&Line],
+    view: &Rect,
+    at: (f32, f32),
+    card: impl Fn(Item) -> Option<Rect>,
+) -> Option<Item> {
+    lines
+        .iter()
+        .filter(|l| exit(l, view).is_some())
+        .filter_map(|l| card(l.to).map(|r| (l.to, r)))
+        .min_by(|a, b| {
+            let d = |r: &Rect| (r.x + r.w / 2. - at.0).hypot(r.y + r.h / 2. - at.1);
+            d(&a.1).total_cmp(&d(&b.1))
+        })
+        .map(|x| x.0)
 }
 
 /// What a label is, which sets its weight and colour.
@@ -632,11 +678,6 @@ pub struct Layout {
     pub focus: Vec<(Item, Vec<Line>)>,
     /// The count badges drawn with each linked card's lines.
     pub badges: Vec<(Item, Vec<Badge>)>,
-    /// Each linked card's lines and badges as drawn while it is hovered and
-    /// another card is selected: in lanes and channels of their own, so
-    /// they never run along the selection's.
-    pub hovered: Vec<(Item, Vec<Line>)>,
-    pub hovered_badges: Vec<(Item, Vec<Badge>)>,
     /// Every word drawn on the map at this level, on top of the cards.
     pub labels: Vec<Label>,
     pub marks: Vec<Mark>,
@@ -673,42 +714,12 @@ impl Layout {
             .map_or(&[], |(_, bs)| bs.as_slice())
     }
 
-    /// `item`'s lines as drawn while it is hovered and another card is
-    /// selected.
-    pub fn shown_hovered(&self, item: Option<Item>) -> &[Line] {
-        item.and_then(|f| self.hovered.iter().find(|(i, _)| *i == f))
-            .map_or(&[], |(_, ls)| ls.as_slice())
-    }
-
-    pub fn badges_hovered(&self, item: Option<Item>) -> &[Badge] {
-        item.and_then(|f| self.hovered_badges.iter().find(|(i, _)| *i == f))
-            .map_or(&[], |(_, bs)| bs.as_slice())
-    }
-
-    /// The lines and badges drawn for `focus`: as hovered (in lanes of their
-    /// own) or as selected.
-    pub fn set(&self, focus: Option<Item>, hovered: bool) -> (&[Line], &[Badge]) {
-        if hovered {
-            (self.shown_hovered(focus), self.badges_hovered(focus))
-        } else {
-            (self.shown(focus), self.badges(focus))
-        }
-    }
-
-    /// The lines of `focus` (drawn as hovered or not) under a map point at
-    /// zoom `z`: a badge (within its radius) stands for its trunk, a run
-    /// within `tol` map points for every line drawn along it. What a status
-    /// line counts, so a badge and the run under it give one number.
-    pub fn lines_at(
-        &self,
-        focus: Option<Item>,
-        hovered: bool,
-        x: f32,
-        y: f32,
-        tol: f32,
-        z: f32,
-    ) -> Vec<&Line> {
-        let (lines, badges) = self.set(focus, hovered);
+    /// The lines of `focus` under a map point at zoom `z`: a badge (within
+    /// its radius) stands for its trunk, a run within `tol` map points for
+    /// every line drawn along it. What a status line counts, so a badge and
+    /// the run under it give one number.
+    pub fn lines_at(&self, focus: Option<Item>, x: f32, y: f32, tol: f32, z: f32) -> Vec<&Line> {
+        let (lines, badges) = (self.shown(focus), self.badges(focus));
         let r = STYLE.badge / z.max(0.01);
         if let Some(b) = badges.iter().find(|b| {
             STYLE.badge_at(b, z).is_some_and(|c| {
@@ -1987,8 +1998,6 @@ fn pack(
     let mut lay = finish(frames, cards, labels, marks);
     lay.focus = lk.focus;
     lay.badges = lk.badges;
-    lay.hovered = lk.hovered;
-    lay.hovered_badges = lk.hovered_badges;
     lay
 }
 
@@ -2125,14 +2134,12 @@ fn links(
     let items: BTreeSet<Item> = pairs.keys().flat_map(|&(a, b)| [a, b]).collect();
     let mut focus = Vec::new();
     let mut badges = Vec::new();
-    let mut hovered = Vec::new();
-    let mut hovered_badges = Vec::new();
     for f in items {
         let ca = col_of(rect_of[&f].x);
-        // Up to four trunks: out to the right, in from the right, out to the
-        // left, in from the left. Links out end in heads at their cards;
-        // links in, in heads at `f`, on a trunk of their own.
-        let mut sides: [Vec<Target>; 4] = Default::default();
+        // One trunk each way: to the right (which also serves cards in its
+        // own column) and to the left. A line carries its pair's links both
+        // ways; its heads say which way they run.
+        let mut sides: [Vec<Target>; 2] = Default::default();
         for (&(a, b), &(fwd, bwd)) in &pairs {
             let (o, n_out, n_in) = if a == f {
                 (b, fwd, bwd)
@@ -2141,13 +2148,8 @@ fn links(
             } else {
                 continue;
             };
-            let side = if col_of(rect_of[&o].x) >= ca { 0 } else { 2 };
-            if n_out > 0 {
-                sides[side].push((o, n_out, true, false));
-            }
-            if n_in > 0 {
-                sides[side + 1].push((o, n_in, false, true));
-            }
+            let side = usize::from(col_of(rect_of[&o].x) < ca);
+            sides[side].push((o, n_out + n_in, n_out > 0, n_in > 0));
         }
         let mut groups: Vec<Vec<Target>> = sides.into_iter().filter(|g| !g.is_empty()).collect();
         let weight = |g: &Vec<Target>| g.iter().map(|x| x.1).sum::<usize>();
@@ -2157,31 +2159,19 @@ fn links(
             .enumerate()
             .map(|(k, to)| Want { a: f, to, trunk: k })
             .collect();
-        let (lines, bs) = route(&wants, &rect_of, &heads, level == Level::Out, false);
+        let (lines, bs) = route(&wants, &rect_of, &heads, level == Level::Out);
         focus.push((f, lines));
         if !bs.is_empty() {
             badges.push((f, bs));
         }
-        let (lines, bs) = route(&wants, &rect_of, &heads, level == Level::Out, true);
-        hovered.push((f, lines));
-        if !bs.is_empty() {
-            hovered_badges.push((f, bs));
-        }
     }
-    Focus {
-        focus,
-        badges,
-        hovered,
-        hovered_badges,
-    }
+    Focus { focus, badges }
 }
 
-/// Each linked card's lines and badges, as selected and as hovered.
+/// Each linked card's lines and badges.
 struct Focus {
     focus: Vec<(Item, Vec<Line>)>,
     badges: Vec<(Item, Vec<Badge>)>,
-    hovered: Vec<(Item, Vec<Line>)>,
-    hovered_badges: Vec<(Item, Vec<Badge>)>,
 }
 
 /// The layout's size around what it holds.
@@ -2209,8 +2199,6 @@ fn finish(
         cards,
         focus: Vec::new(),
         badges: Vec::new(),
-        hovered: Vec::new(),
-        hovered_badges: Vec::new(),
         labels,
         marks,
     }
@@ -2397,18 +2385,8 @@ fn route(
     rect_of: &HashMap<Item, Rect>,
     heads: &[Rect],
     out: bool,
-    hovered: bool,
 ) -> (Vec<Line>, Vec<Badge>) {
     let clear = if out { 20f32 } else { 12f32 };
-    // Hovered lines run beside the selection's: their trunk leaves a little
-    // lower, their lanes and channels sit a little to one side.
-    let (chan_shift, root_shift) = if !hovered {
-        (0f32, 0f32)
-    } else if out {
-        (10., 14.)
-    } else {
-        (6., 8.)
-    };
     // A note card's lines meet it by its title; an Out card's, by its
     // middle, spread wider.
     let centre = |r: &Rect| {
@@ -2499,7 +2477,7 @@ fn route(
         } else {
             spread.min((hi - lo) / (n - 1) as f32)
         };
-        // A card's own trunk leaves it at its middle (lower while hovered);
+        // A card's own trunk leaves it at its middle;
         // lines into a card meet it at its edge's anchor.
         let own = list.iter().any(|e| e.2 == usize::MAX);
         // A card's own trunks (links out, links in) leave well apart.
@@ -2509,11 +2487,7 @@ fn route(
             step
         };
         let half = step * (n.saturating_sub(1)) as f32 / 2.;
-        let at = if own {
-            centre(r) + root_shift
-        } else {
-            port(r, edge)
-        };
+        let at = if own { centre(r) } else { port(r, edge) };
         let mid = at.clamp(lo + half, (hi - half).max(lo + half));
         for (k, (_, path, j)) in list.into_iter().enumerate() {
             let y = mid - half + k as f32 * step;
@@ -2578,9 +2552,9 @@ fn route(
             }
         };
         for (lo, hi) in free {
-            consider((lo + hi) / 2. + chan_shift.min((hi - lo) / 2. - clear));
+            consider((lo + hi) / 2.);
         }
-        consider(want.max(from.max(0.) + clear * 1.8) + chan_shift);
+        consider(want.max(from.max(0.) + clear * 1.8));
         best.map_or(want, |b| b.2)
     };
     for p in &mut paths {
@@ -2647,26 +2621,12 @@ fn route(
             }
         }
     }
-    // Lanes: each trunk has a fixed slot in every gap it uses, counted from
-    // the gap's middle toward its card: a selected card's links out nearest
-    // the card (inner), its links in just past the middle; a hovered card's
-    // in the two outer slots. So a hovered card's lines never share a
-    // vertical with the selection's, and lines in never cross the root (and
-    // badge) of the links out.
-    let (inner, outer) = if out { (11f32, 33f32) } else { (8f32, 24f32) };
+    // Lanes: one vertical per trunk in each gap it uses, down the gap's
+    // middle (a card's trunks to the right and left never share a gap).
     for p in &mut paths {
-        let is_in = p.to.iter().all(|t| !t.3);
-        let slot = match (hovered, is_in) {
-            (false, false) => -inner,
-            (false, true) => inner,
-            (true, false) => outer,
-            (true, true) => -outer,
-        };
-        // Toward the card: left of the gap for a trunk to the right.
-        let toward = if p.right { 1. } else { -1. };
         for (s, (g, ..)) in p.stops.iter().enumerate() {
             let (lo, hi) = gap_span(*g);
-            p.lanes[s] = ((lo + hi) / 2. + toward * slot).clamp(lo, hi);
+            p.lanes[s] = (lo + hi) / 2.;
         }
     }
     let mut lines = Vec::new();
@@ -2677,8 +2637,7 @@ fn route(
         // One badge per trunk, on its root: the stretch from the card to the
         // trunk's first turn, which all its lines share.
         let links: usize = p.to.iter().map(|t| t.2).sum();
-        // Only a trunk of links out carries a badge: lines in never touch one.
-        if links >= 2 && !p.lanes.is_empty() && p.to.iter().all(|t| t.3) {
+        if links >= 2 && !p.lanes.is_empty() {
             // On the near half of the gap, so it keeps as far from the next
             // column as from its own card.
             let room = (p.lanes[0] - a0).abs().min(COL_GAP / 2.);
@@ -2752,13 +2711,54 @@ fn route(
     (lines, badges)
 }
 
-/// The selection's lines drawn while another card is hovered: none to the
-/// hovered card, and none that runs along a hovered line (within 3 map
-/// points), so a hovered card's lines never lie over the selection's.
+/// How far to pan a `view` so that no block is cut at its edge: each block
+/// is wholly in view or wholly out of it (a block bigger than the view is
+/// left as it is), with `keep` in view and `margin` map points to spare.
+/// Of the pans that leave the fewest blocks cut, the smallest.
+pub fn unsliver(blocks: &[Rect], view: &Rect, keep: &Rect, margin: f32) -> (f32, f32) {
+    let axis = |lo: &dyn Fn(&Rect) -> f32, size: &dyn Fn(&Rect) -> f32, v0: f32, vs: f32| {
+        let cut = |d: f32| {
+            blocks
+                .iter()
+                .filter(|r| size(r) < vs - 2. * margin)
+                .filter(|r| {
+                    let (a, b) = (lo(r), lo(r) + size(r));
+                    a < v0 + d + vs && b > v0 + d && (a < v0 + d || b > v0 + d + vs)
+                })
+                .count()
+        };
+        let kept = |d: f32| lo(keep) >= v0 + d && lo(keep) + size(keep).min(vs) <= v0 + d + vs;
+        let mut cands = vec![0f32];
+        for r in blocks {
+            let (a, b) = (lo(r), lo(r) + size(r));
+            cands.extend([
+                b - (v0 + vs) + margin,
+                a - (v0 + vs) - margin,
+                a - v0 - margin,
+                b - v0 + margin,
+            ]);
+        }
+        cands
+            .into_iter()
+            .filter(|&d| kept(d))
+            .min_by(|&x, &y| cut(x).cmp(&cut(y)).then(x.abs().total_cmp(&y.abs())))
+            .unwrap_or(0.)
+    };
+    let dx = axis(&|r: &Rect| r.x, &|r: &Rect| r.w, view.x, view.w);
+    let dy = axis(&|r: &Rect| r.y, &|r: &Rect| r.h, view.y, view.h);
+    (dx, dy)
+}
+
+/// The selection's lines drawn while another card is hovered: none to or
+/// from the hovered card, none in a gutter the hovered card's lines run in,
+/// and none along a hovered line (within 3 map points). So lime is never
+/// drawn beside grey.
 pub fn beside<'a>(sel: &[&'a Line], hovered: &[&Line], card: Item) -> Vec<&'a Line> {
+    let gutters: BTreeSet<usize> = hovered.iter().flat_map(|h| gutters_of(h)).collect();
     sel.iter()
         .copied()
         .filter(|l| l.to != card && l.from != card)
+        .filter(|l| gutters_of(l).is_disjoint(&gutters))
         .filter(|l| {
             !l.points.windows(2).any(|a| {
                 hovered.iter().any(|h| {
@@ -2769,6 +2769,27 @@ pub fn beside<'a>(sel: &[&'a Line], hovered: &[&Line], card: Item) -> Vec<&'a Li
             })
         })
         .collect()
+}
+
+/// The gaps between columns a line runs in: down, or across.
+pub fn gutters_of(l: &Line) -> BTreeSet<usize> {
+    let mut g = BTreeSet::new();
+    for w in l.points.windows(2) {
+        let (x0, x1) = (w[0].0.min(w[1].0), w[0].0.max(w[1].0));
+        if x1 - x0 < 0.01 {
+            if x0 - col_x(col_of(x0)) > COL_W {
+                g.insert(col_of(x0) + 1);
+            }
+            continue;
+        }
+        for c in col_of(x0)..=col_of(x1) + 1 {
+            let (lo, hi) = (col_x(c) - COL_GAP, col_x(c));
+            if c > 0 && x1 > lo + 0.5 && x0 < hi - 0.5 {
+                g.insert(c);
+            }
+        }
+    }
+    g
 }
 
 /// Whether two segments run along each other, within `gap` map points
@@ -3340,16 +3361,12 @@ mod tests {
         dx.hypot(dy)
     }
 
-    /// Both ways a level draws each card's lines: as selected, as hovered.
+    /// Each card's lines and badges at a level.
     fn both(l: &Layout) -> Vec<(Item, bool, &[Line], &[Badge])> {
-        let mut v = Vec::new();
-        for (f, _) in &l.focus {
-            for h in [false, true] {
-                let (ls, bs) = l.set(Some(*f), h);
-                v.push((*f, h, ls, bs));
-            }
-        }
-        v
+        l.focus
+            .iter()
+            .map(|(f, ls)| (*f, false, ls.as_slice(), l.badges(Some(*f))))
+            .collect()
     }
 
     /// The zooms a level is drawn at, from the table.
@@ -3442,7 +3459,7 @@ mod tests {
                                 continue;
                             };
                             // On the badge.
-                            let on = l.lines_at(Some(f), h, c.0, c.1, 6. / z, z);
+                            let on = l.lines_at(Some(f), c.0, c.1, 6. / z, z);
                             // On the line beside it, outside the badge.
                             let beside: Vec<&Line> = ls
                                 .iter()
@@ -3467,7 +3484,7 @@ mod tests {
                     for x in ls.iter().take(4) {
                         let n = x.points.len();
                         let (a, c) = (x.points[n - 2], x.points[n - 1]);
-                        let under = l.lines_at(Some(f), h, (a.0 + c.0) / 2., a.1, 1., 1.);
+                        let under = l.lines_at(Some(f), (a.0 + c.0) / 2., a.1, 1., 1.);
                         assert!(under.iter().any(|u| u.to == x.to), "{lv:?} {f:?}");
                     }
                 }
@@ -3476,26 +3493,29 @@ mod tests {
     }
 
     #[test]
-    fn each_line_has_one_head_where_its_links_arrive() {
+    fn heads_sit_where_links_arrive_at_most_one_per_card_side() {
         for m in maps() {
             for (lv, l) in [("out", &m.out), ("mid", &m.mid), ("in", &m.inner)] {
-                for (f, h, ls, bs) in both(l) {
+                for (f, _, ls, _) in both(l) {
                     let all: Vec<&Line> = ls.iter().collect();
                     let heads = ends(&all, &[]);
                     for x in &all {
-                        // Out to a card, or in to the focus: never both.
-                        assert!(x.out != x.back, "{lv} {f:?}: {x:?}");
-                        let at = if x.out {
-                            *x.points.last().unwrap()
-                        } else {
-                            x.points[0]
-                        };
-                        assert!(
-                            heads.iter().any(|e| e.tip == at),
-                            "{lv} {f:?}: no head at {at:?}"
-                        );
+                        assert!(x.out || x.back, "{lv} {f:?}: a line with no way");
+                        if x.out {
+                            let at = *x.points.last().unwrap();
+                            assert!(
+                                heads.iter().any(|e| e.tip == at),
+                                "{lv} {f:?}: no head at its card"
+                            );
+                        }
+                        if x.back {
+                            assert!(
+                                heads.iter().any(|e| e.tip == x.points[0]),
+                                "{lv} {f:?}: no head at the focus"
+                            );
+                        }
                     }
-                    // Heads never stack: one per card edge.
+                    // At most one head per card side.
                     let edge = |p: (f32, f32)| {
                         l.cards
                             .iter()
@@ -3511,45 +3531,14 @@ mod tests {
                         let k = edge(e.tip).expect("a head on a card's edge");
                         assert!(
                             seen.insert(format!("{k:?}")),
-                            "{lv} {f:?} {h}: two heads on {k:?}"
+                            "{lv} {f:?}: two heads on {k:?}"
                         );
                     }
-                    // Lines in never touch a badge.
-                    for b in bs {
-                        for x in all.iter().filter(|x| x.back) {
-                            let on_root = x.points.windows(2).any(|w| {
-                                w[0].1 == b.y
-                                    && w[1].1 == b.y
-                                    && w[0].0.min(w[1].0) < b.x0.max(b.x1) - 0.01
-                                    && w[0].0.max(w[1].0) > b.x0.min(b.x1) + 0.01
-                            });
-                            assert!(
-                                !on_root,
-                                "{lv} {f:?} {h}: a line in runs along a badge's root"
-                            );
-                            for z in zooms(match lv {
-                                "out" => Level::Out,
-                                "mid" => Level::Mid,
-                                _ => Level::In,
-                            }) {
-                                let Some(c) = STYLE.badge_at(b, z) else {
-                                    continue;
-                                };
-                                let (hw, hh) = (STYLE.badge_half(b.links) / z, STYLE.badge / z);
-                                let hits = x.points.windows(2).any(|w| {
-                                    let r = Rect::new(c.0 - hw, c.1 - hh, 2. * hw, 2. * hh);
-                                    seg_in(w[0], w[1], &r)
-                                });
-                                assert!(!hits, "{lv} {f:?} {h} at {z}: a line in touches a badge");
-                            }
-                        }
-                    }
-                    // The pointer on one line lights only the heads where its
-                    // links arrive.
+                    // The pointer on one line lights only its heads.
                     for x in all.iter().take(3) {
                         let n = x.points.len();
                         let (a, c) = (x.points[n - 2], x.points[n - 1]);
-                        let under = l.lines_at(Some(f), h, (a.0 + c.0) / 2., a.1, 0.5, 1.);
+                        let under = l.lines_at(Some(f), (a.0 + c.0) / 2., a.1, 0.5, 1.);
                         let hot: Vec<Hot> = under.iter().map(|u| u.hot()).collect();
                         let key =
                             |p: (f32, f32)| ((p.0 * 2.).round() as i64, (p.1 * 2.).round() as i64);
@@ -3558,17 +3547,50 @@ mod tests {
                             .filter(|e| e.lit)
                             .map(|e| key(e.tip))
                             .collect();
-                        let want: BTreeSet<(i64, i64)> = under
-                            .iter()
-                            .map(|u| {
-                                key(if u.out {
-                                    *u.points.last().unwrap()
-                                } else {
-                                    u.points[0]
-                                })
-                            })
-                            .collect();
-                        assert_eq!(lit, want, "{lv} {f:?} {h}");
+                        let mut want: BTreeSet<(i64, i64)> = BTreeSet::new();
+                        for u in &under {
+                            if u.out {
+                                want.insert(key(*u.points.last().unwrap()));
+                            }
+                            if u.back {
+                                want.insert(key(u.points[0]));
+                            }
+                        }
+                        assert_eq!(lit, want, "{lv} {f:?}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn one_trunk_per_card_per_gutter() {
+        for m in maps() {
+            for (lv, l) in [("out", &m.out), ("mid", &m.mid), ("in", &m.inner)] {
+                for (f, ls) in &l.focus {
+                    let trunks: BTreeSet<usize> = ls.iter().map(|x| x.trunk).collect();
+                    assert!(trunks.len() <= 2, "{lv} {f:?}");
+                    // In each gutter, one vertical.
+                    let mut lanes: BTreeMap<usize, BTreeSet<i64>> = BTreeMap::new();
+                    for x in ls {
+                        for w in x
+                            .points
+                            .windows(2)
+                            .filter(|w| w[0].0 == w[1].0 && w[0].1 != w[1].1)
+                        {
+                            lanes
+                                .entry(col_of(w[0].0) + 1)
+                                .or_default()
+                                .insert((w[0].0 * 10.).round() as i64);
+                        }
+                    }
+                    for (g, xs) in lanes {
+                        assert_eq!(
+                            xs.len(),
+                            1,
+                            "{lv} {f:?}: {} verticals in gutter {g}",
+                            xs.len()
+                        );
                     }
                 }
             }
@@ -3595,53 +3617,42 @@ mod tests {
     }
 
     #[test]
-    fn every_line_that_leaves_the_view_ends_in_an_edge_chip() {
+    fn every_line_that_leaves_the_view_fades_out_at_its_edge() {
         let m = synthetic(300, 12, 1000).fitted(1220., 690.);
         let d = demo_shaped();
         for map in [&m, &d] {
             for z in STYLE.steps {
                 let l = map.layout(Level::of(z));
                 for v in views(l, z) {
-                    for (f, h, ls, _) in both(l).into_iter().step_by(5) {
-                        let shown: Vec<&Line> = ls.iter().filter(|x| shows(x, &v)).collect();
-                        let chips = exits(&shown, &v, 8. / z, 24. / z);
-                        for x in &shown {
+                    for (f, _, ls, _) in both(l).into_iter().step_by(5) {
+                        for x in ls.iter().filter(|x| shows(x, &v)) {
                             let end = *x.points.last().unwrap();
                             let out = end.0 < v.x
                                 || end.0 > v.right()
                                 || end.1 < v.y
                                 || end.1 > v.bottom();
+                            let tail = fade(x, &v, 24. / z, 4);
+                            assert_eq!(out, !tail.is_empty(), "{f:?} at {z}");
                             if !out {
                                 continue;
                             }
-                            let c = chips.iter().find(|c| c.to.contains(&x.to));
-                            let c = c.unwrap_or_else(|| {
-                                panic!(
-                                    "{f:?} {h} at {z}: a line to {:?} leaves {v:?} with no chip",
-                                    x.to
-                                )
-                            });
-                            // On the border, inside the view.
-                            let inset = 8. / z + 0.5;
-                            let near = (c.x - v.x).abs() <= inset
-                                || (v.right() - c.x).abs() <= inset
-                                || (c.y - v.y).abs() <= inset
-                                || (v.bottom() - c.y).abs() <= inset;
-                            assert!(
-                                near && c.x >= v.x
-                                    && c.x <= v.right()
-                                    && c.y >= v.y
-                                    && c.y <= v.bottom(),
-                                "{c:?} {v:?}"
-                            );
-                        }
-                        for c in &chips {
-                            let n: usize = shown
+                            // The tail ends on the border, fully covered there.
+                            let (last, k) = tail.last().unwrap();
+                            let p = *last.last().unwrap();
+                            let on = (p.0 - v.x).abs() < 0.01
+                                || (p.0 - v.right()).abs() < 0.01
+                                || (p.1 - v.y).abs() < 0.01
+                                || (p.1 - v.bottom()).abs() < 0.01;
+                            assert!(on && *k == 1., "{f:?} at {z}: {p:?} {v:?}");
+                            // And no longer than asked.
+                            let len: f32 = tail
                                 .iter()
-                                .filter(|x| c.to.contains(&x.to))
-                                .map(|x| x.links)
+                                .flat_map(|(ps, _)| {
+                                    ps.windows(2)
+                                        .map(|w| (w[0].0 - w[1].0).abs() + (w[0].1 - w[1].1).abs())
+                                })
                                 .sum();
-                            assert!(c.links >= 1 && c.links <= n, "{c:?}");
+                            assert!(len <= 24. / z + 0.5, "{f:?} at {z}: tail {len}");
                         }
                     }
                 }
@@ -3688,7 +3699,27 @@ mod tests {
     }
 
     #[test]
-    fn a_hovered_cards_lines_never_run_along_the_selections() {
+    fn a_pan_after_a_drop_leaves_no_block_cut() {
+        let blocks = [
+            Rect::new(0., 0., 300., 120.),
+            Rect::new(0., 200., 300., 120.),
+            Rect::new(0., 380., 300., 120.),
+            Rect::new(400., 0., 300., 900.),
+        ];
+        let view = Rect::new(-20., -20., 800., 450.);
+        let keep = Rect::new(0., 0., 300., 120.);
+        let (dx, dy) = unsliver(&blocks, &view, &keep, 10.);
+        let v = Rect::new(view.x + dx, view.y + dy, view.w, view.h);
+        for r in &blocks[..3] {
+            let whole_in = r.y >= v.y && r.bottom() <= v.bottom();
+            let whole_out = r.bottom() <= v.y || r.y >= v.bottom();
+            assert!(whole_in || whole_out, "{r:?} cut by {v:?}");
+        }
+        assert!(keep.y >= v.y && keep.bottom() <= v.bottom());
+    }
+
+    #[test]
+    fn under_a_hover_lime_is_never_drawn_beside_grey() {
         let small = [
             demo_shaped(),
             synthetic(20, 4, 24),
@@ -3700,27 +3731,25 @@ mod tests {
             cases.extend([&m.out, &m.mid, &m.inner]);
         }
         cases.push(&big.out);
-        let mut hidden = 0usize;
-        let mut kept = 0usize;
         for l in cases {
-            for (a, _) in &l.focus {
-                let hov: Vec<&Line> = l.shown_hovered(Some(*a)).iter().collect();
+            for (a, hov) in &l.focus {
+                let hov: Vec<&Line> = hov.iter().collect();
+                let used: BTreeSet<usize> = hov.iter().flat_map(|h| gutters_of(h)).collect();
                 for (b, sel) in &l.focus {
                     if a == b {
                         continue;
                     }
                     let all: Vec<&Line> = sel.iter().collect();
-                    let drawn = beside(&all, &hov, *a);
-                    hidden += all.len() - drawn.len();
-                    kept += drawn.len();
-                    for x in &hov {
-                        for y in &drawn {
+                    for y in beside(&all, &hov, *a) {
+                        assert!(y.to != *a && y.from != *a);
+                        assert!(
+                            gutters_of(y).is_disjoint(&used),
+                            "selected {b:?} shares a gutter with hovered {a:?}"
+                        );
+                        for x in &hov {
                             for s in x.points.windows(2) {
                                 for t in y.points.windows(2) {
-                                    assert!(
-                                        !along((s[0], s[1]), (t[0], t[1]), 3.),
-                                        "hovered {a:?} runs along selected {b:?}: {s:?} {t:?}"
-                                    );
+                                    assert!(!along((s[0], s[1]), (t[0], t[1]), 3.), "{a:?} {b:?}");
                                 }
                             }
                         }
@@ -3728,8 +3757,6 @@ mod tests {
                 }
             }
         }
-        // The hovered card's own lanes keep most of the selection drawn.
-        assert!(kept > hidden * 3, "kept {kept}, hid {hidden}");
     }
 
     #[test]

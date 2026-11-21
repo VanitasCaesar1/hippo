@@ -217,45 +217,40 @@ for (const view of ['morning', 'brain']) {
       // One badge per trunk, on its root; the badge and the run under it
       // give one number, at every zoom of the level.
       const zs = st.steps.filter((z) => (L === 'out' ? z < st.out_below : L === 'in' ? z > st.in_above : z >= st.out_below && z <= st.in_above));
-      for (const hovered of [false, true]) {
-        for (const [f, bs] of (hovered ? lay.hovered_badges : lay.badges) || []) {
-          const [lines] = A.set(lay, f, hovered);
-          for (const b of bs) {
-            const mine = lines.filter((l) => l.trunk === b.trunk);
-            if (A.linksOf(mine) !== b.links) errors.push(`badge: ${L} badge says ${b.links}, its trunk ${A.linksOf(mine)}`);
-            for (const z of zs) {
-              const c = A.badgeAt(st, b, z);
-              if (!c) continue;
-              const n = A.linksOf(A.linesAt(lay, f, hovered, c[0], c[1], 6 / z, z, st));
-              if (n !== b.links) errors.push(`badge: ${L} badge says ${b.links}, hovering it ${n}`);
-              const need = (A.badgeHalf(st, b.links) + st.badge_room) / z;
-              for (const card of lay.cards) {
-                const r = card.rect;
-                const dx = Math.max(r.x - c[0], 0, c[0] - r.x - r.w), dy = Math.max(r.y - c[1], 0, c[1] - r.y - r.h);
-                if (Math.hypot(dx, dy) < need - 0.5) errors.push(`badge: ${L} badge at ${c} is in a card at ${z}`);
-              }
+      for (const [f, bs] of lay.badges || []) {
+        const [lines] = A.set(lay, f);
+        for (const b of bs) {
+          const mine = lines.filter((l) => l.trunk === b.trunk);
+          if (A.linksOf(mine) !== b.links) errors.push(`badge: ${L} badge says ${b.links}, its trunk ${A.linksOf(mine)}`);
+          for (const z of zs) {
+            const c = A.badgeAt(st, b, z);
+            if (!c) continue;
+            const n = A.linksOf(A.linesAt(lay, f, c[0], c[1], 6 / z, z, st));
+            if (n !== b.links) errors.push(`badge: ${L} badge says ${b.links}, hovering it ${n}`);
+            const need = (A.badgeHalf(st, b.links) + st.badge_room) / z;
+            for (const card of lay.cards) {
+              const r = card.rect;
+              const dx = Math.max(r.x - c[0], 0, c[0] - r.x - r.w), dy = Math.max(r.y - c[1], 0, c[1] - r.y - r.h);
+              if (Math.hypot(dx, dy) < need - 0.5) errors.push(`badge: ${L} badge at ${c} is in a card at ${z}`);
             }
           }
         }
       }
       for (const [, ls] of lay.focus) {
-        for (const l of ls) if (l.out === l.back) errors.push(`line: ${L} line with no one way (out or in)`);
+        for (const l of ls) if (!l.out && !l.back) errors.push(`line: ${L} line with no way (out or in)`);
       }
-      // Every line that leaves a view ends in an edge chip, at every zoom of
-      // the level, in views centred on a few cards.
+      // Every line that leaves a view fades out at its edge, at every zoom
+      // of the level, in views centred on a few cards.
       for (const z of zs) {
         const [w, h] = [860 / z, 600 / z];
         for (const card of lay.cards.filter((_, i) => i % 4 === 0)) {
           const v = { x: card.rect.x + card.rect.w / 2 - w / 2, y: card.rect.y + Math.min(card.rect.h, 112) / 2 - h / 2, w, h };
           for (const [f, ls] of lay.focus) {
-            const shown = ls.filter((l) => A.shows(l, v));
-            const chips = A.exits(shown, v, 8 / z, 28 / z);
-            for (const l of shown) {
+            for (const l of ls.filter((x) => A.shows(x, v))) {
               const e = l.points[l.points.length - 1];
               const out = e[0] < v.x || e[0] > v.x + v.w || e[1] < v.y || e[1] > v.y + v.h;
-              if (out && !chips.some((c) => c.to.some((t) => A.itemKey(t) === A.itemKey(l.to)))) {
-                errors.push(`chip: ${L} at ${z}, a line from ${A.itemKey(f)} leaves the view with no chip`);
-              }
+              const tail = A.fade(l, v, 24 / z, 6);
+              if (out !== (tail.length > 0)) errors.push(`fade: ${L} at ${z}, a line from ${A.itemKey(f)} ${out ? 'leaves the view with no fade' : 'fades inside the view'}`);
             }
           }
         }

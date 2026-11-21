@@ -318,47 +318,54 @@
     return d + 'L' + z[0] + ' ' + z[1];
   }
   // Lines as Hippo.app draws them (docs/designs/brain-links.md › Lines):
-  // the selected note's in a quiet neutral; while another card is hovered
-  // the selection's step back, lose their badges and drop the lines a
-  // hovered one runs along; the hovered card's are drawn in lime in lanes
-  // of their own. Lines under the pointer last, in lime, their heads lit
-  // where their links arrive. A line to a card out of view runs to the
-  // edge and ends in a chip naming it. Returns the lines (under the
-  // cards), the heads and badges (over them), and the chips.
+  // one trunk per card per gutter, heads where links arrive. The selected
+  // note's in a quiet neutral; while another card is hovered its lines
+  // replace the selection's in every gutter they share, in lime. Lines
+  // under the pointer last, in lime, their heads lit. A line to a card out
+  // of view runs to the edge and fades over its last 24 px. No line is
+  // drawn to a block on the move (S.moving). Returns the lines (under the
+  // cards) and the heads and badges (over them).
   function linesSvg(L, view) {
     var lay = LY()[L], f = focusOf(L), faint = S.lifting ? ' faint' : '';
     var sel = selIndex(), selF = sel >= 0 ? sameItem({ note: sel }, L) : null;
     var other = !!(S.hover && f && key(S.hover) === key(f) && selF && key(selF) !== key(f));
     var sets = [];
-    if (other) { sets.push([selF, false, 'sel back', false]); sets.push([f, true, 'acc', true]); }
-    else if (S.hover && f && key(S.hover) === key(f)) sets.push([f, false, 'acc', true]);
-    else sets.push([f, false, 'sel', true]);
+    if (other) { sets.push([selF, 'sel back', false]); sets.push([f, 'acc', true]); }
+    else if (S.hover && f && key(S.hover) === key(f)) sets.push([f, 'acc', true]);
+    else sets.push([f, 'sel', true]);
     var hot = S.hoverLine ? S.hoverLine.ends : [];
-    var under = '', over = '', heads = [], badges = [], chips = [], z = S.zoom;
+    var under = '', over = '', heads = [], badges = [], z = S.zoom;
     view = view || viewRect();
-    var strip = L === 'out' ? 0 : 30 / z, cv = { x: view.x, y: view.y + strip, w: view.w, h: view.h - strip };
-    var hovLines = other ? A.set(lay, f, true)[0].filter(function (l) { return A.shows(l, view); }) : [];
+    var strip = L === 'out' ? 0 : 30 / z, moving = S.moving || {};
+    function still(l) { return !moving[A.blockKey(M, l.from)] && !moving[A.blockKey(M, l.to)]; }
+    var hovLines = other ? A.set(lay, f)[0].filter(function (l) { return A.shows(l, view); }) : [];
     sets.forEach(function (set) {
-      var sb = A.set(lay, set[0], set[1]);
-      var shown = sb[0].filter(function (l) { return A.shows(l, view); });
-      if (other && !set[1]) shown = A.beside(shown, hovLines, f);
+      var sb = A.set(lay, set[0]);
+      var shown = sb[0].filter(function (l) { return A.shows(l, view) && still(l); });
+      if (other && set[0] && key(set[0]) !== key(f)) shown = A.beside(shown, hovLines, f);
       var isHot = function (l) { return hot.indexOf(A.hot(l)) >= 0; };
-      shown.filter(function (l) { return !isHot(l); }).map(function (l) { return [l, set[2]]; })
+      shown.filter(function (l) { return !isHot(l); }).map(function (l) { return [l, set[1]]; })
         .concat(shown.filter(isHot).map(function (l) { return [l, 'acc']; }))
         .forEach(function (x) {
           under += '<path class="' + x[1] + faint + '" vector-effect="non-scaling-stroke" style="stroke-width:' + ST.line + 'px" d="' + roundedPath(x[0].points) + '"/>';
+          // Out of view: the ground covers its last 24 px, more and more.
+          A.fade(x[0], view, 24 / z, 6).forEach(function (pc) {
+            var d = 'M' + pc[0].map(function (q) { return q[0] + ' ' + q[1]; }).join('L');
+            under += '<path class="fade" vector-effect="non-scaling-stroke" style="stroke-width:' + (ST.line + 1) + 'px;stroke-opacity:' + pc[1] + '" d="' + d + '"/>';
+          });
         });
-      A.ends(shown, hot).forEach(function (e) { heads.push([e, e.lit ? 'acc' : set[2]]); });
-      if (!set[3]) return;
+      A.ends(shown, hot).forEach(function (e) { heads.push([e, e.lit ? 'acc' : set[1]]); });
+      if (!set[2]) return;
       var mg = 8 / z;
       sb[1].forEach(function (b) {
+        // A badge only on a trunk that is drawn.
+        if (!shown.some(function (l) { return l.trunk === b.trunk; })) return;
         var c = A.badgeAt(ST, b, z);
         if (!c) return;
         var hw = A.badgeHalf(ST, b.links) / z, hh = ST.badge / z;
-        if (c[0] - hw < view.x + mg || c[0] + hw > view.x + view.w - mg || c[1] - hh < cv.y + mg || c[1] + hh > view.y + view.h - mg) return;
-        badges.push([b, c, set[2]]);
+        if (c[0] - hw < view.x + mg || c[0] + hw > view.x + view.w - mg || c[1] - hh < view.y + strip + mg || c[1] + hh > view.y + view.h - mg) return;
+        badges.push([b, c, set[1]]);
       });
-      A.exits(shown, cv, 8 / z, 28 / z).forEach(function (e) { chips.push([e, set[2]]); });
     });
     var a = ST.arrow / z;
     heads.forEach(function (m) {
@@ -374,28 +381,7 @@
         '<g class="badge ' + x[2] + faint + '"><rect x="' + (c[0] - bw / 2) + '" y="' + (c[1] - bh / 2) + '" width="' + bw + '" height="' + bh + '" rx="' + bh / 2 + '" vector-effect="non-scaling-stroke"/>' +
         '<text x="' + c[0] + '" y="' + c[1] + '" font-size="' + 11 / z + '" text-anchor="middle" dominant-baseline="central">' + txt + '</text></g>';
     });
-    return { under: under, over: over, chips: chips };
-  }
-  // Edge chips over the map: the card (and how many more) and the links,
-  // with an arrow out; a click pans to the card.
-  function drawChips(chips) {
-    var wrap = app.querySelector('.mapwrap');
-    if (!wrap) return;
-    var box = wrap.querySelector('.chips');
-    if (!box) { box = document.createElement('div'); box.className = 'chips'; if (wrap.appendChild) wrap.appendChild(box); }
-    var v = appView(), z = S.zoom, h = '';
-    S.chipTo = [];
-    (chips || []).forEach(function (x, i) {
-      var e = x[0], first = e.to[0], more = e.to.length - 1;
-      var nm = first.folder != null ? (M.folders[first.folder].name || 'Notes') : M.notes[first.note].title;
-      if (nm.length > 22) nm = nm.slice(0, 21) + '…';
-      var words = nm + (more ? ' +' + more : '') + ' · ' + e.links;
-      var px = (e.x - S.pan[0]) * z, py = (e.y - S.pan[1]) * z;
-      var icon = e.side === 'r' ? 'right' : e.side === 'l' ? 'left' : e.side === 'b' ? 'adown' : 'up';
-      S.chipTo.push(first);
-      h += '<button class="edgechip ' + x[1] + ' s-' + e.side + '" data-act="chip" data-i="' + i + '" style="left:' + Math.max(8, Math.min(v[0] - 8, px)) + 'px;top:' + Math.max(8, Math.min(v[1] - 8, py)) + 'px">' + esc(words) + ic(icon, 12) + '</button>';
-    });
-    box.innerHTML = h;
+    return { under: under, over: over };
   }
   // The map rectangle the view shows.
   function viewRect() {
@@ -462,7 +448,7 @@
   }
   function redrawLines() {
     var wrap = app.querySelector('.mapwrap'), svg = wrap && wrap.querySelector('svg.links:not(.over)'), top = wrap && wrap.querySelector('svg.over');
-    if (svg) { var ls = linesSvg(level(S.zoom)); svg.innerHTML = ls.under; if (top) top.innerHTML = ls.over; drawChips(ls.chips); }
+    if (svg) { var ls = linesSvg(level(S.zoom)); svg.innerHTML = ls.under; if (top) top.innerHTML = ls.over; }
     if (!wrap) return;
     var hov = S.hover ? key(S.hover) : null;
     wrap.querySelectorAll('.hover').forEach(function (x) { x.classList.remove('hover'); });
@@ -503,7 +489,6 @@
       world.style.width = LY()[L].width + 'px';
       world.style.height = LY()[L].height + 'px';
       drawnLevel = L;
-      drawChips(linesSvg(L).chips);
     } else {
       // Line widths and port rings keep their size on screen.
       redrawLines();
@@ -531,6 +516,7 @@
     var f = A ? A.fit(LY(), w, h) : [1, [0, 0]];
     S.zoom = f[0];
     S.fitZoom = f[0];
+    S.fitPan = f[1].slice();
     S.pan = f[1];
     S.fitted = true;
     placeWorld(true);
@@ -542,6 +528,8 @@
     return S.pan[0] <= 0.5 && S.pan[1] <= 0.5 && S.pan[0] + wrap.clientWidth / S.zoom >= lay.width - 0.5 && S.pan[1] + wrap.clientHeight / S.zoom >= lay.height - 0.5;
   }
   function zoomAt(z, px, py) {
+    // At or below the fit: exactly the fit, its pan too, on every map.
+    if (S.fitPan && z <= (S.fitZoom || 0) + 1e-4) { S.zoom = S.fitZoom; S.pan = S.fitPan.slice(); placeWorld(false); return; }
     // Never further out than the whole map.
     z = Math.max(S.fitZoom || MIN_ZOOM, Math.min(MAX_ZOOM, z));
     var from = level(S.zoom), to = level(z);
@@ -683,6 +671,14 @@
       var note = e.target.closest('[data-note]'), folder = e.target.closest('[data-folder]');
       if (note) { S.sel = M.notes[+note.getAttribute('data-note')].path; render(); }
       else if (folder) zoomInto({ folder: +folder.getAttribute('data-folder') });
+      else {
+        // A line to a card out of view: pan to the nearest such card.
+        var p = pt(e), L = level(S.zoom), lay = LY()[L], m = toMap(p), v = viewRect();
+        var under = A.linesAt(lay, focusOf(L), m[0], m[1], 6 / S.zoom, S.zoom, ST);
+        var to = A.nearestOut(under, v, m, function (it) { var c = cardOf(lay, it); return c && c.rect; });
+        var c = to && cardOf(lay, to), vv = appView();
+        if (c) { S.pan = [c.rect.x + c.rect.w / 2 - vv[0] / 2 / S.zoom, c.rect.y + Math.min(c.rect.h, 224) / 2 - vv[1] / 2 / S.zoom]; placeWorld(false); }
+      }
     });
     wrap.addEventListener('dblclick', function (e) {
       var note = e.target.closest('[data-note]');
@@ -698,9 +694,8 @@
     // What the status counts is what the map says is here: a badge stands
     // for its branch, a run for the lines along it.
     if (!c) {
-      var sel = selIndex(), selF = sel >= 0 ? sameItem({ note: sel }, L) : null;
-      var f = focusOf(L), hov = !!(S.hover && (!selF || key(selF) !== key(S.hover)));
-      hits = A.linesAt(lay, f, hov, m[0], m[1], 6 / S.zoom, S.zoom, ST);
+      var f = focusOf(L);
+      hits = A.linesAt(lay, f, m[0], m[1], 6 / S.zoom, S.zoom, ST);
     }
     var hover = c ? c.item : hits.length ? S.hover : null;
     var line = null;
@@ -732,6 +727,8 @@
       d.grab = [m[0] - r.x, m[1] - r.y];
       S.hover = null; S.hoverLine = null;
       S.lifting = true;
+      // No line is drawn to the lifted block while it is held.
+      S.moving = {}; S.moving[d.key] = 1;
       wrap.classList.add('lifting');
       redrawLines();
     }
@@ -805,13 +802,20 @@
       var v = appView(), Lv = level(S.zoom), lay = LY()[Lv], r = A.blockRect(M, lay, d.key);
       // The smallest zoom is the new map's fit, so zooming out (or Fit)
       // always reaches the whole map.
-      S.fitZoom = A.fit(LY(), v[0], v[1])[0];
+      var nf = A.fit(LY(), v[0], v[1]);
+      S.fitZoom = nf[0]; S.fitPan = nf[1].slice();
+      S.moving = {};
       if (r) {
-        // Only the block's head need show, clear of the strip of names.
+        // Only the block's head need show, clear of the strip of names,
+        // and no block is left as a sliver (Rust: unsliver).
         var z = S.zoom, vw = v[0] / z, vh = v[1] / z, top = (Lv === 'out' ? 20 : 50) / z;
         var hw = Math.min(r.w, vw - 40 / z), hh = Math.min(r.h, 112 + 40);
         S.pan[0] = Math.max(Math.min(S.pan[0], r.x - 20 / z), r.x + hw + 20 / z - vw);
         S.pan[1] = Math.max(Math.min(S.pan[1], r.y - top), r.y + hh + 20 / z - vh);
+        var blocks = A.settle(M, S.arr || S.def || M.default_arrangement).columns.reduce(function (a, c) { return a.concat(c); }, [])
+          .map(function (k) { return A.blockRect(M, lay, k); }).filter(Boolean);
+        var dd = A.unsliver(blocks, { x: S.pan[0], y: S.pan[1], w: vw, h: vh }, { x: r.x, y: r.y, w: hw, h: hh }, 12 / z);
+        S.pan[0] += dd[0]; S.pan[1] += dd[1];
         placeWorld(false);
       }
     }, SETTLE);
@@ -825,9 +829,11 @@
     });
     var slot = world.querySelector('.slot');
     if (slot) slot.remove();
-    // The lines go back to where they run now, faint, while blocks fly.
+    // While blocks fly home, no line is drawn to a block on its way.
+    S.moving = {};
+    world.querySelectorAll('.blk').forEach(function (b) { S.moving[b.getAttribute('data-key')] = 1; });
     redrawLines();
-    setTimeout(function () { clearLift(wrap); redrawLines(); }, BACK);
+    setTimeout(function () { S.moving = {}; clearLift(wrap); redrawLines(); }, BACK);
   }
   function clearLift(wrap) {
     S.lifting = false;
@@ -895,11 +901,6 @@
     else if (act === 'fit') { fit(); }
     else if (act === 'treemap') { toast('Treemap is in the app.'); }
     else if (act === 'inapp') { toast(b.getAttribute('data-name') + ' is in the app.'); }
-    else if (act === 'chip') {
-      // Pan to the card the chip names, keeping the zoom.
-      var it = (S.chipTo || [])[+b.getAttribute('data-i')], Lc = level(S.zoom), cc = it && cardOf(LY()[Lc], it), vv = appView();
-      if (cc) { S.pan = [cc.rect.x + cc.rect.w / 2 - vv[0] / 2 / S.zoom, cc.rect.y + Math.min(cc.rect.h, 224) / 2 - vv[1] / 2 / S.zoom]; placeWorld(false); }
-    }
     else if (act === 'reset' && !S.arr) { /* nothing to reset */ }
     else if (act === 'reset') { S.prevArr = S.arr; setArr(null); toast('Layout reset to the default.', true); }
     else if (act === 'undo-layout') { setArr(S.prevArr); S.toast = ''; S.toastUndo = false; render(); }

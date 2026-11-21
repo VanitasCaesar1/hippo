@@ -70,9 +70,6 @@ pub struct MapView {
     /// At Out, the lines under the pointer (their ends; several where a
     /// trunk is shared) and the view point.
     pub hover_line: Option<HoverLine>,
-    /// The edge chips drawn in the last paint: where (window pixels) and
-    /// the card each pans to.
-    pub chips: Rc<RefCell<Vec<(map::Rect, Item)>>>,
     /// Blocks sliding to their places.
     pub slide: Option<Slide>,
     /// The map view's size when it was last fitted: a reloaded map is laid
@@ -80,6 +77,8 @@ pub struct MapView {
     pub view_size: Option<(f32, f32)>,
     /// The zoom the map was last fitted at: the smallest.
     pub fit_zoom: f32,
+    /// The pan the map was last fitted at.
+    pub fit_pan: (f32, f32),
 }
 
 /// Blocks sliding to their places in `lay`: each one's offset from there
@@ -171,10 +170,10 @@ impl Default for MapView {
             panel: None,
             hover: None,
             hover_line: None,
-            chips: Rc::new(RefCell::new(Vec::new())),
             slide: None,
             view_size: None,
             fit_zoom: 1.,
+            fit_pan: (0., 0.),
         }
     }
 }
@@ -220,6 +219,12 @@ impl MapView {
     /// Zooms to `zoom` about a point of the view (`(px, py)` in points from
     /// its top left), keeping what is under it there, across levels too.
     pub fn zoom_at(&mut self, map: &NotesMap, zoom: f32, at: (f32, f32)) {
+        // At or below the fit: exactly the fit, its pan too, on every map.
+        if self.fitted && zoom <= self.min_zoom() + 1e-4 {
+            self.zoom = self.min_zoom();
+            self.pan = self.fit_pan;
+            return;
+        }
         let zoom = zoom.clamp(self.min_zoom(), map::MAX_ZOOM);
         let (from, to) = (self.level(), Level::of(zoom));
         let m = (self.pan.0 + at.0 / self.zoom, self.pan.1 + at.1 / self.zoom);
@@ -246,6 +251,7 @@ impl MapView {
     pub fn fit(&mut self, map: &NotesMap, w: f32, h: f32) {
         let (z, pan) = map.fit(w, h);
         self.fit_zoom = z;
+        self.fit_pan = pan;
         self.zoom = z;
         self.pan = pan;
         self.fitted = true;
@@ -337,7 +343,6 @@ struct Paint {
     hover: Option<Item>,
     hover_line: Option<HoverLine>,
     slide: Option<Slide>,
-    chips: Rc<RefCell<Vec<(map::Rect, Item)>>>,
 }
 
 /// `a` laid over `b` at `k`, as one opaque colour: lines that run together
@@ -773,15 +778,14 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
     }
 
     // Lines, behind the cards, one weight at every zoom
-    // (docs/designs/brain-links.md › Lines): the selected note's in a quiet
-    // neutral. While another card is hovered the selection's step back,
-    // lose their badges and drop the lines a hovered one runs along
-    // (`map::beside`); the hovered card's are drawn over them in lime, in
-    // lanes of their own. Lines under the pointer turn lime and their heads
-    // light where their links arrive. A line to a card out of view runs to
-    // the canvas edge and ends in a chip naming it. While a block is lifted
-    // or blocks slide, every line is faint. Heads, badges and chips go over
-    // the cards, below.
+    // (docs/designs/brain-links.md › Lines): one trunk per card per gutter,
+    // heads where links arrive. The selected note's in a quiet neutral;
+    // while another card is hovered its lines replace the selection's in
+    // every gutter they share (`map::beside`), in lime, so lime is never
+    // drawn beside grey. Lines under the pointer turn lime and their heads
+    // light. A line to a card out of view runs to the canvas edge and fades
+    // over its last 24 px. While a block is lifted or blocks slide, lines
+    // are faint and none is drawn to a block that is moving.
     let focus = p.focus;
     let mut drawn_lines = 0;
     let style = &p.map.style;
@@ -789,15 +793,15 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
     let lime = mix(t.you_stroke(), t.canvas, faint);
     let sel_focus = p.selected.map(|i| p.map.same_item(Item::Note(i), level));
     let other = p.hover.is_some() && p.hover == focus && sel_focus != focus;
-    // (who, drawn as hovered, colour, with badges)
-    let mut sets: Vec<(Option<Item>, bool, Hsla, bool)> = Vec::new();
+    // (who, colour, with badges)
+    let mut sets: Vec<(Option<Item>, Hsla, bool)> = Vec::new();
     if other {
-        sets.push((sel_focus, false, mix(t.night, t.canvas, 0.3 * faint), false));
-        sets.push((focus, true, lime, true));
+        sets.push((sel_focus, mix(t.night, t.canvas, 0.3 * faint), false));
+        sets.push((focus, lime, true));
     } else if p.hover.is_some() && p.hover == focus {
-        sets.push((focus, false, lime, true));
+        sets.push((focus, lime, true));
     } else {
-        sets.push((focus, false, mix(t.night, t.canvas, 0.55 * faint), true));
+        sets.push((focus, mix(t.night, t.canvas, 0.55 * faint), true));
     }
     let width = style.line * u;
     let hot: Vec<map::Hot> = p
@@ -805,26 +809,35 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
         .as_ref()
         .map(|(ends, _)| ends.clone())
         .unwrap_or_default();
+    // A block on the move: lifted, or sliding to its place.
+    let moving_block = |item: Item| {
+        let b = p.map.block_of(item);
+        lifted == Some(b)
+            || poses
+                .get(&b)
+                .is_some_and(|q| q.off.0.abs() + q.off.1.abs() > 0.5)
+    };
     let hovered_lines: Vec<&map::Line> = if other {
-        lay.shown_hovered(focus)
+        lay.shown(focus)
             .iter()
             .filter(|l| map::shows(l, &view))
             .collect()
     } else {
         Vec::new()
     };
-    // Heads (tip, before it, colour), badges (centre, count, colour) and
-    // the active set's edge chips (exit, colour), drawn over the cards.
+    // Heads (tip, before it, colour) and badges (centre, count, colour),
+    // drawn over the cards.
     let mut marks: Vec<(map::End, Hsla)> = Vec::new();
     let mut badges: Vec<((f32, f32), usize, Hsla)> = Vec::new();
-    let mut chips: Vec<(map::Exit, Hsla)> = Vec::new();
     let strip = if level == Level::Out { 0. } else { 30. / z };
-    let chip_view = map::Rect::new(view.x, view.y + strip, view.w, view.h - strip);
-    for &(who, hovered, color, with_badges) in &sets {
-        let (all, bs) = lay.set(who, hovered);
-        let mut shown: Vec<&map::Line> = all.iter().filter(|l| map::shows(l, &view)).collect();
-        if other
-            && !hovered
+    for &(who, color, with_badges) in &sets {
+        let mut shown: Vec<&map::Line> = lay
+            .shown(who)
+            .iter()
+            .filter(|l| map::shows(l, &view))
+            .filter(|l| !moving_block(l.from) && !moving_block(l.to))
+            .collect();
+        if who != focus
             && let Some(h) = focus
         {
             shown = map::beside(&shown, &hovered_lines, h);
@@ -845,6 +858,11 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
                 if mine(l) { lime } else { color },
             );
             drawn_lines += 1;
+            // Out of view: the ground covers its last 24 px, more and more.
+            for (piece, k) in map::fade(l, &view, 24. / z, 6) {
+                let pts: Vec<(f32, f32)> = piece.iter().map(|q| s(q.0, q.1)).collect();
+                stroke_rounded(window, &pts, width + 1., 0., t.canvas.opacity(k));
+            }
         }
         for e in map::ends(&shown, &hot) {
             let e = map::End {
@@ -856,23 +874,20 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
         }
         if with_badges {
             let margin = 8. / z;
-            for bd in bs {
+            for bd in lay.badges(who) {
+                // A badge only on a trunk that is drawn.
+                if !shown.iter().any(|l| l.trunk == bd.trunk) {
+                    continue;
+                }
                 if let Some(c) = style.badge_at(bd, z) {
                     let (hw, hh) = (style.badge_half(bd.links) / z, style.badge / z);
                     let inside = c.0 - hw >= view.x + margin
                         && c.0 + hw <= view.x + view.w - margin
-                        && c.1 - hh >= chip_view.y + margin
+                        && c.1 - hh >= view.y + strip + margin
                         && c.1 + hh <= view.y + view.h - margin;
                     if inside {
                         badges.push((s(c.0, c.1), bd.links, color));
                     }
-                }
-            }
-            // No chips while a block is lifted or blocks slide: what leaves
-            // the view is still moving.
-            if faint >= 1. {
-                for e in map::exits(&shown, &chip_view, 8. / z, 28. / z) {
-                    chips.push((e, color));
                 }
             }
         }
@@ -1199,6 +1214,15 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
                 Bounds::new(point(px(ox), px(oy + h - 1.)), size(px(vw), px(1.))),
                 t.line,
             ));
+            // Cards pass under it fading, never hard-cut.
+            window.paint_quad(gpui::fill(
+                Bounds::new(point(px(ox), px(oy + h)), size(px(vw), px(14. * u))),
+                gpui::linear_gradient(
+                    180.,
+                    gpui::linear_color_stop(t.canvas.opacity(0.85), 0.),
+                    gpui::linear_color_stop(t.canvas.opacity(0.), 1.),
+                ),
+            ));
             let name_f = font(&p.family, FontWeight::SEMIBOLD);
             let count_f = font(&p.family, FontWeight::NORMAL);
             for (f, r) in above {
@@ -1228,84 +1252,6 @@ fn paint_map(p: &Paint, b: Bounds<Pixels>, window: &mut Window, cx: &mut gpui::A
                     200. * u,
                 );
             }
-        }
-    }
-
-    // Edge chips: where lines leave the view, the card (and how many more)
-    // and the links, with an arrow out; a click pans to the card.
-    {
-        let mut reg = p.chips.borrow_mut();
-        reg.clear();
-        let f = font(&p.family, FontWeight::MEDIUM);
-        let size_px = 11.5 * u;
-        for (e, c) in &chips {
-            let Some(&first) = e.to.first() else { continue };
-            let more = e.to.len() - 1;
-            // The card itself: a note at Mid and In, a block at Out.
-            let mut words = match first {
-                Item::Note(i) => p.map.notes[i].title.clone(),
-                Item::Folder(_) => block_name(&p.map, first),
-            };
-            if words.chars().count() > 22 {
-                words = words.chars().take(21).collect::<String>() + "…";
-            }
-            if more > 0 {
-                words = format!("{words} +{more}");
-            }
-            let words = format!("{words} · {}", e.links);
-            let tw = text_width(window, &words, size_px, &f);
-            let icon = 12. * u;
-            let (w, h) = (tw + icon + 22. * u, 22. * u);
-            let (ex, ey) = s(e.x, e.y);
-            // Its outer edge on the inset border point, along the border
-            // kept inside the view.
-            let (x, y) = match e.side {
-                'r' => (ex - w, ey - h / 2.),
-                'l' => (ex, ey - h / 2.),
-                'b' => (ex - w / 2., ey - h),
-                _ => (ex - w / 2., ey),
-            };
-            let x = x.clamp(ox + 8. * u, (ox + vw - 8. * u - w).max(ox + 8. * u));
-            let y = y.clamp(oy + 8. * u, (oy + vh - 8. * u - h).max(oy + 8. * u));
-            let bounds = Bounds::new(point(px(x), px(y)), size(px(w), px(h)));
-            rrect(
-                window,
-                bounds,
-                h / 2.,
-                t.surface,
-                *c,
-                (1.2 * u).max(1.),
-                false,
-            );
-            text(
-                window,
-                cx,
-                &words,
-                x + 10. * u,
-                y + (h - size_px * 1.25) / 2.,
-                size_px,
-                t.text,
-                &f,
-                tw + 2.,
-            );
-            let name = match e.side {
-                'r' => "icons/n-right.svg",
-                'l' => "icons/n-left.svg",
-                'b' => "icons/n-arrow-down.svg",
-                _ => "icons/n-up.svg",
-            };
-            let _ = window.paint_svg(
-                Bounds::new(
-                    point(px(x + w - icon - 8. * u), px(y + (h - icon) / 2.)),
-                    size(px(icon), px(icon)),
-                ),
-                name.into(),
-                None,
-                gpui::TransformationMatrix::unit(),
-                t.muted,
-                cx,
-            );
-            reg.push((map::Rect::new(x, y, w, h), first));
         }
     }
 
@@ -1731,21 +1677,25 @@ impl Shell {
                 let at = (view_w / 2., map_h / 2.);
                 self.night.map.zoom_at(&m, z.max(map::MIN_ZOOM), at);
                 // Dev-only: the selected card in the middle of the view,
-                // then the map kept in it.
+                // then the map kept in it; a zoom at or below the fit is the
+                // fit, as it is for a person.
                 let zz = self.night.map.zoom;
+                let centre = zz > self.night.map.min_zoom() + 1e-4;
                 let sel = Item::Note(self.brain_selected(&m).unwrap_or(0));
                 let item = m.same_item(sel, Level::of(zz));
-                if let Some(c) = m.layout(Level::of(zz)).card(item) {
+                if centre && let Some(c) = m.layout(Level::of(zz)).card(item) {
                     let r = c.rect;
                     self.night.map.pan = (
                         r.x + r.w / 2. - view_w / 2. / zz,
                         r.y + r.h.min(300.) / 2. - map_h / 2. / zz,
                     );
                 }
-                self.night.map.clamp(&m, view_w, map_h);
+                if centre {
+                    self.night.map.clamp(&m, view_w, map_h);
+                }
                 // The selected card's top stays in the view, clear of the
                 // strip of folder names.
-                if let Some(c) = m.layout(Level::of(zz)).card(item) {
+                if centre && let Some(c) = m.layout(Level::of(zz)).card(item) {
                     let top = c.rect.y - 56. / zz;
                     if self.night.map.pan.1 > top {
                         self.night.map.pan.1 = top;
@@ -1883,7 +1833,6 @@ impl Shell {
             hover: self.night.map.hover,
             hover_line: self.night.map.hover_line.clone(),
             slide: self.night.map.slide.clone(),
-            chips: self.night.map.chips.clone(),
         };
         let canvas_el = canvas(
             |_, _, _| {},
@@ -1920,11 +1869,10 @@ impl Shell {
         let line_words = self.night.map.hover_line.as_ref().and_then(|(ends, _)| {
             let first = ends.first()?;
             let level = self.night.map.level();
-            let (focus, hovered) = self.brain_line_set(&m);
+            let focus = self.brain_line_set(&m);
             let lay = m.layout(level);
             let hit: Vec<&map::Line> = lay
-                .set(focus, hovered)
-                .0
+                .shown(focus)
                 .iter()
                 .filter(|l| ends.contains(&l.hot()))
                 .collect();
@@ -2090,6 +2038,9 @@ impl Shell {
                         div()
                             .id("brain-status")
                             .flex_shrink_0()
+                            // Ends where the toolbar's last word does, not
+                            // at its button's edge.
+                            .pr(look.px(8.))
                             .max_w(look.px((view_w * 0.5).min(460.)))
                             .flex()
                             .justify_end()
@@ -2426,7 +2377,8 @@ impl Shell {
         }
         // A drop never rescales: the zoom stays, so cards keep their size
         // under the pointer, and the view pans only as far as keeps the
-        // dropped block in it. Only the zoom control and Reset refit.
+        // dropped block's head in it and leaves no block as a sliver. Only
+        // the zoom control and Reset refit.
         if let (Some(m2), Some((w, h))) = (self.night.map.map.clone(), self.night.map.view_size)
             && let Some(r) = m2.block_rect(l.level, l.block)
         {
@@ -2439,9 +2391,23 @@ impl Shell {
             let pan = &mut self.night.map.pan;
             pan.0 = pan.0.min(head.x - 20. / z).max(head.right() + 20. / z - vw);
             pan.1 = pan.1.min(head.y - top).max(head.bottom() + 20. / z - vh);
+            // No block left as a sliver: each wholly in view or wholly out.
+            let lay = m2.layout(l.level);
+            let blocks: Vec<map::Rect> = m2
+                .arrangement
+                .keys()
+                .filter_map(|k| m2.block(k))
+                .filter_map(|b| m2.block_rect_in(lay, b))
+                .collect();
+            let view = map::Rect::new(pan.0, pan.1, vw, vh);
+            let (dx, dy) = map::unsliver(&blocks, &view, &head, 12. / z);
+            pan.0 += dx;
+            pan.1 += dy;
             // The smallest zoom is the new map's fit, so zooming out (or ⌘0)
             // always reaches the whole map.
-            self.night.map.fit_zoom = m2.fit(w, h).0;
+            let (fz, fp) = m2.fit(w, h);
+            self.night.map.fit_zoom = fz;
+            self.night.map.fit_pan = fp;
         }
         // The dropped block settles into its place from under the pointer.
         if let Some(m2) = self.night.map.map.clone() {
@@ -2639,12 +2605,12 @@ impl Shell {
         let card = lay.card_at(mx, my).map(|c| c.item);
         let mut ends: Vec<map::Hot> = Vec::new();
         if card.is_none() {
-            let (focus, hovered) = self.brain_line_set(&m);
+            let focus = self.brain_line_set(&m);
             let z = self.night.map.zoom;
             // What the status counts is what the map says is here: a badge
             // stands for its trunk, a run for the lines along it.
             ends = lay
-                .lines_at(focus, hovered, mx, my, 6. / z, z)
+                .lines_at(focus, mx, my, 6. / z, z)
                 .iter()
                 .map(|l| l.hot())
                 .collect();
@@ -2661,17 +2627,13 @@ impl Shell {
         changed
     }
 
-    /// The card whose lines the pointer is among, and whether they are
-    /// drawn as hovered (another card is selected).
-    fn brain_line_set(&self, m: &NotesMap) -> (Option<Item>, bool) {
+    /// The card whose lines the pointer is among.
+    fn brain_line_set(&self, m: &NotesMap) -> Option<Item> {
         let level = self.night.map.level();
-        let sel = self
-            .brain_selected(m)
-            .map(|i| m.same_item(Item::Note(i), level));
-        match self.night.map.hover {
-            Some(h) => (Some(h), sel != Some(h)),
-            None => (sel, false),
-        }
+        self.night.map.hover.or_else(|| {
+            self.brain_selected(m)
+                .map(|i| m.same_item(Item::Note(i), level))
+        })
     }
 
     fn brain_item_at(&self, at: (f32, f32)) -> Option<Item> {
@@ -2683,23 +2645,23 @@ impl Shell {
     }
 
     fn brain_click(&mut self, at: (f32, f32), cx: &mut Context<Self>) {
-        // An edge chip: pan to the card it names, keeping the zoom.
-        let unit = f32::from(Look::from_app(cx).px(1.));
-        let (ox, oy, _, _) = self.night.map.view.get();
-        let (wx, wy) = (ox + at.0 * unit, oy + at.1 * unit);
-        let chip = self
-            .night
-            .map
-            .chips
-            .borrow()
-            .iter()
-            .find(|(r, _)| r.contains(wx, wy))
-            .map(|c| c.1);
-        if let (Some(item), Some(m)) = (chip, self.night.map.map.clone()) {
+        // A line to a card out of view: pan to the nearest such card,
+        // keeping the zoom.
+        if self.brain_item_at(at).is_none()
+            && let Some(m) = self.night.map.map.clone()
+        {
+            let unit = f32::from(Look::from_app(cx).px(1.));
+            let (w, h) = self.brain_view_size(unit);
+            let (z, pan) = (self.night.map.zoom, self.night.map.pan);
             let level = self.night.map.level();
-            if let Some(c) = m.layout(level).card(item) {
-                let (w, h) = self.brain_view_size(unit);
-                let z = self.night.map.zoom;
+            let lay = m.layout(level);
+            let (mx, my) = self.night.map.to_map(at);
+            let view = map::Rect::new(pan.0, pan.1, w / z, h / z);
+            let under = lay.lines_at(self.brain_line_set(&m), mx, my, 6. / z, z);
+            if let Some(item) =
+                map::nearest_out(&under, &view, (mx, my), |i| lay.card(i).map(|c| c.rect))
+                && let Some(c) = lay.card(item)
+            {
                 self.night.map.pan = (
                     c.rect.x + c.rect.w / 2. - w / 2. / z,
                     c.rect.y + c.rect.h.min(map::CARD_H * 2.) / 2. - h / 2. / z,

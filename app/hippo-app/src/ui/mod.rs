@@ -2084,6 +2084,11 @@ mod tests {
             m.fit(w / unit, h / unit).0
         });
         assert!((state(&mut vcx).0 - fitted).abs() < 0.001);
+        // Below the fit: exactly the fit, its pan included.
+        let before = root.read_with(&vcx, |s, _| (s.night.map.zoom, s.night.map.pan));
+        dispatch(&mut vcx, window, &actions::TextSmaller);
+        let after = root.read_with(&vcx, |s, _| (s.night.map.zoom, s.night.map.pan));
+        assert_eq!(before, after, "zooming out at the fit moves nothing");
     }
 
     /// Below 900 points every night view takes its narrow layout (Morning
@@ -2893,6 +2898,21 @@ mod tests {
             s.brain_drop(cx);
             let m3 = s.night.map.map.clone().unwrap();
             assert_eq!(s.night.map.zoom, z0, "the zoom stays");
+            // No block left as a sliver: each wholly in view or wholly out.
+            let z = s.night.map.zoom;
+            let pan = s.night.map.pan;
+            let v = hippo_view::night::map::Rect::new(pan.0, pan.1, w / z, h / z);
+            let lay = m3.layout(level);
+            for k in m3.arrangement.keys() {
+                let r = m3.block(k).and_then(|b| m3.block_rect_in(lay, b)).unwrap();
+                if r.h >= v.h - 30. / z || r.w >= v.w - 30. / z {
+                    continue;
+                }
+                let whole_in =
+                    r.x >= v.x && r.right() <= v.right() && r.y >= v.y && r.bottom() <= v.bottom();
+                let whole_out = !r.meets(&v);
+                assert!(whole_in || whole_out, "{k} cut by the view after a drop");
+            }
             // The floor is the new map's fit: zooming out reaches all of it.
             assert!((s.night.map.fit_zoom - m3.fit(w, h).0).abs() < 1e-4);
             assert!(
